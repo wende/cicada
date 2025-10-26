@@ -13,7 +13,7 @@ from typing import Dict, List, Any
 def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
     """
     Get file evolution scenarios for testing line mapping.
-    
+
     Returns:
         Dictionary mapping scenario names to file versions
     """
@@ -24,7 +24,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "    print('Hello')",
                 "",
                 "def world():",
-                "    print('World')"
+                "    print('World')",
             ],
             "modified": [
                 "def hello():",
@@ -35,8 +35,8 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "    print('Goodbye')",
                 "",
                 "def world():",
-                "    print('World')"
-            ]
+                "    print('World')",
+            ],
         },
         "complex_refactoring": {
             "original": [
@@ -48,7 +48,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "        return self.name",
                 "",
                 "    def set_name(self, name):",
-                "        self.name = name"
+                "        self.name = name",
             ],
             "modified": [
                 "class User:",
@@ -66,8 +66,8 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "        self.name = name",
                 "",
                 "    def set_email(self, email):",
-                "        self.email = email"
-            ]
+                "        self.email = email",
+            ],
         },
         "line_deletion": {
             "original": [
@@ -82,7 +82,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "        result.append(item * 2)",
                 "",
                 "    # Step 3: Return result",
-                "    return result"
+                "    return result",
             ],
             "modified": [
                 "def process_data(data):",
@@ -91,8 +91,8 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "        return None",
                 "",
                 "    # Step 2: Process data (simplified)",
-                "    return [item * 2 for item in data]"
-            ]
+                "    return [item * 2 for item in data]",
+            ],
         },
         "whitespace_changes": {
             "original": [
@@ -100,7 +100,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "    return text.strip().lower()",
                 "",
                 "def validate_input(value):",
-                "    return value is not None"
+                "    return value is not None",
             ],
             "modified": [
                 "def format_text(text):",
@@ -110,8 +110,8 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "    return text.strip().lower()",
                 "",
                 "def validate_input(value):",
-                "    return value is not None and value != ''"
-            ]
+                "    return value is not None and value != ''",
+            ],
         },
         "large_file_evolution": {
             "original": [
@@ -134,7 +134,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "",
                 "    def save(self, filename):",
                 "        with open(filename, 'w') as f:",
-                "            json.dump(self.data, f)"
+                "            json.dump(self.data, f)",
             ],
             "modified": [
                 "#!/usr/bin/env python3",
@@ -182,16 +182,16 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
                 "            logger.info(f'Saved {len(self.data)} items to {filename}')",
                 "        except Exception as e:",
                 "            logger.error(f'Failed to save data: {e}')",
-                "            raise"
-            ]
-        }
+                "            raise",
+            ],
+        },
     }
 
 
 def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
     """
     Get specific test cases for line mapping algorithm.
-    
+
     Returns:
         List of test case dictionaries
     """
@@ -202,7 +202,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    print('Hello')",
             "current_line": 2,
             "current_content": "    print('Hello')",
-            "should_match": True
+            "should_match": True,
         },
         {
             "name": "moved_down_by_one",
@@ -210,7 +210,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    print('Hello')",
             "current_line": 3,
             "current_content": "    print('Hello')",
-            "should_match": True
+            "should_match": True,
         },
         {
             "name": "moved_up_by_one",
@@ -218,7 +218,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    print('World')",
             "current_line": 4,
             "current_content": "    print('World')",
-            "should_match": True
+            "should_match": True,
         },
         {
             "name": "moved_within_range",
@@ -226,7 +226,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    return 'test'",
             "current_line": 6,
             "original_content": "    return 'test'",
-            "should_match": True
+            "should_match": True,
         },
         {
             "name": "deleted_line",
@@ -234,7 +234,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    # This line was deleted",
             "current_line": None,
             "current_content": None,
-            "should_match": False
+            "should_match": False,
         },
         {
             "name": "empty_line",
@@ -242,7 +242,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "",
             "current_line": None,
             "current_content": None,
-            "should_match": False
+            "should_match": False,
         },
         {
             "name": "whitespace_changed",
@@ -250,7 +250,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    print('Hello')",
             "current_line": 2,
             "current_content": "    print('Hello')  # Added comment",
-            "should_match": False
+            "should_match": False,
         },
         {
             "name": "content_changed",
@@ -258,15 +258,15 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
             "original_content": "    print('Hello')",
             "current_line": 2,
             "current_content": "    print('Goodbye')",
-            "should_match": False
-        }
+            "should_match": False,
+        },
     ]
 
 
 def get_file_content_samples() -> Dict[str, List[str]]:
     """
     Get sample file contents for various testing scenarios.
-    
+
     Returns:
         Dictionary mapping file types to content
     """
@@ -280,7 +280,7 @@ def get_file_content_samples() -> Dict[str, List[str]]:
             '    print("Hello, World!")',
             "",
             "if __name__ == '__main__':",
-            "    main()"
+            "    main()",
         ],
         "python_with_imports": [
             "import os",
@@ -302,7 +302,7 @@ def get_file_content_samples() -> Dict[str, List[str]]:
             "            print(content)",
             "",
             "if __name__ == '__main__':",
-            "    main()"
+            "    main()",
         ],
         "python_class": [
             "class Calculator:",
@@ -320,26 +320,18 @@ def get_file_content_samples() -> Dict[str, List[str]]:
             "        return result",
             "",
             "    def get_history(self):",
-            "        return self.history.copy()"
+            "        return self.history.copy()",
         ],
         "empty_file": [],
-        "single_line": [
-            "print('Hello, World!')"
-        ],
-        "whitespace_only": [
-            "",
-            "   ",
-            "\t",
-            "",
-            "  \t  "
-        ]
+        "single_line": ["print('Hello, World!')"],
+        "whitespace_only": ["", "   ", "\t", "", "  \t  "],
     }
 
 
 def get_git_show_scenarios() -> Dict[str, Dict[str, str]]:
     """
     Get scenarios for testing git show command responses.
-    
+
     Returns:
         Dictionary mapping scenario names to git show outputs
     """
@@ -347,30 +339,22 @@ def get_git_show_scenarios() -> Dict[str, Dict[str, str]]:
         "file_exists": {
             "HEAD": "def hello():\n    print('Hello')\n",
             "abc123": "def hello():\n    print('Hello, World!')\n",
-            "def456": "def hello():\n    print('Hello')\n    print('World')\n"
+            "def456": "def hello():\n    print('Hello')\n    print('World')\n",
         },
-        "file_not_found": {
-            "HEAD": "",
-            "abc123": "",
-            "def456": ""
-        },
-        "empty_file": {
-            "HEAD": "",
-            "abc123": "",
-            "def456": ""
-        },
+        "file_not_found": {"HEAD": "", "abc123": "", "def456": ""},
+        "empty_file": {"HEAD": "", "abc123": "", "def456": ""},
         "binary_file": {
             "HEAD": "Binary file content (not text)",
             "abc123": "Binary file content (not text)",
-            "def456": "Binary file content (not text)"
-        }
+            "def456": "Binary file content (not text)",
+        },
     }
 
 
 def get_ls_files_scenarios() -> Dict[str, str]:
     """
     Get scenarios for testing git ls-files command responses.
-    
+
     Returns:
         Dictionary mapping scenario names to ls-files outputs
     """
@@ -379,5 +363,5 @@ def get_ls_files_scenarios() -> Dict[str, str]:
         "file_not_found": "",
         "multiple_files": "src/main.py\nsrc/utils.py\ntests/test_main.py\ntests/test_utils.py\nREADME.md\n.gitignore",
         "single_file": "src/main.py",
-        "nested_files": "src/main.py\nsrc/utils/helpers.py\nsrc/utils/validators.py\ntests/test_main.py\ntests/utils/test_helpers.py"
+        "nested_files": "src/main.py\nsrc/utils/helpers.py\nsrc/utils/validators.py\ntests/test_main.py\ntests/utils/test_helpers.py",
     }

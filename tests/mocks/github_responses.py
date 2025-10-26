@@ -12,27 +12,23 @@ from typing import Dict, List, Any, Optional
 
 
 def create_pr_list_response(
-    count: int = 5,
-    state: str = "all",
-    start_number: int = 1
+    count: int = 5, state: str = "all", start_number: int = 1
 ) -> str:
     """
     Create a mock PR list response.
-    
+
     Args:
         count: Number of PRs to include
         state: PR state filter
         start_number: Starting PR number
-        
+
     Returns:
         JSON string of PR list
     """
     prs = []
     for i in range(count):
-        prs.append({
-            "number": start_number + i
-        })
-    
+        prs.append({"number": start_number + i})
+
     return json.dumps(prs)
 
 
@@ -40,23 +36,23 @@ def create_graphql_response(
     prs: Optional[List[Dict[str, Any]]] = None,
     include_comments: bool = True,
     include_files: bool = True,
-    include_commits: bool = True
+    include_commits: bool = True,
 ) -> str:
     """
     Create a mock GraphQL response for PR batch fetching.
-    
+
     Args:
         prs: List of PR data dictionaries
         include_comments: Whether to include review comments
         include_files: Whether to include changed files
         include_commits: Whether to include commits
-        
+
     Returns:
         JSON string of GraphQL response
     """
     if prs is None:
         prs = [create_single_pr_data()]
-    
+
     # Build repository data with PR queries
     repo_data = {}
     for i, pr in enumerate(prs):
@@ -67,11 +63,9 @@ def create_graphql_response(
             "state": pr.get("state", "MERGED"),
             "mergedAt": pr.get("mergedAt", "2023-01-01T00:00:00Z"),
             "bodyText": pr.get("bodyText", f"Description for PR #{i + 1}"),
-            "author": {
-                "login": pr.get("author", "testuser")
-            }
+            "author": {"login": pr.get("author", "testuser")},
         }
-        
+
         if include_commits:
             pr_data["commits"] = {
                 "nodes": [
@@ -81,32 +75,27 @@ def create_graphql_response(
             }
         else:
             pr_data["commits"] = {"nodes": []}
-            
+
         if include_files:
             pr_data["files"] = {
                 "nodes": [
-                    {"path": f"file{i}_{j}.py"}
-                    for j in range(pr.get("file_count", 3))
+                    {"path": f"file{i}_{j}.py"} for j in range(pr.get("file_count", 3))
                 ]
             }
         else:
             pr_data["files"] = {"nodes": []}
-            
+
         if include_comments:
             pr_data["reviewThreads"] = {
                 "nodes": create_review_threads_data(pr.get("comment_count", 2))
             }
         else:
             pr_data["reviewThreads"] = {"nodes": []}
-            
+
         repo_data[f"pr{i}"] = pr_data
-    
-    response = {
-        "data": {
-            "repository": repo_data
-        }
-    }
-    
+
+    response = {"data": {"repository": repo_data}}
+
     return json.dumps(response)
 
 
@@ -116,11 +105,11 @@ def create_rest_pr_response(
     state: str = "MERGED",
     merged: bool = True,
     author: str = "testuser",
-    body: str = "Test description"
+    body: str = "Test description",
 ) -> str:
     """
     Create a mock REST API PR response.
-    
+
     Args:
         pr_number: PR number
         title: PR title
@@ -128,7 +117,7 @@ def create_rest_pr_response(
         merged: Whether PR is merged
         author: PR author
         body: PR description
-        
+
     Returns:
         JSON string of REST response
     """
@@ -138,50 +127,44 @@ def create_rest_pr_response(
         "url": f"https://github.com/owner/repo/pull/{pr_number}",
         "state": state,
         "mergedAt": "2023-01-01T00:00:00Z" if merged else None,
-        "author": {
-            "login": author
-        },
-        "body": body
+        "author": {"login": author},
+        "body": body,
     }
-    
+
     return json.dumps(response)
 
 
 def create_review_comments_response(
-    count: int = 3,
-    file_path: str = "test.py",
-    resolved: bool = False
+    count: int = 3, file_path: str = "test.py", resolved: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Create mock review comment data.
-    
+
     Args:
         count: Number of comments to create
         file_path: File path for comments
         resolved: Whether comments are resolved
-        
+
     Returns:
         List of comment dictionaries
     """
     comments = []
     for i in range(count):
-        comments.append({
-            "id": f"comment_{i}",
-            "author": {
-                "login": f"reviewer{i}"
-            },
-            "body": f"Review comment {i}",
-            "createdAt": "2023-01-01T00:00:00Z",
-            "path": file_path,
-            "line": 10 + i,
-            "originalLine": 10 + i,
-            "diffHunk": f"@@ -10,0 +{10 + i},1 @@\n+line {10 + i}",
-            "resolved": resolved,
-            "commit": {
-                "oid": f"commit_{i}"
+        comments.append(
+            {
+                "id": f"comment_{i}",
+                "author": {"login": f"reviewer{i}"},
+                "body": f"Review comment {i}",
+                "createdAt": "2023-01-01T00:00:00Z",
+                "path": file_path,
+                "line": 10 + i,
+                "originalLine": 10 + i,
+                "diffHunk": f"@@ -10,0 +{10 + i},1 @@\n+line {10 + i}",
+                "resolved": resolved,
+                "commit": {"oid": f"commit_{i}"},
             }
-        })
-    
+        )
+
     return comments
 
 
@@ -192,11 +175,11 @@ def create_single_pr_data(
     author: str = "testuser",
     comment_count: int = 2,
     file_count: int = 3,
-    commit_count: int = 2
+    commit_count: int = 2,
 ) -> Dict[str, Any]:
     """
     Create data for a single PR.
-    
+
     Args:
         number: PR number
         title: PR title
@@ -205,7 +188,7 @@ def create_single_pr_data(
         comment_count: Number of review comments
         file_count: Number of changed files
         commit_count: Number of commits
-        
+
     Returns:
         PR data dictionary
     """
@@ -216,56 +199,50 @@ def create_single_pr_data(
         "author": author,
         "comment_count": comment_count,
         "file_count": file_count,
-        "commit_count": commit_count
+        "commit_count": commit_count,
     }
 
 
 def create_review_threads_data(comment_count: int = 2) -> List[Dict[str, Any]]:
     """
     Create mock review thread data.
-    
+
     Args:
         comment_count: Number of comments per thread
-        
+
     Returns:
         List of review thread dictionaries
     """
     return [
         {
             "isResolved": False,
-            "comments": {
-                "nodes": create_review_comments_response(comment_count)
-            }
+            "comments": {"nodes": create_review_comments_response(comment_count)},
         }
     ]
 
 
 def create_github_error_response(
-    message: str = "API rate limit exceeded",
-    status: int = 403
+    message: str = "API rate limit exceeded", status: int = 403
 ) -> str:
     """
     Create a mock GitHub API error response.
-    
+
     Args:
         message: Error message
         status: HTTP status code
-        
+
     Returns:
         JSON string of error response
     """
-    response = {
-        "message": message,
-        "documentation_url": "https://docs.github.com/rest"
-    }
-    
+    response = {"message": message, "documentation_url": "https://docs.github.com/rest"}
+
     return json.dumps(response)
 
 
 def create_empty_response() -> str:
     """
     Create an empty JSON response.
-    
+
     Returns:
         JSON string of empty array
     """
@@ -275,7 +252,7 @@ def create_empty_response() -> str:
 def create_null_response() -> str:
     """
     Create a null response.
-    
+
     Returns:
         String "null"
     """
@@ -285,7 +262,7 @@ def create_null_response() -> str:
 def create_malformed_json_response() -> str:
     """
     Create malformed JSON for testing error handling.
-    
+
     Returns:
         Malformed JSON string
     """
@@ -294,67 +271,66 @@ def create_malformed_json_response() -> str:
 
 # Complex scenario builders
 
+
 def create_large_pr_batch_response(
-    pr_count: int = 10,
-    comments_per_pr: int = 5,
-    files_per_pr: int = 8
+    pr_count: int = 10, comments_per_pr: int = 5, files_per_pr: int = 8
 ) -> str:
     """
     Create a large batch of PRs for performance testing.
-    
+
     Args:
         pr_count: Number of PRs
         comments_per_pr: Comments per PR
         files_per_pr: Files per PR
-        
+
     Returns:
         JSON string of large GraphQL response
     """
     prs = []
     for i in range(pr_count):
-        prs.append(create_single_pr_data(
-            number=i + 1,
-            comment_count=comments_per_pr,
-            file_count=files_per_pr
-        ))
-    
+        prs.append(
+            create_single_pr_data(
+                number=i + 1, comment_count=comments_per_pr, file_count=files_per_pr
+            )
+        )
+
     return create_graphql_response(prs)
 
 
 def create_pr_with_complex_comments() -> str:
     """
     Create a PR with complex comment structure.
-    
+
     Returns:
         JSON string of GraphQL response with complex comments
     """
     pr_data = create_single_pr_data(comment_count=10)
-    
+
     # Create complex review threads
     complex_threads = [
         {
             "isResolved": True,
             "comments": {
                 "nodes": create_review_comments_response(3, "resolved_file.py", True)
-            }
+            },
         },
         {
             "isResolved": False,
             "comments": {
                 "nodes": create_review_comments_response(2, "active_file.py", False)
-            }
-        }
+            },
+        },
     ]
-    
+
     pr_data["reviewThreads"] = {"nodes": complex_threads}
-    
+
     return create_graphql_response([pr_data])
 
 
 def create_pr_with_no_metadata() -> str:
     """
     Create a PR response with missing metadata fields.
-    
+
     Returns:
         JSON string of GraphQL response with missing fields
     """
@@ -368,15 +344,9 @@ def create_pr_with_no_metadata() -> str:
         "author": None,
         "commits": {"nodes": []},
         "files": {"nodes": []},
-        "reviewThreads": {"nodes": []}
+        "reviewThreads": {"nodes": []},
     }
-    
-    response = {
-        "data": {
-            "repository": {
-                "pr0": pr_data
-            }
-        }
-    }
-    
+
+    response = {"data": {"repository": {"pr0": pr_data}}}
+
     return json.dumps(response)

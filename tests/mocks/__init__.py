@@ -24,7 +24,7 @@ __all__ = [
     "MockSubprocessRunner",
     "MockCompletedProcess",
     "create_pr_list_response",
-    "create_graphql_response", 
+    "create_graphql_response",
     "create_rest_pr_response",
     "create_review_comments_response",
     "create_file_content_response",
