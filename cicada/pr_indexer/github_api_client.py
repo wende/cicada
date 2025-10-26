@@ -287,11 +287,7 @@ class GitHubAPIClient:
                         "original_line": comment_node.get("originalLine"),
                         "diff_hunk": comment_node.get("diffHunk"),
                         "resolved": is_resolved,
-                        "commit_sha": (
-                            comment_node.get("commit", {}).get("oid")
-                            if comment_node.get("commit")
-                            else None
-                        ),
+                        "commit_sha": (comment_node.get("commit") or {}).get("oid"),
                     }
                 )
 
