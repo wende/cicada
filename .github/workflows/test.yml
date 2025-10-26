@@ -23,5 +23,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
 
+    - name: Setup test fixtures
+      run: bash tests/setup_fixtures.sh
+
     - name: Run tests
       run: pytest -v
