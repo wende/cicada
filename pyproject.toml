@@ -86,3 +86,49 @@ extend-exclude = '''
   | dist
 )/
 '''
+
+[tool.basedpyright]
+pythonVersion = "3.10"
+include = ["cicada", "tests"]
+exclude = ["**/node_modules", "**/__pycache__", "**/.*"]
+ignore = []
+strict = []
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = false
+reportOptionalMemberAccess = false
+reportOptionalSubscript = false
+reportPrivateImportUsage = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnnecessaryIsInstance = false
+reportUnnecessaryComparison = false
+reportUnnecessaryContains = false
+reportImplicitStringConcatenation = false
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportUnusedVariable = true
+reportDuplicateImport = true
+reportWildcardImportFromLibrary = true
+reportAbstractUsage = true
+reportUnsupportedDunderAll = true
+reportUnusedCoroutine = true
+reportUnnecessaryTypeIgnoreComment = true
+reportMatchNotExhaustive = true
+reportUninitializedInstanceVariable = true
+reportCallInDefaultInitializer = true
+reportImplicitOverride = true
+reportIncompatibleMethodOverride = true
+reportIncompatibleVariableOverride = true
+reportInconsistentConstructor = true
+reportOverlappingOverload = true
+reportPossiblyUnboundVariable = true
+reportSelfClsParameterName = true
+reportUnusedCallResult = true
+reportUnusedExpression = true
+reportUnusedParameter = true
+reportAny = false
+reportExplicitAny = false
+reportUnannotatedClassAttribute = false
