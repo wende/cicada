@@ -51,7 +51,7 @@ def test_format_result_json():
             "author": "testuser",
             "created_at": "2024-01-01T00:00:00Z",
             "merged_at": "2024-01-02T00:00:00Z",
-        }
+        },
     }
 
     output = finder.format_result(result, "json")
@@ -75,7 +75,7 @@ def test_format_result_markdown():
             "author": "testuser",
             "created_at": "2024-01-01T00:00:00Z",
             "merged_at": "2024-01-02T00:00:00Z",
-        }
+        },
     }
 
     output = finder.format_result(result, "markdown")
@@ -88,12 +88,7 @@ def test_format_result_markdown():
 def test_format_result_no_pr():
     """Test formatting when no PR is found."""
     finder = PRFinder()
-    result = {
-        "file_path": "test.py",
-        "line_number": 10,
-        "commit": "abc123",
-        "pr": None
-    }
+    result = {"file_path": "test.py", "line_number": 10, "commit": "abc123", "pr": None}
 
     output = finder.format_result(result, "text")
     assert "PR: None" in output

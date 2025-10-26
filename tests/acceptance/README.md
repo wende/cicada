@@ -2,9 +2,25 @@
 
 Manual scripts for testing Cicada MCP server functionality.
 
-## Setup
+## Running with Pytest (Recommended)
 
-Activate the virtual environment before running tests:
+The acceptance tests are integrated with pytest for automated testing and coverage tracking:
+
+```bash
+# Run all acceptance tests
+pytest tests/test_acceptance.py -v
+
+# Run with coverage
+pytest tests/test_acceptance.py --cov=cicada --cov-report=term-missing
+```
+
+## Running Shell Scripts Manually
+
+For manual testing or debugging, you can run the shell scripts directly.
+
+### Setup
+
+Activate the virtual environment before running scripts:
 
 ```bash
 source venv/bin/activate
@@ -79,3 +95,10 @@ Test git history tracking for functions. Tracks functions even as they move with
 ```
 
 **Note:** Requires `.gitattributes` with `*.ex diff=elixir` (automatically created by `cicada`)
+
+## Pytest vs Shell Scripts
+
+- **Pytest tests** (`tests/test_acceptance.py`): Automated tests that run in CI/CD and track code coverage. Use these for regular testing and development.
+- **Shell scripts**: Manual testing tools useful for quick debugging and experimentation. They invoke the same Python code as the pytest tests.
+
+The pytest tests mirror the functionality of the shell scripts but are integrated into the test suite for better maintainability and coverage tracking.

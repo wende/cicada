@@ -43,7 +43,7 @@ def test_get_file_pr_history():
                         "line": 58,
                         "original_line": 55,
                         "resolved": True,
-                        "commit_sha": "abc123"
+                        "commit_sha": "abc123",
                     },
                     {
                         "id": "c2",
@@ -54,7 +54,7 @@ def test_get_file_pr_history():
                         "line": 92,
                         "original_line": 90,
                         "resolved": True,
-                        "commit_sha": "abc123"
+                        "commit_sha": "abc123",
                     },
                     {
                         "id": "c3",
@@ -65,9 +65,9 @@ def test_get_file_pr_history():
                         "line": 10,
                         "original_line": 10,
                         "resolved": False,
-                        "commit_sha": "abc123"
-                    }
-                ]
+                        "commit_sha": "abc123",
+                    },
+                ],
             },
             "38": {
                 "number": 38,
@@ -79,13 +79,10 @@ def test_get_file_pr_history():
                 "description": "Creates the basic User module structure",
                 "commits": ["def456"],
                 "files_changed": ["lib/user.ex"],
-                "comments": []
-            }
+                "comments": [],
+            },
         },
-        "file_to_prs": {
-            "lib/user.ex": [42, 38],
-            "lib/auth.ex": [42]
-        }
+        "file_to_prs": {"lib/user.ex": [42, 38], "lib/auth.ex": [42]},
     }
 
     # Simulate the _get_file_pr_history logic
@@ -166,7 +163,11 @@ def test_get_file_pr_history():
         ("@security-team" in result, "Shows security comment"),
         ("Line 58" in result, "Shows mapped line number"),
         ("✓ Resolved" in result, "Shows resolved marker"),
-        ("@contributor" not in result or "Review Comments" not in result.split("PR #38")[1].split("---")[0], "PR 38 has no comments section"),
+        (
+            "@contributor" not in result
+            or "Review Comments" not in result.split("PR #38")[1].split("---")[0],
+            "PR 38 has no comments section",
+        ),
     ]
 
     for passed, description in checks:
@@ -206,18 +207,14 @@ def test_pr_index_loading():
     print("\nTesting PR index loading...")
 
     # Create temporary PR index file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        test_index = {
-            "metadata": {"total_prs": 1},
-            "prs": {},
-            "file_to_prs": {}
-        }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        test_index = {"metadata": {"total_prs": 1}, "prs": {}, "file_to_prs": {}}
         json.dump(test_index, f)
         temp_path = f.name
 
     try:
         # Test loading
-        with open(temp_path, 'r') as f:
+        with open(temp_path, "r") as f:
             loaded = json.load(f)
 
         checks = [

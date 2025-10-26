@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from cicada.parser import ElixirParser
+from cicada.utils import save_index
 
 
 class ElixirIndexer:
@@ -113,10 +114,18 @@ class ElixirIndexer:
 
         # Save to file
         output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, "w") as f:
-            json.dump(index, f, indent=2)
+        # Check if .cicada directory exists (first run detection)
+        is_first_run = not output_path.parent.exists()
+
+        # On first run, add .cicada/ to .gitignore if it exists
+        if is_first_run:
+            from cicada.utils.path_utils import ensure_gitignore_has_cicada
+
+            if ensure_gitignore_has_cicada(repo_path):
+                print("✓ Added .cicada/ to .gitignore")
+
+        save_index(index, output_path, create_dirs=True)
 
         print(f"\nIndexing complete!")
         print(f"  Modules: {len(all_modules)}")

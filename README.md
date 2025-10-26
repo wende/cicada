@@ -27,7 +27,7 @@
 
 ## Overview
 
-CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence for Elixir projects. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
 
 ### Key Features
 
@@ -53,7 +53,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Using [uv](https://github.com/astral-sh/uv) for the best experience:
 
 ```bash
-# Install once (fast, permanent)
+# Latest stable release (recommended)
+uv tool install git+https://github.com/wende/cicada.git@v0.1.0
+
+# Or latest development version (may include unreleased features)
 uv tool install git+https://github.com/wende/cicada.git
 
 # Then setup in each project
@@ -73,6 +76,10 @@ Test Cicada without installation:
 
 ```bash
 cd /path/to/your/elixir/project
+# Latest stable release
+uvx --from git+https://github.com/wende/cicada.git@v0.1.0 cicada
+
+# Or latest development version
 uvx --from git+https://github.com/wende/cicada.git cicada
 ```
 
@@ -136,7 +143,7 @@ cicada-index-pr .
 
 **Migration tip:** If you have the Python version, run:
 ```bash
-uv tool install git+https://github.com/wende/cicada.git
+uv tool install git+https://github.com/wende/cicada.git@v0.1.0
 cicada  # Re-run to get optimized config
 ```
 
@@ -504,7 +511,7 @@ end
 - Incremental code re-indexing
 
 ### Long Term (Stretch Goals)
-- Multi-language support (Python, TypeScript, Rust)
+- Multi-language support (Python, TypeScript)
 - Semantic code search
 - Real-time incremental indexing
 - Web UI for exploration
@@ -563,8 +570,18 @@ pytest
 pytest tests/test_parser.py
 pytest tests/test_search_function.py
 
-# Run with coverage
+# Run with coverage (terminal report)
+pytest --cov=cicada --cov-report=term-missing
+
+# Generate HTML coverage report
 pytest --cov=cicada --cov-report=html
+# Open htmlcov/index.html in your browser
+
+# Run with coverage and see which lines need tests
+pytest --cov=cicada --cov-report=term-missing --cov-report=html
+
+# Check coverage and fail if below threshold (e.g., 80%)
+pytest --cov=cicada --cov-fail-under=80
 ```
 
 ### Code Style

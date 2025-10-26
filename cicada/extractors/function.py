@@ -88,9 +88,9 @@ def _parse_function_definition(
                     break
             break
         elif arg_child.type == "identifier":
-            func_name = source_code[
-                arg_child.start_byte : arg_child.end_byte
-            ].decode("utf-8")
+            func_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                "utf-8"
+            )
             arity = 0
             arg_names = []
             break
