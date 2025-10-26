@@ -23,6 +23,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
 
+    - name: Clone test fixture
+      run: |
+        git clone https://github.com/wende/ab tests/fixtures/elixir_project
+
     - name: Run tests with coverage
       run: make ci-test
 

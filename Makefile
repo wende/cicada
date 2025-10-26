@@ -64,7 +64,7 @@ pre-commit:
 
 # Run tests in CI environment (without venv activation)
 ci-test: setup-fixtures
-	@pytest -v --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	@pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
