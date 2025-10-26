@@ -62,7 +62,8 @@ class PRIndexer:
 
         try:
             # Get list of PR numbers
-            pr_numbers = self.api_client.fetch_pr_list(state=state, limit=10000)
+            # Use a very high limit to ensure we don't miss PRs in large repos
+            pr_numbers = self.api_client.fetch_pr_list(state=state, limit=100000)
             print(f"Found {len(pr_numbers)} pull requests")
 
             # Fetch detailed PR info in batches
@@ -170,7 +171,8 @@ class PRIndexer:
 
         try:
             # Fetch all PRs and filter for ones < min_pr
-            all_prs = self.api_client.fetch_pr_list(state="all", limit=10000)
+            # Use a very high limit to ensure we don't miss older PRs in large repos
+            all_prs = self.api_client.fetch_pr_list(state="all", limit=100000)
             older = sorted(
                 [pr_num for pr_num in all_prs if pr_num < min_pr],
                 reverse=True,  # Descending order

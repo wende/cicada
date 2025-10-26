@@ -130,7 +130,7 @@ class TestFetchAllPRs:
         prs = mock_indexer.fetch_all_prs(state="merged")
 
         mock_indexer.api_client.fetch_pr_list.assert_called_once_with(
-            state="merged", limit=10000
+            state="merged", limit=100000
         )
 
     def test_fetch_all_prs_batch_processing(self, mock_indexer):

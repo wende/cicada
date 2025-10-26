@@ -217,7 +217,12 @@ def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
             stripped = line.strip()
             if stripped and not stripped.startswith("#"):
                 # Check if this line contains .cicada as a gitignore pattern
-                if ".cicada" in stripped:
+                # Valid patterns: .cicada, .cicada/, /.cicada, /.cicada/, **/.cicada/, etc.
+                if (
+                    stripped in (".cicada", ".cicada/")
+                    or stripped.endswith("/.cicada")
+                    or stripped.endswith("/.cicada/")
+                ):
                     return False
 
         # Add .cicada/ to .gitignore

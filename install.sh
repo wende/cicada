@@ -36,8 +36,12 @@ if [ -d "$INSTALL_DIR" ]; then
     cd "$INSTALL_DIR"
     git fetch --tags
     LATEST_TAG=$(git describe --tags --abbrev=0)
-    echo "Checking out latest release: $LATEST_TAG"
-    git checkout "$LATEST_TAG"
+    if [ -n "$LATEST_TAG" ]; then
+        echo "Checking out latest release: $LATEST_TAG"
+        git checkout "$LATEST_TAG"
+    else
+        echo "No tags found, staying on current branch"
+    fi
 else
     echo "Downloading cicada..."
     git clone "$GITHUB_URL" "$INSTALL_DIR"
