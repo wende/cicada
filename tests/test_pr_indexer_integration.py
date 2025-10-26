@@ -5,11 +5,6 @@ Integration test for PR indexer with GraphQL batching and comment mapping.
 Tests the enhanced PR indexer functionality without requiring actual GitHub data.
 """
 
-import json
-import tempfile
-from pathlib import Path
-from cicada.pr_indexer import PRIndexer
-
 
 def test_index_structure():
     """Test that the index has the correct structure with mock data."""

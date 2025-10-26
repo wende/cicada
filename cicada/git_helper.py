@@ -151,6 +151,7 @@ class GitHelper:
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
         """
         commits = []
+        import subprocess
 
         # Determine tracking mode
         use_function_tracking = function_name is not None
@@ -179,8 +180,6 @@ class GitHelper:
             ]
 
             # Run command in repo directory
-            import subprocess
-
             result = subprocess.run(
                 cmd, cwd=str(self.repo_path), capture_output=True, text=True, check=True
             )
@@ -351,9 +350,9 @@ class GitHelper:
             - lines: List of {number, content} for each line
         """
         blame_groups = []
+        import subprocess
 
         try:
-            import subprocess
 
             # Use git blame with line range
             cmd = [
@@ -571,7 +570,7 @@ class GitHelper:
 
         # Search through the last 500 commits
         for commit in self.repo.iter_commits(max_count=500):
-            if query_lower in commit.message.lower():
+            if query_lower in str(commit.message).lower():
                 results.append(
                     {
                         "sha": commit.hexsha[:8],

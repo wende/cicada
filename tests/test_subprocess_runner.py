@@ -5,7 +5,7 @@ Comprehensive tests for cicada/utils/subprocess_runner.py
 import pytest
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from cicada.utils.subprocess_runner import (
     SubprocessRunner,
     run_git_command,
@@ -82,7 +82,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         runner = SubprocessRunner(cwd=tmp_path)
-        runner.run(["ls"])
+        _ = runner.run(["ls"])
 
         assert calls[0] == tmp_path
 
@@ -95,7 +95,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
         runner = SubprocessRunner(verbose=True)
-        runner.run(["echo", "test"])
+        _ = runner.run(["echo", "test"])
 
         captured = capsys.readouterr()
         assert "Command output" in captured.err
@@ -109,7 +109,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
         runner = SubprocessRunner(verbose=True)
-        runner.run(["echo", "test"])
+        _ = runner.run(["echo", "test"])
 
         captured = capsys.readouterr()
         assert captured.err == ""
@@ -128,7 +128,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         runner = SubprocessRunner()
-        runner.run(["ls"], capture_output=False)
+        _ = runner.run(["ls"], capture_output=False)
 
         assert calls[0] is False
 
@@ -146,7 +146,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         runner = SubprocessRunner()
-        runner.run(["ls"], text=False)
+        _ = runner.run(["ls"], text=False)
 
         assert calls[0] is False
 
@@ -183,7 +183,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         runner = SubprocessRunner()
-        runner.run(["sleep", "1"], timeout=5)
+        _ = runner.run(["sleep", "1"], timeout=5)
 
         assert calls[0] == 5
 
@@ -376,7 +376,7 @@ class TestSubprocessRunner:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         runner = SubprocessRunner()
-        runner.run_gh_command("pr list", check=False)
+        _ = runner.run_gh_command("pr list", check=False)
 
         assert calls[0] is False
 
@@ -415,7 +415,7 @@ class TestConvenienceFunctions:
 
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        run_git_command("status", cwd=tmp_path)
+        _ = run_git_command("status", cwd=tmp_path)
 
         assert calls[0] == tmp_path
 
@@ -432,7 +432,7 @@ class TestConvenienceFunctions:
 
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        run_git_command("status", check=False)
+        _ = run_git_command("status", check=False)
 
         assert calls[0] is False
 
@@ -480,7 +480,7 @@ class TestConvenienceFunctions:
 
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        run_gh_command("pr list", cwd=tmp_path)
+        _ = run_gh_command("pr list", cwd=tmp_path)
 
         assert calls[0] == tmp_path
 
@@ -497,7 +497,7 @@ class TestConvenienceFunctions:
 
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        run_gh_command("pr list", check=False)
+        _ = run_gh_command("pr list", check=False)
 
         assert calls[0] is False
 
@@ -509,7 +509,7 @@ class TestConvenienceFunctions:
 
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
-        run_gh_command("pr list", verbose=True)
+        _ = run_gh_command("pr list", verbose=True)
 
         captured = capsys.readouterr()
         assert "GH output" in captured.err
