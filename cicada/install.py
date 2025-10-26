@@ -55,6 +55,7 @@ def install_cicada(target_dir, github_url=None):
     # In this case, the cicada module is already available
     try:
         import cicada.mcp_server
+
         # Get the site-packages or installation directory
         package_path = Path(cicada.mcp_server.__file__).parent.parent
         print(f"✓ Using installed cicada package")
@@ -81,7 +82,10 @@ def install_cicada(target_dir, github_url=None):
         print(f"✓ Downloaded cicada to {target_path}")
     else:
         print("Error: cicada not found and no GitHub URL provided", file=sys.stderr)
-        print("Hint: Run with --github-url https://github.com/wende/cicada.git", file=sys.stderr)
+        print(
+            "Hint: Run with --github-url https://github.com/wende/cicada.git",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     return target_path, False
@@ -204,10 +208,10 @@ def detect_installation_method():
     # uvx uses temporary environments, so we should NOT use cicada-server
     # even if it's temporarily in PATH
     uvx_indicators = [
-        '/.cache/uv/',
-        '/tmp/',
-        'tmpdir',
-        'temp',
+        "/.cache/uv/",
+        "/tmp/",
+        "tmpdir",
+        "temp",
         # On some systems uvx might use other temp locations
     ]
 
@@ -221,27 +225,25 @@ def detect_installation_method():
             str(python_bin),
             [str(cicada_dir / "cicada" / "mcp_server.py")],
             str(cicada_dir),
-            "uvx (one-time run, using Python paths)"
+            "uvx (one-time run, using Python paths)",
         )
 
     # Check if running from a uv tools directory (permanent install)
-    if '.local/share/uv/tools' in script_path_str or '.local/bin/cicada-' in script_path_str:
+    if (
+        ".local/share/uv/tools" in script_path_str
+        or ".local/bin/cicada-" in script_path_str
+    ):
         # Installed via uv tool install
         return (
             "cicada-server",
             [],
             None,
-            "uv tool install (ensure ~/.local/bin is in PATH)"
+            "uv tool install (ensure ~/.local/bin is in PATH)",
         )
 
     # Check if cicada-server is in PATH (from uv tool install)
-    if shutil.which('cicada-server'):
-        return (
-            "cicada-server",
-            [],
-            None,
-            "uv tool install (permanent, fast)"
-        )
+    if shutil.which("cicada-server"):
+        return ("cicada-server", [], None, "uv tool install (permanent, fast)")
 
     # Fall back to python with full path
     python_bin = sys.executable
@@ -251,7 +253,7 @@ def detect_installation_method():
         str(python_bin),
         [str(cicada_dir / "cicada" / "mcp_server.py")],
         str(cicada_dir),
-        "direct python (tip: install with 'uv tool install .' for faster startup)"
+        "direct python (tip: install with 'uv tool install .' for faster startup)",
     )
 
 
@@ -339,10 +341,7 @@ def create_gitattributes(repo_path):
     repo_path = Path(repo_path).resolve()
     gitattributes_path = repo_path / ".gitattributes"
 
-    elixir_patterns = [
-        "*.ex diff=elixir",
-        "*.exs diff=elixir"
-    ]
+    elixir_patterns = ["*.ex diff=elixir", "*.exs diff=elixir"]
 
     # Read existing .gitattributes if present
     existing_lines = []
@@ -351,9 +350,7 @@ def create_gitattributes(repo_path):
             existing_lines = [line.rstrip() for line in f.readlines()]
 
     # Check if elixir patterns already exist
-    has_elixir = any(
-        pattern in existing_lines for pattern in elixir_patterns
-    )
+    has_elixir = any(pattern in existing_lines for pattern in elixir_patterns)
 
     if has_elixir:
         print(f"✓ .gitattributes already has Elixir patterns")

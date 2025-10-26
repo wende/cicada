@@ -119,14 +119,18 @@ class PRIndexer:
 
             try:
                 for i in range(0, len(pr_numbers), batch_size):
-                    batch = pr_numbers[i:i + batch_size]
-                    print(f"  Fetching batch {i//batch_size + 1}/{total_batches} ({len(batch)} PRs)...")
+                    batch = pr_numbers[i : i + batch_size]
+                    print(
+                        f"  Fetching batch {i//batch_size + 1}/{total_batches} ({len(batch)} PRs)..."
+                    )
 
                     batch_prs = self._fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
 
             except KeyboardInterrupt:
-                print(f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/{len(pr_numbers)} PRs.")
+                print(
+                    f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/{len(pr_numbers)} PRs."
+                )
                 print("Saving partial index...")
                 # Return what we have so far
                 return detailed_prs
@@ -155,7 +159,8 @@ class PRIndexer:
         # We'll query each PR individually within the same request
         pr_queries = []
         for i, num in enumerate(pr_numbers):
-            pr_queries.append(f'''
+            pr_queries.append(
+                f"""
                 pr{i}: pullRequest(number: {num}) {{
                     number
                     title
@@ -191,15 +196,16 @@ class PRIndexer:
                         }}
                     }}
                 }}
-            ''')
+            """
+            )
 
-        query = f'''
+        query = f"""
             query {{
                 repository(owner: "{self.repo_owner}", name: "{self.repo_name}") {{
                     {' '.join(pr_queries)}
                 }}
             }}
-        '''
+        """
 
         try:
             result = subprocess.run(
@@ -227,8 +233,7 @@ class PRIndexer:
 
                 # Extract files
                 files = [
-                    node["path"]
-                    for node in pr_data.get("files", {}).get("nodes", [])
+                    node["path"] for node in pr_data.get("files", {}).get("nodes", [])
                 ]
 
                 # Extract and flatten review thread comments
@@ -242,20 +247,26 @@ class PRIndexer:
                         if comment_node.get("path") and comment_node.get("commit"):
                             # We'll map the line in a separate pass to avoid slowing down the fetch
                             # For now, just store the original data
-                            mapped_line = comment_node.get("line")  # Will be updated later
+                            mapped_line = comment_node.get(
+                                "line"
+                            )  # Will be updated later
 
-                        comments.append({
-                            "id": comment_node.get("id"),
-                            "author": comment_node.get("author", {}).get("login", "unknown"),
-                            "body": comment_node.get("body", ""),
-                            "created_at": comment_node.get("createdAt"),
-                            "path": comment_node.get("path"),
-                            "line": mapped_line,  # Current line (to be mapped)
-                            "original_line": comment_node.get("originalLine"),
-                            "diff_hunk": comment_node.get("diffHunk"),
-                            "resolved": is_resolved,  # Thread-level resolution status
-                            "commit_sha": comment_node.get("commit", {}).get("oid"),
-                        })
+                        comments.append(
+                            {
+                                "id": comment_node.get("id"),
+                                "author": comment_node.get("author", {}).get(
+                                    "login", "unknown"
+                                ),
+                                "body": comment_node.get("body", ""),
+                                "created_at": comment_node.get("createdAt"),
+                                "path": comment_node.get("path"),
+                                "line": mapped_line,  # Current line (to be mapped)
+                                "original_line": comment_node.get("originalLine"),
+                                "diff_hunk": comment_node.get("diffHunk"),
+                                "resolved": is_resolved,  # Thread-level resolution status
+                                "commit_sha": comment_node.get("commit", {}).get("oid"),
+                            }
+                        )
 
                 detailed_pr = {
                     "number": pr_data["number"],
@@ -280,7 +291,9 @@ class PRIndexer:
             raise RuntimeError(f"GraphQL query failed for PRs {pr_numbers}: {e.stderr}")
         except (json.JSONDecodeError, KeyError) as e:
             # Failed to parse response - crash with clear error message
-            raise RuntimeError(f"Failed to parse GraphQL response for PRs {pr_numbers}: {e}")
+            raise RuntimeError(
+                f"Failed to parse GraphQL response for PRs {pr_numbers}: {e}"
+            )
 
     def _fetch_pr_rest(self, pr_number: int) -> Dict[str, Any]:
         """
@@ -298,7 +311,14 @@ class PRIndexer:
         # Fetch PR metadata
         try:
             result = subprocess.run(
-                ["gh", "pr", "view", str(pr_number), "--json", "number,title,url,state,mergedAt,author,body"],
+                [
+                    "gh",
+                    "pr",
+                    "view",
+                    str(pr_number),
+                    "--json",
+                    "number,title,url,state,mergedAt,author,body",
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -413,7 +433,9 @@ class PRIndexer:
             # If we can't fetch files, return empty list
             return []
 
-    def build_index(self, prs: List[Dict[str, Any]], preserve_last_pr: Optional[int] = None) -> Dict[str, Any]:
+    def build_index(
+        self, prs: List[Dict[str, Any]], preserve_last_pr: Optional[int] = None
+    ) -> Dict[str, Any]:
         """
         Build the index structure from PR data.
 
@@ -474,7 +496,9 @@ class PRIndexer:
             # Calculate from PRs (for complete fetches)
             index["metadata"]["last_pr_number"] = max(pr["number"] for pr in prs)
 
-        print(f"Index built: {len(prs)} PRs, {len(commit_to_pr)} commits, {len(file_to_prs)} files, {total_comments} comments")
+        print(
+            f"Index built: {len(prs)} PRs, {len(commit_to_pr)} commits, {len(file_to_prs)} files, {total_comments} comments"
+        )
         return index
 
     def load_existing_index(self, index_path: str) -> Optional[Dict[str, Any]]:
@@ -522,7 +546,9 @@ class PRIndexer:
         max_pr = max(existing_pr_numbers)
         total_prs_in_repo = self._get_total_pr_count()
 
-        print(f"Performing incremental update (index range: #{min_pr}-#{max_pr}, repo has {total_prs_in_repo} PRs)...")
+        print(
+            f"Performing incremental update (index range: #{min_pr}-#{max_pr}, repo has {total_prs_in_repo} PRs)..."
+        )
 
         # Step 1: Fetch NEWER PRs (> max_pr)
         newer_pr_numbers = []
@@ -591,7 +617,7 @@ class PRIndexer:
                 # Filter for PRs below min_pr and sort descending
                 older_pr_numbers = sorted(
                     [pr["number"] for pr in all_prs if pr["number"] < min_pr],
-                    reverse=True  # Descending order (newest-first among older PRs)
+                    reverse=True,  # Descending order (newest-first among older PRs)
                 )
 
             except subprocess.CalledProcessError as e:
@@ -607,7 +633,9 @@ class PRIndexer:
 
         print(f"Found {len(newer_pr_numbers)} newer PRs", end="")
         if older_pr_numbers:
-            print(f" and {len(older_pr_numbers)} older PRs to fetch (going downward from #{min_pr})")
+            print(
+                f" and {len(older_pr_numbers)} older PRs to fetch (going downward from #{min_pr})"
+            )
         else:
             print()
 
@@ -621,23 +649,31 @@ class PRIndexer:
                 newer_batches = (len(newer_pr_numbers) + batch_size - 1) // batch_size
                 print(f"\n⬆️  Fetching {len(newer_pr_numbers)} newer PRs...")
                 for i in range(0, len(newer_pr_numbers), batch_size):
-                    batch = newer_pr_numbers[i:i + batch_size]
-                    print(f"  Batch {i//batch_size + 1}/{newer_batches} ({len(batch)} PRs)...")
+                    batch = newer_pr_numbers[i : i + batch_size]
+                    print(
+                        f"  Batch {i//batch_size + 1}/{newer_batches} ({len(batch)} PRs)..."
+                    )
                     batch_prs = self._fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
 
             # Then fetch older PRs (going downward)
             if older_pr_numbers:
                 older_batches = (len(older_pr_numbers) + batch_size - 1) // batch_size
-                print(f"\n⬇️  Fetching {len(older_pr_numbers)} older PRs (going downward from #{min_pr})...")
+                print(
+                    f"\n⬇️  Fetching {len(older_pr_numbers)} older PRs (going downward from #{min_pr})..."
+                )
                 for i in range(0, len(older_pr_numbers), batch_size):
-                    batch = older_pr_numbers[i:i + batch_size]
-                    print(f"  Batch {i//batch_size + 1}/{older_batches} ({len(batch)} PRs)...")
+                    batch = older_pr_numbers[i : i + batch_size]
+                    print(
+                        f"  Batch {i//batch_size + 1}/{older_batches} ({len(batch)} PRs)..."
+                    )
                     batch_prs = self._fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
 
         except KeyboardInterrupt:
-            print(f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/{len(all_to_fetch)} PRs.")
+            print(
+                f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/{len(all_to_fetch)} PRs."
+            )
             print("Saving partial index...")
             return detailed_prs
 
@@ -694,7 +730,9 @@ class PRIndexer:
         merged["file_to_prs"] = file_to_prs
 
         # Count total comments
-        total_comments = sum(len(pr.get("comments", [])) for pr in merged["prs"].values())
+        total_comments = sum(
+            len(pr.get("comments", [])) for pr in merged["prs"].values()
+        )
 
         # Update metadata (use partial_index's last_pr_number which was preserved)
         merged["metadata"]["last_indexed_at"] = datetime.now().isoformat()
@@ -702,9 +740,13 @@ class PRIndexer:
         merged["metadata"]["total_commits_mapped"] = len(commit_to_pr)
         merged["metadata"]["total_comments"] = total_comments
         merged["metadata"]["total_files"] = len(file_to_prs)
-        merged["metadata"]["last_pr_number"] = partial_index["metadata"].get("last_pr_number", 0)
+        merged["metadata"]["last_pr_number"] = partial_index["metadata"].get(
+            "last_pr_number", 0
+        )
 
-        print(f"Merged: {len(merged['prs'])} total PRs ({len(partial_index['prs'])} new/updated)")
+        print(
+            f"Merged: {len(merged['prs'])} total PRs ({len(partial_index['prs'])} new/updated)"
+        )
         return merged
 
     def merge_indexes(
@@ -746,7 +788,9 @@ class PRIndexer:
         existing_index["file_to_prs"] = file_to_prs
 
         # Count total comments
-        total_comments = sum(len(pr.get("comments", [])) for pr in existing_index["prs"].values())
+        total_comments = sum(
+            len(pr.get("comments", [])) for pr in existing_index["prs"].values()
+        )
 
         # Update metadata
         existing_index["metadata"]["last_indexed_at"] = datetime.now().isoformat()
@@ -887,7 +931,9 @@ class PRIndexer:
                         unmapped_count += 1
 
         except KeyboardInterrupt:
-            print(f"\n\n⚠️  Line mapping interrupted. Mapped {mapped_count}/{total_comments} comments.")
+            print(
+                f"\n\n⚠️  Line mapping interrupted. Mapped {mapped_count}/{total_comments} comments."
+            )
             print("Saving index with partial line mappings...")
             # Re-raise to let the outer handler save the index
             raise
@@ -922,7 +968,11 @@ class PRIndexer:
         """
         # Load existing index to preserve last_pr_number if clean build is interrupted
         existing_index = self.load_existing_index(output_path)
-        old_last_pr = existing_index.get("metadata", {}).get("last_pr_number", 0) if existing_index else 0
+        old_last_pr = (
+            existing_index.get("metadata", {}).get("last_pr_number", 0)
+            if existing_index
+            else 0
+        )
 
         if incremental:
             if existing_index:
@@ -1063,7 +1113,9 @@ def main():
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
-        print("Partial index may have been saved. Run again to continue or use --incremental.")
+        print(
+            "Partial index may have been saved. Run again to continue or use --incremental."
+        )
         sys.exit(130)  # Standard exit code for SIGINT
 
     except Exception as e:

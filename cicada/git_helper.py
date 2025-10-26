@@ -50,27 +50,27 @@ class GitHelper:
 
         try:
             # Get commits that touched this file
-            for commit in self.repo.iter_commits(paths=file_path, max_count=max_commits):
-                commits.append({
-                    'sha': commit.hexsha[:8],  # Short SHA
-                    'full_sha': commit.hexsha,
-                    'author': str(commit.author),
-                    'author_email': commit.author.email,
-                    'date': commit.committed_datetime.isoformat(),
-                    'message': commit.message.strip(),
-                    'summary': commit.summary
-                })
+            for commit in self.repo.iter_commits(
+                paths=file_path, max_count=max_commits
+            ):
+                commits.append(
+                    {
+                        "sha": commit.hexsha[:8],  # Short SHA
+                        "full_sha": commit.hexsha,
+                        "author": str(commit.author),
+                        "author_email": commit.author.email,
+                        "date": commit.committed_datetime.isoformat(),
+                        "message": commit.message.strip(),
+                        "summary": commit.summary,
+                    }
+                )
         except Exception as e:
             print(f"Error getting history for {file_path}: {e}")
 
         return commits
 
     def get_function_history(
-        self,
-        file_path: str,
-        function_name: str,
-        line_number: int,
-        max_commits: int = 5
+        self, file_path: str, function_name: str, line_number: int, max_commits: int = 5
     ) -> List[Dict]:
         """
         Get commit history for a specific function
@@ -100,12 +100,12 @@ class GitHelper:
         relevant_commits = []
         for commit in file_commits:
             # Include if function name in commit message
-            if function_name.lower() in commit['message'].lower():
-                commit['relevance'] = 'mentioned'
+            if function_name.lower() in commit["message"].lower():
+                commit["relevance"] = "mentioned"
                 relevant_commits.append(commit)
             # Or if it's a recent commit to the file
             elif len(relevant_commits) < max_commits:
-                commit['relevance'] = 'file_change'
+                commit["relevance"] = "file_change"
                 relevant_commits.append(commit)
 
             if len(relevant_commits) >= max_commits:
@@ -119,7 +119,7 @@ class GitHelper:
         start_line: Optional[int] = None,
         end_line: Optional[int] = None,
         function_name: Optional[str] = None,
-        max_commits: int = 5
+        max_commits: int = 5,
     ) -> List[Dict]:
         """
         Get precise commit history for a function using git log -L.
@@ -164,46 +164,46 @@ class GitHelper:
             # Build git log -L command
             if use_function_tracking:
                 # Try function-based tracking first: git log -L :funcname:file
-                line_spec = f':{function_name}:{file_path}'
+                line_spec = f":{function_name}:{file_path}"
             else:
                 # Use line-based tracking: git log -L start,end:file
-                line_spec = f'{start_line},{end_line}:{file_path}'
+                line_spec = f"{start_line},{end_line}:{file_path}"
 
             cmd = [
-                'git', 'log',
-                f'-L{line_spec}',
-                f'--max-count={max_commits}',
-                '--format=%H|%an|%ae|%aI|%s',
-                '--no-patch'  # Don't show diffs, just commits
+                "git",
+                "log",
+                f"-L{line_spec}",
+                f"--max-count={max_commits}",
+                "--format=%H|%an|%ae|%aI|%s",
+                "--no-patch",  # Don't show diffs, just commits
             ]
 
             # Run command in repo directory
             import subprocess
+
             result = subprocess.run(
-                cmd,
-                cwd=str(self.repo_path),
-                capture_output=True,
-                text=True,
-                check=True
+                cmd, cwd=str(self.repo_path), capture_output=True, text=True, check=True
             )
 
             # Parse output
-            for line in result.stdout.strip().split('\n'):
-                if not line or line.startswith('diff'):
+            for line in result.stdout.strip().split("\n"):
+                if not line or line.startswith("diff"):
                     continue
 
-                parts = line.split('|')
+                parts = line.split("|")
                 if len(parts) >= 5:
                     full_sha = parts[0]
-                    commits.append({
-                        'sha': full_sha[:8],
-                        'full_sha': full_sha,
-                        'author': parts[1],
-                        'author_email': parts[2],
-                        'date': parts[3],
-                        'summary': parts[4],
-                        'message': parts[4]  # Summary for now, can enhance later
-                    })
+                    commits.append(
+                        {
+                            "sha": full_sha[:8],
+                            "full_sha": full_sha,
+                            "author": parts[1],
+                            "author_email": parts[2],
+                            "date": parts[3],
+                            "summary": parts[4],
+                            "message": parts[4],  # Summary for now, can enhance later
+                        }
+                    )
 
         except subprocess.CalledProcessError as e:
             # git log -L failed
@@ -211,12 +211,14 @@ class GitHelper:
 
             # If function tracking failed and we have line numbers, try fallback
             if use_function_tracking and start_line and end_line:
-                print(f"Function tracking failed for {function_name}, falling back to line tracking")
+                print(
+                    f"Function tracking failed for {function_name}, falling back to line tracking"
+                )
                 return self.get_function_history_precise(
                     file_path,
                     start_line=start_line,
                     end_line=end_line,
-                    max_commits=max_commits
+                    max_commits=max_commits,
                 )
             else:
                 print(f"Warning: git log -L failed for {file_path}: {error_msg}")
@@ -233,7 +235,7 @@ class GitHelper:
         file_path: str,
         start_line: Optional[int] = None,
         end_line: Optional[int] = None,
-        function_name: Optional[str] = None
+        function_name: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Get evolution metadata for a function (creation, last modification, change count).
@@ -265,7 +267,7 @@ class GitHelper:
                 start_line=start_line,
                 end_line=end_line,
                 function_name=function_name,
-                max_commits=1000  # Get all commits
+                max_commits=1000,  # Get all commits
             )
 
             if not commits:
@@ -281,36 +283,41 @@ class GitHelper:
             if len(commits) > 1:
                 try:
                     from datetime import datetime
-                    first_date = datetime.fromisoformat(created_at['date'])
-                    last_date = datetime.fromisoformat(last_modified['date'])
+
+                    first_date = datetime.fromisoformat(created_at["date"])
+                    last_date = datetime.fromisoformat(last_modified["date"])
                     days_between = (last_date - first_date).days
 
                     if days_between > 0:
                         months = days_between / 30.0
-                        modification_frequency = total_modifications / months if months > 0 else total_modifications
+                        modification_frequency = (
+                            total_modifications / months
+                            if months > 0
+                            else total_modifications
+                        )
                 except Exception:
                     # If date parsing fails, skip frequency calculation
                     pass
 
             return {
-                'created_at': {
-                    'sha': created_at['sha'],
-                    'full_sha': created_at['full_sha'],
-                    'date': created_at['date'],
-                    'author': created_at['author'],
-                    'author_email': created_at['author_email'],
-                    'message': created_at['summary']
+                "created_at": {
+                    "sha": created_at["sha"],
+                    "full_sha": created_at["full_sha"],
+                    "date": created_at["date"],
+                    "author": created_at["author"],
+                    "author_email": created_at["author_email"],
+                    "message": created_at["summary"],
                 },
-                'last_modified': {
-                    'sha': last_modified['sha'],
-                    'full_sha': last_modified['full_sha'],
-                    'date': last_modified['date'],
-                    'author': last_modified['author'],
-                    'author_email': last_modified['author_email'],
-                    'message': last_modified['summary']
+                "last_modified": {
+                    "sha": last_modified["sha"],
+                    "full_sha": last_modified["full_sha"],
+                    "date": last_modified["date"],
+                    "author": last_modified["author"],
+                    "author_email": last_modified["author_email"],
+                    "message": last_modified["summary"],
                 },
-                'total_modifications': total_modifications,
-                'modification_frequency': modification_frequency
+                "total_modifications": total_modifications,
+                "modification_frequency": modification_frequency,
             }
 
         except Exception as e:
@@ -318,10 +325,7 @@ class GitHelper:
             return None
 
     def get_function_blame(
-        self,
-        file_path: str,
-        start_line: int,
-        end_line: int
+        self, file_path: str, start_line: int, end_line: int
     ) -> List[Dict]:
         """
         Get line-by-line authorship for a function using git blame.
@@ -353,25 +357,22 @@ class GitHelper:
 
             # Use git blame with line range
             cmd = [
-                'git', 'blame',
-                f'-L{start_line},{end_line}',
-                '--porcelain',  # Machine-readable format
-                file_path
+                "git",
+                "blame",
+                f"-L{start_line},{end_line}",
+                "--porcelain",  # Machine-readable format
+                file_path,
             ]
 
             result = subprocess.run(
-                cmd,
-                cwd=str(self.repo_path),
-                capture_output=True,
-                text=True,
-                check=True
+                cmd, cwd=str(self.repo_path), capture_output=True, text=True, check=True
             )
 
             # Parse porcelain format
             lines_data = []
             current_commit = {}
 
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if not line:
                     continue
 
@@ -380,83 +381,92 @@ class GitHelper:
                     parts = line.split()
                     if len(parts) >= 3:
                         current_commit = {
-                            'sha': parts[0][:8],
-                            'full_sha': parts[0],
-                            'line_number': int(parts[2])
+                            "sha": parts[0][:8],
+                            "full_sha": parts[0],
+                            "line_number": int(parts[2]),
                         }
                 # Author name
-                elif line.startswith('author '):
-                    current_commit['author'] = line[7:]
+                elif line.startswith("author "):
+                    current_commit["author"] = line[7:]
                 # Author email
-                elif line.startswith('author-mail '):
-                    email = line[12:].strip('<>')
-                    current_commit['author_email'] = email
+                elif line.startswith("author-mail "):
+                    email = line[12:].strip("<>")
+                    current_commit["author_email"] = email
                 # Author time
-                elif line.startswith('author-time '):
+                elif line.startswith("author-time "):
                     try:
                         timestamp = int(line[12:])
-                        current_commit['date'] = datetime.fromtimestamp(timestamp).isoformat()
+                        current_commit["date"] = datetime.fromtimestamp(
+                            timestamp
+                        ).isoformat()
                     except:
-                        current_commit['date'] = line[12:]
+                        current_commit["date"] = line[12:]
                 # Actual code line (starts with tab)
-                elif line.startswith('\t'):
+                elif line.startswith("\t"):
                     code_line = line[1:]  # Remove leading tab
-                    line_info = {
-                        **current_commit,
-                        'content': code_line
-                    }
+                    line_info = {**current_commit, "content": code_line}
                     lines_data.append(line_info)
 
             # Group consecutive lines by same author and commit
             if lines_data:
                 current_group = {
-                    'author': lines_data[0]['author'],
-                    'author_email': lines_data[0]['author_email'],
-                    'sha': lines_data[0]['sha'],
-                    'full_sha': lines_data[0]['full_sha'],
-                    'date': lines_data[0]['date'],
-                    'line_start': lines_data[0]['line_number'],
-                    'line_end': lines_data[0]['line_number'],
-                    'lines': [{
-                        'number': lines_data[0]['line_number'],
-                        'content': lines_data[0]['content']
-                    }]
+                    "author": lines_data[0]["author"],
+                    "author_email": lines_data[0]["author_email"],
+                    "sha": lines_data[0]["sha"],
+                    "full_sha": lines_data[0]["full_sha"],
+                    "date": lines_data[0]["date"],
+                    "line_start": lines_data[0]["line_number"],
+                    "line_end": lines_data[0]["line_number"],
+                    "lines": [
+                        {
+                            "number": lines_data[0]["line_number"],
+                            "content": lines_data[0]["content"],
+                        }
+                    ],
                 }
 
                 for line_info in lines_data[1:]:
                     # Same author and commit? Extend current group
-                    if (line_info['author'] == current_group['author'] and
-                        line_info['sha'] == current_group['sha']):
-                        current_group['line_end'] = line_info['line_number']
-                        current_group['lines'].append({
-                            'number': line_info['line_number'],
-                            'content': line_info['content']
-                        })
+                    if (
+                        line_info["author"] == current_group["author"]
+                        and line_info["sha"] == current_group["sha"]
+                    ):
+                        current_group["line_end"] = line_info["line_number"]
+                        current_group["lines"].append(
+                            {
+                                "number": line_info["line_number"],
+                                "content": line_info["content"],
+                            }
+                        )
                     else:
                         # Different author/commit - save current group and start new one
-                        current_group['line_count'] = len(current_group['lines'])
+                        current_group["line_count"] = len(current_group["lines"])
                         blame_groups.append(current_group)
                         current_group = {
-                            'author': line_info['author'],
-                            'author_email': line_info['author_email'],
-                            'sha': line_info['sha'],
-                            'full_sha': line_info['full_sha'],
-                            'date': line_info['date'],
-                            'line_start': line_info['line_number'],
-                            'line_end': line_info['line_number'],
-                            'lines': [{
-                                'number': line_info['line_number'],
-                                'content': line_info['content']
-                            }]
+                            "author": line_info["author"],
+                            "author_email": line_info["author_email"],
+                            "sha": line_info["sha"],
+                            "full_sha": line_info["full_sha"],
+                            "date": line_info["date"],
+                            "line_start": line_info["line_number"],
+                            "line_end": line_info["line_number"],
+                            "lines": [
+                                {
+                                    "number": line_info["line_number"],
+                                    "content": line_info["content"],
+                                }
+                            ],
                         }
 
                 # Add the last group
-                current_group['line_count'] = len(current_group['lines'])
+                current_group["line_count"] = len(current_group["lines"])
                 blame_groups.append(current_group)
 
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr if e.stderr else str(e)
-            print(f"Warning: git blame failed for {file_path}:{start_line}-{end_line}: {error_msg}")
+            print(
+                f"Warning: git blame failed for {file_path}:{start_line}-{end_line}: {error_msg}"
+            )
             return []
         except Exception as e:
             print(f"Error getting blame for {file_path}: {e}")
@@ -484,14 +494,16 @@ class GitHelper:
                 # Can't get stats (e.g., initial commit, shallow clone)
                 files_changed = 0
 
-            commits.append({
-                'sha': commit.hexsha[:8],
-                'full_sha': commit.hexsha,
-                'author': str(commit.author),
-                'date': commit.committed_datetime.isoformat(),
-                'message': commit.summary,
-                'files_changed': files_changed
-            })
+            commits.append(
+                {
+                    "sha": commit.hexsha[:8],
+                    "full_sha": commit.hexsha,
+                    "author": str(commit.author),
+                    "date": commit.committed_datetime.isoformat(),
+                    "message": commit.summary,
+                    "files_changed": files_changed,
+                }
+            )
 
         return commits
 
@@ -520,8 +532,8 @@ class GitHelper:
             # Try to get stats, but handle errors for initial/incomplete commits
             try:
                 files_changed = list(commit.stats.files.keys())
-                insertions = commit.stats.total['insertions']
-                deletions = commit.stats.total['deletions']
+                insertions = commit.stats.total["insertions"]
+                deletions = commit.stats.total["deletions"]
             except Exception:
                 # Can't get stats (e.g., initial commit, shallow clone)
                 files_changed = []
@@ -529,15 +541,15 @@ class GitHelper:
                 deletions = 0
 
             return {
-                'sha': commit.hexsha[:8],
-                'full_sha': commit.hexsha,
-                'author': str(commit.author),
-                'author_email': commit.author.email,
-                'date': commit.committed_datetime.isoformat(),
-                'message': commit.message.strip(),
-                'files_changed': files_changed,
-                'insertions': insertions,
-                'deletions': deletions
+                "sha": commit.hexsha[:8],
+                "full_sha": commit.hexsha,
+                "author": str(commit.author),
+                "author_email": commit.author.email,
+                "date": commit.committed_datetime.isoformat(),
+                "message": commit.message.strip(),
+                "files_changed": files_changed,
+                "insertions": insertions,
+                "deletions": deletions,
             }
         except Exception as e:
             print(f"Error getting commit {commit_sha}: {e}")
@@ -560,13 +572,15 @@ class GitHelper:
         # Search through the last 500 commits
         for commit in self.repo.iter_commits(max_count=500):
             if query_lower in commit.message.lower():
-                results.append({
-                    'sha': commit.hexsha[:8],
-                    'full_sha': commit.hexsha,
-                    'author': str(commit.author),
-                    'date': commit.committed_datetime.isoformat(),
-                    'message': commit.summary
-                })
+                results.append(
+                    {
+                        "sha": commit.hexsha[:8],
+                        "full_sha": commit.hexsha,
+                        "author": str(commit.author),
+                        "date": commit.committed_datetime.isoformat(),
+                        "message": commit.summary,
+                    }
+                )
 
                 if len(results) >= max_results:
                     break
@@ -599,12 +613,12 @@ def main():
             print(f"    by {commit['author']} ({commit['files_changed']} files)")
 
         print("\n🔍 Searching for 'README' in commits:")
-        for commit in helper.search_commits('README', 3):
+        for commit in helper.search_commits("README", 3):
             print(f"  {commit['sha']} - {commit['message']}")
 
         # Try to get history for a known file
         print("\n📁 Testing file history:")
-        test_files = ['README.md', 'pyproject.toml', 'cicada/mcp_server.py']
+        test_files = ["README.md", "pyproject.toml", "cicada/mcp_server.py"]
         for test_file in test_files:
             history = helper.get_file_history(test_file, max_commits=3)
             if history:
@@ -623,5 +637,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

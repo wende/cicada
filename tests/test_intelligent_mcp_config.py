@@ -34,11 +34,7 @@ def test_detection():
         server_config["cwd"] = cwd
     server_config["env"] = {"CICADA_REPO_PATH": "/path/to/project"}
 
-    mcp_config = {
-        "mcpServers": {
-            "cicada": server_config
-        }
-    }
+    mcp_config = {"mcpServers": {"cicada": server_config}}
 
     print(json.dumps(mcp_config, indent=2))
     print("-" * 60)
@@ -73,7 +69,7 @@ def test_detection():
             "name": "✨ Scenario 1: After 'uv tool install .'",
             "check": "cicada-server in PATH",
             "result": "Command: cicada-server (optimal)",
-            "config": {"command": "cicada-server"}
+            "config": {"command": "cicada-server"},
         },
         {
             "name": "📦 Scenario 2: Running from source",
@@ -82,19 +78,15 @@ def test_detection():
             "config": {
                 "command": "python",
                 "args": ["/path/to/cicada/cicada/mcp_server.py"],
-                "cwd": "/path/to/cicada"
-            }
+                "cwd": "/path/to/cicada",
+            },
         },
         {
             "name": "⚡ Scenario 3: After 'uvx cicada-setup'",
             "check": "Temporary uvx environment",
             "result": "Falls back to Python (one-time run)",
-            "config": {
-                "command": "python",
-                "args": ["..."],
-                "cwd": "..."
-            }
-        }
+            "config": {"command": "python", "args": ["..."], "cwd": "..."},
+        },
     ]
 
     for scenario in scenarios:
