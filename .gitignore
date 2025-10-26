@@ -39,6 +39,15 @@ ENV/
 # pytest
 .pytest_cache/
 
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+coverage.json
+coverage_acceptance.json
+
 # mypy
 .mypy_cache/
 
@@ -49,5 +58,7 @@ data/
 config.yaml
 test_config.yaml
 
-# Test fixtures
+# Test fixtures - local-only test projects
 tests/fixtures/elixir_project
+tests/fixtures/test_project
+.env
