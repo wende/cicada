@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cicada.png" alt="CICADA Logo" width="400"/>
+<img src="public/cicada.png" alt="CICADA Logo" width="400"/>
 
 # CICADA
 
@@ -28,6 +28,19 @@
 ## Overview
 
 CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><b>Without CICADA</b></td>
+      <td align="center"><b>With CICADA</b></td>
+    </tr>
+    <tr>
+      <td><img src="public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
+      <td><img src="public/cicada-demo-extended-clean-trimmed copy.gif" alt="Demo with CICADA" width="450"/></td>
+    </tr>
+  </table>
+</div>
 
 ### Key Features
 

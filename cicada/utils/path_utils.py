@@ -35,7 +35,9 @@ def normalize_file_path(
         path_str = path_str.strip()
 
     if strip_leading_dot:
-        path_str = path_str.lstrip("./")
+        # Remove leading './' prefix (not individual '.' or '/' characters)
+        while path_str.startswith("./"):
+            path_str = path_str[2:]
 
     return path_str
 

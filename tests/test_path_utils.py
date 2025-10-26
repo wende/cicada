@@ -76,9 +76,9 @@ class TestNormalizeFilePath:
         assert result == "lib/user.ex"
 
     def test_normalize_absolute_path(self):
-        """Test normalizing an absolute path (leading / gets stripped)"""
+        """Test normalizing an absolute path (leading / is preserved)"""
         result = normalize_file_path("/repo/lib/user.ex")
-        assert result == "repo/lib/user.ex"
+        assert result == "/repo/lib/user.ex"
 
     def test_normalize_empty_string(self):
         """Test normalizing an empty string"""

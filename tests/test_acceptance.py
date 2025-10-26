@@ -34,21 +34,21 @@ async def server(config_path):
 @pytest.mark.asyncio
 async def test_search_module_basic(server):
     """Test basic module search functionality."""
-    result = await server._search_module("AB.Generators", "markdown")
+    result = await server._search_module("TestApp", "markdown")
     assert len(result) > 0
     text = result[0].text
-    assert "AB.Generators" in text
+    assert "TestApp" in text
     assert text.strip()  # Should have content
 
 
 @pytest.mark.asyncio
 async def test_search_module_includes_moduledoc(server):
     """Test that moduledoc is displayed when searching for modules."""
-    result = await server._search_module("AB.Generators", "markdown")
+    result = await server._search_module("TestApp", "markdown")
     assert len(result) > 0
     text = result[0].text
     # Should contain module documentation
-    assert "AB.Generators" in text
+    assert "TestApp" in text
     # Verify it's actually showing documentation content, not just the name
     assert len(text) > 50  # Should be substantial
 

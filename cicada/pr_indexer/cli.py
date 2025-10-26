@@ -47,7 +47,7 @@ def main():
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
         print(
-            "Partial index may have been saved. Run again to continue or use --incremental."
+            "Partial index may have been saved. Run again to continue (incremental by default)."
         )
         sys.exit(130)  # Standard exit code for SIGINT
 

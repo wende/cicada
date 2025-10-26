@@ -58,5 +58,6 @@ data/
 config.yaml
 test_config.yaml
 
-# Test fixtures
+# Test fixtures - local-only test projects
 tests/fixtures/elixir_project
+tests/fixtures/test_project

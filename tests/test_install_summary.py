@@ -77,7 +77,7 @@ class TestPrintSetupSummary:
         assert "✓ gitignored" in captured.out
         # Should not show warning since both are gitignored
         assert "⚠️" not in captured.out
-        assert "echo -e" not in captured.out  # No command should be shown
+        assert "printf" not in captured.out  # No command should be shown
 
     def test_shows_warning_if_mcp_json_not_gitignored(self, tmp_path, capsys):
         """Test shows warning when .mcp.json is not gitignored"""
@@ -102,7 +102,7 @@ class TestPrintSetupSummary:
         assert "Warning: The following should be in .gitignore:" in captured.out
         assert ".mcp.json" in captured.out
         assert "local configuration" in captured.out
-        assert "echo -e" in captured.out  # Command should be shown
+        assert "printf" in captured.out  # Command should be shown
 
     def test_handles_missing_gitignore(self, tmp_path, capsys):
         """Test handles case when .gitignore doesn't exist"""
@@ -124,7 +124,7 @@ class TestPrintSetupSummary:
         assert "⚠️" in captured.out
         assert ".cicada/" in captured.out
         assert ".mcp.json" in captured.out
-        assert "echo -e" in captured.out  # Command should be shown
+        assert "printf" in captured.out  # Command should be shown
 
     def test_only_shows_existing_files(self, tmp_path, capsys):
         """Test only shows files that actually exist"""
@@ -180,7 +180,7 @@ class TestPrintSetupSummary:
         assert "Warning: The following should be in .gitignore:" in captured.out
         assert ".cicada/" in captured.out
         assert "build artifacts and cache" in captured.out
-        assert "echo -e" in captured.out  # Command should be shown
+        assert "printf" in captured.out  # Command should be shown
 
     def test_shows_warning_for_both_if_neither_gitignored(self, tmp_path, capsys):
         """Test shows warning for both files when neither is gitignored"""
@@ -207,7 +207,7 @@ class TestPrintSetupSummary:
         assert ".mcp.json" in captured.out
         assert "build artifacts and cache" in captured.out
         assert "local configuration" in captured.out
-        assert "echo -e" in captured.out
+        assert "printf" in captured.out
         # Both should be in the command
         assert ".cicada/" in captured.out
         assert ".mcp.json" in captured.out
@@ -232,11 +232,11 @@ class TestPrintSetupSummary:
         # Check output
         captured = capsys.readouterr()
         # Command should be present and properly formatted
-        assert "echo -e" in captured.out
+        assert "printf" in captured.out
         assert ">> .gitignore" in captured.out
         # Check that it contains both items separated by \n
         lines = captured.out.split("\n")
-        command_lines = [line for line in lines if "echo -e" in line]
+        command_lines = [line for line in lines if "printf" in line]
         assert len(command_lines) == 1
         command = command_lines[0]
         assert ".cicada/" in command

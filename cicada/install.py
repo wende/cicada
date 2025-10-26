@@ -548,7 +548,7 @@ def print_setup_summary(repo_path, index_path):
         print()
         print(f"{YELLOW}Add them to .gitignore with this command:{RESET}")
         items_with_newlines = "\\n".join(needs_gitignore)
-        print(f"  echo -e '\\n{items_with_newlines}' >> .gitignore")
+        print(f"  printf '\\n{items_with_newlines}\\n' >> .gitignore")
         print()
 
 

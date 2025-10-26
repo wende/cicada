@@ -123,7 +123,7 @@ class LineMapper:
 
             if not original_content:
                 # Empty line, can't track reliably
-                return original_line  # Return original as best guess
+                return None
 
             # Search for the same content in current file
             # Look for exact match near the original line number
