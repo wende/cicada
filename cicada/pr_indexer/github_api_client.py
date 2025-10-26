@@ -71,7 +71,9 @@ class GitHubAPIClient:
 
             parts = name_with_owner.split("/")
             if len(parts) != 2:
-                raise RuntimeError("Not a GitHub repository")
+                raise RuntimeError(
+                    f"Invalid repository format. Expected owner/repo, got: {name_with_owner}"
+                )
             
             owner, repo_name = parts
             return owner, repo_name
