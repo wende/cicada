@@ -75,7 +75,7 @@ Using [uv](https://github.com/astral-sh/uv) for the best experience:
 
 ```bash
 # Latest stable release (recommended)
-uv tool install git+https://github.com/wende/cicada.git@v0.1.0
+uv tool install git+https://github.com/wende/cicada.git@v0.1.1
 
 # Or latest development version (may include unreleased features)
 uv tool install git+https://github.com/wende/cicada.git
@@ -98,7 +98,7 @@ Test Cicada without installation:
 ```bash
 cd /path/to/your/elixir/project
 # Latest stable release
-uvx --from git+https://github.com/wende/cicada.git@v0.1.0 cicada
+uvx --from git+https://github.com/wende/cicada.git@v0.1.1 cicada
 
 # Or latest development version
 uvx --from git+https://github.com/wende/cicada.git cicada
@@ -164,7 +164,7 @@ cicada-index-pr .
 
 **Migration tip:** If you have the Python version, run:
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.0
+uv tool install git+https://github.com/wende/cicada.git@v0.1.1
 cicada  # Re-run to get optimized config
 ```
 
@@ -510,7 +510,7 @@ end
 
 ## Roadmap
 
-### v0.1.0 (Released - October 2025) ✅
+### v0.1.1 (Released - October 2025) ✅
 - Module and function search
 - Call site tracking with alias resolution
 - PR attribution via git blame + GitHub
