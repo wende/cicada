@@ -21,7 +21,8 @@ async def test_aliased_calls():
 
     # Override index to use test index
     import json
-    with open("data/test_index.json", 'r') as f:
+
+    with open("data/test_index.json", "r") as f:
         server.index = json.load(f)
 
     print("Testing aliased call resolution...\n")

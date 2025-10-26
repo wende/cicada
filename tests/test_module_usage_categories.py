@@ -19,7 +19,9 @@ def test_parser_extracts_all_categories():
     parser = ElixirParser()
 
     # Parse the AB module which has examples of all categories
-    test_file = Path(__file__).parent / "fixtures" / "test_module_with_usage_categories.ex"
+    test_file = (
+        Path(__file__).parent / "fixtures" / "test_module_with_usage_categories.ex"
+    )
     modules = parser.parse_file(str(test_file))
 
     assert modules is not None
@@ -100,7 +102,9 @@ def test_formatter_displays_categories():
     }
 
     # Format as markdown
-    result = ModuleFormatter.format_module_usage_markdown("AB.TypeParser", usage_results)
+    result = ModuleFormatter.format_module_usage_markdown(
+        "AB.TypeParser", usage_results
+    )
 
     # Verify all sections are present
     assert "# Usage of `AB.TypeParser`" in result
@@ -126,7 +130,14 @@ def test_formatter_displays_categories():
 def test_formatter_json_output():
     """Test that the JSON formatter includes all categories."""
     usage_results = {
-        "aliases": [{"importing_module": "Mod1", "alias_name": "A", "full_module": "Test", "file": "f1.ex"}],
+        "aliases": [
+            {
+                "importing_module": "Mod1",
+                "alias_name": "A",
+                "full_module": "Test",
+                "file": "f1.ex",
+            }
+        ],
         "imports": [{"importing_module": "Mod2", "file": "f2.ex"}],
         "requires": [{"importing_module": "Mod3", "file": "f3.ex"}],
         "uses": [{"importing_module": "Mod4", "file": "f4.ex"}],
@@ -201,5 +212,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

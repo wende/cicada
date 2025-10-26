@@ -17,6 +17,7 @@ from mcp.types import Tool, TextContent
 from cicada.formatter import ModuleFormatter
 from cicada.pr_finder import PRFinder
 from cicada.git_helper import GitHelper
+from cicada.utils import load_index
 
 
 class CicadaServer:
@@ -56,14 +57,13 @@ class CicadaServer:
         """Load the index from JSON file."""
         index_path = Path(self.config["storage"]["index_path"])
 
-        if not index_path.exists():
+        try:
+            return load_index(index_path, raise_on_error=True)
+        except FileNotFoundError:
             raise FileNotFoundError(
                 f"Index file not found: {index_path}\n"
                 f"Run 'python indexer.py <path>' to create an index first."
             )
-
-        with open(index_path, "r") as f:
-            return json.load(f)
 
     def _load_pr_index(self) -> dict:
         """Load the PR index from JSON file."""
@@ -71,16 +71,7 @@ class CicadaServer:
         repo_path = Path(self.config.get("repository", {}).get("path", "."))
         pr_index_path = repo_path / ".cicada" / "pr_index.json"
 
-        if not pr_index_path.exists():
-            print(f"Warning: PR index not found at {pr_index_path}", file=sys.stderr)
-            return None
-
-        try:
-            with open(pr_index_path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not load PR index: {e}", file=sys.stderr)
-            return None
+        return load_index(pr_index_path, verbose=True, raise_on_error=False)
 
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
@@ -433,7 +424,9 @@ class CicadaServer:
                     error_msg = f"Could not find module in file: {file_path}"
                     return [TextContent(type="text", text=error_msg)]
 
-            return await self._search_module(module_name, output_format, private_functions)
+            return await self._search_module(
+                module_name, output_format, private_functions
+            )
         elif name == "search_function":
             function_name = arguments.get("function_name")
             output_format = arguments.get("format", "markdown")
@@ -495,8 +488,13 @@ class CicadaServer:
                     return [TextContent(type="text", text=error_msg)]
 
             return await self._get_file_history(
-                file_path, function_name, start_line, end_line,
-                precise_tracking, show_evolution, max_commits
+                file_path,
+                function_name,
+                start_line,
+                end_line,
+                precise_tracking,
+                show_evolution,
+                max_commits,
             )
         elif name == "get_function_blame":
             file_path = arguments.get("file_path")
@@ -549,7 +547,10 @@ class CicadaServer:
         return None
 
     async def _search_module(
-        self, module_name: str, output_format: str = "markdown", private_functions: str = "exclude"
+        self,
+        module_name: str,
+        output_format: str = "markdown",
+        private_functions: str = "exclude",
     ) -> list[TextContent]:
         """Search for a module and return its information."""
         # Exact match lookup
@@ -557,9 +558,13 @@ class CicadaServer:
             data = self.index["modules"][module_name]
 
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(module_name, data, private_functions)
+                result = ModuleFormatter.format_module_json(
+                    module_name, data, private_functions
+                )
             else:
-                result = ModuleFormatter.format_module_markdown(module_name, data, private_functions)
+                result = ModuleFormatter.format_module_markdown(
+                    module_name, data, private_functions
+                )
 
             return [TextContent(type="text", text=result)]
 
@@ -771,7 +776,11 @@ class CicadaServer:
                                 "function": call["function"],
                                 "arity": call["arity"],
                                 "lines": [],
-                                "alias_used": call_module if call_module != resolved_module else None,
+                                "alias_used": (
+                                    call_module
+                                    if call_module != resolved_module
+                                    else None
+                                ),
                             }
 
                         module_calls[func_key]["lines"].append(call["line"])
@@ -788,7 +797,9 @@ class CicadaServer:
 
         # Format results
         if output_format == "json":
-            result = ModuleFormatter.format_module_usage_json(module_name, usage_results)
+            result = ModuleFormatter.format_module_usage_json(
+                module_name, usage_results
+            )
         else:
             result = ModuleFormatter.format_module_usage_markdown(
                 module_name, usage_results
@@ -865,14 +876,14 @@ class CicadaServer:
         # Dedent: strip common leading whitespace
         if extracted_lines:
             # Find minimum indentation (excluding empty/whitespace-only lines)
-            min_indent = float('inf')
+            min_indent = float("inf")
             for line in extracted_lines:
                 if line.strip():  # Skip empty/whitespace-only lines
                     leading_spaces = len(line) - len(line.lstrip())
                     min_indent = min(min_indent, leading_spaces)
 
             # Strip the common indentation from all lines
-            if min_indent != float('inf') and min_indent > 0:
+            if min_indent != float("inf") and min_indent > 0:
                 dedented_lines = []
                 for line in extracted_lines:
                     if len(line) >= min_indent:
@@ -1092,7 +1103,9 @@ class CicadaServer:
                     use_index=False,
                     verbose=False,
                 )
-                network_result = pr_finder_network.find_pr_for_line(file_path, line_number)
+                network_result = pr_finder_network.find_pr_for_line(
+                    file_path, line_number
+                )
 
                 if network_result.get("pr") is not None:
                     # PR exists but not in index - suggest update
@@ -1148,7 +1161,9 @@ class CicadaServer:
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
         """
         if not self.git_helper:
-            error_msg = "Git history is not available (repository may not be a git repo)"
+            error_msg = (
+                "Git history is not available (repository may not be a git repo)"
+            )
             return [TextContent(type="text", text=error_msg)]
 
         try:
@@ -1164,7 +1179,7 @@ class CicadaServer:
                     start_line=start_line,
                     end_line=end_line,
                     function_name=function_name,
-                    max_commits=max_commits
+                    max_commits=max_commits,
                 )
                 title = f"Git History for {function_name} in {file_path}"
                 tracking_method = "function"
@@ -1175,7 +1190,7 @@ class CicadaServer:
                         file_path,
                         start_line=start_line,
                         end_line=end_line,
-                        function_name=function_name
+                        function_name=function_name,
                     )
 
             elif start_line and end_line:
@@ -1184,16 +1199,14 @@ class CicadaServer:
                     file_path,
                     start_line=start_line,
                     end_line=end_line,
-                    max_commits=max_commits
+                    max_commits=max_commits,
                 )
                 title = f"Git History for {file_path} (lines {start_line}-{end_line})"
                 tracking_method = "line"
 
                 if show_evolution:
                     evolution = self.git_helper.get_function_evolution(
-                        file_path,
-                        start_line=start_line,
-                        end_line=end_line
+                        file_path, start_line=start_line, end_line=end_line
                     )
             else:
                 # File-level history
@@ -1209,23 +1222,35 @@ class CicadaServer:
 
             # Add tracking method info
             if tracking_method == "function":
-                lines.append("*Using function tracking (git log -L :funcname:file) - tracks function even as it moves*\n")
+                lines.append(
+                    "*Using function tracking (git log -L :funcname:file) - tracks function even as it moves*\n"
+                )
             elif tracking_method == "line":
-                lines.append("*Using line-based tracking (git log -L start,end:file)*\n")
+                lines.append(
+                    "*Using line-based tracking (git log -L start,end:file)*\n"
+                )
 
             # Add evolution metadata if available
             if evolution:
                 lines.append("## Function Evolution\n")
-                created = evolution['created_at']
-                modified = evolution['last_modified']
+                created = evolution["created_at"]
+                modified = evolution["last_modified"]
 
-                lines.append(f"- **Created:** {created['date'][:10]} by {created['author']} (commit `{created['sha']}`)")
-                lines.append(f"- **Last Modified:** {modified['date'][:10]} by {modified['author']} (commit `{modified['sha']}`)")
-                lines.append(f"- **Total Modifications:** {evolution['total_modifications']} commit(s)")
+                lines.append(
+                    f"- **Created:** {created['date'][:10]} by {created['author']} (commit `{created['sha']}`)"
+                )
+                lines.append(
+                    f"- **Last Modified:** {modified['date'][:10]} by {modified['author']} (commit `{modified['sha']}`)"
+                )
+                lines.append(
+                    f"- **Total Modifications:** {evolution['total_modifications']} commit(s)"
+                )
 
-                if evolution.get('modification_frequency'):
-                    freq = evolution['modification_frequency']
-                    lines.append(f"- **Modification Frequency:** {freq:.2f} commits/month")
+                if evolution.get("modification_frequency"):
+                    freq = evolution["modification_frequency"]
+                    lines.append(
+                        f"- **Modification Frequency:** {freq:.2f} commits/month"
+                    )
 
                 lines.append("")  # Empty line
 
@@ -1234,17 +1259,25 @@ class CicadaServer:
             for i, commit in enumerate(commits, 1):
                 lines.append(f"## {i}. {commit['summary']}")
                 lines.append(f"- **Commit:** `{commit['sha']}`")
-                lines.append(f"- **Author:** {commit['author']} ({commit['author_email']})")
+                lines.append(
+                    f"- **Author:** {commit['author']} ({commit['author_email']})"
+                )
                 lines.append(f"- **Date:** {commit['date']}")
 
                 # Add relevance indicator for function searches
-                if 'relevance' in commit:
-                    relevance_emoji = "🎯" if commit['relevance'] == 'mentioned' else "📝"
-                    relevance_text = "Function mentioned" if commit['relevance'] == 'mentioned' else "File changed"
+                if "relevance" in commit:
+                    relevance_emoji = (
+                        "🎯" if commit["relevance"] == "mentioned" else "📝"
+                    )
+                    relevance_text = (
+                        "Function mentioned"
+                        if commit["relevance"] == "mentioned"
+                        else "File changed"
+                    )
                     lines.append(f"- **Relevance:** {relevance_emoji} {relevance_text}")
 
                 # Add full commit message if it's different from summary
-                if commit['message'] != commit['summary']:
+                if commit["message"] != commit["summary"]:
                     lines.append(f"\n**Full message:**\n```\n{commit['message']}\n```")
 
                 lines.append("")  # Empty line between commits
@@ -1257,10 +1290,7 @@ class CicadaServer:
             return [TextContent(type="text", text=error_msg)]
 
     async def _get_function_blame(
-        self,
-        file_path: str,
-        start_line: int,
-        end_line: int
+        self, file_path: str, start_line: int, end_line: int
     ) -> list[TextContent]:
         """
         Get line-by-line authorship for a code section using git blame.
@@ -1292,10 +1322,16 @@ class CicadaServer:
 
             for i, group in enumerate(blame_groups, 1):
                 # Group header
-                line_range = f"lines {group['line_start']}-{group['line_end']}" if group['line_start'] != group['line_end'] else f"line {group['line_start']}"
+                line_range = (
+                    f"lines {group['line_start']}-{group['line_end']}"
+                    if group["line_start"] != group["line_end"]
+                    else f"line {group['line_start']}"
+                )
                 lines.append(f"## Group {i}: {group['author']} ({line_range})")
 
-                lines.append(f"- **Author:** {group['author']} ({group['author_email']})")
+                lines.append(
+                    f"- **Author:** {group['author']} ({group['author_email']})"
+                )
                 lines.append(f"- **Commit:** `{group['sha']}`")
                 lines.append(f"- **Date:** {group['date'][:10]}")
                 lines.append(f"- **Lines:** {group['line_count']}\n")
@@ -1303,7 +1339,7 @@ class CicadaServer:
                 # Show code lines
                 lines.append("**Code:**")
                 lines.append("```elixir")
-                for line_info in group['lines']:
+                for line_info in group["lines"]:
                     # Show line number and content
                     lines.append(f"{line_info['content']}")
                 lines.append("```\n")
@@ -1341,7 +1377,9 @@ class CicadaServer:
             try:
                 file_path_obj = file_path_obj.relative_to(repo_path)
             except ValueError:
-                error_msg = f"File path {file_path} is not within repository {repo_path}"
+                error_msg = (
+                    f"File path {file_path} is not within repository {repo_path}"
+                )
                 return [TextContent(type="text", text=error_msg)]
 
         file_path_str = str(file_path_obj)
@@ -1381,16 +1419,15 @@ class CicadaServer:
                 if len(desc_lines) > 10:
                     trimmed_desc = "\n".join(desc_lines[:10])
                     lines.append(f"{trimmed_desc}")
-                    lines.append(f"\n*... (trimmed, {len(desc_lines) - 10} more lines)*\n")
+                    lines.append(
+                        f"\n*... (trimmed, {len(desc_lines) - 10} more lines)*\n"
+                    )
                 else:
                     lines.append(f"{description}\n")
 
             # Review Comments for this file only
             comments = pr.get("comments", [])
-            file_comments = [
-                c for c in comments
-                if c.get("path") == file_path_str
-            ]
+            file_comments = [c for c in comments if c.get("path") == file_path_str]
 
             if file_comments:
                 lines.append(f"### Review Comments ({len(file_comments)})")

@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from cicada.utils import load_index
+
 
 class PRFinder:
     """Find the PR that introduced a specific line of code."""
@@ -45,7 +47,10 @@ class PRFinder:
                 print(f"Loaded PR index with {self.index['metadata']['total_prs']} PRs")
             elif not self.index:
                 # Always show warning (even in non-verbose mode) with color
-                print(f"\033[33m⚠️  No PR index found - using slower network lookups. Create index: python cicada/pr_indexer.py\033[0m", file=sys.stderr)
+                print(
+                    f"\033[33m⚠️  No PR index found - using slower network lookups. Create index: python cicada/pr_indexer.py\033[0m",
+                    file=sys.stderr,
+                )
 
         # Only validate gh CLI if we might need it (no index or index disabled)
         if not self.use_index or not self.index:
@@ -83,16 +88,7 @@ class PRFinder:
         if not index_file.is_absolute():
             index_file = self.repo_path / self.index_path
 
-        if not index_file.exists():
-            return None
-
-        try:
-            with open(index_file, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            if self.verbose:
-                print(f"Warning: Could not load PR index: {e}")
-            return None
+        return load_index(index_file, verbose=self.verbose, raise_on_error=False)
 
     def _lookup_pr_in_index(self, commit_sha: str) -> Optional[Dict[str, Any]]:
         """

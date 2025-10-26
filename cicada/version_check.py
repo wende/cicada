@@ -103,9 +103,13 @@ def check_for_updates() -> None:
             yellow = "\033[93m"
             reset = "\033[0m"
 
-            print(f"{yellow}⚠️  A newer version of cicada is available: v{latest} (current: v{current}){reset}")
+            print(
+                f"{yellow}⚠️  A newer version of cicada is available: v{latest} (current: v{current}){reset}"
+            )
             print(f"{yellow}   To update, run:{reset}")
-            print(f"{yellow}   uv tool install git+https://github.com/wende/cicada.git{reset}")
+            print(
+                f"{yellow}   uv tool install git+https://github.com/wende/cicada.git{reset}"
+            )
             print()
 
     except Exception:

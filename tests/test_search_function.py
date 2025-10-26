@@ -21,7 +21,8 @@ async def test_search_function():
 
     # Override index to use test index
     import json
-    with open("data/test_index.json", 'r') as f:
+
+    with open("data/test_index.json", "r") as f:
         server.index = json.load(f)
 
     print("Testing search_function tool...\n")
@@ -29,10 +30,7 @@ async def test_search_function():
     # Test 1: Search for create_user with usage examples
     print("Test 1: Search for 'create_user' with usage examples")
     result = await server._search_function(
-        "create_user",
-        "markdown",
-        include_usage_examples=True,
-        max_examples=3
+        "create_user", "markdown", include_usage_examples=True, max_examples=3
     )
     print(result[0].text)
     print()

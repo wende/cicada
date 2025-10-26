@@ -6,6 +6,7 @@ Downloads the tool, indexes the repository, and creates .mcp.json configuration.
 """
 
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -54,9 +55,9 @@ def install_cicada(target_dir, github_url=None):
     # Check if we're running from an installed package (pip/uvx)
     # In this case, the cicada module is already available
     try:
-        import cicada.mcp_server
+        mcp_server_module = importlib.import_module("cicada.mcp_server")
         # Get the site-packages or installation directory
-        package_path = Path(cicada.mcp_server.__file__).parent.parent
+        package_path = Path(mcp_server_module.__file__).parent.parent
         print(f"✓ Using installed cicada package")
         return package_path, True  # Already installed
     except ImportError:
@@ -81,7 +82,10 @@ def install_cicada(target_dir, github_url=None):
         print(f"✓ Downloaded cicada to {target_path}")
     else:
         print("Error: cicada not found and no GitHub URL provided", file=sys.stderr)
-        print("Hint: Run with --github-url https://github.com/wende/cicada.git", file=sys.stderr)
+        print(
+            "Hint: Run with --github-url https://github.com/wende/cicada.git",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     return target_path, False
@@ -171,8 +175,18 @@ def index_repository(cicada_dir, python_bin, repo_path, fetch_pr_info=False):
     repo_path = Path(repo_path).resolve()
     output_path = repo_path / ".cicada" / "index.json"
 
+    # Check if .cicada directory exists (first run detection)
+    is_first_run = not output_path.parent.exists()
+
     # Create .cicada directory
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # On first run, add .cicada/ to .gitignore if it exists
+    if is_first_run:
+        from cicada.utils.path_utils import ensure_gitignore_has_cicada
+
+        if ensure_gitignore_has_cicada(repo_path):
+            print("✓ Added .cicada/ to .gitignore")
 
     # Run indexer
     indexer_script = cicada_dir / "cicada" / "indexer.py"
@@ -204,10 +218,10 @@ def detect_installation_method():
     # uvx uses temporary environments, so we should NOT use cicada-server
     # even if it's temporarily in PATH
     uvx_indicators = [
-        '/.cache/uv/',
-        '/tmp/',
-        'tmpdir',
-        'temp',
+        "/.cache/uv/",
+        "/tmp/",
+        "tmpdir",
+        "temp",
         # On some systems uvx might use other temp locations
     ]
 
@@ -221,27 +235,25 @@ def detect_installation_method():
             str(python_bin),
             [str(cicada_dir / "cicada" / "mcp_server.py")],
             str(cicada_dir),
-            "uvx (one-time run, using Python paths)"
+            "uvx (one-time run, using Python paths)",
         )
 
     # Check if running from a uv tools directory (permanent install)
-    if '.local/share/uv/tools' in script_path_str or '.local/bin/cicada-' in script_path_str:
+    if (
+        ".local/share/uv/tools" in script_path_str
+        or ".local/bin/cicada-" in script_path_str
+    ):
         # Installed via uv tool install
         return (
             "cicada-server",
             [],
             None,
-            "uv tool install (ensure ~/.local/bin is in PATH)"
+            "uv tool install (ensure ~/.local/bin is in PATH)",
         )
 
     # Check if cicada-server is in PATH (from uv tool install)
-    if shutil.which('cicada-server'):
-        return (
-            "cicada-server",
-            [],
-            None,
-            "uv tool install (permanent, fast)"
-        )
+    if shutil.which("cicada-server"):
+        return ("cicada-server", [], None, "uv tool install (permanent, fast)")
 
     # Fall back to python with full path
     python_bin = sys.executable
@@ -251,8 +263,23 @@ def detect_installation_method():
         str(python_bin),
         [str(cicada_dir / "cicada" / "mcp_server.py")],
         str(cicada_dir),
-        "direct python (tip: install with 'uv tool install .' for faster startup)"
+        "direct python (tip: install with 'uv tool install .' for faster startup)",
     )
+
+
+def check_tools_in_path():
+    """Check if cicada tools are in PATH."""
+    import shutil
+
+    tools = ["cicada-server", "cicada-index"]
+    visible_tools = [tool for tool in tools if shutil.which(tool)]
+
+    if len(visible_tools) == len(tools):
+        return "all_visible"
+    elif visible_tools:
+        return "partial"
+    else:
+        return "none"
 
 
 def create_mcp_config(repo_path, cicada_dir, python_bin):
@@ -281,7 +308,16 @@ def create_mcp_config(repo_path, cicada_dir, python_bin):
     # Detect installation method and create appropriate config
     command, args, cwd, description = detect_installation_method()
 
-    print(f"ℹ️  Installation: {description}")
+    # Check if tools are visible in PATH
+    tools_status = check_tools_in_path()
+    if tools_status == "all_visible":
+        print(f"✓ Installation: {description}")
+    elif tools_status == "partial":
+        print(f"⚠️  Installation: {description}")
+        print(f"   Some tools not found in PATH - add ~/.local/bin to PATH")
+    else:
+        print(f"⚠️  Installation: {description}")
+        print(f"   Tools not found in PATH - add ~/.local/bin to PATH")
 
     # Build MCP server configuration
     server_config = {"command": command}
@@ -339,10 +375,7 @@ def create_gitattributes(repo_path):
     repo_path = Path(repo_path).resolve()
     gitattributes_path = repo_path / ".gitattributes"
 
-    elixir_patterns = [
-        "*.ex diff=elixir",
-        "*.exs diff=elixir"
-    ]
+    elixir_patterns = ["*.ex diff=elixir", "*.exs diff=elixir"]
 
     # Read existing .gitattributes if present
     existing_lines = []
@@ -351,9 +384,7 @@ def create_gitattributes(repo_path):
             existing_lines = [line.rstrip() for line in f.readlines()]
 
     # Check if elixir patterns already exist
-    has_elixir = any(
-        pattern in existing_lines for pattern in elixir_patterns
-    )
+    has_elixir = any(pattern in existing_lines for pattern in elixir_patterns)
 
     if has_elixir:
         print(f"✓ .gitattributes already has Elixir patterns")
@@ -370,6 +401,155 @@ def create_gitattributes(repo_path):
 
     print(f"✓ Added Elixir patterns to {gitattributes_path}")
     return gitattributes_path
+
+
+def update_claude_md(repo_path):
+    """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
+    repo_path = Path(repo_path).resolve()
+    claude_md_path = repo_path / "CLAUDE.md"
+
+    # Fail silently if CLAUDE.md doesn't exist
+    if not claude_md_path.exists():
+        return
+
+    instruction_content = """<cicada>
+  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+
+  ### Use cicada tools for:
+  - Finding function definitions: `mcp__cicada__search_function`
+  - Finding module APIs: `mcp__cicada__search_module`
+  - Finding module usage: `mcp__cicada__search_module_usage`
+  - Finding who wrote code: `mcp__cicada__find_pr_for_line`
+  - Finding file history: `mcp__cicada__get_file_history`
+
+  ### DO NOT use Grep for:
+  - ❌ Searching for function names
+  - ❌ Finding where functions are called
+  - ❌ Exploring module structure
+
+  ### Only use Grep for:
+  - ✓ Non-code files (markdown, JSON, config)
+  - ✓ String literal searches
+  - ✓ Pattern matching in comments
+</cicada>
+"""
+
+    try:
+        # Read existing content
+        with open(claude_md_path, "r") as f:
+            content = f.read()
+
+        # Check if instruction already exists
+        if "cicada-mcp" in content or "use the cicada-mcp MCP server" in content:
+            print(f"✓ CLAUDE.md already mentions cicada-mcp")
+            return
+
+        # Append the instruction
+        with open(claude_md_path, "a") as f:
+            # Add newline if file doesn't end with one
+            if content and not content.endswith("\n"):
+                f.write("\n")
+
+            f.write("\n")
+            f.write(instruction_content)
+
+        print(f"✓ Updated CLAUDE.md with cicada-mcp usage instructions")
+    except Exception:
+        # Fail silently on any errors
+        pass
+
+
+def is_gitignored(repo_path, file_pattern):
+    """
+    Check if a file pattern is in .gitignore.
+
+    Args:
+        repo_path: Path to repository root
+        file_pattern: Pattern to check (e.g., '.cicada/', '.mcp.json')
+
+    Returns:
+        bool: True if pattern is in .gitignore, False otherwise
+    """
+    repo_path = Path(repo_path).resolve()
+    gitignore_path = repo_path / ".gitignore"
+
+    if not gitignore_path.exists():
+        return False
+
+    try:
+        with open(gitignore_path, "r") as f:
+            content = f.read()
+        # Simple check - look for the pattern in the file
+        # This handles .cicada/, .cicada, /.cicada/, etc.
+        base_pattern = file_pattern.rstrip("/").lstrip("/")
+        return base_pattern in content
+    except (IOError, OSError):
+        return False
+
+
+def print_setup_summary(repo_path, index_path):
+    """
+    Print a summary of created files and their gitignore status.
+
+    Args:
+        repo_path: Path to repository root
+        index_path: Path to the created index file
+    """
+    # ANSI color codes
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    RESET = "\033[0m"
+
+    repo_path = Path(repo_path).resolve()
+
+    print()
+    print(f"{YELLOW}Files created/modified:{RESET}")
+    print()
+
+    # List of files to check
+    files_created = [
+        (".cicada/", "Cicada index directory"),
+        (".mcp.json", "MCP server configuration"),
+    ]
+
+    # Check each file
+    for file_pattern, description in files_created:
+        is_ignored = is_gitignored(repo_path, file_pattern)
+        file_path = repo_path / file_pattern.rstrip("/")
+
+        if file_path.exists():
+            status = (
+                f"{GREEN}✓ gitignored{RESET}"
+                if is_ignored
+                else f"{RED}✗ not gitignored{RESET}"
+            )
+            print(f"  {YELLOW}{file_pattern:20}{RESET} {description:35} {status}")
+
+    print()
+
+    # Check what needs to be gitignored
+    needs_gitignore = []
+    if not is_gitignored(repo_path, ".cicada/"):
+        needs_gitignore.append(".cicada/")
+    if not is_gitignored(repo_path, ".mcp.json"):
+        needs_gitignore.append(".mcp.json")
+
+    # Show warnings if files are not gitignored
+    if needs_gitignore:
+        print(f"{RED}⚠️  Warning: The following should be in .gitignore:{RESET}")
+        for item in needs_gitignore:
+            reason = (
+                "build artifacts and cache"
+                if item == ".cicada/"
+                else "local configuration"
+            )
+            print(f"{RED}   • {item:12} ({reason}){RESET}")
+        print()
+        print(f"{YELLOW}Add them to .gitignore with this command:{RESET}")
+        items_with_newlines = "\\n".join(needs_gitignore)
+        print(f"  printf '\\n{items_with_newlines}\\n' >> .gitignore")
+        print()
 
 
 def main():
@@ -469,10 +649,15 @@ def main():
     # Create .gitattributes for Elixir function tracking
     create_gitattributes(args.repo)
 
+    # Update CLAUDE.md with cicada-mcp usage instructions
+    update_claude_md(args.repo)
+
     # Create .mcp.json
     mcp_config_path = create_mcp_config(args.repo, cicada_dir, python_bin)
 
-    print()
+    # Print summary of created files and gitignore status
+    print_setup_summary(args.repo, index_path)
+
     print("=" * 60)
     print("✓ Setup Complete!")
     print("=" * 60)

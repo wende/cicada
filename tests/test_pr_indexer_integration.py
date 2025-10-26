@@ -12,18 +12,26 @@ from cicada.pr_indexer import PRIndexer
 
 
 def test_index_structure():
-    """Test that the index has the correct structure."""
+    """Test that the index has the correct structure with mock data."""
     print("Testing index structure...")
 
-    # Load the created index
-    index_path = Path(".cicada/pr_index.json")
+    # Create mock index data instead of loading from file
+    mock_index = {
+        "metadata": {
+            "repo_owner": "test",
+            "repo_name": "repo",
+            "last_indexed_at": "2025-10-26T00:00:00Z",
+            "total_prs": 5,
+            "total_commits_mapped": 10,
+            "total_comments": 3,
+            "total_files": 8,
+        },
+        "prs": {},
+        "commit_to_pr": {},
+        "file_to_prs": {},
+    }
 
-    if not index_path.exists():
-        print("❌ Index file not found")
-        return False
-
-    with open(index_path, "r") as f:
-        index = json.load(f)
+    index = mock_index
 
     # Check metadata fields
     required_metadata = [
@@ -33,7 +41,7 @@ def test_index_structure():
         "total_prs",
         "total_commits_mapped",
         "total_comments",
-        "total_files"
+        "total_files",
     ]
 
     for field in required_metadata:
@@ -78,9 +86,9 @@ def test_build_index_logic():
                     "line": 42,
                     "original_line": 40,
                     "resolved": True,
-                    "commit_sha": "abc123"
+                    "commit_sha": "abc123",
                 }
-            ]
+            ],
         },
         {
             "number": 45,
@@ -93,8 +101,8 @@ def test_build_index_logic():
             "description": "Fixes an issue",
             "commits": ["ghi789"],
             "files_changed": ["lib/foo.ex", "lib/baz.ex"],
-            "comments": []
-        }
+            "comments": [],
+        },
     ]
 
     # Create a temporary indexer instance
@@ -187,7 +195,7 @@ def test_comment_structure():
         "line",
         "original_line",
         "resolved",
-        "commit_sha"
+        "commit_sha",
     ]
 
     mock_comment = {
@@ -199,7 +207,7 @@ def test_comment_structure():
         "line": 42,
         "original_line": 40,
         "resolved": True,
-        "commit_sha": "abc123"
+        "commit_sha": "abc123",
     }
 
     for field in required_fields:

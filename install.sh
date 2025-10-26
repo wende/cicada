@@ -34,10 +34,26 @@ if [ -d "$INSTALL_DIR" ]; then
     echo "Cicada already installed at $INSTALL_DIR"
     echo "Updating..."
     cd "$INSTALL_DIR"
-    git pull
+    git fetch --tags
+    LATEST_TAG=$(git describe --tags --abbrev=0)
+    if [ -n "$LATEST_TAG" ]; then
+        echo "Checking out latest release: $LATEST_TAG"
+        git checkout "$LATEST_TAG"
+    else
+        echo "No tags found, staying on current branch"
+    fi
 else
     echo "Downloading cicada..."
     git clone "$GITHUB_URL" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    git fetch --tags
+    LATEST_TAG=$(git describe --tags --abbrev=0)
+    if [ -n "$LATEST_TAG" ]; then
+        echo "Checking out latest release: $LATEST_TAG"
+        git checkout "$LATEST_TAG"
+    else
+        echo "No tags found, using main branch"
+    fi
 fi
 
 # Run setup
