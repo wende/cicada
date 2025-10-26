@@ -13,7 +13,7 @@ When creating a new release:
    ```
 
 2. **Update README.md version references:**
-   - Search for all instances of `@v0.1.0` in README.md
+   - Search for all instances of `@v0.1.1` in README.md
    - Replace with the new version tag `@v0.X.Y`
    - Locations to update:
      - Quick Install section (stable release command)
@@ -21,7 +21,7 @@ When creating a new release:
      - Migration tip section
 
 3. **Update pyproject.toml version:**
-   - Update the `version = "0.1.0"` field to match the new release
+   - Update the `version = "0.1.1"` field to match the new release
 
 4. **Test the installation:**
    ```bash

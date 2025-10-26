@@ -76,7 +76,7 @@ class GitHubAPIClient:
                 raise RuntimeError(
                     f"Invalid repository format. Expected owner/repo, got: {name_with_owner}"
                 )
-            
+
             owner, repo_name = parts
             return owner, repo_name
 
@@ -244,7 +244,7 @@ class GitHubAPIClient:
                 "state": pr_data["state"].lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown") if pr_data.get("author") else "unknown",
+                "author": (pr_data.get("author") or {}).get("login", "unknown"),
                 "description": pr_data.get("bodyText", ""),
                 "commits": commits,
                 "files_changed": files,
@@ -277,9 +277,9 @@ class GitHubAPIClient:
                 comments.append(
                     {
                         "id": comment_node.get("id"),
-                        "author": comment_node.get("author", {}).get(
+                        "author": (comment_node.get("author") or {}).get(
                             "login", "unknown"
-                        ) if comment_node.get("author") else "unknown",
+                        ),
                         "body": comment_node.get("body", ""),
                         "created_at": comment_node.get("createdAt"),
                         "path": comment_node.get("path"),
@@ -287,7 +287,7 @@ class GitHubAPIClient:
                         "original_line": comment_node.get("originalLine"),
                         "diff_hunk": comment_node.get("diffHunk"),
                         "resolved": is_resolved,
-                        "commit_sha": comment_node.get("commit", {}).get("oid") if comment_node.get("commit") else None,
+                        "commit_sha": (comment_node.get("commit") or {}).get("oid"),
                     }
                 )
 
@@ -329,7 +329,7 @@ class GitHubAPIClient:
                 "state": pr_data.get("state", "").lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown") if pr_data.get("author") else "unknown",
+                "author": (pr_data.get("author") or {}).get("login", "unknown"),
                 "description": pr_data.get("body", ""),
                 "commits": commits,
                 "files_changed": files,
