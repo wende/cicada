@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 GitHub API Client for PR Indexer.
 
 This module handles all interactions with the GitHub API (both REST and GraphQL),
@@ -69,7 +71,13 @@ class GitHubAPIClient:
             if not name_with_owner or name_with_owner == "null":
                 raise RuntimeError("Not a GitHub repository or no remote configured")
 
-            owner, repo_name = name_with_owner.split("/")
+            parts = name_with_owner.split("/")
+            if len(parts) != 2:
+                raise RuntimeError(
+                    f"Invalid repository format. Expected owner/repo, got: {name_with_owner}"
+                )
+
+            owner, repo_name = parts
             return owner, repo_name
 
         except subprocess.CalledProcessError:
@@ -236,7 +244,7 @@ class GitHubAPIClient:
                 "state": pr_data["state"].lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown"),
+                "author": (pr_data.get("author") or {}).get("login", "unknown"),
                 "description": pr_data.get("bodyText", ""),
                 "commits": commits,
                 "files_changed": files,
@@ -269,7 +277,7 @@ class GitHubAPIClient:
                 comments.append(
                     {
                         "id": comment_node.get("id"),
-                        "author": comment_node.get("author", {}).get(
+                        "author": (comment_node.get("author") or {}).get(
                             "login", "unknown"
                         ),
                         "body": comment_node.get("body", ""),
@@ -279,7 +287,7 @@ class GitHubAPIClient:
                         "original_line": comment_node.get("originalLine"),
                         "diff_hunk": comment_node.get("diffHunk"),
                         "resolved": is_resolved,
-                        "commit_sha": comment_node.get("commit", {}).get("oid"),
+                        "commit_sha": (comment_node.get("commit") or {}).get("oid"),
                     }
                 )
 
@@ -321,7 +329,7 @@ class GitHubAPIClient:
                 "state": pr_data.get("state", "").lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown"),
+                "author": (pr_data.get("author") or {}).get("login", "unknown"),
                 "description": pr_data.get("body", ""),
                 "commits": commits,
                 "files_changed": files,

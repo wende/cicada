@@ -19,7 +19,7 @@ class TestGetCurrentVersion:
     def test_returns_hardcoded_version(self):
         """Test that current version is returned"""
         result = get_current_version()
-        assert result == "0.1.0"
+        assert result == "0.1.1"
 
     def test_returns_string(self):
         """Test that version is a string"""

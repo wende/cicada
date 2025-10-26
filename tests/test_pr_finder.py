@@ -3,7 +3,6 @@ Tests for PR Finder module.
 """
 
 import pytest
-from pathlib import Path
 from cicada.pr_finder import PRFinder
 
 
@@ -17,7 +16,7 @@ def test_pr_finder_initialization():
 def test_pr_finder_invalid_repo():
     """Test that PR finder raises error for invalid repo."""
     with pytest.raises(ValueError):
-        PRFinder(repo_path="/tmp/nonexistent")
+        _ = PRFinder(repo_path="/tmp/nonexistent")
 
 
 def test_find_pr_for_line():

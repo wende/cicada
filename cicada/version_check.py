@@ -18,7 +18,7 @@ def get_current_version() -> str:
     """
     # For now, return hardcoded version
     # In a more robust implementation, we could parse pyproject.toml
-    return "0.1.0"
+    return "0.1.1"
 
 
 def get_latest_github_tag(repo: str = "wende/cicada") -> Optional[str]:

@@ -1,0 +1,35 @@
+# Author: Cursor(Auto)
+# Codecov configuration
+# See: https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "80...100"
+
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+
+    patch:
+      default:
+        target: 80%
+
+# Explicitly ignore test files and build artifacts
+ignore:
+  - "tests/**/*"
+  - "**/test_*.py"
+  - "**/__pycache__/**"
+  - "**/venv/**"
+  - "**/site-packages/**"
+  - "**/*.pyc"
+  - "tests/fixtures/**"
+  - "htmlcov/**"
+  - ".pytest_cache/**"
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
