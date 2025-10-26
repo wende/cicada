@@ -1,0 +1,164 @@
+{
+  "_comment": "Author: Cursor(Auto)",
+  "simple_pr": {
+    "number": 1,
+    "title": "Add new feature",
+    "url": "https://github.com/owner/repo/pull/1",
+    "state": "MERGED",
+    "mergedAt": "2023-01-15T10:30:00Z",
+    "author": "developer1",
+    "description": "This PR adds a new feature to the application.",
+    "commits": ["abc123", "def456"],
+    "files_changed": ["src/main.py", "tests/test_main.py"],
+    "comments": []
+  },
+  "pr_with_comments": {
+    "number": 2,
+    "title": "Fix bug in authentication",
+    "url": "https://github.com/owner/repo/pull/2",
+    "state": "MERGED",
+    "mergedAt": "2023-01-16T14:20:00Z",
+    "author": "developer2",
+    "description": "Fixes a critical bug in the authentication system.",
+    "commits": ["ghi789", "jkl012"],
+    "files_changed": ["src/auth.py", "src/middleware.py"],
+    "comments": [
+      {
+        "id": "comment_1",
+        "author": "reviewer1",
+        "body": "This looks good, but consider adding error handling here.",
+        "created_at": "2023-01-16T09:15:00Z",
+        "path": "src/auth.py",
+        "line": 25,
+        "original_line": 25,
+        "diff_hunk": "@@ -23,4 +23,4 @@\n def authenticate(user):\n-    return check_password(user)\n+    return check_password(user)\n",
+        "resolved": true,
+        "commit_sha": "ghi789"
+      },
+      {
+        "id": "comment_2",
+        "author": "reviewer2",
+        "body": "Great fix! This resolves the issue we were seeing.",
+        "created_at": "2023-01-16T10:30:00Z",
+        "path": "src/middleware.py",
+        "line": 12,
+        "original_line": 12,
+        "diff_hunk": "@@ -10,6 +10,6 @@\n class AuthMiddleware:\n-    def __init__(self):\n+    def __init__(self, config):\n         self.config = config\n",
+        "resolved": true,
+        "commit_sha": "jkl012"
+      }
+    ]
+  },
+  "merged_pr": {
+    "number": 3,
+    "title": "Update dependencies",
+    "url": "https://github.com/owner/repo/pull/3",
+    "state": "MERGED",
+    "mergedAt": "2023-01-17T16:45:00Z",
+    "author": "maintainer1",
+    "description": "Updates all dependencies to their latest versions.",
+    "commits": ["mno345", "pqr678", "stu901"],
+    "files_changed": ["requirements.txt", "package.json", "Dockerfile"],
+    "comments": []
+  },
+  "pr_with_multiple_commits": {
+    "number": 4,
+    "title": "Refactor user management",
+    "url": "https://github.com/owner/repo/pull/4",
+    "state": "MERGED",
+    "mergedAt": "2023-01-18T11:20:00Z",
+    "author": "senior_dev",
+    "description": "Major refactoring of the user management system to improve performance and maintainability.",
+    "commits": [
+      "vwx234",
+      "yza567",
+      "bcd890",
+      "efg123",
+      "hij456"
+    ],
+    "files_changed": [
+      "src/models/user.py",
+      "src/services/user_service.py",
+      "src/controllers/user_controller.py",
+      "tests/test_user_service.py",
+      "tests/test_user_controller.py",
+      "docs/user_management.md"
+    ],
+    "comments": [
+      {
+        "id": "comment_3",
+        "author": "tech_lead",
+        "body": "This is a significant change. Let's make sure we have comprehensive tests.",
+        "created_at": "2023-01-18T08:30:00Z",
+        "path": "src/services/user_service.py",
+        "line": 45,
+        "original_line": 45,
+        "diff_hunk": "@@ -43,8 +43,12 @@\n class UserService:\n-    def get_user(self, user_id):\n-        return User.query.get(user_id)\n+    def get_user(self, user_id):\n+        # Add caching for better performance\n+        cached_user = self.cache.get(f'user_{user_id}')\n+        if cached_user:\n+            return cached_user\n+        return User.query.get(user_id)\n",
+        "resolved": true,
+        "commit_sha": "yza567"
+      },
+      {
+        "id": "comment_4",
+        "author": "qa_engineer",
+        "body": "I've added the test cases you requested. They cover all the new functionality.",
+        "created_at": "2023-01-18T09:45:00Z",
+        "path": "tests/test_user_service.py",
+        "line": 78,
+        "original_line": 78,
+        "diff_hunk": "@@ -76,4 +76,15 @@\n def test_get_user_success():\n     # Test implementation\n+    \n+def test_get_user_with_caching():\n+    # Test caching functionality\n+    \n+def test_get_user_not_found():\n+    # Test error handling\n+    \n+def test_get_user_invalid_id():\n+    # Test input validation\n",
+        "resolved": true,
+        "commit_sha": "hij456"
+      }
+    ]
+  },
+  "open_pr": {
+    "number": 5,
+    "title": "Add new API endpoint",
+    "url": "https://github.com/owner/repo/pull/5",
+    "state": "OPEN",
+    "mergedAt": null,
+    "author": "junior_dev",
+    "description": "Adds a new REST API endpoint for user preferences.",
+    "commits": ["klm234", "nop567"],
+    "files_changed": ["src/api/preferences.py", "src/routes/api.py"],
+    "comments": [
+      {
+        "id": "comment_5",
+        "author": "senior_dev",
+        "body": "The implementation looks good, but we need to add input validation.",
+        "created_at": "2023-01-19T14:20:00Z",
+        "path": "src/api/preferences.py",
+        "line": 15,
+        "original_line": 15,
+        "diff_hunk": "@@ -13,6 +13,6 @@\n def update_preferences(user_id, data):\n-    preferences = Preferences(user_id, data)\n+    # TODO: Add input validation\n+    preferences = Preferences(user_id, data)\n     preferences.save()\n",
+        "resolved": false,
+        "commit_sha": "nop567"
+      }
+    ]
+  },
+  "closed_pr": {
+    "number": 6,
+    "title": "Experimental feature",
+    "url": "https://github.com/owner/repo/pull/6",
+    "state": "CLOSED",
+    "mergedAt": null,
+    "author": "researcher",
+    "description": "Experimental implementation of a new algorithm. Closed without merging.",
+    "commits": ["qrs890", "tuv123"],
+    "files_changed": ["src/experimental/algorithm.py"],
+    "comments": [
+      {
+        "id": "comment_6",
+        "author": "tech_lead",
+        "body": "This approach won't work for our use case. Let's close this PR and explore other options.",
+        "created_at": "2023-01-20T16:30:00Z",
+        "path": "src/experimental/algorithm.py",
+        "line": 1,
+        "original_line": 1,
+        "diff_hunk": "@@ -1,0 +1,10 @@\n+class ExperimentalAlgorithm:\n+    def __init__(self):\n+        pass\n+    \n+    def process(self, data):\n+        # Experimental implementation\n+        return data\n",
+        "resolved": true,
+        "commit_sha": "tuv123"
+      }
+    ]
+  }
+}
