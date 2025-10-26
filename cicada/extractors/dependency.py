@@ -67,9 +67,9 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
     for arg_child in arguments_node.children:
         # Simple alias: alias MyApp.User
         if arg_child.type == "alias":
-            full_name = source_code[
-                arg_child.start_byte : arg_child.end_byte
-            ].decode("utf-8")
+            full_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                "utf-8"
+            )
             # Get the last part as the short name
             short_name = full_name.split(".")[-1]
             result[short_name] = full_name

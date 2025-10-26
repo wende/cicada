@@ -21,7 +21,8 @@ async def test_call_sites():
 
     # Override index to use test index
     import json
-    with open("data/test_index.json", 'r') as f:
+
+    with open("data/test_index.json", "r") as f:
         server.index = json.load(f)
 
     print("Testing call site resolution...\n")
@@ -29,10 +30,7 @@ async def test_call_sites():
     # Test 1: Search for validate_email (has local call) with usage examples
     print("Test 1: Search for 'validate_email' (local call) with usage examples")
     result = await server._search_function(
-        "validate_email",
-        "markdown",
-        include_usage_examples=True,
-        max_examples=5
+        "validate_email", "markdown", include_usage_examples=True, max_examples=5
     )
     print(result[0].text)
     print()

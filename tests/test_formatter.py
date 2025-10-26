@@ -19,28 +19,28 @@ def test_group_call_sites_by_caller_single_caller():
             "calling_function": {"name": "handle_info", "arity": 2},
             "file": "lib/thenvoi_com_web/channels/api/v1/user_rooms_channel.ex",
             "line": 261,
-            "code_line": "    GenServer.cast(pid, :update_presence)"
+            "code_line": "    GenServer.cast(pid, :update_presence)",
         },
         {
             "calling_module": "ThenvoiComWeb.Api.V1.UserRoomsChannel",
             "calling_function": {"name": "handle_info", "arity": 2},
             "file": "lib/thenvoi_com_web/channels/api/v1/user_rooms_channel.ex",
             "line": 312,
-            "code_line": "    GenServer.cast(pid, :update_presence)"
+            "code_line": "    GenServer.cast(pid, :update_presence)",
         },
         {
             "calling_module": "ThenvoiComWeb.Api.V1.UserRoomsChannel",
             "calling_function": {"name": "handle_info", "arity": 2},
             "file": "lib/thenvoi_com_web/channels/api/v1/user_rooms_channel.ex",
             "line": 358,
-            "code_line": "    GenServer.cast(pid, :update_presence)"
+            "code_line": "    GenServer.cast(pid, :update_presence)",
         },
         {
             "calling_module": "ThenvoiComWeb.Api.V1.UserRoomsChannel",
             "calling_function": {"name": "handle_info", "arity": 2},
             "file": "lib/thenvoi_com_web/channels/api/v1/user_rooms_channel.ex",
             "line": 387,
-            "code_line": "    GenServer.cast(pid, :update_presence)"
+            "code_line": "    GenServer.cast(pid, :update_presence)",
         },
     ]
 
@@ -50,17 +50,22 @@ def test_group_call_sites_by_caller_single_caller():
     assert len(grouped) == 1, f"Expected 1 grouped entry, got {len(grouped)}"
 
     # Should have all 4 lines
-    assert grouped[0]['lines'] == [261, 312, 358, 387], \
-        f"Expected lines [261, 312, 358, 387], got {grouped[0]['lines']}"
+    assert grouped[0]["lines"] == [
+        261,
+        312,
+        358,
+        387,
+    ], f"Expected lines [261, 312, 358, 387], got {grouped[0]['lines']}"
 
     # Should have all 4 code lines
-    assert len(grouped[0]['code_lines']) == 4, \
-        f"Expected 4 code lines, got {len(grouped[0]['code_lines'])}"
+    assert (
+        len(grouped[0]["code_lines"]) == 4
+    ), f"Expected 4 code lines, got {len(grouped[0]['code_lines'])}"
 
     # Verify the caller info is preserved
-    assert grouped[0]['calling_module'] == "ThenvoiComWeb.Api.V1.UserRoomsChannel"
-    assert grouped[0]['calling_function']['name'] == "handle_info"
-    assert grouped[0]['calling_function']['arity'] == 2
+    assert grouped[0]["calling_module"] == "ThenvoiComWeb.Api.V1.UserRoomsChannel"
+    assert grouped[0]["calling_function"]["name"] == "handle_info"
+    assert grouped[0]["calling_function"]["arity"] == 2
 
 
 def test_group_call_sites_by_caller_multiple_callers():
@@ -92,14 +97,17 @@ def test_group_call_sites_by_caller_multiple_callers():
     assert len(grouped) == 2, f"Expected 2 grouped entries, got {len(grouped)}"
 
     # Find the ModuleA group
-    module_a_group = [g for g in grouped if g['calling_module'] == "MyApp.ModuleA"][0]
-    assert module_a_group['lines'] == [10, 15], \
-        f"Expected lines [10, 15] for ModuleA, got {module_a_group['lines']}"
+    module_a_group = [g for g in grouped if g["calling_module"] == "MyApp.ModuleA"][0]
+    assert module_a_group["lines"] == [
+        10,
+        15,
+    ], f"Expected lines [10, 15] for ModuleA, got {module_a_group['lines']}"
 
     # Find the ModuleB group
-    module_b_group = [g for g in grouped if g['calling_module'] == "MyApp.ModuleB"][0]
-    assert module_b_group['lines'] == [20], \
-        f"Expected lines [20] for ModuleB, got {module_b_group['lines']}"
+    module_b_group = [g for g in grouped if g["calling_module"] == "MyApp.ModuleB"][0]
+    assert module_b_group["lines"] == [
+        20
+    ], f"Expected lines [20] for ModuleB, got {module_b_group['lines']}"
 
 
 def test_group_call_sites_by_caller_same_module_different_functions():
@@ -131,14 +139,17 @@ def test_group_call_sites_by_caller_same_module_different_functions():
     assert len(grouped) == 2, f"Expected 2 grouped entries, got {len(grouped)}"
 
     # Find the func1 group
-    func1_group = [g for g in grouped if g['calling_function']['name'] == "func1"][0]
-    assert func1_group['lines'] == [10, 15], \
-        f"Expected lines [10, 15] for func1, got {func1_group['lines']}"
+    func1_group = [g for g in grouped if g["calling_function"]["name"] == "func1"][0]
+    assert func1_group["lines"] == [
+        10,
+        15,
+    ], f"Expected lines [10, 15] for func1, got {func1_group['lines']}"
 
     # Find the func2 group
-    func2_group = [g for g in grouped if g['calling_function']['name'] == "func2"][0]
-    assert func2_group['lines'] == [20], \
-        f"Expected lines [20] for func2, got {func2_group['lines']}"
+    func2_group = [g for g in grouped if g["calling_function"]["name"] == "func2"][0]
+    assert func2_group["lines"] == [
+        20
+    ], f"Expected lines [20] for func2, got {func2_group['lines']}"
 
 
 def test_group_call_sites_by_caller_no_calling_function():
@@ -162,11 +173,13 @@ def test_group_call_sites_by_caller_no_calling_function():
     assert len(grouped) == 1, f"Expected 1 grouped entry, got {len(grouped)}"
 
     # Should have both lines
-    assert grouped[0]['lines'] == [10, 20], \
-        f"Expected lines [10, 20], got {grouped[0]['lines']}"
+    assert grouped[0]["lines"] == [
+        10,
+        20,
+    ], f"Expected lines [10, 20], got {grouped[0]['lines']}"
 
     # calling_function should be None
-    assert grouped[0]['calling_function'] is None
+    assert grouped[0]["calling_function"] is None
 
 
 def test_group_call_sites_lines_are_sorted():
@@ -195,8 +208,11 @@ def test_group_call_sites_lines_are_sorted():
     grouped = ModuleFormatter._group_call_sites_by_caller(call_sites)
 
     # Lines should be sorted
-    assert grouped[0]['lines'] == [50, 75, 100], \
-        f"Expected sorted lines [50, 75, 100], got {grouped[0]['lines']}"
+    assert grouped[0]["lines"] == [
+        50,
+        75,
+        100,
+    ], f"Expected sorted lines [50, 75, 100], got {grouped[0]['lines']}"
 
 
 def test_format_function_results_markdown_with_consolidated_call_sites():
@@ -240,14 +256,16 @@ def test_format_function_results_markdown_with_consolidated_call_sites():
     )
 
     # Should have a single consolidated line for the caller
-    assert "MyApp.Caller.handle_info/2 at lib/my_app/caller.ex:10, :20, :30" in markdown, \
-        "Expected consolidated call sites in markdown output"
+    assert (
+        "MyApp.Caller.handle_info/2 at lib/my_app/caller.ex:10, :20, :30" in markdown
+    ), "Expected consolidated call sites in markdown output"
 
     # Should NOT have multiple separate lines for the same caller
     lines = markdown.split("\n")
     caller_lines = [line for line in lines if "MyApp.Caller.handle_info/2" in line]
-    assert len(caller_lines) == 1, \
-        f"Expected 1 line for caller, got {len(caller_lines)}: {caller_lines}"
+    assert (
+        len(caller_lines) == 1
+    ), f"Expected 1 line for caller, got {len(caller_lines)}: {caller_lines}"
 
 
 def test_format_function_results_markdown_with_code_lines():
@@ -290,16 +308,20 @@ def test_format_function_results_markdown_with_code_lines():
     )
 
     # Should have consolidated header
-    assert "MyApp.Caller.process/1 at lib/my_app/caller.ex:10, :20" in markdown, \
-        "Expected consolidated call sites header in markdown output"
+    assert (
+        "MyApp.Caller.process/1 at lib/my_app/caller.ex:10, :20" in markdown
+    ), "Expected consolidated call sites header in markdown output"
 
     # Should have both code examples
-    assert ":10" in markdown and ":20" in markdown, \
-        "Expected both line numbers in output"
-    assert "TargetModule.target_function(data)" in markdown, \
-        "Expected first code example"
-    assert "TargetModule.target_function(other_data)" in markdown, \
-        "Expected second code example"
+    assert (
+        ":10" in markdown and ":20" in markdown
+    ), "Expected both line numbers in output"
+    assert (
+        "TargetModule.target_function(data)" in markdown
+    ), "Expected first code example"
+    assert (
+        "TargetModule.target_function(other_data)" in markdown
+    ), "Expected second code example"
 
 
 def test_format_function_results_markdown_with_additional_call_sites():
@@ -364,22 +386,21 @@ def test_format_function_results_markdown_with_additional_call_sites():
     )
 
     # Should have Usage Examples section with the first 2
-    assert "Usage Examples:" in markdown, \
-        "Expected Usage Examples section"
-    assert "TargetModule.target_function(data1)" in markdown, \
-        "Expected first code example"
-    assert "TargetModule.target_function(data2)" in markdown, \
-        "Expected second code example"
+    assert "Usage Examples:" in markdown, "Expected Usage Examples section"
+    assert (
+        "TargetModule.target_function(data1)" in markdown
+    ), "Expected first code example"
+    assert (
+        "TargetModule.target_function(data2)" in markdown
+    ), "Expected second code example"
 
     # Should have Other Call Sites section with the remaining 3
-    assert "Other Call Sites:" in markdown, \
-        "Expected Other Call Sites section"
-    assert "MyApp.Caller3.execute/0" in markdown, \
-        "Expected Caller3 in other call sites"
-    assert "MyApp.Caller4.run/1" in markdown, \
-        "Expected Caller4 in other call sites"
-    assert "MyApp.TestCaller.test_function/1" in markdown, \
-        "Expected TestCaller in other call sites"
+    assert "Other Call Sites:" in markdown, "Expected Other Call Sites section"
+    assert "MyApp.Caller3.execute/0" in markdown, "Expected Caller3 in other call sites"
+    assert "MyApp.Caller4.run/1" in markdown, "Expected Caller4 in other call sites"
+    assert (
+        "MyApp.TestCaller.test_function/1" in markdown
+    ), "Expected TestCaller in other call sites"
 
     # Verify that Caller1 and Caller2 are NOT in Other Call Sites
     # (they should only appear in Usage Examples)
@@ -392,7 +413,9 @@ def test_format_function_results_markdown_with_additional_call_sites():
 
     if other_call_sites_start:
         other_call_sites_section = "\n".join(lines[other_call_sites_start:])
-        assert "MyApp.Caller1.process/1" not in other_call_sites_section, \
-            "Caller1 should not appear in Other Call Sites (only in Usage Examples)"
-        assert "MyApp.Caller2.handle/2" not in other_call_sites_section, \
-            "Caller2 should not appear in Other Call Sites (only in Usage Examples)"
+        assert (
+            "MyApp.Caller1.process/1" not in other_call_sites_section
+        ), "Caller1 should not appear in Other Call Sites (only in Usage Examples)"
+        assert (
+            "MyApp.Caller2.handle/2" not in other_call_sites_section
+        ), "Caller2 should not appear in Other Call Sites (only in Usage Examples)"

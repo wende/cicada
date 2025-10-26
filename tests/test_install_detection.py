@@ -20,14 +20,20 @@ def test_uvx_detection():
     ]
 
     for uvx_path in uvx_paths:
-        with patch('sys.argv', [uvx_path]):
+        with patch("sys.argv", [uvx_path]):
             command, args, cwd, description = detect_installation_method()
 
             # Should use Python fallback for uvx
-            assert command != "cicada-server", f"uvx path {uvx_path} incorrectly detected as permanent install"
-            assert args is not None and len(args) > 0, "Should have args for Python mode"
+            assert (
+                command != "cicada-server"
+            ), f"uvx path {uvx_path} incorrectly detected as permanent install"
+            assert (
+                args is not None and len(args) > 0
+            ), "Should have args for Python mode"
             assert "mcp_server.py" in str(args[0]), "Should point to mcp_server.py"
-            assert "uvx" in description.lower(), f"Description should mention uvx: {description}"
+            assert (
+                "uvx" in description.lower()
+            ), f"Description should mention uvx: {description}"
 
     print("✅ All uvx detection tests passed")
 
@@ -43,11 +49,13 @@ def test_uv_tool_install_detection():
     ]
 
     for uv_path in uv_paths:
-        with patch('sys.argv', [uv_path]):
+        with patch("sys.argv", [uv_path]):
             command, args, cwd, description = detect_installation_method()
 
             # Should use cicada-server for permanent installs
-            assert command == "cicada-server", f"uv tool install path {uv_path} not detected correctly"
+            assert (
+                command == "cicada-server"
+            ), f"uv tool install path {uv_path} not detected correctly"
             assert args == [], "Should have no args for cicada-server"
             assert cwd is None, "Should have no cwd for cicada-server"
 
@@ -65,13 +73,17 @@ def test_direct_python_detection():
     ]
 
     for python_path in python_paths:
-        with patch('sys.argv', [python_path]):
-            with patch('shutil.which', return_value=None):  # cicada-server not in PATH
+        with patch("sys.argv", [python_path]):
+            with patch("shutil.which", return_value=None):  # cicada-server not in PATH
                 command, args, cwd, description = detect_installation_method()
 
                 # Should use Python fallback
-                assert command != "cicada-server", f"Direct Python path {python_path} incorrectly detected"
-                assert args is not None and len(args) > 0, "Should have args for Python mode"
+                assert (
+                    command != "cicada-server"
+                ), f"Direct Python path {python_path} incorrectly detected"
+                assert (
+                    args is not None and len(args) > 0
+                ), "Should have args for Python mode"
                 assert "mcp_server.py" in str(args[0]), "Should point to mcp_server.py"
 
     print("✅ All direct Python detection tests passed")
