@@ -1,14 +1,14 @@
 # CICADA v0.1 TODO List
 
-**Status:** v0.1.0 Released ✅ (October 25, 2025)
-**Last Updated:** October 25, 2025
+**Status:** v0.1.1 Released ✅ (October 26, 2025)
+**Last Updated:** October 26, 2025
 **Philosophy:** Maintain simplicity, avoid feature creep, deliver real user value
 
-## v0.1.0 Release Summary
+## v0.1.1 Release Summary
 
-**Released:** October 25, 2025
+**Released:** October 26, 2025
 
-The v0.1.0 release includes:
+The v0.1.1 release includes:
 - ✅ Git History Enhancements (precise function tracking, evolution metadata, git blame)
 - ✅ Comprehensive test coverage (26 tests total)
 - ✅ Automatic version update checking
@@ -588,7 +588,7 @@ Current: lib/my_app/accounts/user.ex
 
 ## Success Criteria for v0.1 Release
 
-### Completed in v0.1.0 ✅
+### Completed in v0.1.1 ✅
 - ✅ Git commit history integration with precise function tracking
 - ✅ Function evolution metadata (creation, modifications, frequency)
 - ✅ Git blame integration with line-by-line authorship
