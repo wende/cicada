@@ -26,5 +26,5 @@ jobs:
     - name: Setup test fixtures
       run: bash tests/setup_fixtures.sh
 
-    - name: Run tests
-      run: pytest -v
+    - name: Run tests with coverage
+      run: pytest -v --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
