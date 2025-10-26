@@ -33,7 +33,7 @@ def test_index_structure():
         "total_prs",
         "total_commits_mapped",
         "total_comments",
-        "total_files",
+        "total_files"
     ]
 
     for field in required_metadata:
@@ -78,9 +78,9 @@ def test_build_index_logic():
                     "line": 42,
                     "original_line": 40,
                     "resolved": True,
-                    "commit_sha": "abc123",
+                    "commit_sha": "abc123"
                 }
-            ],
+            ]
         },
         {
             "number": 45,
@@ -93,8 +93,8 @@ def test_build_index_logic():
             "description": "Fixes an issue",
             "commits": ["ghi789"],
             "files_changed": ["lib/foo.ex", "lib/baz.ex"],
-            "comments": [],
-        },
+            "comments": []
+        }
     ]
 
     # Create a temporary indexer instance
@@ -187,7 +187,7 @@ def test_comment_structure():
         "line",
         "original_line",
         "resolved",
-        "commit_sha",
+        "commit_sha"
     ]
 
     mock_comment = {
@@ -199,7 +199,7 @@ def test_comment_structure():
         "line": 42,
         "original_line": 40,
         "resolved": True,
-        "commit_sha": "abc123",
+        "commit_sha": "abc123"
     }
 
     for field in required_fields:
