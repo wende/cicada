@@ -39,6 +39,13 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
       <td><img src="public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
       <td><img src="public/cicada-demo-extended-clean-trimmed copy.gif" alt="Demo with CICADA" width="450"/></td>
     </tr>
+    <tr>
+      <td align="center">3,127 tokens • 52.84s</td>
+      <td align="center">550 tokens • 35.04s</td>
+    </tr>
+    <tr>
+      <td colspan="2" align="center"><b>82.4% fewer tokens • 33.7% faster</b></td>
+    </tr>
   </table>
 </div>
 
