@@ -8,8 +8,7 @@ across different test scenarios without tight coupling to implementation details
 """
 
 import subprocess
-from typing import Dict, List, Union, Optional, Any
-from unittest.mock import Mock
+from typing import Any
 
 
 class MockCompletedProcess:
@@ -25,7 +24,7 @@ class MockCompletedProcess:
         returncode: int = 0,
         stdout: str = "",
         stderr: str = "",
-        args: Optional[Union[str, List[str]]] = None,
+        args: str | list[str] | None = None,
     ):
         """
         Initialize mock completed process.
@@ -52,13 +51,13 @@ class MockSubprocessRunner:
 
     def __init__(self):
         """Initialize the mock subprocess runner."""
-        self.git_responses: Dict[str, MockCompletedProcess] = {}
-        self.gh_responses: Dict[str, MockCompletedProcess] = {}
-        self.generic_responses: Dict[str, MockCompletedProcess] = {}
-        self.call_history: List[Dict[str, Any]] = []
+        self.git_responses: dict[str, MockCompletedProcess] = {}
+        self.gh_responses: dict[str, MockCompletedProcess] = {}
+        self.generic_responses: dict[str, MockCompletedProcess] = {}
+        self.call_history: list[dict[str, Any]] = []
 
     def add_git_response(
-        self, command: Union[str, List[str]], response: MockCompletedProcess
+        self, command: str | list[str], response: MockCompletedProcess
     ) -> None:
         """
         Add a git command response.
@@ -71,7 +70,7 @@ class MockSubprocessRunner:
         self.git_responses[key] = response
 
     def add_gh_response(
-        self, command: Union[str, List[str]], response: MockCompletedProcess
+        self, command: str | list[str], response: MockCompletedProcess
     ) -> None:
         """
         Add a GitHub CLI command response.
@@ -84,7 +83,7 @@ class MockSubprocessRunner:
         self.gh_responses[key] = response
 
     def add_generic_response(
-        self, command: Union[str, List[str]], response: MockCompletedProcess
+        self, command: str | list[str], response: MockCompletedProcess
     ) -> None:
         """
         Add a generic command response.
@@ -96,7 +95,7 @@ class MockSubprocessRunner:
         key = self._normalize_command(command)
         self.generic_responses[key] = response
 
-    def _normalize_command(self, command: Union[str, List[str]]) -> str:
+    def _normalize_command(self, command: str | list[str]) -> str:
         """
         Normalize command to string for consistent lookup.
 
@@ -112,11 +111,11 @@ class MockSubprocessRunner:
 
     def run(
         self,
-        cmd: Union[str, List[str]],
+        cmd: str | list[str],
         capture_output: bool = True,
         text: bool = True,
         check: bool = True,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> MockCompletedProcess:
         """
         Mock implementation of SubprocessRunner.run.
@@ -166,7 +165,7 @@ class MockSubprocessRunner:
 
     def run_git_command(
         self,
-        args: Union[str, List[str]],
+        args: str | list[str],
         check: bool = True,
     ) -> MockCompletedProcess:
         """
@@ -189,7 +188,7 @@ class MockSubprocessRunner:
 
     def run_gh_command(
         self,
-        args: Union[str, List[str]],
+        args: str | list[str],
         check: bool = True,
     ) -> MockCompletedProcess:
         """
@@ -210,7 +209,7 @@ class MockSubprocessRunner:
 
         return self.run(cmd, check=check)
 
-    def _find_response(self, cmd_str: str) -> Optional[MockCompletedProcess]:
+    def _find_response(self, cmd_str: str) -> MockCompletedProcess | None:
         """
         Find response for a command.
 
@@ -257,7 +256,7 @@ class MockSubprocessRunner:
         return pattern in cmd
 
     def verify_called_with(
-        self, expected_cmd: Union[str, List[str]], call_index: int = -1
+        self, expected_cmd: str | list[str], call_index: int = -1
     ) -> bool:
         """
         Verify that a command was called with expected arguments.
@@ -293,7 +292,7 @@ class MockSubprocessRunner:
         """
         return len(self.call_history)
 
-    def get_calls_for_command(self, command_pattern: str) -> List[Dict[str, Any]]:
+    def get_calls_for_command(self, command_pattern: str) -> list[dict[str, Any]]:
         """
         Get all calls matching a command pattern.
 
