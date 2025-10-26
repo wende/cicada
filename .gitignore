@@ -45,6 +45,8 @@ ENV/
 htmlcov/
 coverage.xml
 *.cover
+coverage.json
+coverage_acceptance.json
 
 # mypy
 .mypy_cache/
