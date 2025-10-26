@@ -59,15 +59,15 @@ end
 
         # Mock sys.argv
         import sys
+        import runpy
 
         monkeypatch.setattr(sys, "argv", ["parser.py", str(test_file)])
 
-        # Import and run main block
-        import cicada.parser as parser_module
+        # Clear module from cache to avoid import order warning
+        if "cicada.parser" in sys.modules:
+            del sys.modules["cicada.parser"]
 
         # Execute the main block by running the module
-        import runpy
-
         try:
             runpy.run_module("cicada.parser", run_name="__main__")
         except SystemExit:
@@ -80,12 +80,15 @@ end
     def test_main_block_no_arguments(self, monkeypatch, capsys):
         """Test running parser as main without arguments"""
         import sys
+        import runpy
 
         monkeypatch.setattr(sys, "argv", ["parser.py"])
 
-        # Execute the main block
-        import runpy
+        # Clear module from cache to avoid import order warning
+        if "cicada.parser" in sys.modules:
+            del sys.modules["cicada.parser"]
 
+        # Execute the main block
         try:
             runpy.run_module("cicada.parser", run_name="__main__")
         except SystemExit:
@@ -98,12 +101,15 @@ end
     def test_main_block_with_invalid_file(self, monkeypatch, capsys):
         """Test running parser as main with file that fails to parse"""
         import sys
+        import runpy
 
         monkeypatch.setattr(sys, "argv", ["parser.py", "/nonexistent/file.ex"])
 
-        # Execute the main block
-        import runpy
+        # Clear module from cache to avoid import order warning
+        if "cicada.parser" in sys.modules:
+            del sys.modules["cicada.parser"]
 
+        # Execute the main block
         try:
             runpy.run_module("cicada.parser", run_name="__main__")
         except SystemExit:
