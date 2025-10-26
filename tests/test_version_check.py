@@ -1,5 +1,7 @@
 """
 Comprehensive tests for cicada/version_check.py
+
+Author: Cursor(Auto)
 """
 
 import subprocess

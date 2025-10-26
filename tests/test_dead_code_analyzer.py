@@ -1,4 +1,7 @@
-"""Tests for dead code analyzer functionality."""
+"""Tests for dead code analyzer functionality.
+
+Author: Cursor(Auto)
+"""
 
 import pytest
 from cicada.dead_code_analyzer import DeadCodeAnalyzer

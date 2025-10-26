@@ -2,6 +2,8 @@
 Dead Code Analyzer for Elixir codebases.
 
 Identifies potentially unused public functions using the indexed codebase data.
+
+Author: Cursor(Auto)
 """
 
 from typing import Dict, List, Optional

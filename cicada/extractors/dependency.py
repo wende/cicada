@@ -1,5 +1,7 @@
 """
 Dependency extraction logic (alias, import, require, use).
+
+Author: Cursor(Auto)
 """
 
 

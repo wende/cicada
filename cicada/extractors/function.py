@@ -1,5 +1,7 @@
 """
 Function extraction logic.
+
+Author: Cursor(Auto)
 """
 
 from .base import get_param_name

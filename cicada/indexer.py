@@ -2,6 +2,8 @@
 Elixir Repository Indexer.
 
 Walks an Elixir repository and indexes all modules and functions.
+
+Author: Cursor(Auto)
 """
 
 import argparse

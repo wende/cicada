@@ -1,5 +1,7 @@
 """
 Comprehensive tests for cicada/utils/subprocess_runner.py
+
+Author: Cursor(Auto)
 """
 
 import pytest

@@ -3,6 +3,8 @@ CLI tool for finding dead code (unused public functions) in Elixir codebases.
 
 Analyzes the indexed codebase to identify potentially unused public functions
 with confidence levels based on usage patterns.
+
+Author: Cursor(Auto)
 """
 
 import argparse

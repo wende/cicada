@@ -2,6 +2,8 @@
 Elixir Parser using tree-sitter.
 
 Parses Elixir source files to extract modules and functions.
+
+Author: Cursor(Auto)
 """
 
 import tree_sitter_elixir as ts_elixir

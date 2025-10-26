@@ -2,6 +2,8 @@
 Extractors for parsing Elixir source code.
 
 This package contains specialized extractors for different parts of Elixir modules.
+
+Author: Cursor(Auto)
 """
 
 from .module import extract_modules

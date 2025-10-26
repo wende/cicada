@@ -3,6 +3,8 @@
 Comprehensive tests for mcp_server.py module.
 
 Tests MCP server initialization, tool validation, and core functionality.
+
+Author: Cursor(Auto)
 """
 
 import asyncio

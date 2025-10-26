@@ -4,6 +4,8 @@ Git integration - extract commit history and file changes
 This module provides access to git commit history using GitPython.
 It complements pr_finder.py (which provides PR attribution) by
 offering comprehensive commit history for files and functions.
+
+Author: Cursor(Auto)
 """
 
 import git
