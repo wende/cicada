@@ -474,10 +474,14 @@ class TestEnsureGitignoreHasCicada:
             # Restore permissions for cleanup
             gitignore_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-    def test_detects_cicada_in_comment(self, tmp_path):
-        """Test that function detects .cicada even in comments"""
+    def test_adds_cicada_when_only_in_comment(self, tmp_path):
+        """Test that function adds .cicada/ when it's only mentioned in comments"""
         gitignore_path = tmp_path / ".gitignore"
         gitignore_path.write_text("# Ignore .cicada directory\n*.log\n")
 
         result = ensure_gitignore_has_cicada(tmp_path)
-        assert result is False  # Should not add because .cicada is mentioned
+        assert result is True  # Should add because comments don't gitignore anything
+
+        # Verify .cicada/ was actually added
+        content = gitignore_path.read_text()
+        assert ".cicada/" in content

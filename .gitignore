@@ -61,3 +61,4 @@ test_config.yaml
 # Test fixtures - local-only test projects
 tests/fixtures/elixir_project
 tests/fixtures/test_project
+.env

@@ -210,10 +210,15 @@ def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
         with open(gitignore_path, "r") as f:
             content = f.read()
 
-        # Check if .cicada/ is already present
-        # Look for common patterns: .cicada/, .cicada, /.cicada/, etc.
-        if ".cicada" in content:
-            return False
+        # Check if .cicada/ is already present in actual gitignore patterns
+        # (ignore comment lines starting with #)
+        for line in content.splitlines():
+            # Strip whitespace and skip empty lines and comments
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                # Check if this line contains .cicada as a gitignore pattern
+                if ".cicada" in stripped:
+                    return False
 
         # Add .cicada/ to .gitignore
         with open(gitignore_path, "a") as f:
