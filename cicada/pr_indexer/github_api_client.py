@@ -69,7 +69,11 @@ class GitHubAPIClient:
             if not name_with_owner or name_with_owner == "null":
                 raise RuntimeError("Not a GitHub repository or no remote configured")
 
-            owner, repo_name = name_with_owner.split("/")
+            parts = name_with_owner.split("/")
+            if len(parts) != 2:
+                raise RuntimeError("Not a GitHub repository")
+            
+            owner, repo_name = parts
             return owner, repo_name
 
         except subprocess.CalledProcessError:
@@ -236,7 +240,7 @@ class GitHubAPIClient:
                 "state": pr_data["state"].lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown"),
+                "author": pr_data.get("author", {}).get("login", "unknown") if pr_data.get("author") else "unknown",
                 "description": pr_data.get("bodyText", ""),
                 "commits": commits,
                 "files_changed": files,
@@ -271,7 +275,7 @@ class GitHubAPIClient:
                         "id": comment_node.get("id"),
                         "author": comment_node.get("author", {}).get(
                             "login", "unknown"
-                        ),
+                        ) if comment_node.get("author") else "unknown",
                         "body": comment_node.get("body", ""),
                         "created_at": comment_node.get("createdAt"),
                         "path": comment_node.get("path"),
@@ -279,7 +283,7 @@ class GitHubAPIClient:
                         "original_line": comment_node.get("originalLine"),
                         "diff_hunk": comment_node.get("diffHunk"),
                         "resolved": is_resolved,
-                        "commit_sha": comment_node.get("commit", {}).get("oid"),
+                        "commit_sha": comment_node.get("commit", {}).get("oid") if comment_node.get("commit") else None,
                     }
                 )
 
@@ -321,7 +325,7 @@ class GitHubAPIClient:
                 "state": pr_data.get("state", "").lower(),
                 "merged": pr_data.get("mergedAt") is not None,
                 "merged_at": pr_data.get("mergedAt"),
-                "author": pr_data.get("author", {}).get("login", "unknown"),
+                "author": pr_data.get("author", {}).get("login", "unknown") if pr_data.get("author") else "unknown",
                 "description": pr_data.get("body", ""),
                 "commits": commits,
                 "files_changed": files,
