@@ -18,6 +18,7 @@ from .extractors import (
     extract_imports,
     extract_requires,
     extract_uses,
+    extract_behaviours,
     extract_function_calls,
     extract_value_mentions,
 )
@@ -79,6 +80,7 @@ class ElixirParser:
                 imports = extract_imports(do_block, source_code)
                 requires = extract_requires(do_block, source_code)
                 uses = extract_uses(do_block, source_code)
+                behaviours = extract_behaviours(do_block, source_code)
 
                 # Extract function calls and value mentions
                 function_calls = extract_function_calls(do_block, source_code)
@@ -90,6 +92,7 @@ class ElixirParser:
                 module_info["imports"] = imports
                 module_info["requires"] = requires
                 module_info["uses"] = uses
+                module_info["behaviours"] = behaviours
                 module_info["value_mentions"] = value_mentions
                 module_info["calls"] = function_calls
 

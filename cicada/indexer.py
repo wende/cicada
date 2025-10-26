@@ -83,6 +83,7 @@ class ElixirIndexer:
                             "imports": module_data.get("imports", []),
                             "requires": module_data.get("requires", []),
                             "uses": module_data.get("uses", []),
+                            "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
                         }
