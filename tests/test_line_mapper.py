@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Comprehensive tests for LineMapper.
 
 Tests all methods and error paths with proper mocking to achieve high coverage
@@ -122,7 +124,8 @@ class TestMapAllCommentLines:
         mapper.map_all_comment_lines([])
         
         captured = capsys.readouterr()
-        assert "Mapped 0 comments" in captured.out or "Mapping comment lines to current file state" in captured.out
+        assert "Mapping comment lines to current file state" in captured.out
+        assert "Mapped 0 comments" not in captured.out  # Should return early
 
     def test_map_all_comment_lines_no_comments(self, tmp_path, capsys):
         """Test line mapping with PRs that have no comments."""
@@ -137,7 +140,8 @@ class TestMapAllCommentLines:
         mapper.map_all_comment_lines(prs)
         
         captured = capsys.readouterr()
-        assert "Mapped 0 comments" in captured.out or "Mapping comment lines to current file state" in captured.out
+        assert "Mapping comment lines to current file state" in captured.out
+        assert "Mapped 0 comments" not in captured.out  # Should return early
 
     def test_map_all_comment_lines_partial_mapping(self, tmp_path, capsys):
         """Test line mapping with partial success."""

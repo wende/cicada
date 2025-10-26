@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Mock GitHub API responses for testing.
 
 Provides response builders for GitHub API calls that can be customized

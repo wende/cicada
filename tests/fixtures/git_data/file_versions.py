@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 File evolution scenarios for line mapping tests.
 
 Provides sample file content at different commits to test line mapping

@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Mock Git command responses for testing.
 
 Provides response builders for git operations that can be customized

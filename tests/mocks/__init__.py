@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Mock infrastructure for PR indexer tests.
 
 This module provides reusable, implementation-agnostic mocks for testing

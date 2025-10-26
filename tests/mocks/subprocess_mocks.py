@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Mock infrastructure for SubprocessRunner testing.
 
 Provides configurable mocks for subprocess operations that can be reused

@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 GitHub API Client for PR Indexer.
 
 This module handles all interactions with the GitHub API (both REST and GraphQL),

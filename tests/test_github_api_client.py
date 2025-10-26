@@ -1,4 +1,6 @@
 """
+Author: Cursor(Auto)
+
 Comprehensive tests for GitHubAPIClient.
 
 Tests all methods and error paths with proper mocking to achieve high coverage
@@ -143,7 +145,7 @@ class TestGetRepoInfo:
         client = GitHubAPIClient(tmp_path, "owner", "repo")
         client.runner = mock_runner
         
-        with pytest.raises(RuntimeError, match="Not a GitHub repository"):
+        with pytest.raises(RuntimeError, match="Invalid repository format. Expected owner/repo, got: invalid-format"):
             client.get_repo_info()
 
     def test_get_repo_info_null_response(self, tmp_path):
