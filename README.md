@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cicada.png" alt="CICADA Logo" width="400"/>
+<img src="public/cicada.png" alt="CICADA Logo" width="400"/>
 
 # CICADA
 
@@ -10,6 +10,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
@@ -27,7 +28,27 @@
 
 ## Overview
 
-CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence for Elixir projects. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><b>Without CICADA</b></td>
+      <td align="center"><b>With CICADA</b></td>
+    </tr>
+    <tr>
+      <td><img src="public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
+      <td><img src="public/cicada-demo-extended-clean-trimmed copy.gif" alt="Demo with CICADA" width="450"/></td>
+    </tr>
+    <tr>
+      <td align="center">3,127 tokens • 52.84s</td>
+      <td align="center">550 tokens • 35.04s</td>
+    </tr>
+    <tr>
+      <td colspan="2" align="center"><b>82.4% fewer tokens • 33.7% faster</b></td>
+    </tr>
+  </table>
+</div>
 
 ### Key Features
 
@@ -53,7 +74,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Using [uv](https://github.com/astral-sh/uv) for the best experience:
 
 ```bash
-# Install once (fast, permanent)
+# Latest stable release (recommended)
+uv tool install git+https://github.com/wende/cicada.git@v0.1.0
+
+# Or latest development version (may include unreleased features)
 uv tool install git+https://github.com/wende/cicada.git
 
 # Then setup in each project
@@ -73,6 +97,10 @@ Test Cicada without installation:
 
 ```bash
 cd /path/to/your/elixir/project
+# Latest stable release
+uvx --from git+https://github.com/wende/cicada.git@v0.1.0 cicada
+
+# Or latest development version
 uvx --from git+https://github.com/wende/cicada.git cicada
 ```
 
@@ -136,7 +164,7 @@ cicada-index-pr .
 
 **Migration tip:** If you have the Python version, run:
 ```bash
-uv tool install git+https://github.com/wende/cicada.git
+uv tool install git+https://github.com/wende/cicada.git@v0.1.0
 cicada  # Re-run to get optimized config
 ```
 
@@ -504,7 +532,7 @@ end
 - Incremental code re-indexing
 
 ### Long Term (Stretch Goals)
-- Multi-language support (Python, TypeScript, Rust)
+- Multi-language support (Python, TypeScript)
 - Semantic code search
 - Real-time incremental indexing
 - Web UI for exploration
@@ -563,8 +591,18 @@ pytest
 pytest tests/test_parser.py
 pytest tests/test_search_function.py
 
-# Run with coverage
+# Run with coverage (terminal report)
+pytest --cov=cicada --cov-report=term-missing
+
+# Generate HTML coverage report
 pytest --cov=cicada --cov-report=html
+# Open htmlcov/index.html in your browser
+
+# Run with coverage and see which lines need tests
+pytest --cov=cicada --cov-report=term-missing --cov-report=html
+
+# Check coverage and fail if below threshold (e.g., 80%)
+pytest --cov=cicada --cov-fail-under=80
 ```
 
 ### Code Style
