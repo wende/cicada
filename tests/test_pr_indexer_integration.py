@@ -4,7 +4,7 @@ Integration test for PR indexer with GraphQL batching and comment mapping.
 
 Tests the enhanced PR indexer functionality without requiring actual GitHub data.
 
-Author: Cursor(Auto)
+# No unused imports
 """
 
 

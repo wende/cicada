@@ -239,11 +239,6 @@ class PRIndexer:
         """
         # Load existing index to preserve last_pr_number if clean build is interrupted
         existing_index = self.index_builder.load_existing_index(output_path)
-        old_last_pr = (
-            existing_index.get("metadata", {}).get("last_pr_number", 0)
-            if existing_index
-            else 0
-        )
 
         if incremental:
             if existing_index:
@@ -271,7 +266,7 @@ class PRIndexer:
         return index
 
     def _perform_full_index(
-        self, output_path: str, existing_index: Optional[Dict[str, Any]]
+        self, _output_path: str, existing_index: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Perform a full index build."""
         total_prs_in_repo = self.api_client.get_total_pr_count()

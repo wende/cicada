@@ -3,7 +3,6 @@ Tests for extended git history features: precise tracking, evolution, and blame.
 """
 
 import pytest
-import os
 from pathlib import Path
 from cicada.git_helper import GitHelper
 
@@ -229,7 +228,7 @@ class TestFunctionBlame:
         start_line = 15
         end_line = 25
 
-        blame_groups = git_helper.get_function_blame(file_path, start_line, end_line)
+        blame_groups = git_helper.get_function_history(file_path, start_line, end_line)
 
         # Should return a list
         assert isinstance(blame_groups, list)
@@ -260,7 +259,7 @@ class TestFunctionBlame:
         start_line = 15
         end_line = 40
 
-        blame_groups = git_helper.get_function_blame(file_path, start_line, end_line)
+        blame_groups = git_helper.get_function_history(file_path, start_line, end_line)
 
         # Check that grouping is working
         if blame_groups:
@@ -284,7 +283,7 @@ class TestFunctionBlame:
         start_line = 999999
         end_line = 999999
 
-        blame_groups = git_helper.get_function_blame(file_path, start_line, end_line)
+        blame_groups = git_helper.get_function_history(file_path, start_line, end_line)
 
         # Should handle gracefully
         assert isinstance(blame_groups, list)
@@ -297,7 +296,7 @@ class TestFunctionBlame:
         start_line = 15
         end_line = 15
 
-        blame_groups = git_helper.get_function_blame(file_path, start_line, end_line)
+        blame_groups = git_helper.get_function_history(file_path, start_line, end_line)
 
         # Should return list
         assert isinstance(blame_groups, list)

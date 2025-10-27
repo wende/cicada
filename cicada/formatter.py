@@ -4,6 +4,8 @@ Formatter Module - Formats module search results in various formats.
 
 This module provides formatting utilities for Cicada MCP server responses,
 supporting both Markdown and JSON output formats.
+
+Author: Cursor(Auto)
 """
 
 import json
@@ -93,7 +95,7 @@ class ModuleFormatter:
         if public_grouped and private_functions != "only":
             lines.extend(["", "Public:", ""])
             # Sort by line number instead of function name
-            for (name, arity), clauses in sorted(
+            for (_, _), clauses in sorted(
                 public_grouped.items(), key=lambda x: x[1][0]["line"]
             ):
                 # Use the first clause for display (they all have same name/arity)
@@ -105,7 +107,7 @@ class ModuleFormatter:
         if private_grouped and private_functions in ["include", "only"]:
             lines.extend(["", "Private:", ""])
             # Sort by line number instead of function name
-            for (name, arity), clauses in sorted(
+            for (_, _), clauses in sorted(
                 private_grouped.items(), key=lambda x: x[1][0]["line"]
             ):
                 # Use the first clause for display (they all have same name/arity)
@@ -162,7 +164,7 @@ class ModuleFormatter:
                 "line": clauses[0]["line"],
                 "type": clauses[0]["type"],
             }
-            for (name, arity), clauses in sorted(grouped.items())
+            for (_, _), clauses in sorted(grouped.items())
         ]
 
         result = {
@@ -299,7 +301,6 @@ No functions matching `{function_name}` were found in the index.
 
         for result in consolidated_results:
             module_name = result["module"]
-            moduledoc = result.get("moduledoc")
             func = result["function"]
             file_path = result["file"]
 
@@ -774,6 +775,64 @@ No functions matching `{function_name}` were found in the index.
         }
         return json.dumps(output, indent=2)
 
+    @staticmethod
+    def format_keyword_search_results_markdown(
+        _keywords: list[str], results: list[Dict[str, Any]]
+    ) -> str:
+        """
+        Format keyword search results as Markdown.
+
+        Args:
+            keywords: The search keywords
+            results: List of search result dictionaries
+
+        Returns:
+            Formatted Markdown string
+        """
+        lines = []
+
+        for _, result in enumerate(results, 1):
+            _result_type = result["type"]
+            name = result["name"]
+            file_path = result["file"]
+            line = result["line"]
+            score = result["score"]
+            _confidence = result["confidence"]
+            matched_keywords = result["matched_keywords"]
+
+            # Result header - clean format like other tools
+            lines.append(name)
+
+            # Location and score - clean format
+            lines.append(
+                f"{file_path}:{line} • Score: {score:.4f} • Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}"
+            )
+
+            # Documentation snippet - clean format with code blocks
+            doc = result.get("doc")
+            if doc:
+                # Trim long docs
+                doc_lines = doc.strip().split("\n")
+                if len(doc_lines) > 3:
+                    preview = "\n".join(doc_lines[:3])
+                    lines.extend(
+                        [
+                            "",
+                            "Documentation:",
+                            "",
+                            "```",
+                            f"{preview}",
+                            "... (trimmed)",
+                            "```",
+                        ]
+                    )
+                else:
+                    lines.extend(["", "Documentation:", "", "```", doc.strip(), "```"])
+
+            lines.append("")  # Empty line between results
+
+        return "\n".join(lines)
+
 
 class JSONFormatter:
     """Formats JSON data with customizable options."""
@@ -836,8 +895,8 @@ class JSONFormatter:
         # Write to output file if specified, otherwise return for stdout
         if output_path:
             with open(output_path, "w") as f:
-                f.write(formatted)
-                f.write("\n")  # Add trailing newline
+                _ = f.write(formatted)
+                _ = f.write("\n")  # Add trailing newline
             print(f"Formatted JSON written to: {output_path}", file=sys.stderr)
 
         return formatted
@@ -860,24 +919,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="Pretty print JSON files with customizable formatting"
     )
-    parser.add_argument("input", type=Path, help="Input JSON file to format")
-    parser.add_argument(
+    _ = parser.add_argument("input", type=Path, help="Input JSON file to format")
+    _ = parser.add_argument(
         "-o", "--output", type=Path, help="Output file (default: print to stdout)"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-i",
         "--indent",
         type=int,
         default=2,
         help="Number of spaces for indentation (default: 2)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-s",
         "--sort-keys",
         action="store_true",
         help="Sort dictionary keys alphabetically",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--compact", action="store_true", help="Use compact formatting (no indentation)"
     )
 

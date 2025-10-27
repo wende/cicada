@@ -10,7 +10,7 @@ separating API concerns from indexing logic.
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Tuple
 
 from cicada.utils import SubprocessRunner
 

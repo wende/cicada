@@ -47,7 +47,7 @@ class TestSubprocessRunner:
         mock_result.stdout = "output"
         mock_result.stderr = ""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             return mock_result
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -192,7 +192,7 @@ class TestSubprocessRunner:
     def test_run_called_process_error_verbose(self, monkeypatch, capsys):
         """Test CalledProcessError handling with verbose mode"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             error = subprocess.CalledProcessError(1, "cmd")
             error.stderr = "Error message"
             raise error
@@ -211,7 +211,7 @@ class TestSubprocessRunner:
     def test_run_called_process_error_no_stderr(self, monkeypatch, capsys):
         """Test CalledProcessError without stderr"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             error = subprocess.CalledProcessError(1, "cmd")
             error.stderr = None
             raise error
@@ -229,7 +229,7 @@ class TestSubprocessRunner:
     def test_run_called_process_error_non_verbose(self, monkeypatch, capsys):
         """Test CalledProcessError without verbose mode"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise subprocess.CalledProcessError(1, "cmd")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -245,7 +245,7 @@ class TestSubprocessRunner:
     def test_run_timeout_expired_verbose(self, monkeypatch, capsys):
         """Test TimeoutExpired handling with verbose mode"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise subprocess.TimeoutExpired("cmd", 5)
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -261,7 +261,7 @@ class TestSubprocessRunner:
     def test_run_timeout_expired_non_verbose(self, monkeypatch, capsys):
         """Test TimeoutExpired without verbose mode"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise subprocess.TimeoutExpired("cmd", 5)
 
         monkeypatch.setattr(subprocess, "run", mock_run)

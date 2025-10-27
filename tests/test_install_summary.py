@@ -2,11 +2,7 @@
 Tests for install.py summary output functionality
 """
 
-import pytest
-from pathlib import Path
 from cicada.install import is_gitignored, print_setup_summary
-import sys
-from io import StringIO
 
 
 class TestIsGitignored:

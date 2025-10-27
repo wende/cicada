@@ -9,15 +9,11 @@ while maintaining loose coupling to implementation details.
 
 import pytest
 import subprocess
-from pathlib import Path
-from unittest.mock import patch
 
 from cicada.pr_indexer.line_mapper import LineMapper
 from tests.mocks.subprocess_mocks import MockSubprocessRunner, MockCompletedProcess
 from tests.mocks.git_responses import (
-    create_file_content_response,
     create_git_show_response,
-    create_git_ls_files_response,
 )
 
 
@@ -58,7 +54,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD",
+                    _ref="HEAD",
                     file_path="test.py",
                     content=[
                         "def hello():",
@@ -77,7 +73,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="test.py",
                     content=[
                         "def hello():",
@@ -162,7 +158,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD",
+                    _ref="HEAD",
                     file_path="existing.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -175,7 +171,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="existing.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -225,7 +221,7 @@ class TestMapAllCommentLines:
         )
 
         # Mock git show to raise KeyboardInterrupt
-        def mock_run_git_command(*args, **kwargs):
+        def mock_run_git_command(*_args, **_kwargs):
             raise KeyboardInterrupt()
 
         mapper = LineMapper(tmp_path)
@@ -312,7 +308,9 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD", file_path="test.py", content=["line1", "line2", "line3"]
+                    _ref="HEAD",
+                    file_path="test.py",
+                    content=["line1", "line2", "line3"],
                 ),
             ),
         )
@@ -323,7 +321,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -353,7 +351,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD",
+                    _ref="HEAD",
                     file_path="test.py",
                     content=["line1", "new_line", "line2", "line3"],
                 ),
@@ -366,7 +364,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -399,7 +397,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD", file_path="test.py", content=head_content
+                    _ref="HEAD", file_path="test.py", content=head_content
                 ),
             ),
         )
@@ -410,7 +408,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -461,7 +459,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD",
+                    _ref="HEAD",
                     file_path="test.py",
                     content=["line1", "line3"],  # line2 deleted
                 ),
@@ -474,7 +472,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123",
+                    _ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -504,7 +502,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD", file_path="test.py", content=["line1", "", "line3"]
+                    _ref="HEAD", file_path="test.py", content=["line1", "", "line3"]
                 ),
             ),
         )
@@ -515,7 +513,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123", file_path="test.py", content=["line1", "", "line3"]
+                    _ref="abc123", file_path="test.py", content=["line1", "", "line3"]
                 ),
             ),
         )
@@ -543,7 +541,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD", file_path="test.py", content=["line1", "line2"]
+                    _ref="HEAD", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )
@@ -554,7 +552,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123", file_path="test.py", content=["line1", "line2"]
+                    _ref="abc123", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )
@@ -589,7 +587,7 @@ class TestMapLineToCurrentFailure:
         )
 
         # Mock git show to raise exception
-        def mock_run_git_command(*args, **kwargs):
+        def mock_run_git_command(*_args, **_kwargs):
             raise subprocess.CalledProcessError(1, "git", "Error")
 
         mapper = LineMapper(tmp_path)
@@ -661,7 +659,9 @@ class TestGetFileLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="HEAD", file_path="test.py", content=["line1", "line2", "line3"]
+                    _ref="HEAD",
+                    file_path="test.py",
+                    content=["line1", "line2", "line3"],
                 ),
             ),
         )
@@ -681,7 +681,7 @@ class TestGetFileLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    ref="abc123", file_path="test.py", content=["line1", "line2"]
+                    _ref="abc123", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )

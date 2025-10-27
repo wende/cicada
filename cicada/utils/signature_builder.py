@@ -5,7 +5,7 @@ This module provides utilities for formatting function signatures,
 eliminating duplication across the formatter module.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 
 class SignatureBuilder:

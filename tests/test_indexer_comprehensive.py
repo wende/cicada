@@ -3,7 +3,6 @@ Comprehensive tests for cicada/indexer.py
 """
 
 import pytest
-from pathlib import Path
 from cicada.indexer import ElixirIndexer
 
 
@@ -75,7 +74,7 @@ end
             monkeypatch.setattr(sys, "argv", ["indexer.py"])
 
             # Mock check_for_updates to do nothing
-            def mock_check(*args, **kwargs):
+            def mock_check(*_args, **_kwargs):
                 pass
 
             import cicada.version_check
@@ -113,7 +112,7 @@ end
         )
 
         # Mock check_for_updates
-        def mock_check(*args, **kwargs):
+        def mock_check(*_args, **_kwargs):
             pass
 
         import cicada.version_check
@@ -151,7 +150,7 @@ end
             monkeypatch.setattr(sys, "argv", ["indexer.py"])
 
             # Mock check_for_updates
-            def mock_check(*args, **kwargs):
+            def mock_check(*_args, **_kwargs):
                 pass
 
             import cicada.version_check

@@ -65,7 +65,7 @@ class PRFinder:
     def _validate_gh_cli(self):
         """Validate that GitHub CLI is installed and available."""
         try:
-            subprocess.run(
+            _ = subprocess.run(
                 ["gh", "--version"], capture_output=True, check=True, cwd=self.repo_path
             )
         except (subprocess.CalledProcessError, FileNotFoundError):
@@ -392,20 +392,20 @@ def main():
     parser = argparse.ArgumentParser(
         description="Find the PR that introduced a specific line of code"
     )
-    parser.add_argument("file", help="Path to the file")
-    parser.add_argument("line", type=int, help="Line number (1-indexed)")
-    parser.add_argument(
+    _ = parser.add_argument("file", help="Path to the file")
+    _ = parser.add_argument("line", type=int, help="Line number (1-indexed)")
+    _ = parser.add_argument(
         "--format",
         choices=["text", "json", "markdown"],
         default="text",
         help="Output format (default: text)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--no-index",
         action="store_true",
         help="Disable index lookup and use network instead (slower)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--index-path",
         default=".cicada/pr_index.json",
         help="Path to PR index file (default: .cicada/pr_index.json)",

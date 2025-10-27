@@ -5,7 +5,6 @@ Checks if a newer version of cicada is available on GitHub.
 """
 
 import subprocess
-import sys
 from typing import Optional
 
 
