@@ -528,8 +528,9 @@ end
 - **Automatic version update checking** - Notifies users when newer versions are available
 
 ### v0.2 (Potential Future Enhancements)
-- Documentation search in markdown files
 - Incremental code re-indexing
+- NLP Keyword search across documentation using BM25 with wildcards
+- RAG with KeyBERT option (??)
 
 ### Long Term (Stretch Goals)
 - Multi-language support (Python, TypeScript)
