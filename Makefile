@@ -3,7 +3,7 @@
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  make install       - Install dependencies in venv"
+	@echo "  make install       - Install dependencies with uv"
 	@echo "  make setup-fixtures - Setup test fixtures"
 	@echo "  make test          - Run all tests"
 	@echo "  make test-verbose  - Run tests with verbose output"
@@ -12,17 +12,13 @@ help:
 	@echo "  make format        - Format code with black"
 	@echo "  make lint          - Check code formatting"
 	@echo "  make pre-commit    - Run all pre-commit checks"
-	@echo "  make ci-test       - Run tests in CI environment (no venv activation)"
+	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
 
-# Setup virtual environment and install dependencies
+# Setup dependencies with uv
 install:
-	@if [ ! -d "venv" ]; then \
-		echo "Creating virtual environment..."; \
-		python3 -m venv venv; \
-	fi
-	@echo "Installing dependencies..."
-	@. venv/bin/activate && pip install -e ".[dev]"
+	@echo "Installing dependencies with uv..."
+	@uv sync --all-extras
 
 # Setup test fixtures
 setup-fixtures:
@@ -30,41 +26,41 @@ setup-fixtures:
 
 # Run tests
 test: setup-fixtures
-	@. venv/bin/activate && pytest
+	@uv run pytest
 
 # Run tests with verbose output
 test-verbose: setup-fixtures
-	@. venv/bin/activate && pytest -v
+	@uv run pytest -v
 
 # Run tests in watch mode
 test-watch: setup-fixtures
-	@. venv/bin/activate && pytest-watch
+	@uv run pytest-watch
 
 # Run tests with coverage
 coverage: setup-fixtures
-	@. venv/bin/activate && pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+	@uv run pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
 format:
-	@. venv/bin/activate && black cicada tests
+	@uv run black cicada tests
 
 # Check code formatting
 lint:
-	@. venv/bin/activate && black --check cicada tests
+	@uv run black --check cicada tests
 
 # Run all pre-commit checks
 pre-commit:
 	@echo "Running pre-commit checks..."
 	@echo "Running black formatter..."
-	@. venv/bin/activate && black .
+	@uv run black .
 	@git add -u
 	@$(MAKE) coverage
 	@echo "✓ All pre-commit checks passed!"
 
-# Run tests in CI environment (without venv activation)
+# Run tests in CI environment
 ci-test: setup-fixtures
-	@pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	@uv run pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
@@ -75,6 +71,8 @@ clean:
 	@rm -rf dist
 	@rm -rf build
 	@rm -rf __pycache__
+	@rm -rf venv
+	@rm -rf .venv
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete
 	@echo "Cleaned up generated files"

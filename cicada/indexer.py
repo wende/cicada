@@ -27,13 +27,19 @@ class ElixirIndexer:
             "priv",
         }
 
-    def index_repository(self, repo_path: str, output_path: str = ".cicada/index.json"):
+    def index_repository(
+        self,
+        repo_path: str,
+        output_path: str = ".cicada/index.json",
+        extract_keywords: bool = False,
+    ):
         """
         Index an Elixir repository.
 
         Args:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
+            extract_keywords: If True, extract keywords from documentation using NLP
 
         Returns:
             Dictionary containing the index data
@@ -45,11 +51,25 @@ class ElixirIndexer:
 
         print(f"Indexing repository: {repo_path}")
 
+        # Initialize keyword extractor if requested
+        keyword_extractor = None
+        if extract_keywords:
+            try:
+                from cicada.keyword_extractor import KeywordExtractor
+
+                keyword_extractor = KeywordExtractor(verbose=True)
+            except Exception as e:
+                print(f"Warning: Could not initialize keyword extractor: {e}")
+                print("Continuing without keyword extraction...")
+                extract_keywords = False
+
         # Find all Elixir files
         elixir_files = self._find_elixir_files(repo_path)
         total_files = len(elixir_files)
 
         print(f"Found {total_files} Elixir files")
+        if extract_keywords:
+            print("Keyword extraction enabled")
 
         # Parse all files
         all_modules = {}
@@ -69,6 +89,25 @@ class ElixirIndexer:
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
 
+                        # Extract keywords if enabled
+                        module_keywords = None
+                        if keyword_extractor and module_data.get("moduledoc"):
+                            module_keywords = keyword_extractor.extract_keywords_simple(
+                                module_data["moduledoc"], top_n=10
+                            )
+
+                        # Extract keywords from function docs
+                        if keyword_extractor:
+                            for func in functions:
+                                if func.get("doc"):
+                                    func_keywords = (
+                                        keyword_extractor.extract_keywords_simple(
+                                            func["doc"], top_n=10
+                                        )
+                                    )
+                                    if func_keywords:
+                                        func["keywords"] = func_keywords
+
                         # Store module info
                         module_info = {
                             "file": str(file_path.relative_to(repo_path)),
@@ -85,6 +124,10 @@ class ElixirIndexer:
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
                         }
+
+                        # Add module keywords if extracted
+                        if module_keywords:
+                            module_info["keywords"] = module_keywords
 
                         all_modules[module_name] = module_info
 
@@ -171,11 +214,18 @@ def main():
         default=".cicada/index.json",
         help="Output path for the index file (default: .cicada/index.json)",
     )
+    parser.add_argument(
+        "--extract-keywords",
+        action="store_true",
+        help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
+    )
 
     args = parser.parse_args()
 
     indexer = ElixirIndexer()
-    _ = indexer.index_repository(args.repo, args.output)
+    indexer.index_repository(
+        args.repo, args.output, extract_keywords=args.extract_keywords
+    )
 
 
 if __name__ == "__main__":

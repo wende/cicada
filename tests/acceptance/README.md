@@ -96,6 +96,43 @@ Test git history tracking for functions. Tracks functions even as they move with
 
 **Note:** Requires `.gitattributes` with `*.ex diff=elixir` (automatically created by `cicada`)
 
+## search_by_keywords.sh
+
+Test keyword-based semantic search for modules and functions.
+
+```bash
+# Search by multiple keywords
+./tests/acceptance/search_by_keywords.sh performance benchmark test
+
+# Search by single keyword
+./tests/acceptance/search_by_keywords.sh validation
+
+# Search for type-related code
+./tests/acceptance/search_by_keywords.sh type spec function
+```
+
+**Prerequisites:**
+1. Build index with keyword extraction:
+   ```bash
+   uv run python -m cicada.indexer tests/fixtures/elixir_project --extract-keywords
+   ```
+2. Create config file (if not exists):
+   ```bash
+   mkdir -p tests/fixtures/elixir_project/.cicada
+   cat > tests/fixtures/elixir_project/.cicada/config.yaml << EOF
+   repository:
+     path: tests/fixtures/elixir_project
+   storage:
+     index_path: tests/fixtures/elixir_project/.cicada/index.json
+   EOF
+   ```
+
+Returns up to 10 results sorted by confidence score, showing:
+- Module or function name with location
+- Confidence percentage (matched keywords / total query keywords)
+- Matched keywords
+- Documentation snippet
+
 ## Pytest vs Shell Scripts
 
 - **Pytest tests** (`tests/test_acceptance.py`): Automated tests that run in CI/CD and track code coverage. Use these for regular testing and development.

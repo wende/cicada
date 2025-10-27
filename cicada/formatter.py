@@ -773,6 +773,74 @@ No functions matching `{function_name}` were found in the index.
         }
         return json.dumps(output, indent=2)
 
+    @staticmethod
+    def format_keyword_search_results_markdown(
+        keywords: list[str], results: list[Dict[str, Any]]
+    ) -> str:
+        """
+        Format keyword search results as Markdown.
+
+        Args:
+            keywords: The search keywords
+            results: List of search result dictionaries
+
+        Returns:
+            Formatted Markdown string
+        """
+        keyword_str = ", ".join(f"'{kw}'" for kw in keywords)
+        lines = [
+            f"# Keyword Search Results",
+            f"",
+            f"**Query:** {keyword_str}",
+            f"**Found:** {len(results)} result(s)",
+            f"",
+        ]
+
+        for i, result in enumerate(results, 1):
+            result_type = result["type"]
+            name = result["name"]
+            file_path = result["file"]
+            line = result["line"]
+            score = result["score"]
+            confidence = result["confidence"]
+            matched_keywords = result["matched_keywords"]
+
+            # Result header
+            if result_type == "module":
+                lines.append(f"## {i}. {name} (Module)")
+            else:
+                lines.append(f"## {i}. {name} (Function)")
+
+            # Location and score
+            lines.append(f"- **Location:** `{file_path}:{line}`")
+            lines.append(
+                f"- **Confidence:** {confidence}% ({score}/{len(keywords)} keywords matched)"
+            )
+            lines.append(f"- **Matched:** {', '.join(matched_keywords)}")
+
+            # Documentation snippet
+            doc = result.get("doc")
+            if doc:
+                # Trim long docs
+                doc_lines = doc.strip().split("\n")
+                if len(doc_lines) > 3:
+                    preview = "\n".join(doc_lines[:3])
+                    lines.append(
+                        f"\n**Documentation:**\n```\n{preview}\n... (trimmed)\n```"
+                    )
+                else:
+                    lines.append(f"\n**Documentation:**\n```\n{doc.strip()}\n```")
+
+            lines.append("")  # Empty line between results
+
+        # Add tip
+        lines.append("---")
+        lines.append(
+            "\n**Tip:** Use `search_module` or `search_function` to get full details about specific results."
+        )
+
+        return "\n".join(lines)
+
 
 class JSONFormatter:
     """Formats JSON data with customizable options."""

@@ -401,6 +401,42 @@ class CicadaServer:
                     "required": ["file_path"],
                 },
             ),
+            Tool(
+                name="search_by_keywords",
+                description=(
+                    "EXPERIMENTAL: Search for modules and functions by semantic keywords.\n\n"
+                    "## When to use\n"
+                    "- Finding code by concept/topic (e.g., 'authentication', 'validation')\n"
+                    "- Discovering functions related to specific domain terms\n"
+                    "- Searching when you don't know exact module/function names\n"
+                    "- Exploring code by semantic meaning\n\n"
+                    "## How to use\n"
+                    "Provide a list of keywords: keywords=['authentication', 'user', 'validate']\n\n"
+                    "## Output includes\n"
+                    "Top 10 results sorted by relevance:\n"
+                    "- Module or function name\n"
+                    "- File location and line number\n"
+                    "- Confidence score (% of query keywords matched)\n"
+                    "- Matched keywords\n"
+                    "- Documentation snippet\n\n"
+                    "## Requirements\n"
+                    "Index must be built with keyword extraction:\n"
+                    "  cicada-index --extract-keywords\n\n"
+                    "Note: This feature uses NLP-extracted keywords from documentation. "
+                    "Results depend on documentation quality."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "keywords": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of keywords to search for (e.g., ['performance', 'benchmark', 'test'])",
+                        },
+                    },
+                    "required": ["keywords"],
+                },
+            ),
         ]
 
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent]:
@@ -517,6 +553,18 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self._get_file_pr_history(file_path)
+        elif name == "search_by_keywords":
+            keywords = arguments.get("keywords")
+
+            if not keywords:
+                error_msg = "'keywords' is required"
+                return [TextContent(type="text", text=error_msg)]
+
+            if not isinstance(keywords, list):
+                error_msg = "'keywords' must be a list of strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self._search_by_keywords(keywords)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -1459,6 +1507,56 @@ class CicadaServer:
 
         result = "\n".join(lines)
         return [TextContent(type="text", text=result)]
+
+    async def _search_by_keywords(self, keywords: list[str]) -> list[TextContent]:
+        """
+        Search for modules and functions by keywords.
+
+        Args:
+            keywords: List of keywords to search for
+
+        Returns:
+            TextContent with formatted search results
+        """
+        from cicada.keyword_search import KeywordSearcher
+
+        # Check if any keywords were extracted in the index
+        has_keywords = False
+        for module_data in self.index.get("modules", {}).values():
+            if module_data.get("keywords"):
+                has_keywords = True
+                break
+            for func in module_data.get("functions", []):
+                if func.get("keywords"):
+                    has_keywords = True
+                    break
+            if has_keywords:
+                break
+
+        if not has_keywords:
+            error_msg = (
+                "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
+                "  cicada-index --extract-keywords\n\n"
+                "This will extract keywords from documentation using NLP."
+            )
+            return [TextContent(type="text", text=error_msg)]
+
+        # Perform the search
+        searcher = KeywordSearcher(self.index)
+        results = searcher.search(keywords, top_n=10)
+
+        if not results:
+            result = f"No results found for keywords: {', '.join(keywords)}"
+            return [TextContent(type="text", text=result)]
+
+        # Format results
+        from cicada.formatter import ModuleFormatter
+
+        formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
+            keywords, results
+        )
+
+        return [TextContent(type="text", text=formatted_result)]
 
     async def run(self):
         """Run the MCP server."""

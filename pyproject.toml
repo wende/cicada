@@ -14,6 +14,8 @@ dependencies = [
     "tree-sitter>=0.20.0",
     "tree-sitter-elixir>=0.1.0",
     "gitpython>=3.1.0",
+    "spacy>=3.8.7",
+    "en-core-web-sm",
 ]
 
 [project.scripts]
@@ -144,3 +146,6 @@ reportUnknownLambdaType = false
 reportDeprecated = false
 reportReturnType = false
 reportPrivateUsage = false
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

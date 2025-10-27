@@ -42,3 +42,4 @@ When creating a new release:
 - Keep functions focused and modular
 
 - When searching through the Elixir codebase, use the cicada-mcp MCP server tools instead of grep/find commands for better accuracy and context.
+- use make to run tests
