@@ -789,14 +789,7 @@ No functions matching `{function_name}` were found in the index.
         Returns:
             Formatted Markdown string
         """
-        keyword_str = ", ".join(keywords)
-        lines = [
-            f"Keyword Search Results",
-            f"",
-            f"Query: {keyword_str}",
-            f"Found: {len(results)} result(s)",
-            f"",
-        ]
+        lines = []
 
         for i, result in enumerate(results, 1):
             result_type = result["type"]
@@ -808,10 +801,7 @@ No functions matching `{function_name}` were found in the index.
             matched_keywords = result["matched_keywords"]
 
             # Result header - clean format like other tools
-            if result_type == "module":
-                lines.append(f"{name} (Module)")
-            else:
-                lines.append(f"{name} (Function)")
+            lines.append(name)
 
             # Location and score - clean format
             lines.append(
@@ -830,11 +820,14 @@ No functions matching `{function_name}` were found in the index.
                             "",
                             "Documentation:",
                             "",
-                            f"```\n{preview}\n... (trimmed)\n```",
+                            "```",
+                            f"{preview}",
+                            "... (trimmed)",
+                            "```",
                         ]
                     )
                 else:
-                    lines.extend(["", "Documentation:", "", f"```\n{doc.strip()}\n```"])
+                    lines.extend(["", "Documentation:", "", "```", doc.strip(), "```"])
 
             lines.append("")  # Empty line between results
 
