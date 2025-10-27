@@ -299,7 +299,6 @@ No functions matching `{function_name}` were found in the index.
 
         for result in consolidated_results:
             module_name = result["module"]
-            # moduledoc = result.get("moduledoc")  # Unused
             func = result["function"]
             file_path = result["file"]
 

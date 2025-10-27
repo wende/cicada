@@ -239,11 +239,6 @@ class PRIndexer:
         """
         # Load existing index to preserve last_pr_number if clean build is interrupted
         existing_index = self.index_builder.load_existing_index(output_path)
-        # old_last_pr = (
-        #     existing_index.get("metadata", {}).get("last_pr_number", 0)
-        #     if existing_index
-        #     else 0
-        # )  # Unused
 
         if incremental:
             if existing_index:

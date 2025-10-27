@@ -134,7 +134,6 @@ def _find_value_mentions_recursive(node, source_code: bytes, value_mentions: lis
     if node.type == "alias":
         # Check if this is a standalone alias (value mention)
         # Skip if parent is a specific call type
-        # parent = node.parent if hasattr(node, "parent") else None  # Unused
 
         # Get the module name
         module_name = source_code[node.start_byte : node.end_byte].decode("utf-8")
