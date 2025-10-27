@@ -78,7 +78,7 @@ pre-commit:
 
 # Run tests in CI environment
 ci-test: setup-fixtures extract-keywords
-	@pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	@uv run pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
