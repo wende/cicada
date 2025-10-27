@@ -4,7 +4,7 @@ Comprehensive tests for cicada/version_check.py
 
 import pytest
 import subprocess
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from cicada.version_check import (
     get_current_version,
     get_latest_github_tag,

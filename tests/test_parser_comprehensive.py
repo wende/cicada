@@ -3,7 +3,6 @@ Comprehensive tests for cicada/parser.py
 """
 
 import pytest
-from pathlib import Path
 from cicada.parser import ElixirParser
 
 

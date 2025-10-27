@@ -10,7 +10,7 @@ import json
 import yaml
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call, mock_open
+from unittest.mock import Mock, MagicMock, patch
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -191,7 +191,7 @@ class TestInstallCicada:
             patch("cicada.install.run_command") as mock_run,
         ):
 
-            path, already_installed = install_cicada(str(target), github_url)
+            _path, _already_installed = install_cicada(str(target), github_url)
 
             # Should have called git clone
             mock_run.assert_called_once()
@@ -279,7 +279,7 @@ class TestInstallDependencies:
         (cicada_dir / "requirements.txt").write_text("pyyaml")
 
         with patch("cicada.install.run_command") as mock_run:
-            python_bin = install_dependencies_pip(cicada_dir)
+            _python_bin = install_dependencies_pip(cicada_dir)
 
             # Should create venv, install requirements, install package
             assert mock_run.call_count >= 2
@@ -297,7 +297,7 @@ class TestInstallDependencies:
 
             mock_uv.return_value = Path("/python")
 
-            result = install_dependencies(cicada_dir, use_uv=None)
+            _result = install_dependencies(cicada_dir, use_uv=None)
 
             mock_uv.assert_called_once()
 
@@ -313,7 +313,7 @@ class TestInstallDependencies:
 
             mock_pip.return_value = Path("/python")
 
-            result = install_dependencies(cicada_dir, use_uv=False)
+            _result = install_dependencies(cicada_dir, use_uv=False)
 
             mock_pip.assert_called_once()
 
@@ -378,7 +378,7 @@ class TestDetectInstallationMethod:
                 patch("sys.executable", "/usr/bin/python"),
             ):
 
-                command, args, cwd, description = detect_installation_method()
+                command, args, _cwd, description = detect_installation_method()
 
                 assert command != "cicada-server"
                 assert "mcp_server.py" in str(args[0])
@@ -389,7 +389,7 @@ class TestDetectInstallationMethod:
         with patch(
             "sys.argv", ["/Users/user/.local/share/uv/tools/cicada/bin/cicada-setup"]
         ):
-            command, args, cwd, description = detect_installation_method()
+            command, args, cwd, _description = detect_installation_method()
 
             assert command == "cicada-server"
             assert args == []

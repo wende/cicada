@@ -1,10 +1,7 @@
 """Tests for CLAUDE.md update functionality in install.py"""
 
-import os
 import tempfile
 from pathlib import Path
-
-import pytest
 
 from cicada.install import update_claude_md
 

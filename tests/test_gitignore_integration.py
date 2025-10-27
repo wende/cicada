@@ -2,8 +2,7 @@
 Integration tests for .gitignore auto-update on first run
 """
 
-import pytest
-from pathlib import Path
+# No unused imports
 from cicada.indexer import ElixirIndexer
 
 

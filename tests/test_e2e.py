@@ -2,7 +2,6 @@
 End-to-end integration tests for Cicada.
 """
 
-import json
 import os
 from pathlib import Path
 import pytest

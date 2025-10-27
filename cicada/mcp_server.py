@@ -5,7 +5,6 @@ Cicada MCP Server - Elixir Module Search.
 Provides an MCP tool to search for Elixir modules and their functions.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -41,8 +40,8 @@ class CicadaServer:
             print(f"Warning: Git helper not available: {e}", file=sys.stderr)
 
         # Register handlers
-        self.server.list_tools()(self.list_tools)
-        self.server.call_tool()(self.call_tool)
+        _ = self.server.list_tools()(self.list_tools)
+        _ = self.server.call_tool()(self.call_tool)
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
@@ -842,7 +841,7 @@ class CicadaServer:
                 code_lines = self._extract_complete_call(lines, line_number)
                 if code_lines:
                     site["code_line"] = code_lines
-            except (FileNotFoundError, IOError, IndexError) as e:
+            except (FileNotFoundError, IOError, IndexError):
                 # If we can't read the file/line, just skip adding the code example
                 pass
 
@@ -1135,7 +1134,7 @@ class CicadaServer:
         function_name: str | None = None,
         start_line: int | None = None,
         end_line: int | None = None,
-        precise_tracking: bool = False,
+        _precise_tracking: bool = False,
         show_evolution: bool = False,
         max_commits: int = 10,
     ) -> list[TextContent]:

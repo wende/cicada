@@ -70,7 +70,7 @@ class GitHelper:
         return commits
 
     def get_function_history(
-        self, file_path: str, function_name: str, line_number: int, max_commits: int = 5
+        self, file_path: str, function_name: str, _line_number: int, max_commits: int = 5
     ) -> List[Dict]:
         """
         Get commit history for a specific function
@@ -432,7 +432,7 @@ class GitHelper:
                         and line_info["sha"] == current_group["sha"]
                     ):
                         current_group["line_end"] = line_info["line_number"]
-                        current_group["lines"].append(
+                        _ = current_group["lines"].append(
                             {
                                 "number": line_info["line_number"],
                                 "content": line_info["content"],

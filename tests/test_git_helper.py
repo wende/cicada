@@ -27,7 +27,7 @@ def test_git_helper_invalid_repo():
 
     # Try to initialize with /tmp which is likely not a git repo
     with pytest.raises(git.InvalidGitRepositoryError):
-        helper = GitHelper("/tmp")
+        _ = GitHelper("/tmp")
 
     print("  ✓ Invalid repo error raised correctly")
 

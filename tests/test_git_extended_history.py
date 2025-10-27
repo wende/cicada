@@ -3,7 +3,6 @@ Tests for extended git history features: precise tracking, evolution, and blame.
 """
 
 import pytest
-import os
 from pathlib import Path
 from cicada.git_helper import GitHelper
 

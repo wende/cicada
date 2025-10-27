@@ -833,7 +833,7 @@ def test_json_formatter_format_file_with_output(tmp_path):
     output_file = tmp_path / "output.json"
 
     formatter = JSONFormatter(indent=2)
-    result = formatter.format_file(input_file, output_file)
+    _ = formatter.format_file(input_file, output_file)
 
     # Output file should exist
     assert output_file.exists()

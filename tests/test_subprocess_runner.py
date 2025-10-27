@@ -5,7 +5,7 @@ Comprehensive tests for cicada/utils/subprocess_runner.py
 import pytest
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from cicada.utils.subprocess_runner import (
     SubprocessRunner,
     run_git_command,

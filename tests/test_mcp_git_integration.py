@@ -7,7 +7,6 @@ import json
 import os
 import pytest
 import yaml
-from pathlib import Path
 from cicada.mcp_server import CicadaServer
 
 

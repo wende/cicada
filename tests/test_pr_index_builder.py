@@ -4,8 +4,6 @@ Comprehensive tests for cicada/pr_indexer/pr_index_builder.py
 
 import json
 import pytest
-from pathlib import Path
-from datetime import datetime
 from cicada.pr_indexer.pr_index_builder import PRIndexBuilder
 
 

@@ -5,19 +5,17 @@ Comprehensive tests for mcp_server.py module.
 Tests MCP server initialization, tool validation, and core functionality.
 """
 
-import asyncio
 import json
 import sys
 import pytest
 import yaml
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, AsyncMock
+from unittest.mock import Mock, patch
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cicada.mcp_server import CicadaServer
-from mcp.types import TextContent
 
 
 class TestServerInitialization:

@@ -135,7 +135,7 @@ def _extract_guards(arguments_node, source_code: bytes) -> list[str]:
         if arg_child.type == "binary_operator":
             # Look for 'when' keyword and the guard expression after it
             has_when = False
-            guard_node = None
+            # guard_node = None  # Unused
 
             for op_child in arg_child.children:
                 if op_child.type == "when":
