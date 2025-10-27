@@ -5,8 +5,7 @@ These tests mirror the shell scripts in tests/acceptance/ but are
 integrated with pytest for better coverage tracking and CI integration.
 """
 
-import asyncio
-from pathlib import Path
+# No unused imports
 
 import pytest
 

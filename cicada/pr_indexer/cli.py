@@ -16,18 +16,18 @@ def main():
     parser = argparse.ArgumentParser(
         description="Index GitHub pull requests for fast offline lookup"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "repo",
         nargs="?",
         default=".",
         help="Path to git repository (default: current directory)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--output",
         default=".cicada/pr_index.json",
         help="Output path for the index file (default: .cicada/pr_index.json)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--clean",
         action="store_true",
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
@@ -38,7 +38,7 @@ def main():
     try:
         indexer = PRIndexer(repo_path=args.repo)
         # Incremental by default, unless --clean is specified
-        indexer.index_repository(output_path=args.output, incremental=not args.clean)
+        _ = indexer.index_repository(output_path=args.output, incremental=not args.clean)
 
         print(
             "\n✅ Indexing complete! You can now use the MCP tools for PR history lookups."

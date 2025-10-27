@@ -8,7 +8,6 @@ Downloads the tool, indexes the repository, and creates .mcp.json configuration.
 import argparse
 import importlib
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -78,7 +77,7 @@ def install_cicada(target_dir, github_url=None):
     if github_url:
         print(f"Downloading cicada from {github_url}...")
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        run_command(f"git clone {github_url} {target_path}")
+        _ = run_command(f"git clone {github_url} {target_path}")
         print(f"✓ Downloaded cicada to {target_path}")
     else:
         print("Error: cicada not found and no GitHub URL provided", file=sys.stderr)
@@ -106,7 +105,7 @@ def install_dependencies_uv(cicada_dir):
 
     # Use uv to sync dependencies
     # uv will automatically create a venv and install everything
-    run_command(f"uv sync", cwd=cicada_dir)
+    _ = run_command(f"uv sync", cwd=cicada_dir)
 
     # Find the python binary uv created
     venv_path = cicada_dir / ".venv"
@@ -131,15 +130,15 @@ def install_dependencies_pip(cicada_dir):
 
     if not venv_path.exists():
         print("Creating virtual environment...")
-        run_command(f"python -m venv {venv_path}")
+        _ = run_command(f"python -m venv {venv_path}")
 
     # Install dependencies
     requirements_file = cicada_dir / "requirements.txt"
     if requirements_file.exists():
-        run_command(f"{python_bin} -m pip install -r {requirements_file}")
+        _ = run_command(f"{python_bin} -m pip install -r {requirements_file}")
 
     # Install package in editable mode
-    run_command(f"{python_bin} -m pip install -e {cicada_dir}")
+    _ = run_command(f"{python_bin} -m pip install -e {cicada_dir}")
 
     print("✓ Dependencies installed with pip")
     return python_bin
@@ -195,7 +194,7 @@ def index_repository(cicada_dir, python_bin, repo_path, fetch_pr_info=False):
     if fetch_pr_info:
         cmd += " --pr-info"
 
-    run_command(cmd)
+    _ = run_command(cmd)
 
     print(f"✓ Repository indexed at {output_path}")
     return output_path
@@ -282,7 +281,7 @@ def check_tools_in_path():
         return "none"
 
 
-def create_mcp_config(repo_path, cicada_dir, python_bin):
+def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     """Create or update .mcp.json configuration file with intelligent command detection."""
     print("Creating .mcp.json configuration...")
 
@@ -349,7 +348,7 @@ def create_mcp_config(repo_path, cicada_dir, python_bin):
     return mcp_config_path
 
 
-def create_config_yaml(cicada_dir, repo_path, index_path):
+def create_config_yaml(_cicada_dir, repo_path, index_path):
     """Create or update config.yaml in repository's .cicada directory."""
     repo_path = Path(repo_path).resolve()
     config_path = repo_path / ".cicada" / "config.yaml"
@@ -365,7 +364,7 @@ storage:
 """
 
     with open(config_path, "w") as f:
-        f.write(config_content)
+        _ = f.write(config_content)
 
     print(f"✓ Config file created at {config_path}")
 
@@ -393,11 +392,11 @@ def create_gitattributes(repo_path):
     # Add elixir patterns
     with open(gitattributes_path, "a") as f:
         if existing_lines and not existing_lines[-1] == "":
-            f.write("\n")  # Add newline if file doesn't end with one
+            _ = f.write("\n")  # Add newline if file doesn't end with one
 
-        f.write("# Elixir function tracking for git log -L\n")
+        _ = f.write("# Elixir function tracking for git log -L\n")
         for pattern in elixir_patterns:
-            f.write(f"{pattern}\n")
+            _ = f.write(f"{pattern}\n")
 
     print(f"✓ Added Elixir patterns to {gitattributes_path}")
     return gitattributes_path
@@ -448,10 +447,10 @@ def update_claude_md(repo_path):
         with open(claude_md_path, "a") as f:
             # Add newline if file doesn't end with one
             if content and not content.endswith("\n"):
-                f.write("\n")
+                _ = f.write("\n")
 
-            f.write("\n")
-            f.write(instruction_content)
+            _ = f.write("\n")
+            _ = f.write(instruction_content)
 
         print(f"✓ Updated CLAUDE.md with cicada-mcp usage instructions")
     except Exception:
@@ -487,7 +486,7 @@ def is_gitignored(repo_path, file_pattern):
         return False
 
 
-def print_setup_summary(repo_path, index_path):
+def print_setup_summary(repo_path, _index_path):
     """
     Print a summary of created files and their gitignore status.
 
@@ -558,36 +557,36 @@ def main():
         description="One-command setup for Cicada MCP server",
         epilog="Example: python setup.py /path/to/elixir/project",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "repo",
         nargs="?",
         default=".",
         help="Path to the Elixir repository to index (default: current directory)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--cicada-dir",
         help="Directory where cicada is or will be installed (default: ~/.cicada)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--github-url",
         help="GitHub URL to clone cicada from (if not already installed)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--pr-info",
         action="store_true",
         help="Fetch PR information during indexing (requires GitHub CLI and may be slow)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--skip-install",
         action="store_true",
         help="Skip installing dependencies (use if already installed)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--use-uv",
         action="store_true",
         help="Force use of uv for dependency installation (faster)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--use-pip",
         action="store_true",
         help="Force use of pip for dependency installation (traditional)",
@@ -647,13 +646,13 @@ def main():
     create_config_yaml(cicada_dir, args.repo, index_path)
 
     # Create .gitattributes for Elixir function tracking
-    create_gitattributes(args.repo)
+    _ = create_gitattributes(args.repo)
 
     # Update CLAUDE.md with cicada-mcp usage instructions
     update_claude_md(args.repo)
 
     # Create .mcp.json
-    mcp_config_path = create_mcp_config(args.repo, cicada_dir, python_bin)
+    _ = create_mcp_config(args.repo, cicada_dir, python_bin)
 
     # Print summary of created files and gitignore status
     print_setup_summary(args.repo, index_path)

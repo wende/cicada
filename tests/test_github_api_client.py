@@ -7,11 +7,8 @@ Tests all methods and error paths with proper mocking to achieve high coverage
 while maintaining loose coupling to implementation details.
 """
 
-import json
 import pytest
-import subprocess
 from pathlib import Path
-from unittest.mock import patch
 
 from cicada.pr_indexer.github_api_client import GitHubAPIClient
 from tests.mocks.subprocess_mocks import MockSubprocessRunner, MockCompletedProcess
@@ -19,14 +16,11 @@ from tests.mocks.github_responses import (
     create_pr_list_response,
     create_graphql_response,
     create_rest_pr_response,
-    create_review_comments_response,
-    create_github_error_response,
     create_empty_response,
-    create_null_response,
-    create_malformed_json_response,
     create_single_pr_data,
     create_pr_with_complex_comments,
     create_pr_with_no_metadata,
+    create_malformed_json_response,
 )
 
 
@@ -90,11 +84,11 @@ class TestValidateGHCLI:
 
     def test_validate_gh_cli_subprocess_error(self, tmp_path):
         """Test CLI validation with subprocess error."""
-        mock_runner = MockSubprocessRunner()
+        # mock_runner = MockSubprocessRunner()  # Unused
 
         # No response configured, will use default (success)
         # But we can simulate FileNotFoundError by raising it
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise FileNotFoundError("gh: command not found")
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -142,7 +136,7 @@ class TestGetRepoInfo:
             RuntimeError,
             match="Invalid repository format. Expected owner/repo, got: invalid-format",
         ):
-            client.get_repo_info()
+            _ = client.get_repo_info()
 
     def test_get_repo_info_null_response(self, tmp_path):
         """Test repo info with null response."""
@@ -156,7 +150,7 @@ class TestGetRepoInfo:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="Not a GitHub repository"):
-            client.get_repo_info()
+            _ = client.get_repo_info()
 
     def test_get_repo_info_subprocess_error(self, tmp_path):
         """Test repo info with subprocess error."""
@@ -170,7 +164,7 @@ class TestGetRepoInfo:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="Not a GitHub repository"):
-            client.get_repo_info()
+            _ = client.get_repo_info()
 
 
 class TestFetchPRList:
@@ -265,7 +259,7 @@ class TestFetchPRList:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="Failed to parse PR list"):
-            client.fetch_pr_list()
+            _ = client.fetch_pr_list()
 
     def test_fetch_pr_list_subprocess_error(self, tmp_path):
         """Test PR list fetching with subprocess error."""
@@ -281,7 +275,7 @@ class TestFetchPRList:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="Failed to fetch PR list"):
-            client.fetch_pr_list()
+            _ = client.fetch_pr_list()
 
 
 class TestFetchPRsBatchGraphQL:
@@ -392,7 +386,7 @@ class TestFetchPRsBatchGraphQL:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="GraphQL query failed"):
-            client.fetch_prs_batch_graphql([1])
+            _ = client.fetch_prs_batch_graphql([1])
 
     def test_fetch_prs_batch_json_decode_error(self, tmp_path):
         """Test batch fetching with JSON decode error."""
@@ -408,7 +402,7 @@ class TestFetchPRsBatchGraphQL:
         client.runner = mock_runner
 
         with pytest.raises(RuntimeError, match="Failed to parse GraphQL response"):
-            client.fetch_prs_batch_graphql([1])
+            _ = client.fetch_prs_batch_graphql([1])
 
     def test_fetch_prs_batch_missing_data(self, tmp_path):
         """Test batch fetching with missing data in response."""

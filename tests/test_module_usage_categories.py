@@ -3,7 +3,6 @@ Test module usage categories: aliases, imports, requires, uses, and value mentio
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 

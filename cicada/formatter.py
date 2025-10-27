@@ -93,7 +93,7 @@ class ModuleFormatter:
         if public_grouped and private_functions != "only":
             lines.extend(["", "Public:", ""])
             # Sort by line number instead of function name
-            for (name, arity), clauses in sorted(
+            for (_, _), clauses in sorted(
                 public_grouped.items(), key=lambda x: x[1][0]["line"]
             ):
                 # Use the first clause for display (they all have same name/arity)
@@ -105,7 +105,7 @@ class ModuleFormatter:
         if private_grouped and private_functions in ["include", "only"]:
             lines.extend(["", "Private:", ""])
             # Sort by line number instead of function name
-            for (name, arity), clauses in sorted(
+            for (_, _), clauses in sorted(
                 private_grouped.items(), key=lambda x: x[1][0]["line"]
             ):
                 # Use the first clause for display (they all have same name/arity)
@@ -162,7 +162,7 @@ class ModuleFormatter:
                 "line": clauses[0]["line"],
                 "type": clauses[0]["type"],
             }
-            for (name, arity), clauses in sorted(grouped.items())
+            for (_, _), clauses in sorted(grouped.items())
         ]
 
         result = {
@@ -299,7 +299,6 @@ No functions matching `{function_name}` were found in the index.
 
         for result in consolidated_results:
             module_name = result["module"]
-            moduledoc = result.get("moduledoc")
             func = result["function"]
             file_path = result["file"]
 
@@ -836,8 +835,8 @@ class JSONFormatter:
         # Write to output file if specified, otherwise return for stdout
         if output_path:
             with open(output_path, "w") as f:
-                f.write(formatted)
-                f.write("\n")  # Add trailing newline
+                _ = f.write(formatted)
+                _ = f.write("\n")  # Add trailing newline
             print(f"Formatted JSON written to: {output_path}", file=sys.stderr)
 
         return formatted
@@ -860,24 +859,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="Pretty print JSON files with customizable formatting"
     )
-    parser.add_argument("input", type=Path, help="Input JSON file to format")
-    parser.add_argument(
+    _ = parser.add_argument("input", type=Path, help="Input JSON file to format")
+    _ = parser.add_argument(
         "-o", "--output", type=Path, help="Output file (default: print to stdout)"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-i",
         "--indent",
         type=int,
         default=2,
         help="Number of spaces for indentation (default: 2)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "-s",
         "--sort-keys",
         action="store_true",
         help="Sort dictionary keys alphabetically",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--compact", action="store_true", help="Use compact formatting (no indentation)"
     )
 

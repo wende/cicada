@@ -5,9 +5,7 @@ This module handles building and merging PR index structures,
 separating index construction logic from API and mapping concerns.
 """
 
-import json
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from cicada.utils import load_index as load_index_util, save_index as save_index_util

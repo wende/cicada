@@ -5,7 +5,6 @@ Walks an Elixir repository and indexes all modules and functions.
 """
 
 import argparse
-import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -161,13 +160,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Index current Elixir repository to extract modules and functions"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "repo",
         nargs="?",
         default=".",
         help="Path to the Elixir repository to index (default: current directory)",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--output",
         default=".cicada/index.json",
         help="Output path for the index file (default: .cicada/index.json)",
@@ -176,7 +175,7 @@ def main():
     args = parser.parse_args()
 
     indexer = ElixirIndexer()
-    indexer.index_repository(args.repo, args.output)
+    _ = indexer.index_repository(args.repo, args.output)
 
 
 if __name__ == "__main__":

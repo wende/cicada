@@ -3,7 +3,6 @@ Comprehensive tests for cicada/indexer.py
 """
 
 import pytest
-from pathlib import Path
 from cicada.indexer import ElixirIndexer
 
 

@@ -4,8 +4,6 @@ Demonstrate intelligent .mcp.json generation based on installation method.
 """
 
 import json
-import tempfile
-from pathlib import Path
 from cicada.install import detect_installation_method
 
 

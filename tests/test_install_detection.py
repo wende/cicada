@@ -3,8 +3,7 @@
 Test installation method detection logic.
 """
 
-import sys
-from pathlib import Path
+# No unused imports
 from unittest.mock import patch
 
 

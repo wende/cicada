@@ -4,9 +4,6 @@ Comprehensive tests for cicada/utils/index_utils.py
 
 import json
 import pytest
-import sys
-from pathlib import Path
-from io import StringIO
 from cicada.utils.index_utils import (
     load_index,
     save_index,
