@@ -272,6 +272,10 @@ cd cicada
 git init
 
 # Create virtual environment
+# Using uv (recommended)
+uv sync
+
+# Or traditional venv (legacy)
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
@@ -302,7 +306,8 @@ EOF
 
 # Create .gitignore
 cat > .gitignore << EOF
-venv/
+.venv/  # Created by uv sync
+venv/   # Legacy venv
 __pycache__/
 *.pyc
 .env
@@ -2210,7 +2215,7 @@ python mcp_server.py
 
 ```
 cicada/
-├── venv/                       # Python virtual environment
+├── .venv/                      # Python virtual environment (uv managed)
 ├── data/
 │   └── index.json             # Function index database
 ├── config.yaml                 # Configuration file

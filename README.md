@@ -571,11 +571,12 @@ These are deliberate design choices to keep CICADA fast, predictable, and mainta
 git clone https://github.com/wende/cicada.git
 cd cicada
 
-# Create a virtual environment
+# Using uv (recommended)
+uv sync
+
+# Or traditional venv (legacy)
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install in development mode with test dependencies
 pip install -e ".[dev]"
 
 # Run tests

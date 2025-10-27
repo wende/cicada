@@ -121,8 +121,8 @@ def install_dependencies_uv(cicada_dir):
 
 
 def install_dependencies_pip(cicada_dir):
-    """Install Python dependencies using traditional pip."""
-    print("Installing dependencies with pip...")
+    """Install Python dependencies using traditional pip (legacy method)."""
+    print("Installing dependencies with pip (legacy method)...")
 
     # Check if venv exists
     venv_path = cicada_dir / "venv"
@@ -155,11 +155,13 @@ def install_dependencies(cicada_dir, use_uv=None):
     Returns:
         Path to python binary
     """
-    # Auto-detect uv if not specified
+    # Auto-detect uv if not specified (uv is preferred)
     if use_uv is None:
         use_uv = check_uv_available()
         if use_uv:
-            print("✓ Detected uv - will use it for faster installation")
+            print("✓ Detected uv - using it for faster installation (recommended)")
+        else:
+            print("⚠ uv not available - falling back to pip (slower)")
 
     if use_uv:
         return install_dependencies_uv(cicada_dir)

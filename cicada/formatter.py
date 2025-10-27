@@ -4,6 +4,8 @@ Formatter Module - Formats module search results in various formats.
 
 This module provides formatting utilities for Cicada MCP server responses,
 supporting both Markdown and JSON output formats.
+
+Author: Cursor(Auto)
 """
 
 import json
@@ -787,12 +789,12 @@ No functions matching `{function_name}` were found in the index.
         Returns:
             Formatted Markdown string
         """
-        keyword_str = ", ".join(f"'{kw}'" for kw in keywords)
+        keyword_str = ", ".join(keywords)
         lines = [
-            f"# Keyword Search Results",
+            f"Keyword Search Results",
             f"",
-            f"**Query:** {keyword_str}",
-            f"**Found:** {len(results)} result(s)",
+            f"Query: {keyword_str}",
+            f"Found: {len(results)} result(s)",
             f"",
         ]
 
@@ -805,39 +807,36 @@ No functions matching `{function_name}` were found in the index.
             confidence = result["confidence"]
             matched_keywords = result["matched_keywords"]
 
-            # Result header
+            # Result header - clean format like other tools
             if result_type == "module":
-                lines.append(f"## {i}. {name} (Module)")
+                lines.append(f"{name} (Module)")
             else:
-                lines.append(f"## {i}. {name} (Function)")
+                lines.append(f"{name} (Function)")
 
-            # Location and score
-            lines.append(f"- **Location:** `{file_path}:{line}`")
+            # Location and score - clean format
             lines.append(
-                f"- **Confidence:** {confidence}% ({score}/{len(keywords)} keywords matched)"
+                f"{file_path}:{line} • Score: {score:.4f} • Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}"
             )
-            lines.append(f"- **Matched:** {', '.join(matched_keywords)}")
 
-            # Documentation snippet
+            # Documentation snippet - clean format with code blocks
             doc = result.get("doc")
             if doc:
                 # Trim long docs
                 doc_lines = doc.strip().split("\n")
                 if len(doc_lines) > 3:
                     preview = "\n".join(doc_lines[:3])
-                    lines.append(
-                        f"\n**Documentation:**\n```\n{preview}\n... (trimmed)\n```"
+                    lines.extend(
+                        [
+                            "",
+                            "Documentation:",
+                            "",
+                            f"```\n{preview}\n... (trimmed)\n```",
+                        ]
                     )
                 else:
-                    lines.append(f"\n**Documentation:**\n```\n{doc.strip()}\n```")
+                    lines.extend(["", "Documentation:", "", f"```\n{doc.strip()}\n```"])
 
             lines.append("")  # Empty line between results
-
-        # Add tip
-        lines.append("---")
-        lines.append(
-            "\n**Tip:** Use `search_module` or `search_function` to get full details about specific results."
-        )
 
         return "\n".join(lines)
 

@@ -21,5 +21,5 @@ fi
 
 # Generate index for test fixtures
 echo "Generating index for $FIXTURE_DIR..."
-python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json
+python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --extract-keywords
 echo "✓ Test fixtures generated successfully"

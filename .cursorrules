@@ -34,19 +34,6 @@ When creating a new release:
 - **Primary Installation Method:** uv tool install (recommended over Python direct install)
 - **Index Location:** `.cicada/` directory in project root
 
-## Development Environment
-
-This project uses **uv** as the primary Python package manager and build tool. When working on this project:
-
-- **Always use `uv` commands** instead of `pip` or other package managers
-- **Install dependencies:** `uv sync` (equivalent to `pip install -r requirements.txt`)
-- **Add new dependencies:** `uv add <package-name>`
-- **Run commands:** `uv run <command>` (e.g., `uv run python -m pytest`)
-- **Install the project:** `uv pip install -e .` for development installation
-- **Tool installation:** `uv tool install git+https://github.com/wende/cicada.git@v0.X.Y`
-
-The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
-
 ## Code Style
 
 - Use `black` for Python code formatting
@@ -56,3 +43,15 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 
 - When searching through the Elixir codebase, use the cicada-mcp MCP server tools instead of grep/find commands for better accuracy and context.
 - use make to run tests
+
+## Package Management
+
+This project uses **uv** as the primary Python package manager. Always use `uv` commands:
+
+- Install dependencies: `uv sync`
+- Add new dependencies: `uv add <package-name>`
+- Run commands: `uv run <command>`
+- Install project: `uv pip install -e .`
+- Tool installation: `uv tool install git+https://github.com/wende/cicada.git@v0.X.Y`
+
+Never use `pip` directly - always use `uv` for all Python package management tasks.

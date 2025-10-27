@@ -16,6 +16,7 @@ dependencies = [
     "gitpython>=3.1.0",
     "spacy>=3.8.7",
     "en-core-web-sm",
+    "rank-bm25>=0.2.2",
 ]
 
 [project.scripts]
@@ -30,6 +31,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "black>=24.0.0",
+    "basedpyright>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]

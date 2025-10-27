@@ -23,6 +23,10 @@ For manual testing or debugging, you can run the shell scripts directly.
 Activate the virtual environment before running scripts:
 
 ```bash
+# Using uv (recommended)
+uv sync
+
+# Or traditional venv (legacy)
 source venv/bin/activate
 ```
 

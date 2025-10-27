@@ -212,7 +212,9 @@ class TestKeywordSearcher:
         # MyApp.User module should be first (matches both keywords)
         assert results[0]["type"] == "module"
         assert results[0]["name"] == "MyApp.User"
-        assert results[0]["score"] == 2
+        # BM25 score should be positive (higher is better match)
+        assert results[0]["score"] > 0
+        # Confidence should still be 100% (both keywords matched)
         assert results[0]["confidence"] == 100.0
 
     def test_search_partial_match(self, sample_index):

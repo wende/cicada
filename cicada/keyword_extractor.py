@@ -12,6 +12,9 @@ import sys
 class KeywordExtractor:
     """Extract keywords from text using spaCy NLP."""
 
+    # spaCy model name for NLP processing
+    SPACY_MODEL = "en_core_web_sm"
+
     def __init__(self, verbose: bool = False):
         """
         Initialize spaCy model.
@@ -25,13 +28,13 @@ class KeywordExtractor:
             print("Loading spaCy model...", file=sys.stderr)
 
         try:
-            self.nlp = spacy.load("en_core_web_sm")
+            self.nlp = spacy.load(self.SPACY_MODEL)
             if self.verbose:
                 print("✓ Model loaded successfully", file=sys.stderr)
         except OSError as e:
             raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Please install it with: python -m spacy download en_core_web_sm"
+                f"spaCy model '{self.SPACY_MODEL}' not found. "
+                f"Please install it with: python -m spacy download {self.SPACY_MODEL}"
             ) from e
 
     def split_camel_snake_case(self, text):
