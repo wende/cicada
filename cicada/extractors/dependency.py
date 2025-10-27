@@ -1,5 +1,7 @@
 """
 Dependency extraction logic (alias, import, require, use).
+
+Author: Cursor(Auto)
 """
 
 
@@ -287,3 +289,73 @@ def _find_uses_recursive(node, source_code: bytes, uses: list):
                 continue
 
         _find_uses_recursive(child, source_code, uses)
+
+
+def extract_behaviours(node, source_code: bytes) -> list:
+    """Extract all @behaviour declarations from a module body."""
+    behaviours = []
+    _find_behaviours_recursive(node, source_code, behaviours)
+    return behaviours
+
+
+def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
+    """Recursively find @behaviour declarations."""
+    if node.type == "unary_operator":
+        # Check if this is an @ operator with behaviour
+        is_at_operator = False
+        behaviour_call = None
+
+        for child in node.children:
+            if child.type == "@":
+                is_at_operator = True
+            elif child.type == "call" and is_at_operator:
+                behaviour_call = child
+                break
+
+        if behaviour_call:
+            # Check if the call is "behaviour"
+            identifier_text = None
+            arguments_node = None
+
+            for child in behaviour_call.children:
+                if child.type == "identifier":
+                    identifier_text = source_code[
+                        child.start_byte : child.end_byte
+                    ].decode("utf-8")
+                elif child.type == "arguments":
+                    arguments_node = child
+
+            if identifier_text == "behaviour" and arguments_node:
+                # Extract the behaviour module name
+                for arg_child in arguments_node.children:
+                    if arg_child.type == "alias":
+                        # @behaviour ModuleName
+                        module_name = source_code[
+                            arg_child.start_byte : arg_child.end_byte
+                        ].decode("utf-8")
+                        behaviours.append(module_name)
+                    elif arg_child.type == "atom":
+                        # @behaviour :module_name
+                        atom_text = source_code[
+                            arg_child.start_byte : arg_child.end_byte
+                        ].decode("utf-8")
+                        # Remove leading colon and convert to module format if needed
+                        behaviours.append(atom_text.lstrip(":"))
+
+    # Recursively search children, but skip function bodies
+    for child in node.children:
+        if child.type == "call":
+            is_function_def = False
+            for call_child in child.children:
+                if call_child.type == "identifier":
+                    target_text = source_code[
+                        call_child.start_byte : call_child.end_byte
+                    ].decode("utf-8")
+                    if target_text in ["def", "defp", "defmodule"]:
+                        is_function_def = True
+                        break
+
+            if is_function_def:
+                continue
+
+        _find_behaviours_recursive(child, source_code, behaviours)

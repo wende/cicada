@@ -4,6 +4,8 @@ Git integration - extract commit history and file changes
 This module provides access to git commit history using GitPython.
 It complements pr_finder.py (which provides PR attribution) by
 offering comprehensive commit history for files and functions.
+
+Author: Cursor(Auto)
 """
 
 import git
@@ -156,6 +158,7 @@ class GitHelper:
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
         """
         commits = []
+        import subprocess
 
         # Determine tracking mode
         use_function_tracking = function_name is not None
@@ -354,6 +357,7 @@ class GitHelper:
             - lines: List of {number, content} for each line
         """
         blame_groups = []
+        import subprocess
 
         try:
             # Use git blame with line range
@@ -572,7 +576,7 @@ class GitHelper:
 
         # Search through the last 500 commits
         for commit in self.repo.iter_commits(max_count=500):
-            if query_lower in commit.message.lower():
+            if query_lower in str(commit.message).lower():
                 results.append(
                     {
                         "sha": commit.hexsha[:8],

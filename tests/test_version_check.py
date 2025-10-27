@@ -1,8 +1,9 @@
 """
 Comprehensive tests for cicada/version_check.py
+
+Author: Cursor(Auto)
 """
 
-import pytest
 import subprocess
 from unittest.mock import Mock
 from cicada.version_check import (

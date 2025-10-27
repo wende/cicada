@@ -3,6 +3,8 @@
 Unit tests for the pr_indexer package.
 
 Tests the PRIndexer class methods with proper mocking of external dependencies.
+
+Author: Cursor(Auto)
 """
 
 import sys

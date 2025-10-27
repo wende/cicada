@@ -3,6 +3,8 @@
 Comprehensive tests for mcp_server.py module.
 
 Tests MCP server initialization, tool validation, and core functionality.
+
+Author: Cursor(Auto)
 """
 
 import json
@@ -1268,7 +1270,7 @@ class TestAddCodeExamples:
 
         # Should have added code_line
         assert "code_line" in call_sites[0]
-        assert "call_target()" in call_sites[0]["code_line"]
+        assert "call_target()" in str(call_sites[0]["code_line"])
 
     def test_add_code_examples_file_not_found(self, test_server_with_files):
         """Test graceful handling when file doesn't exist."""

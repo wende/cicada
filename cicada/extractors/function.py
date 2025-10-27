@@ -1,5 +1,7 @@
 """
 Function extraction logic.
+
+Author: Cursor(Auto)
 """
 
 from .base import get_param_name
@@ -12,38 +14,115 @@ def extract_functions(node, source_code: bytes) -> list:
     return functions
 
 
-def _find_functions_recursive(node, source_code: bytes, functions: list):
-    """Recursively find def and defp declarations."""
-    # Check if this node is a function call (def or defp)
-    if node.type == "call":
-        # Get the target (function name)
-        target = None
-        arguments = None
+def _extract_impl_from_prev_sibling(node, source_code: bytes):
+    """
+    Extract @impl value from previous sibling if it's an @impl attribute.
 
-        for child in node.children:
-            if child.type == "identifier":
-                target = child
-            elif child.type == "arguments":
-                arguments = child
+    Returns:
+        - True if @impl true
+        - Module name (str) if @impl ModuleName
+        - None if not an @impl attribute
+    """
+    if node is None or node.type != "unary_operator":
+        return None
 
-        # Check if this is a def or defp call
-        if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
+    # Check if this is an @ operator
+    is_at_operator = False
+    impl_call = None
+
+    for child in node.children:
+        if child.type == "@":
+            is_at_operator = True
+        elif child.type == "call" and is_at_operator:
+            impl_call = child
+            break
+
+    if not impl_call:
+        return None
+
+    # Check if the call is "impl"
+    identifier_text = None
+    arguments_node = None
+
+    for child in impl_call.children:
+        if child.type == "identifier":
+            identifier_text = source_code[child.start_byte : child.end_byte].decode(
                 "utf-8"
             )
+        elif child.type == "arguments":
+            arguments_node = child
 
-            if target_text in ["def", "defp"]:
-                # Extract function name and arity
-                func_info = _parse_function_definition(
-                    arguments, source_code, target_text, node.start_point[0] + 1
-                )
-                if func_info:
-                    functions.append(func_info)
-                    return  # Don't recurse into function body
+    if identifier_text != "impl":
+        return None
 
-    # Recursively process children
+    # Extract the impl value from arguments
+    if arguments_node:
+        for arg_child in arguments_node.children:
+            if arg_child.type == "boolean":
+                # @impl true or @impl false
+                bool_text = source_code[
+                    arg_child.start_byte : arg_child.end_byte
+                ].decode("utf-8")
+                return bool_text == "true"
+            elif arg_child.type == "alias":
+                # @impl ModuleName
+                module_name = source_code[
+                    arg_child.start_byte : arg_child.end_byte
+                ].decode("utf-8")
+                return module_name
+
+    # @impl without arguments defaults to true
+    return True
+
+
+def _find_functions_recursive(node, source_code: bytes, functions: list):
+    """Recursively find def and defp declarations."""
+    # Track previous sibling to detect @impl attributes
+    prev_sibling = None
+
+    # Iterate through children to process siblings
     for child in node.children:
+        # Check if this child is a function call (def or defp)
+        if child.type == "call":
+            # Get the target (function name)
+            target = None
+            arguments = None
+
+            for call_child in child.children:
+                if call_child.type == "identifier":
+                    target = call_child
+                elif call_child.type == "arguments":
+                    arguments = call_child
+
+            # Check if this is a def or defp call
+            if target and arguments:
+                target_text = source_code[target.start_byte : target.end_byte].decode(
+                    "utf-8"
+                )
+
+                if target_text in ["def", "defp"]:
+                    # Check if previous sibling is @impl
+                    impl_value = _extract_impl_from_prev_sibling(
+                        prev_sibling, source_code
+                    )
+
+                    # Extract function name and arity
+                    func_info = _parse_function_definition(
+                        arguments, source_code, target_text, child.start_point[0] + 1
+                    )
+                    if func_info:
+                        # Add impl attribute if present
+                        if impl_value is not None:
+                            func_info["impl"] = impl_value
+                        else:
+                            func_info["impl"] = False
+                        functions.append(func_info)
+                        prev_sibling = child
+                        continue  # Don't recurse into function body
+
+        # Recursively process this child
         _find_functions_recursive(child, source_code, functions)
+        prev_sibling = child
 
 
 def _parse_function_definition(
