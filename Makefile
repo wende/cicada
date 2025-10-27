@@ -20,6 +20,9 @@ help:
 install:
 	@echo "Installing dependencies with uv..."
 	@uv sync --all-extras
+	@echo "Installing spaCy language models..."
+	@uv run python -m spacy download en_core_web_sm
+	@uv run python -m spacy download en_core_web_md
 
 # Setup test fixtures
 setup-fixtures:
