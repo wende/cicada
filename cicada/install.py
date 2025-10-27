@@ -121,8 +121,8 @@ def install_dependencies_uv(cicada_dir):
 
 
 def install_dependencies_pip(cicada_dir):
-    """Install Python dependencies using traditional pip."""
-    print("Installing dependencies with pip...")
+    """Install Python dependencies using traditional pip (legacy method)."""
+    print("Installing dependencies with pip (legacy method)...")
 
     # Check if venv exists
     venv_path = cicada_dir / "venv"
@@ -155,11 +155,13 @@ def install_dependencies(cicada_dir, use_uv=None):
     Returns:
         Path to python binary
     """
-    # Auto-detect uv if not specified
+    # Auto-detect uv if not specified (uv is preferred)
     if use_uv is None:
         use_uv = check_uv_available()
         if use_uv:
-            print("✓ Detected uv - will use it for faster installation")
+            print("✓ Detected uv - using it for faster installation (recommended)")
+        else:
+            print("⚠ uv not available - falling back to pip (slower)")
 
     if use_uv:
         return install_dependencies_uv(cicada_dir)
@@ -167,7 +169,9 @@ def install_dependencies(cicada_dir, use_uv=None):
         return install_dependencies_pip(cicada_dir)
 
 
-def index_repository(cicada_dir, python_bin, repo_path, fetch_pr_info=False):
+def index_repository(
+    cicada_dir, python_bin, repo_path, fetch_pr_info=False, spacy_model="small"
+):
     """Index the Elixir repository."""
     print(f"Indexing repository at {repo_path}...")
 
@@ -193,6 +197,9 @@ def index_repository(cicada_dir, python_bin, repo_path, fetch_pr_info=False):
 
     if fetch_pr_info:
         cmd += " --pr-info"
+
+    # Add spacy model option
+    cmd += f" --spacy-model {spacy_model}"
 
     _ = run_command(cmd)
 
@@ -419,7 +426,7 @@ def update_claude_md(repo_path):
   - Finding module APIs: `mcp__cicada__search_module`
   - Finding module usage: `mcp__cicada__search_module_usage`
   - Finding who wrote code: `mcp__cicada__find_pr_for_line`
-  - Finding file history: `mcp__cicada__get_file_history`
+  - Finding file history: `mcp__cicada__get_commit_history`
 
   ### DO NOT use Grep for:
   - ❌ Searching for function names
@@ -591,6 +598,13 @@ def main():
         action="store_true",
         help="Force use of pip for dependency installation (traditional)",
     )
+    _ = parser.add_argument(
+        "--spacy-model",
+        choices=["small", "medium", "large"],
+        default="small",
+        help="Size of spaCy model to use for keyword extraction (default: small). "
+        "Medium and large models provide better accuracy but are slower.",
+    )
 
     args = parser.parse_args()
 
@@ -640,7 +654,9 @@ def main():
         print(f"✓ Skipping dependency installation, using {python_bin}")
 
     # Index repository
-    index_path = index_repository(cicada_dir, python_bin, args.repo, args.pr_info)
+    index_path = index_repository(
+        cicada_dir, python_bin, args.repo, args.pr_info, args.spacy_model
+    )
 
     # Create config.yaml
     create_config_yaml(cicada_dir, args.repo, index_path)

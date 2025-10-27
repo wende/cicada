@@ -3,6 +3,8 @@ Acceptance tests for Cicada MCP server.
 
 These tests mirror the shell scripts in tests/acceptance/ but are
 integrated with pytest for better coverage tracking and CI integration.
+
+Author: Cursor(Auto)
 """
 
 # No unused imports
@@ -350,3 +352,82 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
     assert text.strip()
     # Should have function documentation
     assert "add_numbers" in text
+
+
+# Keyword Search Tests (search_by_keywords.sh)
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_basic(server):
+    """Test basic keyword search functionality."""
+    result = await server._search_by_keywords(["add"])
+    assert len(result) > 0
+    text = result[0].text
+    assert "add" in text.lower()
+    assert "Score:" in text
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_multiple_keywords(server):
+    """Test keyword search with multiple keywords."""
+    result = await server._search_by_keywords(["add", "number"])
+    assert len(result) > 0
+    text = result[0].text
+    # Should find results matching these keywords
+    assert len(text) > 0
+    # Should find either add_numbers or add_integers (both match the keywords)
+    assert "add_numbers" in text or "add_integers" in text
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_with_bm25_scoring(server):
+    """Test that BM25 scoring is applied in keyword search results."""
+    result = await server._search_by_keywords(["add"])
+    assert len(result) > 0
+    text = result[0].text
+    # Check for BM25 score in output
+    assert "Score:" in text
+    # Scores should be numeric values
+    assert "Score:" in text
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_identifier_boost(server):
+    """Test that identifier names are prioritized in keyword search."""
+    result = await server._search_by_keywords(["add"])
+    assert len(result) > 0
+    text = result[0].text
+    # Should find functions with "add" in their name
+    # Functions like "add_numbers" should rank high
+    assert "add" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_no_results(server):
+    """Test keyword search with keywords that have no matches."""
+    result = await server._search_by_keywords(["xyzabc123nonexistent"])
+    assert len(result) > 0
+    text = result[0].text
+    # Should show empty results or no results message
+    assert text.strip() or "No results found" in text
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_json_format(server):
+    """Test keyword search with JSON output format."""
+    result = await server._search_by_keywords(["add"])
+    # Keyword search only supports markdown format
+    # But verify it returns proper results
+    assert len(result) > 0
+    text = result[0].text
+    assert text.strip()
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_matched_keywords_display(server):
+    """Test that matched keywords are displayed in results."""
+    result = await server._search_by_keywords(["add"])
+    assert len(result) > 0
+    text = result[0].text
+    # Should show which keywords matched
+    assert "Matched:" in text

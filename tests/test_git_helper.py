@@ -108,7 +108,7 @@ def test_get_function_history():
     helper = GitHelper(".")
 
     # Test with a known function in the git_helper.py file itself
-    commits = helper.get_function_history(
+    commits = helper.get_function_history_heuristic(
         "cicada/git_helper.py",
         "get_file_history",
         28,  # Approximate line number

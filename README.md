@@ -451,7 +451,7 @@ Creates the basic User module structure
 
 **Note:** Requires PR index (run `cicada-index-pr .` first)
 
-### `get_file_history`
+### `get_commit_history`
 Get commit history for a file or function. Tracks functions even as they move within the file.
 
 **Parameters:**
@@ -481,7 +481,7 @@ Found 5 commit(s)
 - Date: 2024-12-20T10:30:00Z
 ```
 
-### `get_function_blame`
+### `get_blame`
 Show line-by-line authorship with grouped consecutive lines by same author.
 
 **Parameters:**
@@ -506,6 +506,55 @@ def create_user(attrs, opts \\ []) do
 end
 ```
 
+### `search_by_keywords`
+**EXPERIMENTAL:** Search for modules and functions by semantic keywords extracted from documentation.
+
+**Parameters:**
+- `keywords` (array of strings, required): List of keywords to search for
+  - Regular keywords: `["authentication", "user", "validate"]`
+  - Wildcard patterns: `["create*", "test_*"]` (automatically detected)
+    - `*` matches any characters (e.g., `"create*"` matches `createUser`, `createAccount`)
+
+**Requirements:**
+Index must be built with keyword extraction enabled:
+```bash
+cicada-index --extract-keywords
+```
+
+**Returns (Markdown):**
+```
+# Keyword Search Results
+
+Query: authentication, user, validate
+
+Found 10 result(s)
+
+## 1. MyApp.User.authenticate/2 (85% match)
+lib/my_app/user.ex:42
+
+**Matched keywords:** authentication, user, validate
+
+Creates a new user with the given attributes and validates credentials.
+
+---
+
+## 2. MyApp.Auth.validate_token/1 (67% match)
+lib/my_app/auth.ex:15
+
+**Matched keywords:** authentication, validate
+
+Validates a JWT token for user authentication.
+```
+
+**When to use:**
+- Finding code by concept/topic (e.g., "authentication", "validation")
+- Discovering functions related to specific domain terms
+- Searching when you don't know exact module/function names
+- Exploring code by semantic meaning
+- Pattern matching with wildcards
+
+**Note:** Results depend on documentation quality. This feature uses NLP-extracted keywords from `@doc` and `@moduledoc` attributes.
+
 ---
 
 ## Roadmap
@@ -526,10 +575,11 @@ end
 - Intelligent .mcp.json auto-configuration
 - `uv tool install` support
 - **Automatic version update checking** - Notifies users when newer versions are available
+- **NLP Keyword search** (EXPERIMENTAL) - Semantic search across documentation with wildcard support
 
 ### v0.2 (Potential Future Enhancements)
 - Incremental code re-indexing
-- NLP Keyword search across documentation using BM25 with wildcards
+- Enhanced keyword search with BM25 ranking
 - RAG with KeyBERT option (??)
 
 ### Long Term (Stretch Goals)
@@ -571,11 +621,12 @@ These are deliberate design choices to keep CICADA fast, predictable, and mainta
 git clone https://github.com/wende/cicada.git
 cd cicada
 
-# Create a virtual environment
+# Using uv (recommended)
+uv sync
+
+# Or traditional venv (legacy)
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install in development mode with test dependencies
 pip install -e ".[dev]"
 
 # Run tests

@@ -4,6 +4,8 @@ Formatter Module - Formats module search results in various formats.
 
 This module provides formatting utilities for Cicada MCP server responses,
 supporting both Markdown and JSON output formats.
+
+Author: Cursor(Auto)
 """
 
 import json
@@ -772,6 +774,64 @@ No functions matching `{function_name}` were found in the index.
             },
         }
         return json.dumps(output, indent=2)
+
+    @staticmethod
+    def format_keyword_search_results_markdown(
+        _keywords: list[str], results: list[Dict[str, Any]]
+    ) -> str:
+        """
+        Format keyword search results as Markdown.
+
+        Args:
+            keywords: The search keywords
+            results: List of search result dictionaries
+
+        Returns:
+            Formatted Markdown string
+        """
+        lines = []
+
+        for _, result in enumerate(results, 1):
+            _result_type = result["type"]
+            name = result["name"]
+            file_path = result["file"]
+            line = result["line"]
+            score = result["score"]
+            _confidence = result["confidence"]
+            matched_keywords = result["matched_keywords"]
+
+            # Result header - clean format like other tools
+            lines.append(name)
+
+            # Location and score - clean format
+            lines.append(
+                f"{file_path}:{line} • Score: {score:.4f} • Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}"
+            )
+
+            # Documentation snippet - clean format with code blocks
+            doc = result.get("doc")
+            if doc:
+                # Trim long docs
+                doc_lines = doc.strip().split("\n")
+                if len(doc_lines) > 3:
+                    preview = "\n".join(doc_lines[:3])
+                    lines.extend(
+                        [
+                            "",
+                            "Documentation:",
+                            "",
+                            "```",
+                            f"{preview}",
+                            "... (trimmed)",
+                            "```",
+                        ]
+                    )
+                else:
+                    lines.extend(["", "Documentation:", "", "```", doc.strip(), "```"])
+
+            lines.append("")  # Empty line between results
+
+        return "\n".join(lines)
 
 
 class JSONFormatter:

@@ -53,7 +53,7 @@ Added `get_function_evolution()` method:
 #### 2.1 Line-by-Line Authorship
 **File:** `cicada/git_helper.py`
 
-Added `get_function_blame()` method:
+Added `get_function_history()` method:
 - Uses `git blame --porcelain` for detailed authorship info
 - Groups consecutive lines by same author/commit
 - Returns structured data:
@@ -83,7 +83,7 @@ Added `get_function_blame()` method:
 - Clear indicators of tracking method used
 - Backward compatible with existing usage
 
-#### 3.2 New `get_function_blame` Tool
+#### 3.2 New `get_function_history` Tool
 **File:** `cicada/mcp_server.py`
 
 **Parameters:**
@@ -226,7 +226,7 @@ print(f"Modified {evolution['total_modifications']} times")
 ### 3. Git Blame
 ```python
 # Get authorship groups
-blame_groups = git_helper.get_function_blame(
+blame_groups = git_helper.get_function_history(
     "lib/user.ex",
     start_line=42,
     end_line=58
@@ -302,15 +302,15 @@ for group in blame_groups:
 - `cicada/git_helper.py` (+200 lines)
   - `get_function_history_precise()` (~80 lines)
   - `get_function_evolution()` (~60 lines)
-  - `get_function_blame()` (~145 lines)
+  - `get_function_history()` (~145 lines)
 
 ### MCP Integration
 - `cicada/mcp_server.py` (+150 lines)
   - Enhanced `get_file_history` tool definition
-  - New `get_function_blame` tool definition
+  - New `get_function_history` tool definition
   - Updated `call_tool()` handler
   - Updated `_get_file_history()` implementation (+100 lines)
-  - New `_get_function_blame()` implementation (~60 lines)
+  - New `_get_function_history()` implementation (~60 lines)
 
 ### Testing
 - `tests/test_git_extended_history.py` (NEW, 300 lines)

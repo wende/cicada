@@ -43,20 +43,20 @@ def test_server_has_git_helper(test_server):
     print("  ✓ Server has GitHelper initialized")
 
 
-def test_list_tools_includes_get_file_history(test_server):
-    """Test that get_file_history tool is registered."""
-    print("\nTesting get_file_history tool registration...")
+def test_list_tools_includes_get_commit_history(test_server):
+    """Test that get_commit_history tool is registered."""
+    print("\nTesting get_commit_history tool registration...")
 
     tools = asyncio.run(test_server.list_tools())
 
-    # Find get_file_history tool
+    # Find get_commit_history tool
     git_tool = None
     for tool in tools:
-        if tool.name == "get_file_history":
+        if tool.name == "get_commit_history":
             git_tool = tool
             break
 
-    assert git_tool is not None, "get_file_history tool not found in tool list"
+    assert git_tool is not None, "get_commit_history tool not found in tool list"
     assert (
         "git history" in git_tool.description.lower()
     ), "Tool description should mention git history"
@@ -66,11 +66,11 @@ def test_list_tools_includes_get_file_history(test_server):
         "file_path" in git_tool.inputSchema["properties"]
     ), "Tool should have file_path parameter"
 
-    print("  ✓ get_file_history tool is registered")
+    print("  ✓ get_commit_history tool is registered")
     print(f"  ✓ Tool description: {git_tool.description[:100]}...")
 
 
-def test_get_file_history_basic(test_server):
+def test_get_commit_history_basic(test_server):
     """Test basic file history retrieval."""
     print("\nTesting basic file history...")
 
@@ -89,7 +89,7 @@ def test_get_file_history_basic(test_server):
     print(f"  ✓ Response length: {len(text)} characters")
 
 
-def test_get_file_history_with_limit(test_server):
+def test_get_commit_history_with_limit(test_server):
     """Test that max_commits parameter is respected."""
     print("\nTesting max_commits parameter...")
 
@@ -106,7 +106,7 @@ def test_get_file_history_with_limit(test_server):
     print(f"  ✓ Returned {commit_count} commit(s) (max 2)")
 
 
-def test_get_file_history_function_specific(test_server):
+def test_get_commit_history_function_specific(test_server):
     """Test function-specific history retrieval."""
     print("\nTesting function-specific history...")
 
@@ -142,7 +142,7 @@ def test_get_file_history_function_specific(test_server):
         print("  ✓ Function history returned (no commits found for this range)")
 
 
-def test_get_file_history_nonexistent_file(test_server):
+def test_get_commit_history_nonexistent_file(test_server):
     """Test handling of non-existent file."""
     print("\nTesting non-existent file handling...")
 
@@ -158,13 +158,13 @@ def test_get_file_history_nonexistent_file(test_server):
     print("  ✓ Non-existent file handled gracefully")
 
 
-def test_call_tool_get_file_history(test_server):
-    """Test calling get_file_history via the call_tool interface."""
-    print("\nTesting call_tool interface for get_file_history...")
+def test_call_tool_get_commit_history(test_server):
+    """Test calling get_commit_history via the call_tool interface."""
+    print("\nTesting call_tool interface for get_commit_history...")
 
     arguments = {"file_path": "README.md", "max_commits": 2}
 
-    result = asyncio.run(test_server.call_tool("get_file_history", arguments))
+    result = asyncio.run(test_server.call_tool("get_commit_history", arguments))
 
     assert len(result) == 1, "Should return one TextContent"
     assert result[0].type == "text", "Should return text content"
@@ -182,7 +182,7 @@ def test_call_tool_missing_file_path(test_server):
         # Missing 'file_path'
     }
 
-    result = asyncio.run(test_server.call_tool("get_file_history", arguments))
+    result = asyncio.run(test_server.call_tool("get_commit_history", arguments))
 
     assert len(result) == 1, "Should return one TextContent"
     text = result[0].text
@@ -241,7 +241,7 @@ def test_git_helper_not_available():
             os.remove(index_path)
 
 
-def test_get_file_history_markdown_format(test_server):
+def test_get_commit_history_markdown_format(test_server):
     """Test that the output is properly formatted markdown."""
     print("\nTesting markdown formatting...")
 
@@ -322,15 +322,15 @@ if __name__ == "__main__":
 
         # Run all tests
         test_server_has_git_helper(server)
-        test_list_tools_includes_get_file_history(server)
-        test_get_file_history_basic(server)
-        test_get_file_history_with_limit(server)
-        test_get_file_history_function_specific(server)
-        test_get_file_history_nonexistent_file(server)
-        test_call_tool_get_file_history(server)
+        test_list_tools_includes_get_commit_history(server)
+        test_get_commit_history_basic(server)
+        test_get_commit_history_with_limit(server)
+        test_get_commit_history_function_specific(server)
+        test_get_commit_history_nonexistent_file(server)
+        test_call_tool_get_commit_history(server)
         test_call_tool_missing_file_path(server)
         test_git_helper_not_available()
-        test_get_file_history_markdown_format(server)
+        test_get_commit_history_markdown_format(server)
         test_multiple_files_history(server)
         test_git_history_includes_all_fields(server)
 

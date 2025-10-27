@@ -38,7 +38,9 @@ def main():
     try:
         indexer = PRIndexer(repo_path=args.repo)
         # Incremental by default, unless --clean is specified
-        _ = indexer.index_repository(output_path=args.output, incremental=not args.clean)
+        _ = indexer.index_repository(
+            output_path=args.output, incremental=not args.clean
+        )
 
         print(
             "\n✅ Indexing complete! You can now use the MCP tools for PR history lookups."

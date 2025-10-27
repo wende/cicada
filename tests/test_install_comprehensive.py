@@ -273,7 +273,7 @@ class TestInstallDependencies:
             assert "uv sync" in mock_run.call_args[0][0]
 
     def test_install_dependencies_pip_new_venv(self, tmp_path):
-        """Test installing dependencies with pip (new venv)."""
+        """Test installing dependencies with pip (legacy method, new venv)."""
         cicada_dir = tmp_path / "cicada"
         cicada_dir.mkdir()
         (cicada_dir / "requirements.txt").write_text("pyyaml")

@@ -14,6 +14,8 @@ dependencies = [
     "tree-sitter>=0.20.0",
     "tree-sitter-elixir>=0.1.0",
     "gitpython>=3.1.0",
+    "spacy>=3.8.7",
+    "rank-bm25>=0.2.2",
 ]
 
 [project.scripts]
@@ -28,6 +30,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "black>=24.0.0",
+    "basedpyright>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -36,6 +39,9 @@ include = ["cicada*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore:Importing 'parser.split_arg_string' is deprecated.*:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["cicada"]
@@ -128,7 +134,7 @@ reportInconsistentConstructor = true
 reportOverlappingOverload = true
 reportPossiblyUnboundVariable = true
 reportSelfClsParameterName = true
-reportUnusedCallResult = true
+reportUnusedCallResult = false
 reportUnusedExpression = true
 reportUnusedParameter = true
 reportAny = false

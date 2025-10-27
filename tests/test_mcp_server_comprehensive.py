@@ -197,39 +197,39 @@ class TestToolInputValidation:
         assert "'line_number' is required" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_get_file_history_missing_file_path(self, test_server):
-        """Test get_file_history error when file_path is missing."""
-        result = await test_server.call_tool("get_file_history", {})
+    async def test_get_commit_history_missing_file_path(self, test_server):
+        """Test get_commit_history error when file_path is missing."""
+        result = await test_server.call_tool("get_commit_history", {})
 
         assert len(result) == 1
         assert "'file_path' is required" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_get_file_history_precise_tracking_requires_lines(self, test_server):
-        """Test get_file_history error when precise_tracking without line range."""
+    async def test_get_commit_history_precise_tracking_requires_lines(
+        self, test_server
+    ):
+        """Test get_commit_history error when precise_tracking without line range."""
         result = await test_server.call_tool(
-            "get_file_history", {"file_path": "test.ex", "precise_tracking": True}
+            "get_commit_history", {"file_path": "test.ex", "precise_tracking": True}
         )
 
         assert len(result) == 1
         assert "start_line" in result[0].text and "end_line" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_get_function_blame_missing_file_path(self, test_server):
-        """Test get_function_blame error when file_path is missing."""
+    async def test_get_blame_missing_file_path(self, test_server):
+        """Test get_blame error when file_path is missing."""
         result = await test_server.call_tool(
-            "get_function_blame", {"start_line": 1, "end_line": 10}
+            "get_blame", {"start_line": 1, "end_line": 10}
         )
 
         assert len(result) == 1
         assert "'file_path' is required" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_get_function_blame_missing_lines(self, test_server):
-        """Test get_function_blame error when line range is missing."""
-        result = await test_server.call_tool(
-            "get_function_blame", {"file_path": "test.ex"}
-        )
+    async def test_get_blame_missing_lines(self, test_server):
+        """Test get_blame error when line range is missing."""
+        result = await test_server.call_tool("get_blame", {"file_path": "test.ex"})
 
         assert len(result) == 1
         assert "start_line" in result[0].text and "end_line" in result[0].text
@@ -474,7 +474,7 @@ class TestFindPRForLine:
 
 
 class TestGetFunctionBlame:
-    """Test _get_function_blame functionality."""
+    """Test get_blame functionality (internal: _get_function_history)."""
 
     @pytest.fixture
     def test_server_with_git(self, tmp_path):
@@ -498,7 +498,7 @@ class TestGetFunctionBlame:
         return CicadaServer(str(config_path))
 
     @pytest.mark.asyncio
-    async def test_get_function_blame_no_git_helper(self, tmp_path):
+    async def test_get_blame_no_git_helper(self, tmp_path):
         """Test when git helper is not available."""
         # Create server without git repo
         index = {"modules": {}, "metadata": {"total_modules": 0}}
@@ -517,19 +517,19 @@ class TestGetFunctionBlame:
         server = CicadaServer(str(config_path))
         server.git_helper = None  # Ensure no git helper
 
-        result = await server._get_function_blame("test.ex", 1, 10)
+        result = await server._get_function_history("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "not available" in result[0].text.lower()
 
     @pytest.mark.asyncio
-    async def test_get_function_blame_no_results(self, test_server_with_git):
+    async def test_get_blame_no_results(self, test_server_with_git):
         """Test when no blame information is found."""
         # Mock git helper to return empty results
         test_server_with_git.git_helper = Mock()
-        test_server_with_git.git_helper.get_function_blame.return_value = []
+        test_server_with_git.git_helper.get_function_history.return_value = []
 
-        result = await test_server_with_git._get_function_blame("test.ex", 1, 10)
+        result = await test_server_with_git._get_function_history("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "No blame information found" in result[0].text
@@ -699,8 +699,8 @@ class TestListTools:
             "search_function",
             "search_module_usage",
             "find_pr_for_line",
-            "get_file_history",
-            "get_function_blame",
+            "get_commit_history",
+            "get_blame",
             "get_file_pr_history",
         ]
 
@@ -864,8 +864,8 @@ class TestExtractCompleteCall:
         assert result is None
 
 
-class TestGetFileHistoryWithEvolution:
-    """Test _get_file_history with evolution metadata."""
+class TestGetCommitHistoryWithEvolution:
+    """Test get_commit_history with evolution metadata (internal: _get_file_history)."""
 
     @pytest.fixture
     def test_server_with_git(self, tmp_path):
@@ -892,7 +892,7 @@ class TestGetFileHistoryWithEvolution:
 
     @pytest.mark.asyncio
     async def test_file_history_with_evolution_metadata(self, test_server_with_git):
-        """Test get_file_history with show_evolution=True."""
+        """Test get_commit_history with show_evolution=True."""
         # Mock evolution data
         test_server_with_git.git_helper.get_function_history_precise.return_value = [
             {
@@ -933,7 +933,7 @@ class TestGetFileHistoryWithEvolution:
 
     @pytest.mark.asyncio
     async def test_file_history_with_relevance_indicators(self, test_server_with_git):
-        """Test get_file_history with relevance indicators."""
+        """Test get_commit_history with relevance indicators."""
         test_server_with_git.git_helper.get_file_history.return_value = [
             {
                 "sha": "abc123",
@@ -1017,7 +1017,7 @@ class TestGetFileHistoryWithEvolution:
 
 
 class TestGetFunctionBlameFormatting:
-    """Test _get_function_blame with various formatting scenarios."""
+    """Test get_blame formatting scenarios (internal: _get_function_history)."""
 
     @pytest.fixture
     def test_server_with_git(self, tmp_path):
@@ -1043,7 +1043,7 @@ class TestGetFunctionBlameFormatting:
     @pytest.mark.asyncio
     async def test_function_blame_with_multiple_groups(self, test_server_with_git):
         """Test blame formatting with multiple authorship groups."""
-        test_server_with_git.git_helper.get_function_blame.return_value = [
+        test_server_with_git.git_helper.get_function_history.return_value = [
             {
                 "author": "dev1",
                 "author_email": "dev1@example.com",
@@ -1072,7 +1072,7 @@ class TestGetFunctionBlameFormatting:
             },
         ]
 
-        result = await test_server_with_git._get_function_blame("test.ex", 10, 13)
+        result = await test_server_with_git._get_function_history("test.ex", 10, 13)
 
         assert len(result) == 1
         text = result[0].text
@@ -1093,12 +1093,12 @@ class TestGetFunctionBlameFormatting:
 
     @pytest.mark.asyncio
     async def test_function_blame_error_handling(self, test_server_with_git):
-        """Test error handling in get_function_blame."""
-        test_server_with_git.git_helper.get_function_blame.side_effect = Exception(
+        """Test error handling in get_blame."""
+        test_server_with_git.git_helper.get_function_history.side_effect = Exception(
             "Git error"
         )
 
-        result = await test_server_with_git._get_function_blame("test.ex", 1, 10)
+        result = await test_server_with_git._get_function_history("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "Error getting blame information" in result[0].text
