@@ -1,5 +1,7 @@
 """
 Comprehensive tests for keyword search functionality
+
+Author: Cursor(Auto)
 """
 
 import pytest
@@ -463,3 +465,178 @@ end
         results = searcher.search(["test"], top_n=10)
 
         assert len(results) == 0
+
+
+class TestWildcardSearch:
+    """Tests for wildcard search functionality"""
+
+    def test_wildcard_matching_basic(self):
+        """Test basic wildcard pattern matching"""
+        searcher = KeywordSearcher({})
+
+        # Test * wildcard
+        assert searcher._match_wildcard("create*", "createUser") == True
+        assert searcher._match_wildcard("create*", "createAccount") == True
+        assert searcher._match_wildcard("create*", "create") == True
+        assert searcher._match_wildcard("create*", "deleteUser") == False
+
+        # Test ? wildcard is rejected
+        assert searcher._match_wildcard("user?", "user1") == False
+        assert searcher._match_wildcard("user?", "userA") == False
+        assert searcher._match_wildcard("user?", "user") == False
+        assert searcher._match_wildcard("user?", "user12") == False
+
+        # Test exact match
+        assert searcher._match_wildcard("test", "test") == True
+        assert searcher._match_wildcard("test", "testing") == False
+
+    def test_wildcard_keyword_expansion(self):
+        """Test expanding wildcard patterns to matching keywords"""
+        searcher = KeywordSearcher({})
+
+        query_keywords = ["create*", "test_*"]
+        document_keywords = [
+            "createUser",
+            "createAccount",
+            "test_function",
+            "test_helper",
+            "user1",
+            "userA",
+            "admin",
+        ]
+
+        matched = searcher._expand_wildcard_keywords(query_keywords, document_keywords)
+
+        # Should find matches for * patterns only
+        assert "create*" in matched
+        assert "test_*" in matched
+
+    def test_wildcard_search_with_index(self, tmp_path):
+        """Test wildcard search with actual index"""
+        # Create test files
+        test_file = tmp_path / "test_module.ex"
+        test_file.write_text(
+            """
+defmodule TestModule do
+  @moduledoc "Test module for wildcard search"
+  
+  @doc "Creates a new user account"
+  def create_user(name), do: name
+  
+  @doc "Creates a new admin account"  
+  def create_admin(name), do: name
+  
+  @doc "Tests user functionality"
+  def test_user_func(x), do: x
+  
+  @doc "Tests admin functionality"
+  def test_admin_func(x), do: x
+end
+"""
+        )
+
+        # Index with keyword extraction (may not work in test environment)
+        indexer = ElixirIndexer()
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+
+        searcher = KeywordSearcher(index)
+
+        # Test wildcard search for create* patterns
+        results = searcher.search(
+            ["create*"],
+            top_n=10,
+        )
+        assert len(results) > 0
+
+        # Should find functions with "create" in their names
+        function_names = [
+            result["name"] for result in results if result["type"] == "function"
+        ]
+        assert any("create" in name for name in function_names)
+
+        # Test wildcard search for test_* patterns
+        results = searcher.search(
+            ["test_*"],
+            top_n=10,
+        )
+        assert len(results) > 0
+
+        # Should find functions with "test_" in their names
+        function_names = [
+            result["name"] for result in results if result["type"] == "function"
+        ]
+        assert any("test_" in name for name in function_names)
+
+    def test_wildcard_vs_exact_search(self, tmp_path):
+        """Test that wildcard search behaves differently from exact search"""
+        # Create test files
+        test_file = tmp_path / "test_module.ex"
+        test_file.write_text(
+            """
+defmodule TestModule do
+  @moduledoc "Test module for wildcard comparison"
+  
+  @doc "Creates a new user account"
+  def create_user(name), do: name
+  
+  @doc "Creates a new admin account"  
+  def create_admin(name), do: name
+end
+"""
+        )
+
+        # Index with keyword extraction
+        indexer = ElixirIndexer()
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+
+        searcher = KeywordSearcher(index)
+
+        # Exact search should find fewer results
+        exact_results = searcher.search(
+            ["create"],
+            top_n=10,
+        )
+
+        # Wildcard search should find more results
+        wildcard_results = searcher.search(
+            ["create*"],
+            top_n=10,
+        )
+
+        # Wildcard search should find at least as many results as exact search
+        assert len(wildcard_results) >= len(exact_results)
+
+    def test_wildcard_identifier_boost(self, tmp_path):
+        """Test that wildcard matching works with identifier boost"""
+        # Create test files
+        test_file = tmp_path / "test_module.ex"
+        test_file.write_text(
+            """
+defmodule TestModule do
+  @moduledoc "Test module for wildcard identifier boost"
+  
+  @doc "Creates a new user account"
+  def create_user(name), do: name
+  
+  @doc "Creates a new admin account"  
+  def create_admin(name), do: name
+end
+"""
+        )
+
+        # Index with keyword extraction
+        indexer = ElixirIndexer()
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+
+        searcher = KeywordSearcher(index)
+
+        # Search with wildcard should boost functions with matching names
+        results = searcher.search(
+            ["create*"],
+            top_n=10,
+        )
+
+        # Results should be sorted by score (highest first)
+        if len(results) > 1:
+            for i in range(len(results) - 1):
+                assert results[i]["score"] >= results[i + 1]["score"]

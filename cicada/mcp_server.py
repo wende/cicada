@@ -3,6 +3,8 @@
 Cicada MCP Server - Elixir Module Search.
 
 Provides an MCP tool to search for Elixir modules and their functions.
+
+Author: Cursor(Auto)
 """
 
 import sys
@@ -26,7 +28,7 @@ class CicadaServer:
         """Initialize the server with configuration."""
         self.config = self._load_config(config_path)
         self.index = self._load_index()
-        self.pr_index = self._load_pr_index()
+        self._pr_index = None  # Lazy load PR index only when needed
         self.server = Server("cicada")
 
         # Initialize git helper
@@ -63,6 +65,18 @@ class CicadaServer:
                 f"Index file not found: {index_path}\n"
                 f"Run 'python indexer.py <path>' to create an index first."
             )
+
+    @property
+    def pr_index(self) -> dict:
+        """Lazy load the PR index from JSON file."""
+        if self._pr_index is None:
+            # Get repo path from config
+            repo_path = Path(self.config.get("repository", {}).get("path", "."))
+            pr_index_path = repo_path / ".cicada" / "pr_index.json"
+            self._pr_index = load_index(
+                pr_index_path, verbose=True, raise_on_error=False
+            )
+        return self._pr_index
 
     def _load_pr_index(self) -> dict:
         """Load the PR index from JSON file."""
@@ -409,9 +423,13 @@ class CicadaServer:
                     "- Finding code by concept/topic (e.g., 'authentication', 'validation')\n"
                     "- Discovering functions related to specific domain terms\n"
                     "- Searching when you don't know exact module/function names\n"
-                    "- Exploring code by semantic meaning\n\n"
+                    "- Exploring code by semantic meaning\n"
+                    "- Pattern matching with wildcards (e.g., 'create*', 'test_*')\n\n"
                     "## How to use\n"
-                    "Provide a list of keywords: keywords=['authentication', 'user', 'validate']\n\n"
+                    "Provide a list of keywords: keywords=['authentication', 'user', 'validate']\n"
+                    "For wildcard matching: keywords=['create*', 'test_*'] (automatically detected)\n\n"
+                    "## Wildcard patterns\n"
+                    "- * matches any characters (e.g., 'create*' matches 'createUser', 'createAccount')\n\n"
                     "## Output includes\n"
                     "Top 10 results sorted by relevance:\n"
                     "- Module or function name\n"
@@ -431,7 +449,7 @@ class CicadaServer:
                         "keywords": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of keywords to search for (e.g., ['performance', 'benchmark', 'test'])",
+                            "description": "List of keywords to search for (e.g., ['performance', 'benchmark', 'test'] or ['create*', 'test_*'] for wildcards)",
                         },
                     },
                     "required": ["keywords"],

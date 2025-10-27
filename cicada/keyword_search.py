@@ -5,9 +5,12 @@ Provides semantic search capabilities by matching query keywords
 against extracted keywords in the index using BM25 ranking.
 
 Identifier names (function/module names) are given much higher weight than keywords.
+
+Author: Cursor(Auto)
 """
 
 import re
+import fnmatch
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
 
@@ -118,9 +121,152 @@ class KeywordSearcher:
                         }
                     )
 
+        # If no documents were created (no keywords extracted), create documents using identifier names
+        if not documents:
+            for module_name, module_data in self.index.get("modules", {}).items():
+                # Add module as a document using its name as keywords
+                module_keywords = self._split_identifier(module_name)
+                documents.append(module_keywords)
+                document_map.append(
+                    {
+                        "type": "module",
+                        "name": module_name,
+                        "module": module_name,
+                        "file": module_data["file"],
+                        "line": module_data["line"],
+                        "doc": module_data.get("moduledoc"),
+                        "keywords": module_keywords,
+                    }
+                )
+
+                # Add functions as documents using their names as keywords
+                for func in module_data.get("functions", []):
+                    func_keywords = self._split_identifier(func["name"])
+                    documents.append(func_keywords)
+                    full_name = f"{module_name}.{func['name']}/{func['arity']}"
+                    document_map.append(
+                        {
+                            "type": "function",
+                            "name": full_name,
+                            "module": module_name,
+                            "function": func["name"],
+                            "arity": func["arity"],
+                            "file": module_data["file"],
+                            "line": func["line"],
+                            "doc": func.get("doc"),
+                            "keywords": func_keywords,
+                        }
+                    )
+
         # Initialize BM25 with all documents
         bm25 = BM25Okapi(documents) if documents else None
         return bm25, document_map
+
+    def _match_wildcard(self, pattern: str, text: str) -> bool:
+        """
+        Check if text matches a wildcard pattern.
+
+        Supports * (matches any characters) only.
+
+        Args:
+            pattern: Wildcard pattern (e.g., "create*", "test_*")
+            text: Text to match against
+
+        Returns:
+            True if text matches the pattern
+        """
+        # Only support * wildcard, not ?
+        if "?" in pattern:
+            return False
+        return fnmatch.fnmatch(text.lower(), pattern.lower())
+
+    def _expand_wildcard_keywords(
+        self, query_keywords: List[str], document_keywords: List[str]
+    ) -> List[str]:
+        """
+        Expand wildcard patterns to actual matching keywords from the document.
+
+        Args:
+            query_keywords: List of query keywords (may contain wildcards)
+            document_keywords: List of keywords from a document
+
+        Returns:
+            List of actual matching keywords found in the document
+        """
+        matched_keywords = []
+        for query_kw in query_keywords:
+            for doc_kw in document_keywords:
+                if self._match_wildcard(query_kw, doc_kw):
+                    matched_keywords.append(query_kw)
+        return matched_keywords
+
+    def _expand_wildcard_keywords_with_identifier(
+        self,
+        query_keywords: List[str],
+        document_keywords: List[str],
+        identifier_name: str,
+    ) -> List[str]:
+        """
+        Expand wildcard patterns to actual matching keywords from the document and identifier name.
+
+        Args:
+            query_keywords: List of query keywords (may contain wildcards)
+            document_keywords: List of keywords from a document
+            identifier_name: The full identifier name (function/module name)
+
+        Returns:
+            List of actual matching keywords found in the document or identifier
+        """
+        matched_keywords = []
+        for query_kw in query_keywords:
+            # Check against individual keywords
+            for doc_kw in document_keywords:
+                if self._match_wildcard(query_kw, doc_kw):
+                    matched_keywords.append(query_kw)
+                    break  # Only add each query keyword once
+
+            # Also check against the full identifier name
+            if query_kw not in matched_keywords and self._match_wildcard(
+                query_kw, identifier_name
+            ):
+                matched_keywords.append(query_kw)
+        return matched_keywords
+
+    def _get_wildcard_scores(self, query_keywords: List[str]) -> List[float]:
+        """
+        Calculate BM25-like scores for wildcard matching.
+
+        Args:
+            query_keywords: List of query keywords (may contain wildcards)
+
+        Returns:
+            List of scores for each document
+        """
+        scores = []
+
+        for doc_idx, doc_info in enumerate(self.document_map):
+            doc_keywords = [kw.lower() for kw in doc_info["keywords"]]
+            identifier_name = self._extract_identifier_name(doc_info)
+
+            # Find matching keywords using wildcard patterns
+            # Check both individual keywords and full identifier name
+            matched_keywords = self._expand_wildcard_keywords_with_identifier(
+                query_keywords, doc_keywords, identifier_name
+            )
+
+            if matched_keywords:
+                # Calculate a simple score based on number of matches
+                # This is a simplified version of BM25 for wildcard matching
+                score = len(matched_keywords) / len(query_keywords)
+                scores.append(score)
+            else:
+                scores.append(0.0)
+
+        return scores
+
+    def _has_wildcards(self, keywords: List[str]) -> bool:
+        """Check if any keywords contain wildcard patterns."""
+        return any("*" in keyword for keyword in keywords)
 
     def search(
         self, query_keywords: List[str], top_n: int = 10
@@ -131,6 +277,8 @@ class KeywordSearcher:
         Uses BM25 ranking to score documents based on keyword relevance.
         Identifier names (function/module names) are boosted significantly
         when they match query keywords.
+
+        Automatically detects wildcard patterns (* supported) in keywords.
 
         Args:
             query_keywords: List of keywords to search for
@@ -154,8 +302,15 @@ class KeywordSearcher:
         # Normalize query keywords to lowercase
         query_keywords_lower = [kw.lower() for kw in query_keywords]
 
+        # Check if wildcards are present
+        enable_wildcards = self._has_wildcards(query_keywords_lower)
+
         # Get BM25 scores for all documents
-        bm25_scores = self.bm25.get_scores(query_keywords_lower)
+        if enable_wildcards:
+            # For wildcard matching, we need to manually score documents
+            bm25_scores = self._get_wildcard_scores(query_keywords_lower)
+        else:
+            bm25_scores = self.bm25.get_scores(query_keywords_lower)
 
         results = []
 
@@ -163,14 +318,25 @@ class KeywordSearcher:
         for doc_idx, bm25_score in enumerate(bm25_scores):
             if bm25_score > 0:  # Only include documents with non-zero score
                 doc_info = self.document_map[doc_idx]
-                matched = self._count_matches(
-                    query_keywords_lower, doc_info["keywords"]
-                )
+                if enable_wildcards:
+                    identifier_name = self._extract_identifier_name(doc_info)
+                    matched = self._count_wildcard_matches(
+                        query_keywords_lower, doc_info["keywords"], identifier_name
+                    )
+                else:
+                    matched = self._count_matches(
+                        query_keywords_lower, doc_info["keywords"]
+                    )
 
                 # Apply identifier name boost
-                final_score = self._apply_identifier_boost(
-                    bm25_score, query_keywords_lower, doc_info
-                )
+                if enable_wildcards:
+                    final_score = self._apply_identifier_boost_wildcard(
+                        bm25_score, query_keywords_lower, doc_info
+                    )
+                else:
+                    final_score = self._apply_identifier_boost(
+                        bm25_score, query_keywords_lower, doc_info
+                    )
 
                 result = {
                     "type": doc_info["type"],
@@ -264,3 +430,78 @@ class KeywordSearcher:
             "confidence": round(confidence, 1),
             "matched_keywords": matched_keywords,
         }
+
+    def _count_wildcard_matches(
+        self,
+        query_keywords: List[str],
+        item_keywords: List[str],
+        identifier_name: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Count matching keywords between query and item using wildcard patterns.
+
+        Args:
+            query_keywords: Query keywords (may contain wildcards, normalized to lowercase)
+            item_keywords: Keywords from module/function
+            identifier_name: The full identifier name (function/module name)
+
+        Returns:
+            Dictionary with:
+            - score: Number of matching keywords
+            - confidence: Percentage match (score / len(query_keywords) * 100)
+            - matched_keywords: List of matched keywords
+        """
+        # Normalize item keywords to lowercase
+        item_keywords_lower = [kw.lower() for kw in item_keywords]
+
+        # Find matches using wildcard patterns
+        if identifier_name:
+            matched_keywords = self._expand_wildcard_keywords_with_identifier(
+                query_keywords, item_keywords_lower, identifier_name
+            )
+        else:
+            matched_keywords = self._expand_wildcard_keywords(
+                query_keywords, item_keywords_lower
+            )
+
+        score = len(matched_keywords)
+        confidence = (score / len(query_keywords)) * 100 if query_keywords else 0
+
+        return {
+            "score": score,
+            "confidence": round(confidence, 1),
+            "matched_keywords": matched_keywords,
+        }
+
+    def _apply_identifier_boost_wildcard(
+        self, bm25_score: float, query_keywords: List[str], doc_info: Dict[str, Any]
+    ) -> float:
+        """
+        Apply boost to BM25 score if query keywords match the identifier name using wildcards.
+
+        Identifier names (function/module names) are given much higher weight.
+        If any query keyword matches a word in the identifier name using wildcard patterns,
+        the score is multiplied by IDENTIFIER_MATCH_BOOST.
+
+        Args:
+            bm25_score: The original BM25 score
+            query_keywords: Query keywords (may contain wildcards, normalized to lowercase)
+            doc_info: Document information with function/module name
+
+        Returns:
+            Final score (boosted if identifier matches)
+        """
+        # Extract the identifier name (module name or function name)
+        identifier_name = self._extract_identifier_name(doc_info)
+
+        # Split identifier into words
+        identifier_words = self._split_identifier(identifier_name)
+
+        # Check if any query keyword matches any word in the identifier using wildcards
+        for query_kw in query_keywords:
+            for identifier_word in identifier_words:
+                if self._match_wildcard(query_kw, identifier_word):
+                    # Apply significant boost for identifier match
+                    return bm25_score * self.IDENTIFIER_MATCH_BOOST
+
+        return bm25_score
