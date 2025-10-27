@@ -2,8 +2,6 @@
 Elixir Repository Indexer.
 
 Walks an Elixir repository and indexes all modules and functions.
-
-Author: Cursor(Auto)
 """
 
 import argparse
@@ -21,6 +19,7 @@ class ElixirIndexer:
     def __init__(self):
         """Initialize the indexer with a parser."""
         self.parser = ElixirParser()
+        self.verbose = False
         self.excluded_dirs = {
             "deps",
             "_build",

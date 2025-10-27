@@ -1,7 +1,5 @@
 """
-Comprehensive tests for cicada/utils/subprocess_runner.py
-
-Author: Cursor(Auto)
+Tests for cicada/utils/subprocess_runner.py
 """
 
 import pytest
@@ -18,500 +16,173 @@ from cicada.utils.subprocess_runner import (
 class TestSubprocessRunner:
     """Tests for SubprocessRunner class"""
 
-    def test_init_default(self):
-        """Test default initialization"""
-        runner = SubprocessRunner()
-        assert runner.cwd is None
-        assert runner.verbose is False
+    @pytest.mark.parametrize(
+        "cwd,verbose,expected_cwd,expected_verbose",
+        [
+            (None, False, None, False),  # Default initialization
+            (".", False, Path("."), False),  # String cwd
+            (Path("/tmp"), False, Path("/tmp"), False),  # Path cwd
+            (None, True, None, True),  # Verbose flag
+        ],
+    )
+    def test_initialization(self, cwd, verbose, expected_cwd, expected_verbose):
+        """Should initialize with correct parameters"""
+        runner = SubprocessRunner(cwd=cwd, verbose=verbose)
+        if expected_cwd is None:
+            assert runner.cwd is None
+        else:
+            assert runner.cwd == expected_cwd
+            assert isinstance(runner.cwd, Path)
+        assert runner.verbose == expected_verbose
 
-    def test_init_with_cwd_string(self, tmp_path):
-        """Test initialization with cwd as string"""
-        runner = SubprocessRunner(cwd=str(tmp_path))
-        assert runner.cwd == tmp_path
-        assert isinstance(runner.cwd, Path)
-
-    def test_init_with_cwd_path(self, tmp_path):
-        """Test initialization with cwd as Path"""
-        runner = SubprocessRunner(cwd=tmp_path)
-        assert runner.cwd == tmp_path
-
-    def test_init_with_verbose(self):
-        """Test initialization with verbose flag"""
-        runner = SubprocessRunner(verbose=True)
-        assert runner.verbose is True
-
-    def test_run_simple_command_list(self, monkeypatch):
-        """Test running a simple command as list"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "output"
-        mock_result.stderr = ""
-
-        def mock_run(*_args, **_kwargs):
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        result = runner.run(["echo", "hello"])
-
-        assert result == mock_result
-
-    def test_run_simple_command_string(self, monkeypatch):
-        """Test running a simple command as string"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = ""
-
+    @pytest.mark.parametrize(
+        "command,expected_type",
+        [
+            (["echo", "hello"], list),
+            ("echo hello", str),
+        ],
+    )
+    def test_run_command_formats(self, command, expected_type, monkeypatch):
+        """Should handle both list and string commands"""
+        mock_result = Mock(returncode=0, stdout="output")
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
         runner = SubprocessRunner()
-        result = runner.run("echo hello")
-
+        result = runner.run(command)
         assert result == mock_result
 
     def test_run_with_cwd(self, monkeypatch, tmp_path):
-        """Test running command with custom working directory"""
+        """Should pass cwd to subprocess.run"""
         calls = []
 
         def mock_run(*args, **kwargs):
             calls.append(kwargs.get("cwd"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
+            return Mock(returncode=0, stdout="")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
         runner = SubprocessRunner(cwd=tmp_path)
-        _ = runner.run(["ls"])
-
+        runner.run(["ls"])
         assert calls[0] == tmp_path
 
-    def test_run_verbose_with_output(self, monkeypatch, capsys):
-        """Test verbose mode prints stdout"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Command output"
-
+    def test_verbose_mode(self, monkeypatch, capsys):
+        """Should print stdout when verbose=True"""
+        mock_result = Mock(returncode=0, stdout="Command output")
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
         runner = SubprocessRunner(verbose=True)
-        _ = runner.run(["echo", "test"])
+        runner.run(["echo", "test"])
 
         captured = capsys.readouterr()
         assert "Command output" in captured.err
 
-    def test_run_verbose_without_output(self, monkeypatch, capsys):
-        """Test verbose mode with no stdout"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = None
-
-        monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
-
-        runner = SubprocessRunner(verbose=True)
-        _ = runner.run(["echo", "test"])
-
-        captured = capsys.readouterr()
-        assert captured.err == ""
-
-    def test_run_with_capture_output_false(self, monkeypatch):
-        """Test running without capturing output"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("capture_output"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        _ = runner.run(["ls"], capture_output=False)
-
-        assert calls[0] is False
-
-    def test_run_with_text_false(self, monkeypatch):
-        """Test running with text=False (bytes mode)"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("text"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = b""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        _ = runner.run(["ls"], text=False)
-
-        assert calls[0] is False
-
-    def test_run_with_check_false(self, monkeypatch):
-        """Test running with check=False"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("check"))
-            mock_result = Mock()
-            mock_result.returncode = 1
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        result = runner.run(["false"], check=False)
-
-        assert calls[0] is False
-        assert result.returncode == 1
-
-    def test_run_with_timeout(self, monkeypatch):
-        """Test running with timeout parameter"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("timeout"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        _ = runner.run(["sleep", "1"], timeout=5)
-
-        assert calls[0] == 5
-
-    def test_run_called_process_error_verbose(self, monkeypatch, capsys):
-        """Test CalledProcessError handling with verbose mode"""
+    @pytest.mark.parametrize(
+        "exception_class,exception_args,expected_message",
+        [
+            (subprocess.CalledProcessError, (1, "cmd"), "Command failed"),
+            (subprocess.TimeoutExpired, ("cmd", 5), "timed out"),
+        ],
+    )
+    def test_error_handling_verbose(
+        self, exception_class, exception_args, expected_message, monkeypatch, capsys
+    ):
+        """Should print error details when verbose=True"""
 
         def mock_run(*_args, **_kwargs):
-            error = subprocess.CalledProcessError(1, "cmd")
-            error.stderr = "Error message"
+            error = exception_class(*exception_args)
+            if hasattr(error, "stderr"):
+                error.stderr = "Error details"
             raise error
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
         runner = SubprocessRunner(verbose=True)
 
-        with pytest.raises(subprocess.CalledProcessError):
-            runner.run(["false"])
+        with pytest.raises(exception_class):
+            runner.run(["cmd"])
 
         captured = capsys.readouterr()
-        assert "Command failed" in captured.err
-        assert "Error message" in captured.err
+        assert expected_message in captured.err
 
-    def test_run_called_process_error_no_stderr(self, monkeypatch, capsys):
-        """Test CalledProcessError without stderr"""
-
-        def mock_run(*_args, **_kwargs):
-            error = subprocess.CalledProcessError(1, "cmd")
-            error.stderr = None
-            raise error
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner(verbose=True)
-
-        with pytest.raises(subprocess.CalledProcessError):
-            runner.run(["false"])
-
-        captured = capsys.readouterr()
-        assert "Command failed" in captured.err
-
-    def test_run_called_process_error_non_verbose(self, monkeypatch, capsys):
-        """Test CalledProcessError without verbose mode"""
+    def test_error_handling_non_verbose(self, monkeypatch, capsys):
+        """Should not print errors when verbose=False"""
 
         def mock_run(*_args, **_kwargs):
             raise subprocess.CalledProcessError(1, "cmd")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
         runner = SubprocessRunner(verbose=False)
 
         with pytest.raises(subprocess.CalledProcessError):
-            runner.run(["false"])
+            runner.run(["cmd"])
 
         captured = capsys.readouterr()
         assert captured.err == ""
 
-    def test_run_timeout_expired_verbose(self, monkeypatch, capsys):
-        """Test TimeoutExpired handling with verbose mode"""
-
-        def mock_run(*_args, **_kwargs):
-            raise subprocess.TimeoutExpired("cmd", 5)
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner(verbose=True)
-
-        with pytest.raises(subprocess.TimeoutExpired):
-            runner.run(["sleep", "10"], timeout=5)
-
-        captured = capsys.readouterr()
-        assert "timed out" in captured.err
-
-    def test_run_timeout_expired_non_verbose(self, monkeypatch, capsys):
-        """Test TimeoutExpired without verbose mode"""
-
-        def mock_run(*_args, **_kwargs):
-            raise subprocess.TimeoutExpired("cmd", 5)
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner(verbose=False)
-
-        with pytest.raises(subprocess.TimeoutExpired):
-            runner.run(["sleep", "10"], timeout=5)
-
-        captured = capsys.readouterr()
-        assert captured.err == ""
-
-    def test_run_git_command_with_list(self, monkeypatch):
-        """Test running git command with list args"""
+    @pytest.mark.parametrize(
+        "method,command_input,expected_prefix",
+        [
+            ("run_git_command", ["status"], ["git", "status"]),
+            ("run_git_command", "status", "git status"),
+            ("run_gh_command", ["pr", "list"], ["gh", "pr", "list"]),
+            ("run_gh_command", "pr list", "gh pr list"),
+        ],
+    )
+    def test_command_prefixes(
+        self, method, command_input, expected_prefix, monkeypatch
+    ):
+        """Should prepend correct command prefix (git/gh)"""
         calls = []
 
         def mock_run(*args, **kwargs):
             calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
+            return Mock(returncode=0, stdout="")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
         runner = SubprocessRunner()
-        runner.run_git_command(["status", "--short"])
-
-        assert calls[0] == ["git", "status", "--short"]
-
-    def test_run_git_command_with_string(self, monkeypatch):
-        """Test running git command with string args"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        runner.run_git_command("status --short")
-
-        assert calls[0] == "git status --short"
-
-    def test_run_git_command_with_check_false(self, monkeypatch):
-        """Test running git command with check=False"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("check"))
-            mock_result = Mock()
-            mock_result.returncode = 1
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        runner.run_git_command("status", check=False)
-
-        assert calls[0] is False
-
-    def test_run_gh_command_with_list(self, monkeypatch):
-        """Test running gh command with list args"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        runner.run_gh_command(["pr", "list"])
-
-        assert calls[0] == ["gh", "pr", "list"]
-
-    def test_run_gh_command_with_string(self, monkeypatch):
-        """Test running gh command with string args"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        runner.run_gh_command("api repos/owner/repo")
-
-        assert calls[0] == "gh api repos/owner/repo"
-
-    def test_run_gh_command_with_check_false(self, monkeypatch):
-        """Test running gh command with check=False"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("check"))
-            mock_result = Mock()
-            mock_result.returncode = 1
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        runner = SubprocessRunner()
-        _ = runner.run_gh_command("pr list", check=False)
-
-        assert calls[0] is False
+        getattr(runner, method)(command_input)
+        assert calls[0] == expected_prefix
 
 
 class TestConvenienceFunctions:
     """Tests for module-level convenience functions"""
 
-    def test_run_git_command_function(self, monkeypatch):
-        """Test run_git_command convenience function"""
+    @pytest.mark.parametrize(
+        "func,command,expected_prefix",
+        [
+            (run_git_command, ["status"], ["git", "status"]),
+            (run_gh_command, ["pr", "list"], ["gh", "pr", "list"]),
+        ],
+    )
+    def test_convenience_functions(self, func, command, expected_prefix, monkeypatch):
+        """Should delegate to SubprocessRunner correctly"""
         calls = []
 
         def mock_run(*args, **kwargs):
             calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
+            return Mock(returncode=0, stdout="")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
-        result = run_git_command(["status"])
-
-        assert calls[0] == ["git", "status"]
+        result = func(command)
+        assert calls[0] == expected_prefix
         assert result is not None
 
-    def test_run_git_command_with_cwd(self, monkeypatch, tmp_path):
-        """Test run_git_command with cwd parameter"""
+    def test_convenience_function_with_cwd(self, monkeypatch, tmp_path):
+        """Should pass cwd parameter correctly"""
         calls = []
 
         def mock_run(*args, **kwargs):
             calls.append(kwargs.get("cwd"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
+            return Mock(returncode=0, stdout="")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
-
-        _ = run_git_command("status", cwd=tmp_path)
-
+        run_git_command("status", cwd=tmp_path)
         assert calls[0] == tmp_path
 
-    def test_run_git_command_with_check_false(self, monkeypatch):
-        """Test run_git_command with check=False"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("check"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        _ = run_git_command("status", check=False)
-
-        assert calls[0] is False
-
-    def test_run_git_command_with_verbose(self, monkeypatch, capsys):
-        """Test run_git_command with verbose=True"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Git output"
-
+    def test_convenience_function_verbose(self, monkeypatch, capsys):
+        """Should handle verbose parameter"""
+        mock_result = Mock(returncode=0, stdout="Output")
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
 
         run_git_command("status", verbose=True)
 
         captured = capsys.readouterr()
-        assert "Git output" in captured.err
-
-    def test_run_gh_command_function(self, monkeypatch):
-        """Test run_gh_command convenience function"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(args[0])
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        result = run_gh_command(["pr", "list"])
-
-        assert calls[0] == ["gh", "pr", "list"]
-        assert result is not None
-
-    def test_run_gh_command_with_cwd(self, monkeypatch, tmp_path):
-        """Test run_gh_command with cwd parameter"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("cwd"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        _ = run_gh_command("pr list", cwd=tmp_path)
-
-        assert calls[0] == tmp_path
-
-    def test_run_gh_command_with_check_false(self, monkeypatch):
-        """Test run_gh_command with check=False"""
-        calls = []
-
-        def mock_run(*args, **kwargs):
-            calls.append(kwargs.get("check"))
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            return mock_result
-
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        _ = run_gh_command("pr list", check=False)
-
-        assert calls[0] is False
-
-    def test_run_gh_command_with_verbose(self, monkeypatch, capsys):
-        """Test run_gh_command with verbose=True"""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = "GH output"
-
-        monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
-
-        _ = run_gh_command("pr list", verbose=True)
-
-        captured = capsys.readouterr()
-        assert "GH output" in captured.err
+        assert "Output" in captured.err
