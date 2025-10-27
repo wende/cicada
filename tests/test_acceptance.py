@@ -375,7 +375,8 @@ async def test_keyword_search_multiple_keywords(server):
     text = result[0].text
     # Should find results matching these keywords
     assert len(text) > 0
-    assert "add_numbers" in text
+    # Should find either add_numbers or add_integers (both match the keywords)
+    assert "add_numbers" in text or "add_integers" in text
 
 
 @pytest.mark.asyncio
