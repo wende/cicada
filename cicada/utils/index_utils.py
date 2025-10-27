@@ -92,7 +92,7 @@ def save_index(
 
 
 def validate_index_structure(
-    index: Dict[str, Any],
+    index: Any,
     required_keys: Optional[list[str]] = None,
 ) -> tuple[bool, Optional[str]]:
     """

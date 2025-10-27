@@ -14,6 +14,8 @@ import fnmatch
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
 
+from cicada.utils import split_identifier
+
 
 class KeywordSearcher:
     """Search for modules and functions by keywords using BM25 ranking."""
@@ -31,27 +33,6 @@ class KeywordSearcher:
         """
         self.index = index
         self.bm25, self.document_map = self._initialize_bm25()
-
-    @staticmethod
-    def _split_identifier(identifier: str) -> List[str]:
-        """
-        Split an identifier by camelCase, PascalCase, and snake_case.
-
-        Args:
-            identifier: The identifier to split (e.g., 'createUserProfile', 'create_user_profile')
-
-        Returns:
-            List of words in the identifier
-        """
-        # Handle snake_case
-        if "_" in identifier:
-            return [word.lower() for word in identifier.split("_")]
-
-        # Handle camelCase/PascalCase with regex
-        # Insert space before uppercase letters and digits
-        spaced = re.sub(r"([A-Z])", r" \1", identifier)
-        words = spaced.split()
-        return [word.lower() for word in words if word]
 
     @staticmethod
     def _extract_identifier_name(document_info: Dict[str, Any]) -> str:
@@ -125,7 +106,7 @@ class KeywordSearcher:
         if not documents:
             for module_name, module_data in self.index.get("modules", {}).items():
                 # Add module as a document using its name as keywords
-                module_keywords = self._split_identifier(module_name)
+                module_keywords = split_identifier(module_name)
                 documents.append(module_keywords)
                 document_map.append(
                     {
@@ -139,9 +120,14 @@ class KeywordSearcher:
                     }
                 )
 
-                # Add functions as documents using their names as keywords
+                # Add functions as documents
                 for func in module_data.get("functions", []):
-                    func_keywords = self._split_identifier(func["name"])
+                    # Use extracted keywords if available, otherwise fall back to split identifier
+                    if func.get("keywords"):
+                        func_keywords = [kw.lower() for kw in func["keywords"]]
+                    else:
+                        func_keywords = split_identifier(func["name"])
+
                     documents.append(func_keywords)
                     full_name = f"{module_name}.{func['name']}/{func['arity']}"
                     document_map.append(
@@ -159,7 +145,9 @@ class KeywordSearcher:
                     )
 
         # Initialize BM25 with all documents
-        bm25 = BM25Okapi(documents) if documents else None
+        # Use b=0.4 (lower than default 0.75) to reduce length normalization penalty
+        # This is appropriate for code search where longer names are more specific, not verbose
+        bm25 = BM25Okapi(documents, b=0.4) if documents else None
         return bm25, document_map
 
     def _match_wildcard(self, pattern: str, text: str) -> bool:
@@ -244,7 +232,7 @@ class KeywordSearcher:
         """
         scores = []
 
-        for doc_idx, doc_info in enumerate(self.document_map):
+        for _, doc_info in enumerate(self.document_map):
             doc_keywords = [kw.lower() for kw in doc_info["keywords"]]
             identifier_name = self._extract_identifier_name(doc_info)
 
@@ -268,9 +256,7 @@ class KeywordSearcher:
         """Check if any keywords contain wildcard patterns."""
         return any("*" in keyword for keyword in keywords)
 
-    def search(
-        self, query_keywords: List[str], top_n: int = 10
-    ) -> List[Dict[str, Any]]:
+    def search(self, query_keywords: List[str], top_n: int = 5) -> List[Dict[str, Any]]:
         """
         Search for modules and functions matching the given keywords.
 
@@ -316,18 +302,23 @@ class KeywordSearcher:
 
         # Build results with scores
         for doc_idx, bm25_score in enumerate(bm25_scores):
-            if bm25_score > 0:  # Only include documents with non-zero score
-                doc_info = self.document_map[doc_idx]
-                if enable_wildcards:
-                    identifier_name = self._extract_identifier_name(doc_info)
-                    matched = self._count_wildcard_matches(
-                        query_keywords_lower, doc_info["keywords"], identifier_name
-                    )
-                else:
-                    matched = self._count_matches(
-                        query_keywords_lower, doc_info["keywords"]
-                    )
+            # BM25 can produce negative scores for small corpuses
+            # We check matched keywords instead to filter relevance
+            doc_info = self.document_map[doc_idx]
 
+            # Check if there are any matching keywords first
+            if enable_wildcards:
+                identifier_name = self._extract_identifier_name(doc_info)
+                matched = self._count_wildcard_matches(
+                    query_keywords_lower, doc_info["keywords"], identifier_name
+                )
+            else:
+                matched = self._count_matches(
+                    query_keywords_lower, doc_info["keywords"]
+                )
+
+            # Only include documents that match at least one query keyword
+            if matched["score"] > 0:
                 # Apply identifier name boost
                 if enable_wildcards:
                     final_score = self._apply_identifier_boost_wildcard(
@@ -337,6 +328,17 @@ class KeywordSearcher:
                     final_score = self._apply_identifier_boost(
                         bm25_score, query_keywords_lower, doc_info
                     )
+
+                # Apply name coverage penalty (penalize functions with extra words not in query)
+                coverage_penalty = self._calculate_name_coverage_penalty(
+                    query_keywords_lower, doc_info
+                )
+                # For negative scores, divide by penalty instead of multiply
+                # This ensures penalty always makes the score worse regardless of sign
+                if final_score < 0 and coverage_penalty < 1.0:
+                    final_score = final_score / coverage_penalty
+                else:
+                    final_score = final_score * coverage_penalty
 
                 result = {
                     "type": doc_info["type"],
@@ -387,7 +389,7 @@ class KeywordSearcher:
         identifier_name = self._extract_identifier_name(doc_info)
 
         # Split identifier into words
-        identifier_words = self._split_identifier(identifier_name)
+        identifier_words = split_identifier(identifier_name)
 
         # Check if any query keyword matches any word in the identifier
         for query_kw in query_keywords:
@@ -495,7 +497,7 @@ class KeywordSearcher:
         identifier_name = self._extract_identifier_name(doc_info)
 
         # Split identifier into words
-        identifier_words = self._split_identifier(identifier_name)
+        identifier_words = split_identifier(identifier_name)
 
         # Check if any query keyword matches any word in the identifier using wildcards
         for query_kw in query_keywords:
@@ -505,3 +507,47 @@ class KeywordSearcher:
                     return bm25_score * self.IDENTIFIER_MATCH_BOOST
 
         return bm25_score
+
+    def _calculate_name_coverage_penalty(
+        self, query_keywords: List[str], doc_info: Dict[str, Any]
+    ) -> float:
+        """
+        Calculate penalty for functions whose names contain words NOT in the query.
+
+        This helps rank exact matches higher than functions with extra words in their names.
+        For example, searching "create user" should rank "create_user" higher than
+        "create_invalid_user" because "invalid" is not in the query.
+
+        Args:
+            query_keywords: Normalized query keywords (lowercase)
+            doc_info: Document information with function/module name
+
+        Returns:
+            Penalty multiplier between 0.1 and 1.0:
+            - 1.0 = no penalty (exact match or all extra words in query)
+            - 0.7 = 1 extra word not in query (30% penalty)
+            - 0.4 = 2 extra words not in query (60% penalty)
+            - 0.1 = 3+ extra words not in query (90% penalty cap)
+        """
+        # Only apply to functions (not modules)
+        if doc_info["type"] != "function":
+            return 1.0
+
+        # Get function name and split it
+        func_name = doc_info["function"]
+        func_words = set(split_identifier(func_name))
+
+        # Find words in function name that are NOT in query
+        query_set = set(query_keywords)
+        extra_words = func_words - query_set
+
+        # No penalty if all function name words are in query (exact match)
+        if not extra_words:
+            return 1.0
+
+        # Apply 30% penalty per extra word, with a floor of 0.1 (max 90% penalty)
+        # This penalty is strong enough to overcome BM25 length normalization bias
+        penalty_per_word = 0.3
+        total_penalty = min(len(extra_words) * penalty_per_word, 0.9)
+
+        return 1.0 - total_penalty

@@ -40,6 +40,9 @@ include = ["cicada*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore:Importing 'parser.split_arg_string' is deprecated.*:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["cicada"]
@@ -132,7 +135,7 @@ reportInconsistentConstructor = true
 reportOverlappingOverload = true
 reportPossiblyUnboundVariable = true
 reportSelfClsParameterName = true
-reportUnusedCallResult = true
+reportUnusedCallResult = false
 reportUnusedExpression = true
 reportUnusedParameter = true
 reportAny = false

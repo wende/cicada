@@ -36,7 +36,7 @@ class TestGetLatestGithubTag:
         mock_result.returncode = 0
         mock_result.stdout = "v0.2.0\n"
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             return mock_result
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -113,7 +113,7 @@ class TestGetLatestGithubTag:
     def test_get_tag_subprocess_timeout(self, monkeypatch):
         """Test handling of subprocess timeout"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise subprocess.TimeoutExpired(cmd="gh", timeout=5)
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -124,7 +124,7 @@ class TestGetLatestGithubTag:
     def test_get_tag_file_not_found(self, monkeypatch):
         """Test handling when gh command is not found"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise FileNotFoundError("gh command not found")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -135,7 +135,7 @@ class TestGetLatestGithubTag:
     def test_get_tag_generic_exception(self, monkeypatch):
         """Test handling of generic exceptions"""
 
-        def mock_run(*args, **kwargs):
+        def mock_run(*_args, **_kwargs):
             raise Exception("Some unexpected error")
 
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -332,7 +332,7 @@ class TestCheckForUpdates:
             "cicada.version_check.get_latest_github_tag", lambda: "0.2.0"
         )
 
-        def raise_error(*args):
+        def raise_error(*_args):
             raise Exception("Error comparing versions")
 
         monkeypatch.setattr("cicada.version_check.compare_versions", raise_error)

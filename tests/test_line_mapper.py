@@ -221,7 +221,7 @@ class TestMapAllCommentLines:
         )
 
         # Mock git show to raise KeyboardInterrupt
-        def mock_run_git_command(*args, **kwargs):
+        def mock_run_git_command(*_args, **_kwargs):
             raise KeyboardInterrupt()
 
         mapper = LineMapper(tmp_path)
@@ -308,7 +308,9 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD", file_path="test.py", content=["line1", "line2", "line3"]
+                    _ref="HEAD",
+                    file_path="test.py",
+                    content=["line1", "line2", "line3"],
                 ),
             ),
         )
@@ -585,7 +587,7 @@ class TestMapLineToCurrentFailure:
         )
 
         # Mock git show to raise exception
-        def mock_run_git_command(*args, **kwargs):
+        def mock_run_git_command(*_args, **_kwargs):
             raise subprocess.CalledProcessError(1, "git", "Error")
 
         mapper = LineMapper(tmp_path)
@@ -657,7 +659,9 @@ class TestGetFileLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD", file_path="test.py", content=["line1", "line2", "line3"]
+                    _ref="HEAD",
+                    file_path="test.py",
+                    content=["line1", "line2", "line3"],
                 ),
             ),
         )

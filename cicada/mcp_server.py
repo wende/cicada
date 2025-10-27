@@ -19,6 +19,7 @@ from cicada.formatter import ModuleFormatter
 from cicada.pr_finder import PRFinder
 from cicada.git_helper import GitHelper
 from cicada.utils import load_index
+from cicada.mcp_tools import get_tool_definitions
 
 
 class CicadaServer:
@@ -30,6 +31,9 @@ class CicadaServer:
         self.index = self._load_index()
         self._pr_index = None  # Lazy load PR index only when needed
         self.server = Server("cicada")
+
+        # Cache keyword availability check
+        self._has_keywords = self._check_keywords_available()
 
         # Initialize git helper
         repo_path = self.config.get("repository", {}).get("path", ".")
@@ -86,376 +90,26 @@ class CicadaServer:
 
         return load_index(pr_index_path, verbose=True, raise_on_error=False)
 
+    def _check_keywords_available(self) -> bool:
+        """
+        Check if any keywords are available in the index.
+
+        This is cached at initialization to avoid repeated checks.
+
+        Returns:
+            True if keywords are available in the index
+        """
+        for module_data in self.index.get("modules", {}).values():
+            if module_data.get("keywords"):
+                return True
+            for func in module_data.get("functions", []):
+                if func.get("keywords"):
+                    return True
+        return False
+
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
-        return [
-            Tool(
-                name="search_module",
-                description=(
-                    "PREFERRED for Elixir code: Search for a module to see its complete API.\n\n"
-                    "## When to use\n"
-                    "- Learning what functions a module provides\n"
-                    "- Understanding module structure and public API\n"
-                    "- Checking function signatures and typespecs\n\n"
-                    "## How to use\n"
-                    "1. Basic search by module name: module_name='MyApp.User'\n"
-                    "2. Search by file path: file_path='lib/my_app/user.ex'\n"
-                    "3. Include private functions: private_functions='include'\n"
-                    "4. Show only private functions: private_functions='only'\n\n"
-                    "## Output includes\n"
-                    "- All function names with arity (e.g., create_user/2)\n"
-                    "- Function signatures with argument names\n"
-                    "- Documentation strings\n"
-                    "- Typespecs (@spec declarations)\n"
-                    "- Line numbers for navigation\n\n"
-                    "Default: Returns public functions only in markdown format. Use this as your first step when exploring a module."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "module_name": {
-                            "type": "string",
-                            "description": "Full module name to search (e.g., 'MyApp.User'). Provide either this or file_path.",
-                        },
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to an Elixir file (e.g., 'lib/my_app/user.ex'). Provide either this or module_name.",
-                        },
-                        "format": {
-                            "type": "string",
-                            "description": "Output format: 'markdown' (default) or 'json'",
-                            "enum": ["markdown", "json"],
-                            "default": "markdown",
-                        },
-                        "private_functions": {
-                            "type": "string",
-                            "description": "How to handle private functions: 'exclude' (default, hide private functions), 'include' (show all functions), or 'only' (show only private functions)",
-                            "enum": ["exclude", "include", "only"],
-                            "default": "exclude",
-                        },
-                    },
-                    "required": [],
-                },
-            ),
-            Tool(
-                name="search_function",
-                description=(
-                    "PREFERRED for Elixir code: Find function definitions and see where they're called.\n\n"
-                    "## When to use\n"
-                    "- Finding where a function is defined\n"
-                    "- Learning how a function is used across the codebase\n"
-                    "- Understanding function behavior from usage patterns\n\n"
-                    "## How to use\n"
-                    "1. Find all functions named 'create_user': function_name='create_user'\n"
-                    "2. Find specific arity: function_name='create_user/2'\n"
-                    "3. Search in specific module: function_name='MyApp.User.create_user'\n"
-                    "4. See actual code examples: include_usage_examples=true, max_examples=3\n"
-                    "5. Filter to test usage only: test_files_only=true\n\n"
-                    "## Output includes\n"
-                    "- Function definition with full signature\n"
-                    "- Documentation and typespecs\n"
-                    "- List of call sites (module, function, line number)\n"
-                    "- Optional: actual code lines showing usage\n\n"
-                    "Tip: Start without include_usage_examples to get a quick overview, then enable it to see real usage patterns."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "function_name": {
-                            "type": "string",
-                            "description": "Function name to search. Formats: 'create_user', 'create_user/2' (all modules), or 'MyApp.User.create_user', 'MyApp.User.create_user/2' (specific module)",
-                        },
-                        "format": {
-                            "type": "string",
-                            "description": "Output format: 'markdown' (default) or 'json'",
-                            "enum": ["markdown", "json"],
-                            "default": "markdown",
-                        },
-                        "include_usage_examples": {
-                            "type": "boolean",
-                            "description": "Include actual code lines showing how the function is called (default: false)",
-                            "default": False,
-                        },
-                        "max_examples": {
-                            "type": "integer",
-                            "description": "Maximum number of usage examples to show per function (default: 5)",
-                            "default": 5,
-                            "minimum": 1,
-                            "maximum": 20,
-                        },
-                        "test_files_only": {
-                            "type": "boolean",
-                            "description": "Only show calls from test files (files with 'test' in their path) (default: false)",
-                            "default": False,
-                        },
-                    },
-                    "required": ["function_name"],
-                },
-            ),
-            Tool(
-                name="search_module_usage",
-                description=(
-                    "PREFERRED for Elixir code: Find everywhere a module is used in the codebase.\n\n"
-                    "## When to use\n"
-                    "- Understanding module dependencies\n"
-                    "- Finding which modules import/alias a specific module\n"
-                    "- Seeing all function calls to a module\n"
-                    "- Impact analysis before refactoring\n\n"
-                    "## How to use\n"
-                    "Simply provide the full module name: module_name='MyApp.User'\n\n"
-                    "## Output includes\n"
-                    "- Aliases: Modules that alias this module (e.g., 'alias MyApp.User')\n"
-                    "- Imports: Modules that import this module\n"
-                    "- Requires: Modules that require this module\n"
-                    "- Uses: Modules that use this module\n"
-                    "- Function calls: Which functions are called and from where\n"
-                    "- Line numbers: Exact locations for all usages\n\n"
-                    "Use this to understand the full scope of a module's impact before making changes."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "module_name": {
-                            "type": "string",
-                            "description": "Full module name to search for usage (e.g., 'MyApp.User')",
-                        },
-                        "format": {
-                            "type": "string",
-                            "description": "Output format: 'markdown' (default) or 'json'",
-                            "enum": ["markdown", "json"],
-                            "default": "markdown",
-                        },
-                    },
-                    "required": ["module_name"],
-                },
-            ),
-            Tool(
-                name="find_pr_for_line",
-                description=(
-                    "PREFERRED for git history: Discover why a line of code exists and who wrote it.\n\n"
-                    "## When to use\n"
-                    "- Understanding the context behind code\n"
-                    "- Finding the PR discussion for a piece of code\n"
-                    "- Identifying who to ask about specific code\n"
-                    "- Learning why code was written a certain way\n\n"
-                    "## How to use\n"
-                    "1. Basic lookup: file_path='lib/my_app/user.ex', line_number=42\n"
-                    "2. Get structured data: format='json'\n"
-                    "3. For reports: format='markdown'\n\n"
-                    "## Output includes\n"
-                    "- PR number and title\n"
-                    "- Author name and email\n"
-                    "- Commit SHA and message\n"
-                    "- Date of change\n"
-                    "- Link to PR (if available)\n\n"
-                    "Uses cached lookups for fast performance. Better than git blame because it shows the full PR context, not just the commit."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the file (relative to repo root or absolute)",
-                        },
-                        "line_number": {
-                            "type": "integer",
-                            "description": "Line number (1-indexed)",
-                            "minimum": 1,
-                        },
-                        "format": {
-                            "type": "string",
-                            "description": "Output format: 'text' (default), 'json', or 'markdown'",
-                            "enum": ["text", "json", "markdown"],
-                            "default": "text",
-                        },
-                    },
-                    "required": ["file_path", "line_number"],
-                },
-            ),
-            Tool(
-                name="get_file_history",
-                description=(
-                    "PREFERRED for git history: Get commit history for a file or function with precise tracking.\n\n"
-                    "## When to use\n"
-                    "- Understanding how a file has evolved over time\n"
-                    "- Finding who has worked on specific code\n"
-                    "- Tracking changes to a function across commits\n"
-                    "- Getting context about code evolution\n"
-                    "- Understanding when a function was created and how often it's modified\n\n"
-                    "## How to use\n"
-                    "1. File history: file_path='lib/my_app/user.ex'\n"
-                    "2. Limit commits: max_commits=5\n"
-                    "3. Heuristic function search: file_path='lib/my_app/user.ex', function_name='create_user'\n"
-                    "4. Precise function tracking: start_line=42, end_line=58, precise_tracking=True\n"
-                    "5. Function evolution: start_line=42, end_line=58, show_evolution=True\n\n"
-                    "## Output includes\n"
-                    "- Commit SHA (short and full)\n"
-                    "- Author name and email\n"
-                    "- Commit date\n"
-                    "- Commit message\n"
-                    "- Relevance indicator (for heuristic function searches)\n"
-                    "- Evolution metadata (creation date, last modified, modification count) when show_evolution=True\n\n"
-                    "**Precise tracking**: When start_line and end_line are provided with precise_tracking=True, "
-                    "uses git log -L to track exact line changes (more accurate than heuristic search).\n\n"
-                    "Complements find_pr_for_line by providing full commit history rather than just PR attribution."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the file (relative to repo root)",
-                        },
-                        "function_name": {
-                            "type": "string",
-                            "description": "Optional: function name for heuristic search (filters by function name in commits)",
-                        },
-                        "start_line": {
-                            "type": "integer",
-                            "description": "Optional: starting line number of function (for precise tracking)",
-                            "minimum": 1,
-                        },
-                        "end_line": {
-                            "type": "integer",
-                            "description": "Optional: ending line number of function (for precise tracking)",
-                            "minimum": 1,
-                        },
-                        "precise_tracking": {
-                            "type": "boolean",
-                            "description": "Use git log -L for exact line-range tracking (requires start_line and end_line). More accurate than heuristic search. (default: False)",
-                            "default": False,
-                        },
-                        "show_evolution": {
-                            "type": "boolean",
-                            "description": "Include function evolution metadata: creation date, last modified, total modifications (requires start_line and end_line). (default: False)",
-                            "default": False,
-                        },
-                        "max_commits": {
-                            "type": "integer",
-                            "description": "Maximum number of commits to return (default: 10)",
-                            "default": 10,
-                            "minimum": 1,
-                            "maximum": 50,
-                        },
-                    },
-                    "required": ["file_path"],
-                },
-            ),
-            Tool(
-                name="get_function_blame",
-                description=(
-                    "PREFERRED for authorship: Show line-by-line authorship for a function.\n\n"
-                    "## When to use\n"
-                    "- Finding out who wrote specific lines of code\n"
-                    "- Understanding code ownership and responsibility\n"
-                    "- Identifying authors to ask about specific code sections\n"
-                    "- Code review and accountability\n\n"
-                    "## How to use\n"
-                    "Provide file path and line range: file_path='lib/my_app/user.ex', start_line=42, end_line=58\n\n"
-                    "## Output includes\n"
-                    "- Author name and email for each group of lines\n"
-                    "- Commit SHA and date\n"
-                    "- Line ranges grouped by author\n"
-                    "- Actual code content for each line\n\n"
-                    "Consecutive lines by the same author/commit are grouped together for easier reading."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the file (relative to repo root)",
-                        },
-                        "start_line": {
-                            "type": "integer",
-                            "description": "Starting line number of the code section",
-                            "minimum": 1,
-                        },
-                        "end_line": {
-                            "type": "integer",
-                            "description": "Ending line number of the code section",
-                            "minimum": 1,
-                        },
-                    },
-                    "required": ["file_path", "start_line", "end_line"],
-                },
-            ),
-            Tool(
-                name="get_file_pr_history",
-                description=(
-                    "Get all pull requests that modified a specific file, including PR descriptions and review comments.\n\n"
-                    "## When to use\n"
-                    "- Understanding the evolution of a file through PRs\n"
-                    "- Finding relevant discussions and decisions about a file\n"
-                    "- Reviewing past feedback and comments on code\n"
-                    "- Understanding why a file was changed and by whom\n\n"
-                    "## How to use\n"
-                    "Simply provide the file path: file_path='lib/my_app/user.ex'\n\n"
-                    "## Output includes\n"
-                    "For each PR that touched the file:\n"
-                    "- PR number, title, and URL\n"
-                    "- PR description/body\n"
-                    "- Author and merge status\n"
-                    "- Review comments specific to this file with:\n"
-                    "  - Comment author and body\n"
-                    "  - Current line number (if mappable)\n"
-                    "  - Original line number from PR\n"
-                    "  - Resolved status\n\n"
-                    "Results are sorted by PR number (newest first). Only includes resolved and top-level comments.\n\n"
-                    "Requires PR index (run: python cicada/pr_indexer.py)"
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the file (relative to repo root or absolute)",
-                        },
-                    },
-                    "required": ["file_path"],
-                },
-            ),
-            Tool(
-                name="search_by_keywords",
-                description=(
-                    "EXPERIMENTAL: Search for modules and functions by semantic keywords.\n\n"
-                    "## When to use\n"
-                    "- Finding code by concept/topic (e.g., 'authentication', 'validation')\n"
-                    "- Discovering functions related to specific domain terms\n"
-                    "- Searching when you don't know exact module/function names\n"
-                    "- Exploring code by semantic meaning\n"
-                    "- Pattern matching with wildcards (e.g., 'create*', 'test_*')\n\n"
-                    "## How to use\n"
-                    "Provide a list of keywords: keywords=['authentication', 'user', 'validate']\n"
-                    "For wildcard matching: keywords=['create*', 'test_*'] (automatically detected)\n\n"
-                    "## Wildcard patterns\n"
-                    "- * matches any characters (e.g., 'create*' matches 'createUser', 'createAccount')\n\n"
-                    "## Output includes\n"
-                    "Top 10 results sorted by relevance:\n"
-                    "- Module or function name\n"
-                    "- File location and line number\n"
-                    "- Confidence score (% of query keywords matched)\n"
-                    "- Matched keywords\n"
-                    "- Documentation snippet\n\n"
-                    "## Requirements\n"
-                    "Index must be built with keyword extraction:\n"
-                    "  cicada-index --extract-keywords\n\n"
-                    "Note: This feature uses NLP-extracted keywords from documentation. "
-                    "Results depend on documentation quality."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of keywords to search for (e.g., ['performance', 'benchmark', 'test'] or ['create*', 'test_*'] for wildcards)",
-                        },
-                    },
-                    "required": ["keywords"],
-                },
-            ),
-        ]
+        return get_tool_definitions()
 
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent]:
         """Handle tool calls."""
@@ -521,7 +175,7 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self._find_pr_for_line(file_path, line_number, output_format)
-        elif name == "get_file_history":
+        elif name == "get_commit_history":
             file_path = arguments.get("file_path")
             function_name = arguments.get("function_name")
             start_line = arguments.get("start_line")
@@ -549,7 +203,7 @@ class CicadaServer:
                 show_evolution,
                 max_commits,
             )
-        elif name == "get_function_blame":
+        elif name == "get_blame":
             file_path = arguments.get("file_path")
             start_line = arguments.get("start_line")
             end_line = arguments.get("end_line")
@@ -562,7 +216,7 @@ class CicadaServer:
                 error_msg = "Both 'start_line' and 'end_line' are required"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self._get_function_blame(file_path, start_line, end_line)
+            return await self._get_function_history(file_path, start_line, end_line)
         elif name == "get_file_pr_history":
             file_path = arguments.get("file_path")
 
@@ -1354,7 +1008,7 @@ class CicadaServer:
             error_msg = f"Error getting file history: {str(e)}"
             return [TextContent(type="text", text=error_msg)]
 
-    async def _get_function_blame(
+    async def _get_function_history(
         self, file_path: str, start_line: int, end_line: int
     ) -> list[TextContent]:
         """
@@ -1373,7 +1027,7 @@ class CicadaServer:
             return [TextContent(type="text", text=error_msg)]
 
         try:
-            blame_groups = self.git_helper.get_function_blame(
+            blame_groups = self.git_helper.get_function_history(
                 file_path, start_line, end_line
             )
 
@@ -1538,20 +1192,8 @@ class CicadaServer:
         """
         from cicada.keyword_search import KeywordSearcher
 
-        # Check if any keywords were extracted in the index
-        has_keywords = False
-        for module_data in self.index.get("modules", {}).values():
-            if module_data.get("keywords"):
-                has_keywords = True
-                break
-            for func in module_data.get("functions", []):
-                if func.get("keywords"):
-                    has_keywords = True
-                    break
-            if has_keywords:
-                break
-
-        if not has_keywords:
+        # Check if keywords are available (cached at initialization)
+        if not self._has_keywords:
             error_msg = (
                 "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
                 "  cicada-index --extract-keywords\n\n"
@@ -1561,7 +1203,7 @@ class CicadaServer:
 
         # Perform the search
         searcher = KeywordSearcher(self.index)
-        results = searcher.search(keywords, top_n=10)
+        results = searcher.search(keywords, top_n=5)
 
         if not results:
             result = f"No results found for keywords: {', '.join(keywords)}"

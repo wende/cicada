@@ -137,6 +137,38 @@ Returns up to 10 results sorted by confidence score, showing:
 - Matched keywords
 - Documentation snippet
 
+## test_keyword_extraction.sh
+
+Test keyword extraction with different spaCy model sizes (small, medium, large).
+
+```bash
+# Test with default small model
+./tests/acceptance/test_keyword_extraction.sh
+
+# Test with medium model
+./tests/acceptance/test_keyword_extraction.sh --medium
+
+# Test with multiple models
+./tests/acceptance/test_keyword_extraction.sh --small --medium --large
+
+# Test with custom text
+./tests/acceptance/test_keyword_extraction.sh --small "Your custom text here"
+```
+
+**Options:**
+- `--small`: Use small model (en_core_web_sm) - default if no flags specified
+- `--medium`: Use medium model (en_core_web_md)
+- `--large`: Use large model (en_core_web_lg)
+
+The script extracts and displays:
+- Top keywords with occurrence counts
+- Nouns, verbs, and adjectives
+- Code identifiers (camelCase, snake_case, PascalCase)
+- Named entities
+- Text statistics (tokens, sentences)
+
+**Note:** Models will be automatically downloaded if not present. Larger models provide better accuracy but are slower and use more memory.
+
 ## Pytest vs Shell Scripts
 
 - **Pytest tests** (`tests/test_acceptance.py`): Automated tests that run in CI/CD and track code coverage. Use these for regular testing and development.

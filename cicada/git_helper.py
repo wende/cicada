@@ -7,6 +7,7 @@ offering comprehensive commit history for files and functions.
 """
 
 import git
+import subprocess
 from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
@@ -69,11 +70,15 @@ class GitHelper:
 
         return commits
 
-    def get_function_history(
-        self, file_path: str, function_name: str, _line_number: int, max_commits: int = 5
+    def get_function_history_heuristic(
+        self,
+        file_path: str,
+        function_name: str,
+        _line_number: int,
+        max_commits: int = 5,
     ) -> List[Dict]:
         """
-        Get commit history for a specific function
+        Get commit history for a specific function using heuristics.
 
         This is a heuristic-based approach that returns commits that:
         1. Modified the file near the function's location, OR
@@ -179,8 +184,6 @@ class GitHelper:
             ]
 
             # Run command in repo directory
-            import subprocess
-
             result = subprocess.run(
                 cmd, cwd=str(self.repo_path), capture_output=True, text=True, check=True
             )
@@ -324,7 +327,7 @@ class GitHelper:
             print(f"Error getting function evolution for {file_path}: {e}")
             return None
 
-    def get_function_blame(
+    def get_function_history(
         self, file_path: str, start_line: int, end_line: int
     ) -> List[Dict]:
         """
@@ -353,8 +356,6 @@ class GitHelper:
         blame_groups = []
 
         try:
-            import subprocess
-
             # Use git blame with line range
             cmd = [
                 "git",

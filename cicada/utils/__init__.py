@@ -11,6 +11,7 @@ from .index_utils import load_index, save_index
 from .function_grouper import FunctionGrouper
 from .call_site_formatter import CallSiteFormatter
 from .signature_builder import SignatureBuilder
+from .text_utils import split_identifier, split_camel_snake_case
 
 __all__ = [
     "SubprocessRunner",
@@ -23,4 +24,6 @@ __all__ = [
     "FunctionGrouper",
     "CallSiteFormatter",
     "SignatureBuilder",
+    "split_identifier",
+    "split_camel_snake_case",
 ]

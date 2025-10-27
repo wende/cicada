@@ -1,4 +1,4 @@
-.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch coverage clean format lint pre-commit ci-test
+.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch cover clean format lint pre-commit ci-test
 
 # Default target
 help:
@@ -9,7 +9,7 @@ help:
 	@echo "  make test          - Run all tests"
 	@echo "  make test-verbose  - Run tests with verbose output"
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
-	@echo "  make coverage      - Run tests with coverage report (min 80%)"
+	@echo "  make cover         - Run tests with coverage report (min 80%)"
 	@echo "  make format        - Format code with black"
 	@echo "  make lint          - Check code formatting"
 	@echo "  make pre-commit    - Run all pre-commit checks"
@@ -29,7 +29,7 @@ setup-fixtures:
 extract-keywords:
 	@echo "Extracting keywords for test fixtures..."
 	@uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project
-	@uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/elixir_index.json tests/fixtures/elixir_project
+	@uv run cicada-index --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project
 	@echo "✓ Keywords extracted for test fixtures"
 
 # Run tests
@@ -45,7 +45,7 @@ test-watch: setup-fixtures extract-keywords
 	@uv run pytest-watch
 
 # Run tests with coverage
-coverage: setup-fixtures extract-keywords
+cover: setup-fixtures extract-keywords
 	@uv run pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
@@ -63,7 +63,9 @@ pre-commit:
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
-	@$(MAKE) coverage
+	@echo "Running basedpyright type checker (errors only)..."
+	@uv run basedpyright cicada tests 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
+	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment

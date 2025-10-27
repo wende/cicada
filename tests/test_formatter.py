@@ -994,7 +994,7 @@ def test_json_formatter_main_unexpected_error(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", test_args)
 
     # Mock format_file to raise an unexpected exception
-    def mock_format_file(*args, **kwargs):
+    def mock_format_file(*_args, **_kwargs):
         raise RuntimeError("Unexpected error!")
 
     monkeypatch.setattr(JSONFormatter, "format_file", mock_format_file)

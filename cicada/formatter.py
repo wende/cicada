@@ -777,7 +777,7 @@ No functions matching `{function_name}` were found in the index.
 
     @staticmethod
     def format_keyword_search_results_markdown(
-        keywords: list[str], results: list[Dict[str, Any]]
+        _keywords: list[str], results: list[Dict[str, Any]]
     ) -> str:
         """
         Format keyword search results as Markdown.
@@ -791,13 +791,13 @@ No functions matching `{function_name}` were found in the index.
         """
         lines = []
 
-        for i, result in enumerate(results, 1):
-            result_type = result["type"]
+        for _, result in enumerate(results, 1):
+            _result_type = result["type"]
             name = result["name"]
             file_path = result["file"]
             line = result["line"]
             score = result["score"]
-            confidence = result["confidence"]
+            _confidence = result["confidence"]
             matched_keywords = result["matched_keywords"]
 
             # Result header - clean format like other tools

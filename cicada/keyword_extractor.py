@@ -7,57 +7,143 @@ import spacy
 from collections import Counter
 import re
 import sys
+import subprocess
+
+from cicada.utils import split_camel_snake_case
 
 
 class KeywordExtractor:
     """Extract keywords from text using spaCy NLP."""
 
-    # spaCy model name for NLP processing
-    SPACY_MODEL = "en_core_web_sm"
+    # spaCy model names for different sizes
+    SPACY_MODELS = {
+        "small": "en_core_web_sm",
+        "medium": "en_core_web_md",
+        "large": "en_core_web_lg",
+    }
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, model_size: str = "small"):
         """
         Initialize spaCy model.
 
         Args:
             verbose: If True, print status messages during initialization
+            model_size: Size of spaCy model to use ('small', 'medium', or 'large')
+                       Default is 'small'. Medium and large models provide better
+                       accuracy but are slower and require more memory.
         """
         self.verbose = verbose
 
+        # Validate model size
+        if model_size not in self.SPACY_MODELS:
+            raise ValueError(
+                f"Invalid model size '{model_size}'. "
+                f"Must be one of: {', '.join(self.SPACY_MODELS.keys())}"
+            )
+
+        self.model_size = model_size
+        self.model_name = self.SPACY_MODELS[model_size]
+
         if self.verbose:
-            print("Loading spaCy model...", file=sys.stderr)
+            print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
 
         try:
-            self.nlp = spacy.load(self.SPACY_MODEL)
+            self.nlp = spacy.load(self.model_name)
             if self.verbose:
                 print("✓ Model loaded successfully", file=sys.stderr)
-        except OSError as e:
-            raise RuntimeError(
-                f"spaCy model '{self.SPACY_MODEL}' not found. "
-                f"Please install it with: python -m spacy download {self.SPACY_MODEL}"
-            ) from e
+        except OSError:
+            # Model not found, try to download it
+            if self.verbose:
+                print(
+                    f"Model '{self.model_name}' not found. Downloading...",
+                    file=sys.stderr,
+                )
 
-    def split_camel_snake_case(self, text):
+            if not self._download_model():
+                raise RuntimeError(
+                    f"Failed to download spaCy model '{self.model_name}'. "
+                    f"Please install it manually with: python -m spacy download {self.model_name}"
+                )
+
+            # Try loading again after download
+            try:
+                self.nlp = spacy.load(self.model_name)
+                if self.verbose:
+                    print("✓ Model loaded successfully", file=sys.stderr)
+            except OSError as e:
+                raise RuntimeError(
+                    f"Failed to load spaCy model '{self.model_name}' after download. "
+                    f"Please try installing it manually: python -m spacy download {self.model_name}"
+                ) from e
+
+    def _download_model(self) -> bool:
         """
-        Split camelCase, PascalCase, and snake_case identifiers into separate words.
+        Download the spaCy model using uv pip or pip install.
 
-        Examples:
-            camelCase -> camel case
-            PascalCase -> Pascal Case
-            snake_case -> snake case
-            HTTPServer -> HTTP Server
-            getHTTPResponseCode -> get HTTP Response Code
+        Returns:
+            True if download succeeded, False otherwise
         """
-        # Split on underscores (snake_case)
-        text = text.replace("_", " ")
+        # Model URLs for direct installation
+        model_urls = {
+            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+            "en_core_web_md": "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl",
+            "en_core_web_lg": "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+        }
 
-        # Split on transitions from lowercase to uppercase (camelCase)
-        text = re.sub("([a-z])([A-Z])", r"\1 \2", text)
+        if self.model_name not in model_urls:
+            if self.verbose:
+                print(f"Unknown model: {self.model_name}", file=sys.stderr)
+            return False
 
-        # Split on transitions from uppercase sequence to a capitalized word (HTTPServer -> HTTP Server)
-        text = re.sub("([A-Z]+)([A-Z][a-z])", r"\1 \2", text)
+        model_url = model_urls[self.model_name]
 
-        return text
+        # Try uv pip first (for uv virtual environments)
+        try:
+            if self.verbose:
+                print(f"Running: uv pip install {model_url}", file=sys.stderr)
+
+            result = subprocess.run(
+                ["uv", "pip", "install", model_url],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if self.verbose and result.stdout:
+                print(result.stdout, file=sys.stderr)
+
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            if self.verbose:
+                if isinstance(e, FileNotFoundError):
+                    print("uv not found, trying pip...", file=sys.stderr)
+                else:
+                    print(f"uv pip install failed: {e.stderr}", file=sys.stderr)
+
+        # Fall back to pip if uv is not available
+        try:
+            if self.verbose:
+                print(f"Running: pip install {model_url}", file=sys.stderr)
+
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", model_url],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if self.verbose and result.stdout:
+                print(result.stdout, file=sys.stderr)
+
+            return True
+        except subprocess.CalledProcessError as e:
+            if self.verbose:
+                print(f"pip install failed: {e.stderr}", file=sys.stderr)
+            return False
+        except Exception as e:
+            if self.verbose:
+                print(f"Unexpected error during download: {e}", file=sys.stderr)
+            return False
 
     def extract_code_identifiers(self, text):
         """
@@ -71,9 +157,9 @@ class KeywordExtractor:
         patterns = [
             r"\b[a-z]+[A-Z][a-zA-Z]*\b",  # camelCase (e.g., getUserData)
             r"\b[A-Z]{2,}[a-z]+[a-zA-Z]*\b",  # Uppercase prefix + PascalCase (e.g., HTTPServer, XMLParser)
-            r"\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b",  # PascalCase (e.g., UserController)
+            r"\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b",  # PascalCase (e.g., UserController, PostgreSQL)
             r"\b[a-z]+_[a-z_]+\b",  # snake_case (e.g., get_user_data)
-            r"\b[A-Z]{2,}\b",  # All UPPERCASE (e.g., HTTP, API)
+            r"\b[A-Z]{2,}\b",  # All UPPERCASE (e.g., HTTP, API, SQL)
         ]
 
         identifiers = []
@@ -86,7 +172,7 @@ class KeywordExtractor:
         # Split identifiers into individual words
         split_words = []
         for identifier in identifiers:
-            split_text = self.split_camel_snake_case(identifier)
+            split_text = split_camel_snake_case(identifier)
             # Extract individual words (lowercase, length > 1)
             words = [
                 word.lower()
@@ -122,14 +208,26 @@ class KeywordExtractor:
 
     def extract_keywords(self, text, top_n=15):
         """
-        Extract keywords using multiple strategies
+        Extract keywords using multiple strategies with emphasis on code identifiers.
+
+        Weighting strategy:
+        - Full code identifiers (e.g., getUserData, snake_case): 10x weight (exact match priority)
+        - Code split words (e.g., get, user, data): 3x weight (fuzzy match support)
+        - Regular words (nouns, verbs): 1x weight
 
         Args:
             text: Input text to analyze
             top_n: Number of top keywords to return
 
         Returns:
-            Dictionary with extracted keywords and analysis
+            Dictionary with extracted keywords and analysis:
+            - top_keywords: List of (keyword, count) tuples, sorted by frequency
+            - code_identifiers: Original identifiers (weighted 10x)
+            - code_split_words: Words extracted from identifiers (weighted 3x)
+            - nouns, verbs, adjectives: Linguistic categories
+            - entities: Named entities found
+            - tf_scores: Term frequency scores
+            - stats: Text statistics
         """
         if not text or not text.strip():
             return {
@@ -189,8 +287,17 @@ class KeywordExtractor:
         # 7. Extract code identifiers and their split words
         code_identifiers, code_split_words = self.extract_code_identifiers(text)
 
-        # 8. Calculate keyword frequency (combining nouns, verbs, proper nouns, and split code words)
-        all_keywords = nouns + verbs + proper_nouns + code_split_words
+        # 8. Calculate keyword frequency (combining nouns, verbs, proper nouns, identifiers, and split code words)
+        # Give full code identifiers 10x weight for exact matching
+        # Give code split words 3x weight for fuzzy matching
+        code_identifiers_lower = [ident.lower() for ident in code_identifiers]
+        all_keywords = (
+            nouns
+            + verbs
+            + proper_nouns
+            + (code_identifiers_lower * 10)
+            + (code_split_words * 3)
+        )
         keyword_freq = Counter(all_keywords)
         top_keywords = keyword_freq.most_common(top_n)
 
