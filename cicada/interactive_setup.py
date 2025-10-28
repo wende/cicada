@@ -2,15 +2,8 @@
 
 from simple_term_menu import TerminalMenu
 
-from cicada.ascii_art import BOLD, generate_gradient_ascii_art
-
-# Brand colors
-SELECTED = "\033[38;2;229;200;144m"  # #E5C890 - Selected items
-PRIMARY = "\033[38;2;231;156;108m"  # #E79C6C - Everything else
-GREY = "\033[38;2;128;128;128m"  # #808080 - Unselected/Instructions
-RESET = "\033[0m"
-BOLD = "\033[1m"
-GREEN = "\033[92m"
+from cicada.ascii_art import generate_gradient_ascii_art
+from cicada.colors import SELECTED, PRIMARY, GREY, RESET, BOLD, GREEN
 
 
 def show_first_time_setup() -> tuple[str, str]:

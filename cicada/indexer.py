@@ -11,27 +11,22 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from cicada.interactive_setup import GREY
 from cicada.parser import ElixirParser
 from cicada.utils import save_index
-
-# ANSI color codes for sleek CLI output
-CYAN = "\033[38;2;217;119;87m"  # #D97757
-BLUE = "\033[94m"
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-RED = "\033[91m"
-GRAY = "\033[90m"
-DIM = "\033[2m"
-RESET = "\033[0m"
+from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, GREY, DIM, RESET
 
 
 class ElixirIndexer:
     """Indexes Elixir repositories to extract module and function information."""
 
-    def __init__(self):
-        """Initialize the indexer with a parser."""
+    def __init__(self, verbose: bool = False):
+        """Initialize the indexer with a parser.
+
+        Args:
+            verbose: If True, print detailed warning messages during indexing
+        """
         self.parser = ElixirParser()
+        self.verbose = verbose
         self.excluded_dirs = {
             "deps",
             "_build",

@@ -10,16 +10,7 @@ import sys
 import subprocess
 
 from cicada.utils import split_camel_snake_case
-
-# ANSI color codes for sleek CLI output
-CYAN = "\033[38;2;217;119;87m"  # #D97757
-BLUE = "\033[94m"
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-RED = "\033[91m"
-GRAY = "\033[90m"
-DIM = "\033[2m"
-RESET = "\033[0m"
+from cicada.colors import DIM, RESET
 
 
 class KeywordExtractor:

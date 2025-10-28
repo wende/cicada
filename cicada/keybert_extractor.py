@@ -20,6 +20,9 @@ class KeyBERTExtractor:
         "max": "paraphrase-mpnet-base-v2",  # 420MB, highest quality
     }
 
+    # Class variable to hold KeyBERT class (lazily loaded)
+    _KeyBERT = None
+
     def __init__(self, verbose: bool = False, model_tier: str = None):
         """
         Initialize KeyBERT model.
@@ -36,18 +39,19 @@ class KeyBERTExtractor:
         """
         self.verbose = verbose
 
-        # Lazy import KeyBERT
-        try:
-            from keybert import KeyBERT
+        # Lazy import KeyBERT (only once per class)
+        if KeyBERTExtractor._KeyBERT is None:
+            try:
+                from keybert import KeyBERT
 
-            self._KeyBERT = KeyBERT
-        except ImportError as e:
-            raise ImportError(
-                "KeyBERT is not installed. Install it with:\n"
-                "  uv pip install keybert\n"
-                "or\n"
-                "  pip install keybert"
-            ) from e
+                KeyBERTExtractor._KeyBERT = KeyBERT
+            except ImportError as e:
+                raise ImportError(
+                    "KeyBERT is not installed. Install it with:\n"
+                    "  uv add keybert\n"
+                    "or\n"
+                    "  pip install keybert"
+                ) from e
 
         # Validate model tier
         if model_tier and model_tier not in self.KEYBERT_MODELS:
@@ -69,12 +73,12 @@ class KeyBERTExtractor:
                 f"Loading KeyBERT model ({model_tier}: {self.model_name})",
                 file=sys.stderr,
             )
-            print(f"This can take up to couple of minutes.")
+            print(f"This can take up to couple of minutes.", file=sys.stderr)
 
         # Initialize KeyBERT with the selected model
         # Assume model is pre-downloaded (user will handle caching separately)
         try:
-            self.kw_model = self._KeyBERT(model=self.model_name)
+            self.kw_model = KeyBERTExtractor._KeyBERT(model=self.model_name)
             if self.verbose:
                 print("✓ Model loaded successfully", file=sys.stderr)
         except Exception as e:
@@ -152,6 +156,17 @@ class KeyBERTExtractor:
         - Full code identifiers (e.g., getUserData, snake_case): 10x weight (exact match priority)
         - Code split words (e.g., get, user, data): 3x weight (fuzzy match support)
         - KeyBERT semantic keywords: Base score from embedding similarity
+
+        Magic numbers explained:
+        - 3x multiplier: For candidate selection (top_n * 3) to have enough keywords
+          before applying weights. This ensures we don't miss important keywords that
+          might rank higher after code identifier boosting.
+        - 0.5 base score: Default confidence for code identifiers not found by KeyBERT.
+          After 10x boost, gives them a score of 5.0, prioritizing them over most
+          regular keywords.
+        - 0.3 base score: Default confidence for code split words not found by KeyBERT.
+          After 3x boost, gives them a score of 0.9, placing them between regular
+          keywords (0.4-0.7) and full identifiers (5.0).
 
         Args:
             text: Input text to analyze

@@ -30,7 +30,7 @@ results = extractor.extract_keywords(text, top_n=15)
 ## Installation
 
 ```bash
-uv pip install keybert
+uv add keybert
 ```
 
 ## Integration in `indexer.py`

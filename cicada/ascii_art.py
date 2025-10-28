@@ -1,10 +1,6 @@
 """ASCII art and banner generation for Cicada CLI."""
 
-# ANSI color codes
-CYAN = "\033[38;2;217;119;87m"  # #D97757
-YELLOW = "\033[38;2;229;200;144m"  # #E5C890
-BOLD = "\033[1m"
-RESET = "\033[0m"
+from cicada.colors import CYAN, YELLOW, BOLD, RESET
 
 
 def generate_gradient_ascii_art():

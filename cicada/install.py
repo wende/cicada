@@ -12,17 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-# ANSI color codes for sleek CLI output
-CYAN = "\033[38;2;217;119;87m"  # #D97757
-BLUE = "\033[94m"
-GREEN = "\033[92m"
-YELLOW = "\033[38;2;229;200;144m"  # #E5C890 (brand yellow, used for emphasis)
-RED = "\033[91m"
-GRAY = "\033[90m"
-BOLD = "\033[1m"
-DIM = "\033[2m"
-RESET = "\033[0m"
+from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, BOLD, DIM, RESET
 
 
 def run_command(cmd, cwd=None, check=True, capture_output=True):
