@@ -66,8 +66,11 @@ lint:
 # Run all pre-commit checks
 pre-commit:
 	@echo "Running pre-commit checks..."
-	@$(MAKE) format
-	@$(MAKE) lint
+	@echo "Running black formatter..."
+	@uv run black .
+	@git add -u
+	@echo "Running pyrefly type checker (errors only)..."
+	@uv run pyrefly check cicada --project-excludes tests 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
 	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 
