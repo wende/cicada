@@ -179,10 +179,8 @@ class TestKeywordExtractor:
             raise OSError("Model not found")
 
         def mock_run(cmd, **_kwargs):
-            if cmd[0] == "uv":
-                raise FileNotFoundError("uv not found")
-            # Should not reach this point
-            return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
+            # Raise FileNotFoundError when uv command is attempted
+            raise FileNotFoundError("uv not found")
 
         monkeypatch.setattr(spacy, "load", mock_load)
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -191,7 +189,7 @@ class TestKeywordExtractor:
         extractor.verbose = True
         extractor.model_name = "en_core_web_md"
 
-        # Should fail since uv is required
+        # Should fail since uv is required (no pip fallback)
         assert extractor._download_model() is False
 
     def test_download_model_both_fail(self, monkeypatch):
