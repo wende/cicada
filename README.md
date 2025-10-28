@@ -49,6 +49,7 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
     </tr>
   </table>
 </div>
+
 ### Key Features
 
 - **AST-aware code search** - Find function definitions with full signatures, types, and documentation—no implementation bloat
