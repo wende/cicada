@@ -360,6 +360,41 @@ end
         assert "TestModule" in index["modules"]
         assert len(index["modules"]["TestModule"]["functions"]) == 2
 
+    def test_incremental_with_corrupted_index(self, tmp_path, capsys):
+        """Test incremental indexing with corrupted index falls back to full"""
+        indexer = ElixirIndexer()
+
+        # Create a test file
+        test_file = tmp_path / "test.ex"
+        test_file.write_text(
+            """
+defmodule TestModule do
+  def test_func(x), do: x
+end
+"""
+        )
+
+        # Do initial index
+        output_path = tmp_path / ".cicada" / "index.json"
+        indexer.index_repository(str(tmp_path), str(output_path))
+
+        # Corrupt the index by replacing it with invalid structure
+        import json
+
+        with open(output_path, "w") as f:
+            json.dump({"invalid": "structure"}, f)
+
+        # Do incremental index - should detect corruption and fall back
+        index = indexer.incremental_index_repository(str(tmp_path), str(output_path))
+
+        # Should have recovered with full reindex
+        assert "TestModule" in index["modules"]
+        assert index["modules"]["TestModule"]["functions"][0]["name"] == "test_func"
+
+        # Should print warning about corruption
+        captured = capsys.readouterr()
+        assert "corrupted" in captured.out.lower()
+
 
 class TestElixirIndexerKeywordExtraction:
     """Tests for keyword extraction functionality"""

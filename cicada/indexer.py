@@ -11,7 +11,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from cicada.parser import ElixirParser
-from cicada.utils import save_index, load_index, merge_indexes_incremental
+from cicada.utils import (
+    save_index,
+    load_index,
+    merge_indexes_incremental,
+    validate_index_structure,
+)
 from cicada.utils.hash_utils import (
     load_file_hashes,
     save_file_hashes,
@@ -22,6 +27,9 @@ from cicada.utils.hash_utils import (
 
 class ElixirIndexer:
     """Indexes Elixir repositories to extract module and function information."""
+
+    # Progress reporting interval - report every N files processed
+    PROGRESS_REPORT_INTERVAL = 10
 
     def __init__(self, verbose: bool = False):
         """Initialize the indexer with a parser."""
@@ -47,6 +55,27 @@ class ElixirIndexer:
         # Restore default handler so second Ctrl-C will kill immediately
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+    def _check_and_report_interruption(
+        self, files_processed: int, total_files: int
+    ) -> bool:
+        """
+        Check if interrupted and report status.
+
+        Args:
+            files_processed: Number of files processed so far
+            total_files: Total number of files to process
+
+        Returns:
+            True if interrupted, False otherwise
+        """
+        if self._interrupted:
+            print(
+                f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files"
+            )
+            print("   Saving partial progress...")
+            return True
+        return False
 
     def index_repository(
         self,
@@ -191,25 +220,17 @@ class ElixirIndexer:
                 files_processed += 1
 
                 # Progress reporting
-                if files_processed % 10 == 0:
+                if files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
                     print(f"  Processed {files_processed}/{total_files} files...")
 
                 # Check for interruption after each file
-                if self._interrupted:
-                    print(
-                        f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files"
-                    )
-                    print("   Saving partial progress...")
+                if self._check_and_report_interruption(files_processed, total_files):
                     break
 
             except Exception as e:
                 print(f"  Skipping {file_path}: {e}")
                 # Check for interruption even after error
-                if self._interrupted:
-                    print(
-                        f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files"
-                    )
-                    print("   Saving partial progress...")
+                if self._check_and_report_interruption(files_processed, total_files):
                     break
                 continue
 
@@ -311,6 +332,15 @@ class ElixirIndexer:
         # Load existing index and hashes
         existing_index = load_index(output_path_obj) if not force_full else None
         existing_hashes = load_file_hashes(str(cicada_dir)) if not force_full else {}
+
+        # Validate existing index structure if loaded
+        if existing_index:
+            is_valid, error = validate_index_structure(existing_index)
+            if not is_valid:
+                print(
+                    f"Warning: Existing index is corrupted ({error}). Performing full reindex..."
+                )
+                existing_index = None
 
         # If no existing data, do full index
         if not existing_index or not existing_hashes:
@@ -444,21 +474,17 @@ class ElixirIndexer:
                 files_processed += 1
 
                 # Check for interruption after each file
-                if self._interrupted:
-                    print(
-                        f"\n⚠️  Interrupted after processing {files_processed}/{len(files_to_process)} changed file(s)"
-                    )
-                    print("   Saving partial progress...")
+                if self._check_and_report_interruption(
+                    files_processed, len(files_to_process)
+                ):
                     break
 
             except Exception as e:
                 print(f"  Skipping {file_path}: {e}")
                 # Check for interruption even after error
-                if self._interrupted:
-                    print(
-                        f"\n⚠️  Interrupted after processing {files_processed}/{len(files_to_process)} changed file(s)"
-                    )
-                    print("   Saving partial progress...")
+                if self._check_and_report_interruption(
+                    files_processed, len(files_to_process)
+                ):
                     break
                 continue
 

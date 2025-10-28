@@ -27,6 +27,9 @@ def compute_file_hash(file_path: str) -> str:
         FileNotFoundError: If file doesn't exist
         IOError: If file cannot be read
     """
+    # Note: MD5 is used here for speed, not security. This is for content-based
+    # change detection, not cryptographic purposes. MD5 is significantly faster
+    # than SHA256 and collision risk is negligible for our use case.
     hash_md5 = hashlib.md5()
     try:
         with open(file_path, "rb") as f:
@@ -128,6 +131,8 @@ def detect_file_changes(
             new_files.append(file_path)
         else:
             # Check if modified
+            # Note: Race condition possible if file modified between this check
+            # and actual indexing, but impact is minimal (re-detected next run)
             try:
                 current_hash = compute_file_hash(full_path)
                 if current_hash != old_hashes[file_path]:
