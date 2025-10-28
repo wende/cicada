@@ -10,6 +10,7 @@ import yaml
 from cicada.mcp_server import CicadaServer
 
 
+
 @pytest.fixture
 def test_server():
     """Fixture to create a test MCP server instance."""

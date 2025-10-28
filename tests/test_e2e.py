@@ -5,8 +5,10 @@ End-to-end integration tests for Cicada.
 import os
 from pathlib import Path
 import pytest
+import yaml
 from cicada.indexer import ElixirIndexer
 from cicada.mcp_server import CicadaServer
+
 
 
 @pytest.fixture
@@ -68,8 +70,6 @@ def test_mcp_server_initialization(index_path):
         "repository": {"path": "/Users/wende/projects/ab"},
         "storage": {"index_path": index_path},
     }
-
-    import yaml
 
     test_config_path = "test_config.yaml"
     with open(test_config_path, "w") as f:

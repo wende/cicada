@@ -223,3 +223,68 @@ def get_index_stats(index: Dict[str, Any]) -> Dict[str, Any]:
                     stats["private_functions"] += 1
 
     return stats
+
+
+def merge_indexes_incremental(
+    old_index: Dict[str, Any],
+    new_index: Dict[str, Any],
+    deleted_files: list[str],
+) -> Dict[str, Any]:
+    """
+    Merge old and new indexes for incremental reindexing.
+
+    This specialized merge function:
+    1. Keeps all modules from old_index that aren't in deleted files
+    2. Adds/updates modules from new_index (new and modified files)
+    3. Removes modules whose files were deleted
+    4. Updates metadata with new counts and timestamp
+
+    Args:
+        old_index: Existing index dictionary
+        new_index: Index from newly processed files
+        deleted_files: List of file paths that were deleted
+
+    Returns:
+        Merged index dictionary with updated modules and metadata
+
+    Example:
+        merged = merge_indexes_incremental(
+            old_index=existing_index,
+            new_index=changed_files_index,
+            deleted_files=['lib/deleted.ex']
+        )
+    """
+    # Start with empty structure
+    merged = {
+        "modules": {},
+        "metadata": {},
+    }
+
+    # Convert deleted files list to set for O(1) lookup
+    deleted_set = set(deleted_files)
+
+    # Keep modules from old_index that aren't deleted
+    if "modules" in old_index:
+        for module_name, module_data in old_index["modules"].items():
+            file_path = module_data.get("file", "")
+            if file_path not in deleted_set:
+                merged["modules"][module_name] = module_data
+
+    # Add/update modules from new_index (overrides old ones with same name)
+    if "modules" in new_index:
+        merged["modules"].update(new_index["modules"])
+
+    # Merge metadata - take from new_index if available, else old_index
+    if "metadata" in new_index:
+        merged["metadata"].update(new_index["metadata"])
+    elif "metadata" in old_index:
+        merged["metadata"].update(old_index["metadata"])
+
+    # Update module and function counts
+    stats = get_index_stats(merged)
+    merged["metadata"]["total_modules"] = stats["total_modules"]
+    merged["metadata"]["total_functions"] = stats["total_functions"]
+    merged["metadata"]["public_functions"] = stats["public_functions"]
+    merged["metadata"]["private_functions"] = stats["private_functions"]
+
+    return merged

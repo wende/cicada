@@ -78,7 +78,7 @@ class KeywordExtractor:
 
     def _download_model(self) -> bool:
         """
-        Download the spaCy model using uv pip or pip install.
+        Download the spaCy model using uv pip install.
 
         Returns:
             True if download succeeded, False otherwise
@@ -97,7 +97,7 @@ class KeywordExtractor:
 
         model_url = model_urls[self.model_name]
 
-        # Try uv pip first (for uv virtual environments)
+        # Use uv pip install (works in uv-managed environments)
         try:
             if self.verbose:
                 print(f"Running: uv pip install {model_url}", file=sys.stderr)
@@ -113,32 +113,17 @@ class KeywordExtractor:
                 print(result.stdout, file=sys.stderr)
 
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        except FileNotFoundError:
             if self.verbose:
-                if isinstance(e, FileNotFoundError):
-                    print("uv not found, trying pip...", file=sys.stderr)
-                else:
-                    print(f"uv pip install failed: {e.stderr}", file=sys.stderr)
-
-        # Fall back to pip if uv is not available
-        try:
-            if self.verbose:
-                print(f"Running: pip install {model_url}", file=sys.stderr)
-
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", model_url],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            if self.verbose and result.stdout:
-                print(result.stdout, file=sys.stderr)
-
-            return True
+                print(
+                    "uv not found. Please install uv or manually install the model:",
+                    file=sys.stderr,
+                )
+                print(f"  uv pip install {model_url}", file=sys.stderr)
+            return False
         except subprocess.CalledProcessError as e:
             if self.verbose:
-                print(f"pip install failed: {e.stderr}", file=sys.stderr)
+                print(f"uv pip install failed: {e.stderr}", file=sys.stderr)
             return False
         except Exception as e:
             if self.verbose:

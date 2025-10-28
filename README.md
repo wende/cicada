@@ -189,15 +189,32 @@ cicada-index-pr .
 
 ### Re-indexing
 
-After code changes, re-index your project:
+After code changes, re-index your project. **Incremental indexing is now the default** - only modified files are reprocessed:
 
 ```bash
-# Re-index Elixir code
-cicada-index --output .cicada/index.json
+# Incremental re-index (default - only processes changed files)
+cicada-index
+
+# Force full re-index (reprocess all files)
+cicada-index --full
 
 # Or re-run full setup (skips install by default)
 cicada --skip-install
 ```
+
+**How incremental indexing works:**
+- On first run, CICADA computes MD5 hashes for all indexed files and stores them in `.cicada/hashes.json`
+- On subsequent runs, only new, modified, or deleted files are processed
+- Use `--full` to ignore hashes and reindex everything from scratch
+- Particularly beneficial when using `--extract-keywords` (keyword extraction is CPU-intensive)
+
+**Interrupt safety:**
+- You can safely press Ctrl-C during indexing - progress is automatically saved
+- The current file finishes processing, then partial results are saved
+- Next run continues from where you left off (only processes remaining files)
+- Press Ctrl-C twice to force quit (may lose current file's progress)
+
+**See also:** [Incremental Indexing Documentation](docs/INCREMENTAL_INDEXING.md) for detailed technical information, performance benchmarks, and troubleshooting guide.
 
 ### PR Indexing (Optional)
 
@@ -518,8 +535,14 @@ end
 **Requirements:**
 Index must be built with keyword extraction enabled:
 ```bash
+# Initial index with keyword extraction
 cicada-index --extract-keywords
+
+# Subsequent re-indexes (incremental - fast!)
+cicada-index --extract-keywords  # Only extracts from changed files
 ```
+
+**Note:** Keyword extraction uses spaCy NLP and is CPU-intensive. Incremental indexing makes re-indexing with keywords much faster by only processing changed files.
 
 **Returns (Markdown):**
 ```
