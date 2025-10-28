@@ -19,6 +19,10 @@ class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
 
     @staticmethod
+    def _group_call_sites_by_caller(call_sites):
+        return CallSiteFormatter.group_by_caller(call_sites)
+
+    @staticmethod
     def format_module_markdown(
         module_name: str, data: Dict[str, Any], private_functions: str = "exclude"
     ) -> str:

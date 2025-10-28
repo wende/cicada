@@ -64,6 +64,7 @@ format:
 # Check code formatting
 lint:
 	@uv run black --check cicada tests
+	@uv run basedpyright cicada
 
 # Run all pre-commit checks
 pre-commit:
@@ -72,7 +73,7 @@ pre-commit:
 	@uv run black .
 	@git add -u
 	@echo "Running basedpyright type checker (errors only)..."
-	@uv run basedpyright cicada tests 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
+	@uv run basedpyright cicada 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
 	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 
