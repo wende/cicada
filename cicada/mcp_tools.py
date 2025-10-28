@@ -256,4 +256,30 @@ def get_tool_definitions() -> list[Tool]:
                 "required": ["keywords"],
             },
         ),
+        Tool(
+            name="find_dead_code",
+            description=(
+                "Find potentially unused public functions with confidence levels.\n\n"
+                "Returns unused functions grouped by confidence: high (likely dead), medium (possible callbacks), low (possible dynamic calls). "
+                "Filter with min_confidence='high' (default), 'medium', or 'low'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "min_confidence": {
+                        "type": "string",
+                        "description": "Minimum confidence level: 'high' (default, zero usage + no indicators), 'medium' (zero usage + behaviors/uses), 'low' (all candidates)",
+                        "enum": ["high", "medium", "low"],
+                        "default": "high",
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output format: 'markdown' (default) or 'json'",
+                        "enum": ["markdown", "json"],
+                        "default": "markdown",
+                    },
+                },
+                "required": [],
+            },
+        ),
     ]

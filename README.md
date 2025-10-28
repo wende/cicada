@@ -221,339 +221,127 @@ cicada-index-pr . --clean
 
 ## MCP Tools
 
-### `search_module`
-Search for a module by exact name and retrieve all its functions.
+CICADA provides 9 specialized tools for AI assistants to understand and navigate your codebase. For complete technical documentation including parameters and return formats, see [MCP Tools Reference](docs/MCP-Tools-Reference.md).
 
-**Parameters:**
-- `module_name` (string, optional): Full module name (e.g., `"MyApp.User"`)
-- `file_path` (string, optional): Path to Elixir file (e.g., `"lib/my_app/user.ex"`)
-  - *Provide either `module_name` or `file_path`*
-- `format` (string, default: `"markdown"`): Output format (`"markdown"` or `"json"`)
-- `private_functions` (string, default: `"exclude"`): Control private function display
-  - `"exclude"`: Hide private functions
-  - `"include"`: Show all functions
-  - `"only"`: Show only private functions
+### Core Search Tools
 
-**Returns (Markdown):**
-```
-MyApp.User
+**`search_module`** - Find modules and view all their functions
+- Search by exact module name or file path
+- View function signatures with type specs
+- Filter public/private functions
+- Output in Markdown or JSON
 
-lib/my_app/user.ex:1 • 12 public • 3 private
+**`search_function`** - Locate function definitions and track usage
+- Search by function name, arity, or full module path
+- See where functions are called with line numbers
+- View actual code usage examples
+- Filter for test files only
 
-Public:
+**`search_module_usage`** - Track module dependencies
+- Find all aliases and imports
+- See all function calls to a module
+- Understand module relationships
+- Map dependencies across codebase
 
-create_user(attrs: map) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()} — :42
-get_user(id: integer) :: User.t() | nil — :58
-...
-```
+### Git History & Attribution Tools
 
-**Returns (JSON):**
-```json
-{
-  "module": "MyApp.User",
-  "location": "lib/my_app/user.ex:1",
-  "moduledoc": "User management module...",
-  "counts": {"public": 12, "private": 3},
-  "functions": [
-    {
-      "signature": "create_user(attrs: map) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}",
-      "line": 42,
-      "type": "def"
-    }
-  ]
-}
-```
+**`find_pr_for_line`** - Identify which PR introduced any line of code
+- Line-level PR attribution via git blame
+- Author and commit information
+- Direct links to GitHub PRs
+- Requires: GitHub CLI + PR index
 
-### `search_function`
-Find function definitions and see where they're called across the codebase.
+**`get_file_pr_history`** - View complete PR history for a file
+- All PRs that modified the file
+- PR descriptions and metadata
+- Code review comments with line numbers
+- Requires: GitHub CLI + PR index
 
-**Parameters:**
-- `function_name` (string, required): Function to search for
-  - `"create_user"` - Search all modules
-  - `"create_user/2"` - Search specific arity
-  - `"MyApp.User.create_user"` - Search specific module
-  - `"MyApp.User.create_user/2"` - Module + arity
-- `format` (string, default: `"markdown"`): Output format (`"markdown"` or `"json"`)
-- `include_usage_examples` (boolean, default: `false`): Include actual code lines showing usage
-- `max_examples` (integer, default: `5`): Maximum usage examples to show (1-20)
-- `test_files_only` (boolean, default: `false`): Only show calls from test files
+**`get_commit_history`** - Track file and function evolution over time
+- Complete commit history for files
+- Function-level tracking (follows refactors)
+- Creation and modification timeline
+- Requires: `.gitattributes` configuration
 
-**Returns (Markdown):**
-```
-# create_user/2
+**`get_blame`** - Show line-by-line code ownership
+- Grouped authorship display
+- Commit details for each author
+- Code snippets with context
 
-## MyApp.User.create_user/2
-lib/my_app/user.ex:42
+### Advanced Features
 
-create_user(attrs: map, opts: keyword) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+**`search_by_keywords`** (EXPERIMENTAL) - Semantic documentation search
+- Find code by concepts, not just names
+- Wildcard pattern matching (`create*`, `*_user`)
+- NLP-extracted keywords from docs
+- Relevance scoring
+- Requires: Index built with `--extract-keywords`
 
-Creates a new user with the given attributes.
-
-Called from 8 locations:
-- MyApp.UserController.create/2 (lib/my_app_web/controllers/user_controller.ex:23)
-- MyApp.Accounts.register/1 (lib/my_app/accounts.ex:15)
-...
-```
-
-**Returns (JSON):**
-```json
-{
-  "function_name": "create_user/2",
-  "results": [
-    {
-      "module": "MyApp.User",
-      "function": {
-        "name": "create_user",
-        "arity": 2,
-        "line": 42,
-        "signature": "create_user(attrs: map, opts: keyword)"
-      },
-      "file": "lib/my_app/user.ex",
-      "call_sites": [
-        {
-          "calling_module": "MyApp.UserController",
-          "calling_function": {"name": "create", "arity": 2},
-          "file": "lib/my_app_web/controllers/user_controller.ex",
-          "line": 23
-        }
-      ]
-    }
-  ]
-}
-```
-
-### `search_module_usage`
-Find everywhere a module is used in the codebase (aliases, imports, and function calls).
-
-**Parameters:**
-- `module_name` (string, required): Full module name (e.g., `"MyApp.User"`)
-- `format` (string, default: `"markdown"`): Output format (`"markdown"` or `"json"`)
-
-**Returns (Markdown):**
-```
-# MyApp.User Usage
-
-## Aliases (5)
-- MyApp.UserController (lib/my_app_web/controllers/user_controller.ex)
-  alias MyApp.User
-- MyApp.Accounts (lib/my_app/accounts.ex)
-  alias MyApp.User
-
-## Function Calls (3 modules)
-- MyApp.UserController (lib/my_app_web/controllers/user_controller.ex)
-  • create_user/2 at lines: 23, 45
-  • get_user/1 at lines: 12
-...
-```
-
-**Returns (JSON):**
-```json
-{
-  "module": "MyApp.User",
-  "usage": {
-    "aliases": [
-      {
-        "importing_module": "MyApp.UserController",
-        "alias_name": "User",
-        "file": "lib/my_app_web/controllers/user_controller.ex"
-      }
-    ],
-    "function_calls": [
-      {
-        "calling_module": "MyApp.UserController",
-        "file": "lib/my_app_web/controllers/user_controller.ex",
-        "calls": [
-          {
-            "function": "create_user",
-            "arity": 2,
-            "lines": [23, 45]
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### `find_pr_for_line`
-Discover which pull request introduced a specific line of code.
-
-**Parameters:**
-- `file_path` (string, required): Path to file (relative to repo root or absolute)
-- `line_number` (integer, required): Line number (1-indexed, minimum: 1)
-- `format` (string, default: `"text"`): Output format (`"text"`, `"json"`, or `"markdown"`)
-
-**Returns (Text):**
-```
-PR #123: Add user authentication
-Author: John Doe <john@example.com>
-Commit: abc123def456
-Date: 2024-01-15
-URL: https://github.com/org/repo/pull/123
-```
-
-**Returns (JSON):**
-```json
-{
-  "pr_number": 123,
-  "pr_title": "Add user authentication",
-  "author": {
-    "name": "John Doe",
-    "email": "john@example.com"
-  },
-  "commit": {
-    "sha": "abc123def456",
-    "message": "Add user authentication module"
-  },
-  "date": "2024-01-15",
-  "url": "https://github.com/org/repo/pull/123"
-}
-```
-
-### `get_file_pr_history`
-Get all pull requests that modified a specific file, with descriptions and review comments.
-
-**Parameters:**
-- `file_path` (string, required): Path to file (relative to repo root or absolute)
-
-**Returns:**
-```markdown
-# Pull Request History for lib/user.ex
-
-Found 3 pull request(s)
-
-## PR #42: Add user authentication
-- **Author:** @wende
-- **Status:** merged
-- **URL:** https://github.com/org/repo/pull/42
-
-### Description
-This PR adds JWT-based authentication to the User module...
-
-### Review Comments (2)
-
-**@reviewer** (Line 58) ✓ Resolved:
-> Consider caching the token validation to avoid redundant DB calls
-
-**@security-team** (Line 92) ✓ Resolved:
-> Make sure we're using constant-time comparison for tokens
+**`find_dead_code`** - Identify potentially unused functions
+- Three confidence levels (high, medium, low)
+- Smart detection of callbacks and behaviors
+- Recognition of dynamic call patterns
+- Module-level grouping with line numbers
+- Excludes test files and `@impl` functions
 
 ---
 
-## PR #38: Initial user module
-- **Author:** @contributor
-- **Status:** merged
-- **URL:** https://github.com/org/repo/pull/38
+**See also:** [Complete MCP Tools Reference](docs/MCP-Tools-Reference.md) for detailed specifications
 
-### Description
-Creates the basic User module structure
-```
+---
 
-**Note:** Requires PR index (run `cicada-index-pr .` first)
+## CLI Tools
 
-### `get_commit_history`
-Get commit history for a file or function. Tracks functions even as they move within the file.
+CICADA provides several command-line tools for setup, indexing, and analysis:
 
-**Parameters:**
-- `file_path` (string, required): Path to file (relative to repo root)
-- `function_name` (string, optional): Function name to track (e.g., `"create_user"`)
-- `start_line` (integer, optional): Starting line for fallback line-based tracking
-- `end_line` (integer, optional): Ending line for fallback line-based tracking
-- `show_evolution` (boolean, default: `false`): Include creation date and modification stats
-- `max_commits` (integer, default: `10`): Maximum commits to return (1-50)
+### Setup & Configuration
 
-**Note:** Requires `.gitattributes` with `*.ex diff=elixir` (automatically created by setup)
-
-**Returns:**
-```
-# Git History for lib/user.ex (lines 42-58)
-
-## Function Evolution
-- Created: 2024-01-15 by John Doe (commit `abc123de`)
-- Last Modified: 2024-12-20 by Jane Smith (commit `def456ab`)
-- Total Modifications: 8 commit(s)
-
-Found 5 commit(s)
-
-## 1. Refactor authentication logic
-- Commit: `def456ab`
-- Author: Jane Smith (jane@example.com)
-- Date: 2024-12-20T10:30:00Z
-```
-
-### `get_blame`
-Show line-by-line authorship with grouped consecutive lines by same author.
-
-**Parameters:**
-- `file_path` (string, required): Path to file (relative to repo root)
-- `start_line` (integer, required): Starting line number
-- `end_line` (integer, required): Ending line number
-
-**Returns:**
-```
-# Git Blame for lib/user.ex (lines 42-58)
-
-## Group 1: John Doe (lines 42-48)
-- Author: John Doe (john@example.com)
-- Commit: `abc123de`
-- Date: 2024-01-15
-- Lines: 7
-
-Code:
-def create_user(attrs, opts \\ []) do
-  changeset = User.changeset(%User{}, attrs)
-  ...
-end
-```
-
-### `search_by_keywords`
-**EXPERIMENTAL:** Search for modules and functions by semantic keywords extracted from documentation.
-
-**Parameters:**
-- `keywords` (array of strings, required): List of keywords to search for
-  - Regular keywords: `["authentication", "user", "validate"]`
-  - Wildcard patterns: `["create*", "test_*"]` (automatically detected)
-    - `*` matches any characters (e.g., `"create*"` matches `createUser`, `createAccount`)
-
-**Requirements:**
-Index must be built with keyword extraction enabled:
+**`cicada`** - Initialize CICADA in your project
 ```bash
-cicada-index --extract-keywords
+cicada                           # Setup in current directory
+cicada --skip-install           # Skip dependency installation
+cicada /path/to/other/project   # Setup in different directory
 ```
+- Generates `.mcp.json` configuration
+- Creates `.cicada/` directory
+- Installs Elixir dependencies
+- Configures git attributes for function tracking
 
-**Returns (Markdown):**
+### Indexing Tools
+
+**`cicada-index`** - Index Elixir codebase
+```bash
+cicada-index                         # Index current directory
+cicada-index --output .cicada/index.json
+cicada-index --extract-keywords      # Include NLP keyword extraction
 ```
-# Keyword Search Results
+- Parses all Elixir files using tree-sitter
+- Extracts modules, functions, and call sites
+- Resolves aliases for accurate tracking
+- Optional keyword extraction for semantic search
 
-Query: authentication, user, validate
-
-Found 10 result(s)
-
-## 1. MyApp.User.authenticate/2 (85% match)
-lib/my_app/user.ex:42
-
-**Matched keywords:** authentication, user, validate
-
-Creates a new user with the given attributes and validates credentials.
-
----
-
-## 2. MyApp.Auth.validate_token/1 (67% match)
-lib/my_app/auth.ex:15
-
-**Matched keywords:** authentication, validate
-
-Validates a JWT token for user authentication.
+**`cicada-index-pr`** - Index GitHub pull requests
+```bash
+cicada-index-pr .              # Index PRs for current repo
+cicada-index-pr . --clean      # Full rebuild from scratch
 ```
+- Requires GitHub CLI (`gh`) authenticated
+- Indexes PR metadata and review comments
+- Incremental updates by default
+- Enables PR attribution features
 
-**When to use:**
-- Finding code by concept/topic (e.g., "authentication", "validation")
-- Discovering functions related to specific domain terms
-- Searching when you don't know exact module/function names
-- Exploring code by semantic meaning
-- Pattern matching with wildcards
+### Analysis Tools
 
-**Note:** Results depend on documentation quality. This feature uses NLP-extracted keywords from `@doc` and `@moduledoc` attributes.
+**`cicada-find-dead-code`** - Find unused functions (CLI version)
+```bash
+cicada-find-dead-code                      # Show high confidence only
+cicada-find-dead-code --min-confidence low # Show all candidates
+cicada-find-dead-code --format json        # JSON output
+cicada-find-dead-code --index path/to/index.json
+```
+- Analyzes function usage across codebase
+- Categorizes by confidence level
+- Available as both CLI tool and MCP tool
 
 ---
 
