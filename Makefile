@@ -1,4 +1,4 @@
-.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch cover clean format lint pre-commit ci-test
+.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch cover clean reset format lint pre-commit ci-test
 
 # Default target
 help:
@@ -15,14 +15,13 @@ help:
 	@echo "  make pre-commit    - Run all pre-commit checks"
 	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
+	@echo "  make reset         - Full reset (cache, models, .cicada dirs)"
 
 # Setup dependencies with uv
 install:
 	@echo "Installing dependencies with uv..."
 	@uv sync --all-extras
-	@echo "Installing spaCy language models..."
-	@uv run python -m spacy download en_core_web_sm
-	@uv run python -m spacy download en_core_web_md
+	@echo "✓ Dependencies installed. SpaCy models will be downloaded on first use."
 
 # Setup test fixtures
 setup-fixtures:
@@ -42,11 +41,11 @@ extract-keywords:
 
 # Run tests
 test: setup-fixtures extract-keywords
-	@uv run pytest
+	@uv run pytest -n auto
 
 # Run tests with verbose output
 test-verbose: setup-fixtures extract-keywords
-	@uv run pytest -v
+	@uv run pytest -n auto -v
 
 # Run tests in watch mode
 test-watch: setup-fixtures extract-keywords
@@ -54,7 +53,7 @@ test-watch: setup-fixtures extract-keywords
 
 # Run tests with coverage
 cover: setup-fixtures extract-keywords
-	@uv run pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
@@ -78,7 +77,7 @@ pre-commit:
 
 # Run tests in CI environment
 ci-test: setup-fixtures extract-keywords
-	@uv run pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
@@ -94,3 +93,27 @@ clean:
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete
 	@echo "Cleaned up generated files"
+
+# Full reset: clean everything including cache, models, and cicada directories
+reset: clean
+	@echo "Performing full cicada reset..."
+	@echo "1. Clearing uv cache..."
+	@uv cache clean 2>&1 || true
+	@echo "2. Uninstalling spaCy models from tool environment..."
+	@if [ -d ~/.local/share/uv/tools/cicada ]; then \
+		uv pip uninstall --python ~/.local/share/uv/tools/cicada/bin/python3 \
+			en-core-web-sm en-core-web-md en-core-web-lg 2>&1 || true; \
+	else \
+		echo "   No cicada tool environment found, skipping model uninstall"; \
+	fi
+	@echo "3. Removing .cicada directories..."
+	@rm -rf .cicada
+	@rm -rf tests/fixtures/.cicada
+	@rm -rf tests/fixtures/test_project/.cicada
+	@rm -rf tests/fixtures/elixir_project/.cicada
+	@echo "4. Removing .mcp.json..."
+	@rm -f .mcp.json
+	@echo "✓ Full reset complete!"
+	@echo ""
+	@echo "To reinstall cicada:"
+	@echo "  uv tool install --editable . --force"

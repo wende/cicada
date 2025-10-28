@@ -11,8 +11,19 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from cicada.interactive_setup import GREY
 from cicada.parser import ElixirParser
 from cicada.utils import save_index
+
+# ANSI color codes for sleek CLI output
+CYAN = "\033[38;2;217;119;87m"  # #D97757
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+DIM = "\033[2m"
+RESET = "\033[0m"
 
 
 class ElixirIndexer:
@@ -35,7 +46,8 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str = ".cicada/index.json",
         extract_keywords: bool = False,
-        spacy_model: str = "small",
+        keyword_method: str = "spacy",
+        model_tier: str = "regular",
     ):
         """
         Index an Elixir repository.
@@ -44,8 +56,8 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
-            spacy_model: Size of spaCy model to use for keyword extraction
-                        ('small', 'medium', or 'large'). Default is 'small'.
+            keyword_method: Keyword extraction method ('spacy' or 'bert'). Default is 'spacy'.
+            model_tier: Model tier to use ('fast', 'regular', or 'max'). Default is 'regular'.
 
         Returns:
             Dictionary containing the index data
@@ -55,19 +67,39 @@ class ElixirIndexer:
         if not repo_path.exists():
             raise ValueError(f"Repository path does not exist: {repo_path}")
 
-        print(f"Indexing repository: {repo_path}")
-
         # Initialize keyword extractor if requested
         keyword_extractor = None
         if extract_keywords:
             try:
-                from cicada.keyword_extractor import KeywordExtractor
+                if keyword_method == "bert":
+                    from cicada.keybert_extractor import KeyBERTExtractor
 
-                keyword_extractor = KeywordExtractor(
-                    verbose=True, model_size=spacy_model
-                )
+                    keyword_extractor = KeyBERTExtractor(
+                        verbose=True, model_tier=model_tier
+                    )
+                else:
+                    from cicada.keyword_extractor import KeywordExtractor
+
+                    # Map model tier to spaCy model size
+                    tier_to_spacy = {
+                        "fast": "small",
+                        "regular": "medium",
+                        "max": "large",
+                    }
+                    spacy_model = tier_to_spacy.get(model_tier, "medium")
+                    keyword_extractor = KeywordExtractor(
+                        verbose=True, model_size=spacy_model
+                    )
+            except ModuleNotFoundError as e:
+                print(f"Warning: Could not import keyword extractor module: {e}")
+                print("Please run: uv sync")
+                print("Continuing without keyword extraction...")
+                extract_keywords = False
             except Exception as e:
-                print(f"Warning: Could not initialize keyword extractor: {e}")
+                print(f"Warning: Error initializing keyword extractor: {e}")
+                import traceback
+
+                traceback.print_exc()
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
 
@@ -75,9 +107,9 @@ class ElixirIndexer:
         elixir_files = self._find_elixir_files(repo_path)
         total_files = len(elixir_files)
 
-        print(f"Found {total_files} Elixir files")
+        print(f"  {DIM}Found {total_files} Elixir files{RESET}")
         if extract_keywords:
-            print("Keyword extraction enabled")
+            print(f"  {DIM}Keyword extraction enabled{RESET}")
 
         # Parse all files
         all_modules = {}
@@ -169,7 +201,9 @@ class ElixirIndexer:
 
                 # Progress reporting
                 if files_processed % 10 == 0:
-                    print(f"  Processed {files_processed}/{total_files} files...")
+                    print(
+                        f"  {DIM}Processed {files_processed}/{total_files} files...{RESET}"
+                    )
 
             except Exception as e:
                 print(f"  Skipping {file_path}: {e}")
@@ -197,22 +231,28 @@ class ElixirIndexer:
             from cicada.utils.path_utils import ensure_gitignore_has_cicada
 
             if ensure_gitignore_has_cicada(repo_path):
-                print("✓ Added .cicada/ to .gitignore")
+                print(f"{GREEN}✓{RESET} Added .cicada/ to .gitignore")
 
         save_index(index, output_path, create_dirs=True)
 
-        print(f"\nIndexing complete!")
-        print(f"  Modules: {len(all_modules)}")
-        print(f"  Functions: {total_functions}")
+        print(f"\n{GREEN}✓{RESET} Indexing complete!")
+        print(f"    {DIM}Modules: {len(all_modules)}{RESET}")
+        print(f"    {DIM}Functions: {total_functions}{RESET}")
 
         # Report keyword extraction failures if any
         if extract_keywords and keyword_extraction_failures > 0:
             print(
-                f"\n⚠️  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
+                f"\n{YELLOW}⚠{RESET}  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
             )
-            print("   Some documentation may not be indexed for keyword search.")
+            print(
+                f"   {GRAY}Some documentation may not be indexed for keyword search.{RESET}"
+            )
 
-        print(f"\nIndex saved to: {output_path}")
+        try:
+            rel_output_path = Path(output_path).relative_to(Path.cwd())
+        except ValueError:
+            rel_output_path = output_path
+        print(f"\n{GREEN}✓{RESET} Index saved to: {rel_output_path}")
 
         return index
 
@@ -260,21 +300,30 @@ def main():
         help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
     )
     parser.add_argument(
-        "--spacy-model",
-        choices=["small", "medium", "large"],
-        default="small",
-        help="Size of spaCy model to use for keyword extraction (default: small). "
-        "Medium and large models provide better accuracy but are slower.",
+        "--rag",
+        action="store_true",
+        help="Use KeyBERT (semantic embeddings) instead of spaCy (grammar-based)",
+    )
+    parser.add_argument(
+        "--model-tier",
+        choices=["fast", "regular", "max"],
+        default="regular",
+        help="Model tier to use (default: regular). "
+        "Fast is recommended, regular provides better accuracy, max is highest quality.",
     )
 
     args = parser.parse_args()
+
+    # Determine keyword method
+    keyword_method = "bert" if args.rag else "spacy"
 
     indexer = ElixirIndexer()
     indexer.index_repository(
         args.repo,
         args.output,
         extract_keywords=args.extract_keywords,
-        spacy_model=args.spacy_model,
+        keyword_method=keyword_method,
+        model_tier=args.model_tier,
     )
 
 

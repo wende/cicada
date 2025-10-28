@@ -11,6 +11,16 @@ import subprocess
 
 from cicada.utils import split_camel_snake_case
 
+# ANSI color codes for sleek CLI output
+CYAN = "\033[38;2;217;119;87m"  # #D97757
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+DIM = "\033[2m"
+RESET = "\033[0m"
+
 
 class KeywordExtractor:
     """Extract keywords from text using spaCy NLP."""
@@ -45,20 +55,14 @@ class KeywordExtractor:
         self.model_name = self.SPACY_MODELS[model_size]
 
         if self.verbose:
-            print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
+            print(f"\n  Loading spaCy model ({model_size})...", file=sys.stderr)
 
         try:
             self.nlp = spacy.load(self.model_name)
             if self.verbose:
-                print("✓ Model loaded successfully", file=sys.stderr)
+                print(f"  {DIM}✓ Model loaded successfully{RESET}", file=sys.stderr)
         except OSError:
             # Model not found, try to download it
-            if self.verbose:
-                print(
-                    f"Model '{self.model_name}' not found. Downloading...",
-                    file=sys.stderr,
-                )
-
             if not self._download_model():
                 raise RuntimeError(
                     f"Failed to download spaCy model '{self.model_name}'. "
@@ -69,7 +73,7 @@ class KeywordExtractor:
             try:
                 self.nlp = spacy.load(self.model_name)
                 if self.verbose:
-                    print("✓ Model loaded successfully", file=sys.stderr)
+                    print(f"  {DIM}✓ Model loaded successfully{RESET}", file=sys.stderr)
             except OSError as e:
                 raise RuntimeError(
                     f"Failed to load spaCy model '{self.model_name}' after download. "
@@ -78,7 +82,7 @@ class KeywordExtractor:
 
     def _download_model(self) -> bool:
         """
-        Download the spaCy model using uv pip or pip install.
+        Download the spaCy model using uv pip install.
 
         Returns:
             True if download succeeded, False otherwise
@@ -97,48 +101,42 @@ class KeywordExtractor:
 
         model_url = model_urls[self.model_name]
 
-        # Try uv pip first (for uv virtual environments)
+        # Use uv pip install with --python flag to target current environment
+        # Don't capture output so progress bars are visible
         try:
             if self.verbose:
-                print(f"Running: uv pip install {model_url}", file=sys.stderr)
+                print(f"Downloading {self.model_name}...", file=sys.stderr)
+                sys.stderr.flush()
+
+            # Try to pass stdin/stdout/stderr for TTY progress bars
+            # Fall back to DEVNULL if stdin/stdout/stderr are pseudofiles (e.g., in tests)
+            try:
+                # Check if stdin is a real file
+                _ = sys.stdin.fileno()
+                stdin = sys.stdin
+                stdout = sys.stdout
+                stderr = sys.stderr
+            except (AttributeError, OSError):
+                # stdin/stdout/stderr are pseudofiles, use DEVNULL
+                stdin = subprocess.DEVNULL
+                stdout = subprocess.DEVNULL
+                stderr = subprocess.DEVNULL
 
             result = subprocess.run(
-                ["uv", "pip", "install", model_url],
-                capture_output=True,
-                text=True,
+                ["uv", "pip", "install", "--python", sys.executable, model_url],
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
                 check=True,
             )
 
-            if self.verbose and result.stdout:
-                print(result.stdout, file=sys.stderr)
-
-            return True
+            return result.returncode == 0
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             if self.verbose:
                 if isinstance(e, FileNotFoundError):
-                    print("uv not found, trying pip...", file=sys.stderr)
+                    print("uv not found", file=sys.stderr)
                 else:
-                    print(f"uv pip install failed: {e.stderr}", file=sys.stderr)
-
-        # Fall back to pip if uv is not available
-        try:
-            if self.verbose:
-                print(f"Running: pip install {model_url}", file=sys.stderr)
-
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", model_url],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            if self.verbose and result.stdout:
-                print(result.stdout, file=sys.stderr)
-
-            return True
-        except subprocess.CalledProcessError as e:
-            if self.verbose:
-                print(f"pip install failed: {e.stderr}", file=sys.stderr)
+                    print(f"uv pip install failed: {e}", file=sys.stderr)
             return False
         except Exception as e:
             if self.verbose:

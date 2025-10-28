@@ -590,7 +590,7 @@ class TestMainFunction:
         (cicada_dir / "cicada" / "mcp_server.py").touch()
 
         with (
-            patch("sys.argv", ["install.py", str(repo_path)]),
+            patch("sys.argv", ["install.py", str(repo_path), "--fast"]),
             patch("cicada.install.check_python"),
             patch("cicada.install.install_cicada", return_value=(cicada_dir, False)),
             patch("cicada.install.install_dependencies", return_value=Path("/python")),
@@ -613,7 +613,10 @@ class TestMainFunction:
         (repo_path / ".git").mkdir()
 
         with (
-            patch("sys.argv", ["install.py", str(repo_path), "--skip-install"]),
+            patch(
+                "sys.argv",
+                ["install.py", str(repo_path), "--skip-install", "--fast"],
+            ),
             patch("cicada.install.check_python"),
             patch("cicada.install.install_cicada") as mock_install,
             patch("cicada.install.index_repository", return_value=Path("index.json")),

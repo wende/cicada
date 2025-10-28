@@ -181,7 +181,7 @@ class TestKeywordExtractor:
         def mock_run(cmd, **_kwargs):
             if cmd[0] == "uv":
                 raise FileNotFoundError("uv not found")
-            # Simulate successful pip install
+            # Should not reach this point
             return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
 
         monkeypatch.setattr(spacy, "load", mock_load)
@@ -191,11 +191,11 @@ class TestKeywordExtractor:
         extractor.verbose = True
         extractor.model_name = "en_core_web_md"
 
-        # Should fall back to pip and succeed
-        assert extractor._download_model() is True
+        # Should fail since uv is required
+        assert extractor._download_model() is False
 
     def test_download_model_both_fail(self, monkeypatch):
-        """Test _download_model when both uv and pip fail"""
+        """Test _download_model when uv pip install fails"""
         import spacy
         import subprocess
 

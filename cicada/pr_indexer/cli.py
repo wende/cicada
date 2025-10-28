@@ -43,7 +43,7 @@ def main():
         )
 
         print(
-            "\n✅ Indexing complete! You can now use the MCP tools for PR history lookups."
+            "\nIndexing complete! You can now use the MCP tools for PR history lookups."
         )
 
     except KeyboardInterrupt:
