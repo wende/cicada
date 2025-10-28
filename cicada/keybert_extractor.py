@@ -20,6 +20,18 @@ class KeyBERTExtractor:
         "max": "paraphrase-mpnet-base-v2",  # 420MB, highest quality
     }
 
+    # Weighting strategy constants for keyword extraction
+    # These control how different types of keywords are prioritized
+    KEYBERT_CANDIDATE_MULTIPLIER = 3  # Extract 3x keywords for weighted reranking
+    CODE_IDENTIFIER_BOOST = (
+        10  # 10x weight for exact code identifiers (e.g., function names)
+    )
+    CODE_SPLIT_WORD_BOOST = (
+        3  # 3x weight for identifier components (e.g., "user" from "getUserId")
+    )
+    BASE_SCORE_IDENTIFIER = 0.5  # Base score for identifiers not found by BERT
+    BASE_SCORE_SPLIT_WORD = 0.3  # Base score for split words not found by BERT
+
     # Class variable to hold KeyBERT class (lazily loaded)
     _KeyBERT = None
 
@@ -73,7 +85,7 @@ class KeyBERTExtractor:
                 f"Loading KeyBERT model ({model_tier}: {self.model_name})",
                 file=sys.stderr,
             )
-            print(f"This can take up to couple of minutes.", file=sys.stderr)
+            print("This can take up to a couple of minutes.", file=sys.stderr)
 
         # Initialize KeyBERT with the selected model
         # Assume model is pre-downloaded (user will handle caching separately)
@@ -209,7 +221,7 @@ class KeyBERTExtractor:
         try:
             keybert_keywords = self.kw_model.extract_keywords(
                 text,
-                top_n=top_n * 3,  # Get 3x candidates for applying weights
+                top_n=top_n * self.KEYBERT_CANDIDATE_MULTIPLIER,
                 keyphrase_ngram_range=(1, 1),  # Single words only
             )
         except Exception as e:
@@ -226,22 +238,27 @@ class KeyBERTExtractor:
             keyword_scores[keyword_lower] = score
 
         # 4. Apply code identifier boosting
-        # Code identifiers get 10x boost
+        # Code identifiers get strong boost as they're likely important API/function names
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
         for identifier in code_identifiers_lower:
             if identifier in keyword_scores:
-                keyword_scores[identifier] *= 10
+                keyword_scores[identifier] *= self.CODE_IDENTIFIER_BOOST
             else:
                 # Add with high base score if not found by KeyBERT
-                keyword_scores[identifier] = 0.5 * 10  # 0.5 base * 10x weight
+                keyword_scores[identifier] = (
+                    self.BASE_SCORE_IDENTIFIER * self.CODE_IDENTIFIER_BOOST
+                )
 
-        # Code split words get 3x boost
-        for word in code_split_words:
+        # 5. Apply split word boosting (lower than full identifiers)
+        # Split words are components of identifiers, somewhat important but less than full names
+        code_split_words_lower = [word.lower() for word in code_split_words]
+        for word in code_split_words_lower:
             if word in keyword_scores:
-                keyword_scores[word] *= 3
+                keyword_scores[word] *= self.CODE_SPLIT_WORD_BOOST
             else:
-                # Add with medium base score if not found by KeyBERT
-                keyword_scores[word] = 0.3 * 3  # 0.3 base * 3x weight
+                keyword_scores[word] = (
+                    self.BASE_SCORE_SPLIT_WORD * self.CODE_SPLIT_WORD_BOOST
+                )
 
         # 5. Sort by weighted score and take top_n
         top_keywords = sorted(keyword_scores.items(), key=lambda x: x[1], reverse=True)[

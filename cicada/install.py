@@ -16,14 +16,29 @@ from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, BOLD, DIM, RESET
 
 
 def run_command(cmd, cwd=None, check=True, capture_output=True):
-    """Run a shell command and return the result."""
+    """Run a shell command and return the result.
+
+    Args:
+        cmd: Either a string (for shell=True) or list of arguments (for shell=False).
+             List form is preferred for security.
+        cwd: Working directory for the command
+        check: Whether to raise exception on non-zero exit
+        capture_output: Whether to capture stdout/stderr
+    """
     try:
+        # Prefer list form (shell=False) for security
+        use_shell = isinstance(cmd, str)
         if capture_output:
             result = subprocess.run(
-                cmd, shell=True, check=check, cwd=cwd, capture_output=True, text=True
+                cmd,
+                shell=use_shell,
+                check=check,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
             )
         else:
-            result = subprocess.run(cmd, shell=True, check=check, cwd=cwd)
+            result = subprocess.run(cmd, shell=use_shell, check=check, cwd=cwd)
         return result
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {cmd}", file=sys.stderr)
@@ -215,15 +230,24 @@ def index_repository(
 
     # Run indexer
     indexer_script = cicada_dir / "cicada" / "indexer.py"
-    cmd = f"{python_bin} {indexer_script} {repo_path} --output {output_path} --extract-keywords"
+
+    # Build command as list to prevent command injection
+    cmd = [
+        str(python_bin),
+        str(indexer_script),
+        str(repo_path),
+        "--output",
+        str(output_path),
+        "--extract-keywords",
+    ]
 
     if fetch_pr_info:
-        cmd += " --pr-info"
+        cmd.append("--pr-info")
 
     # Add keyword extraction options
     if keyword_method == "bert":
-        cmd += " --rag"
-    cmd += f" --model-tier {model_tier}"
+        cmd.append("--rag")
+    cmd.extend(["--model-tier", model_tier])
 
     # Run without capturing output so users can see download progress
     result = run_command(cmd, capture_output=False)

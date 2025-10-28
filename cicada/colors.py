@@ -6,9 +6,10 @@ to eliminate code duplication and ensure brand consistency.
 """
 
 # Brand colors - primary palette
-CYAN = "\033[38;2;217;119;87m"  # #D97757 - Primary brand color
+ORANGE = "\033[38;2;217;119;87m"  # #D97757 - Primary brand color (orange)
 YELLOW = "\033[38;2;229;200;144m"  # #E5C890 - Selected items/highlights
 SELECTED = YELLOW  # Alias for menu selections
+CYAN = ORANGE  # Deprecated alias - kept for backwards compatibility
 
 # Standard terminal colors
 BLUE = "\033[94m"
@@ -23,4 +24,4 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 
 # Composite styles (for convenience)
-PRIMARY = CYAN  # Alias for primary brand color
+PRIMARY = ORANGE  # Alias for primary brand color

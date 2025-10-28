@@ -267,7 +267,7 @@ dependencies = [
     { name = "tree-sitter-elixir" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
     { name = "black" },
@@ -277,25 +277,11 @@ dev = [
     { name = "pytest-xdist" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
     { name = "gitpython", specifier = ">=3.1.0" },
     { name = "keybert", specifier = ">=0.8.0" },
     { name = "mcp", specifier = ">=0.1.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rank-bm25", specifier = ">=0.2.2" },
     { name = "simple-term-menu", specifier = ">=1.6.0" },
@@ -303,10 +289,11 @@ requires-dist = [
     { name = "tree-sitter", specifier = ">=0.20.0" },
     { name = "tree-sitter-elixir", specifier = ">=0.1.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "basedpyright", specifier = ">=1.0.0" },
+    { name = "black", specifier = ">=24.0.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },

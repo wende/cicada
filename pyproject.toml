@@ -27,16 +27,6 @@ cicada-index = "cicada.indexer:main"
 cicada-index-pr = "cicada.pr_indexer:main"
 cicada-find-dead-code = "cicada.find_dead_code:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
-    "pytest-cov>=6.0.0",
-    "pytest-xdist>=3.0.0",
-    "black>=24.0.0",
-    "basedpyright>=1.0.0",
-]
-
 [tool.setuptools.packages.find]
 include = ["cicada*"]
 
@@ -161,4 +151,6 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
+    "black>=24.0.0",
+    "basedpyright>=1.0.0",
 ]
