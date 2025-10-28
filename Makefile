@@ -1,11 +1,10 @@
-.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch cover clean reset format lint pre-commit ci-test
+.PHONY: help install setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
 
 # Default target
 help:
 	@echo "Available targets:"
 	@echo "  make install       - Install dependencies with uv"
 	@echo "  make setup-fixtures - Setup test fixtures"
-	@echo "  make extract-keywords - Extract keywords for test fixtures"
 	@echo "  make test          - Run all tests"
 	@echo "  make test-verbose  - Run tests with verbose output"
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
@@ -27,30 +26,20 @@ install:
 setup-fixtures:
 	@bash tests/setup_fixtures.sh
 
-# Extract keywords for test fixtures
-extract-keywords:
-	@echo "Extracting keywords for test fixtures..."
-	@if command -v uv >/dev/null 2>&1; then \
-		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-	else \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-	fi
-	@echo "✓ Keywords extracted for test fixtures"
-
 # Run tests
-test: setup-fixtures extract-keywords
+test: setup-fixtures
 	@uv run pytest -n auto
 
 # Run tests with verbose output
-test-verbose: setup-fixtures extract-keywords
+test-verbose: setup-fixtures
 	@uv run pytest -n auto -v
 
 # Run tests in watch mode
-test-watch: setup-fixtures extract-keywords
+test-watch: setup-fixtures
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: setup-fixtures extract-keywords
+cover: setup-fixtures
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
@@ -75,7 +64,7 @@ pre-commit:
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: setup-fixtures extract-keywords
+ci-test: setup-fixtures
 	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
