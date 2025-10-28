@@ -4,8 +4,6 @@ Formatter Module - Formats module search results in various formats.
 
 This module provides formatting utilities for Cicada MCP server responses,
 supporting both Markdown and JSON output formats.
-
-Author: Cursor(Auto)
 """
 
 import json
@@ -21,32 +19,8 @@ class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
 
     @staticmethod
-    def _format_function_signature(func: Dict[str, Any]) -> str:
-        """
-        Format function signature with arguments, types, and return type.
-
-        Args:
-            func: Function dictionary with name, args, optionally args_with_types and return_type
-
-        Returns:
-            Formatted signature like "func_name(arg1: type1, arg2: type2) :: return_type"
-        """
-        return SignatureBuilder.build(func)
-
-    @staticmethod
-    def _group_functions_by_name_arity(
-        funcs: list[Dict[str, Any]],
-    ) -> Dict[tuple, list[Dict[str, Any]]]:
-        """
-        Group functions by their name and arity.
-
-        Args:
-            funcs: List of function dictionaries
-
-        Returns:
-            Dictionary mapping (name, arity) tuples to lists of function clauses
-        """
-        return FunctionGrouper.group_by_name_arity(funcs)
+    def _group_call_sites_by_caller(call_sites):
+        return CallSiteFormatter.group_by_caller(call_sites)
 
     @staticmethod
     def format_module_markdown(
@@ -68,8 +42,8 @@ class ModuleFormatter:
         private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
 
         # Group by name/arity to deduplicate function clauses
-        public_grouped = ModuleFormatter._group_functions_by_name_arity(public_funcs)
-        private_grouped = ModuleFormatter._group_functions_by_name_arity(private_funcs)
+        public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
+        private_grouped = FunctionGrouper.group_by_name_arity(private_funcs)
 
         # Count unique functions, not function clauses
         public_count = len(public_grouped)
@@ -100,7 +74,7 @@ class ModuleFormatter:
             ):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
-                func_sig = ModuleFormatter._format_function_signature(func)
+                func_sig = SignatureBuilder.build(func)
                 lines.append(f"{func['line']:>5}: {func_sig}")
 
         # Show private functions (if private_functions == "include" or "only")
@@ -112,7 +86,7 @@ class ModuleFormatter:
             ):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
-                func_sig = ModuleFormatter._format_function_signature(func)
+                func_sig = SignatureBuilder.build(func)
                 lines.append(f"{func['line']:>5}: {func_sig}")
 
         # Check if there are no functions to display based on the filter
@@ -155,12 +129,12 @@ class ModuleFormatter:
             filtered_funcs = data["functions"]
 
         # Group functions by name/arity to deduplicate function clauses
-        grouped = ModuleFormatter._group_functions_by_name_arity(filtered_funcs)
+        grouped = FunctionGrouper.group_by_name_arity(filtered_funcs)
 
         # Compact function format - one entry per unique name/arity
         functions = [
             {
-                "signature": ModuleFormatter._format_function_signature(clauses[0]),
+                "signature": SignatureBuilder.build(clauses[0]),
                 "line": clauses[0]["line"],
                 "type": clauses[0]["type"],
             }
@@ -229,21 +203,6 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return json.dumps(error_result, indent=2)
 
     @staticmethod
-    def _group_call_sites_by_caller(
-        call_sites: list[Dict[str, Any]],
-    ) -> list[Dict[str, Any]]:
-        """
-        Group call sites by their caller (calling_module + calling_function).
-
-        Args:
-            call_sites: List of call site dictionaries
-
-        Returns:
-            List of grouped call sites with consolidated line numbers
-        """
-        return CallSiteFormatter.group_by_caller(call_sites)
-
-    @staticmethod
     def format_function_results_markdown(
         function_name: str, results: list[Dict[str, Any]]
     ) -> str:
@@ -308,7 +267,7 @@ No functions matching `{function_name}` were found in the index.
             indent = ""
 
             # Add signature first (right after file path)
-            sig = ModuleFormatter._format_function_signature(func)
+            sig = SignatureBuilder.build(func)
 
             # Skip the section header for single results
             if len(consolidated_results) == 1:
@@ -376,7 +335,7 @@ No functions matching `{function_name}` were found in the index.
 
                     if code_sites_with_examples:
                         # Group code sites by caller
-                        grouped_code = ModuleFormatter._group_call_sites_by_caller(
+                        grouped_code = CallSiteFormatter.group_by_caller(
                             code_sites_with_examples
                         )
                         code_count = sum(len(site["lines"]) for site in grouped_code)
@@ -412,7 +371,7 @@ No functions matching `{function_name}` were found in the index.
                         if code_sites_with_examples:
                             lines.append("")  # Blank line between sections
                         # Group test sites by caller
-                        grouped_test = ModuleFormatter._group_call_sites_by_caller(
+                        grouped_test = CallSiteFormatter.group_by_caller(
                             test_sites_with_examples
                         )
                         test_count = sum(len(site["lines"]) for site in grouped_test)
@@ -474,10 +433,8 @@ No functions matching `{function_name}` were found in the index.
                         lines.append(f"{indent}Other Call Sites:")
 
                         if remaining_code:
-                            grouped_remaining_code = (
-                                ModuleFormatter._group_call_sites_by_caller(
-                                    remaining_code
-                                )
+                            grouped_remaining_code = CallSiteFormatter.group_by_caller(
+                                remaining_code
                             )
                             remaining_code_count = sum(
                                 len(site["lines"]) for site in grouped_remaining_code
@@ -500,10 +457,8 @@ No functions matching `{function_name}` were found in the index.
                         if remaining_test:
                             if remaining_code:
                                 lines.append("")
-                            grouped_remaining_test = (
-                                ModuleFormatter._group_call_sites_by_caller(
-                                    remaining_test
-                                )
+                            grouped_remaining_test = CallSiteFormatter.group_by_caller(
+                                remaining_test
                             )
                             remaining_test_count = sum(
                                 len(site["lines"]) for site in grouped_remaining_test
@@ -536,9 +491,7 @@ No functions matching `{function_name}` were found in the index.
 
                     if code_sites:
                         # Group code sites by caller
-                        grouped_code = ModuleFormatter._group_call_sites_by_caller(
-                            code_sites
-                        )
+                        grouped_code = CallSiteFormatter.group_by_caller(code_sites)
                         code_count = sum(len(site["lines"]) for site in grouped_code)
                         lines.append(f"{indent}Code ({code_count}):")
                         for site in grouped_code:
@@ -559,9 +512,7 @@ No functions matching `{function_name}` were found in the index.
                         if code_sites:
                             lines.append("")  # Blank line between sections
                         # Group test sites by caller
-                        grouped_test = ModuleFormatter._group_call_sites_by_caller(
-                            test_sites
-                        )
+                        grouped_test = CallSiteFormatter.group_by_caller(test_sites)
                         test_count = sum(len(site["lines"]) for site in grouped_test)
                         lines.append(f"{indent}Test ({test_count}):")
                         for site in grouped_test:
@@ -613,9 +564,7 @@ No functions matching `{function_name}` were found in the index.
                 "function": result["function"]["name"],
                 "arity": result["function"]["arity"],
                 "full_name": f"{result['module']}.{result['function']['name']}/{result['function']['arity']}",
-                "signature": ModuleFormatter._format_function_signature(
-                    result["function"]
-                ),
+                "signature": SignatureBuilder.build(result["function"]),
                 "location": f"{result['file']}:{result['function']['line']}",
                 "type": result["function"]["type"],
                 "doc": result["function"].get("doc"),
