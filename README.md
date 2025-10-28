@@ -49,17 +49,14 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
     </tr>
   </table>
 </div>
-
 ### Key Features
 
-- **Fast module and function search** - Find any Elixir module or function instantly
-- **Call site tracking** - See where functions are used with line numbers
-- **Git history & PR attribution** - Find which PR introduced any line of code
-- **PR review comments** - Access historical code review discussions
-- **Tree-sitter parsing** - Accurate AST-based code analysis
-- **MCP integration** - Works with any MCP-compatible AI coding assistant
-
----
+- **AST-aware code search** - Find function definitions with full signatures, types, and documentation—no implementation bloat
+- **Intelligent call site tracking** - Resolve aliases and track where functions are actually invoked across the codebase
+- **PR attribution & review context** - Discover which pull request introduced any line and view historical code review discussions inline
+- **Function evolution tracking** - See when functions were created, how often they’re modified, and their complete git history
+- **Semantic module analysis** - Understand module dependencies, imports, and relationships beyond text matching
+- **MCP integration** - Provide AI coding assistants with structured code intelligence, not raw text
 
 ## Installation
 
