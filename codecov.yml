@@ -16,6 +16,7 @@ coverage:
     patch:
       default:
         target: 80%
+        only_pulls: true
 
 # Explicitly ignore test files and build artifacts
 ignore:
@@ -31,5 +32,5 @@ ignore:
 
 comment:
   layout: "diff, flags, files"
-  behavior: default
-  require_changes: false
+  behavior: once
+  require_changes: true

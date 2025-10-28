@@ -11,7 +11,7 @@ help:
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
 	@echo "  make cover         - Run tests with coverage report (min 80%)"
 	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Check code formatting"
+	@echo "  make lint          - Run pyrefly type checker (excludes tests)"
 	@echo "  make pre-commit    - Run all pre-commit checks"
 	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
@@ -19,10 +19,8 @@ help:
 # Setup dependencies with uv
 install:
 	@echo "Installing dependencies with uv..."
-	@uv sync --all-extras
-	@echo "Installing spaCy language models..."
-	@uv run python -m spacy download en_core_web_sm
-	@uv run python -m spacy download en_core_web_md
+	@uv sync --extra dev
+	@echo "✓ Dependencies installed (models will be downloaded on first use if needed)"
 
 # Setup test fixtures
 setup-fixtures:
@@ -61,10 +59,9 @@ cover: setup-fixtures extract-keywords
 format:
 	@uv run black cicada tests
 
-# Check code formatting
+# Check code formatting with pyrefly type checker
 lint:
-	@uv run black --check cicada tests
-	@uv run basedpyright cicada
+	@uv run pyrefly check cicada --project-excludes tests
 
 # Run all pre-commit checks
 pre-commit:
@@ -72,8 +69,8 @@ pre-commit:
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
-	@echo "Running basedpyright type checker (errors only)..."
-	@uv run basedpyright cicada 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
+	@echo "Running pyrefly type checker (errors only)..."
+	@uv run pyrefly check cicada --project-excludes tests 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
 	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 

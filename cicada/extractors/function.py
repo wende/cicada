@@ -127,7 +127,7 @@ def _find_functions_recursive(node, source_code: bytes, functions: list):
 
 def _parse_function_definition(
     arguments_node, source_code: bytes, func_type: str, line: int
-) -> dict:
+) -> dict | None:
     """Parse a function definition to extract name, arity, argument names, and guards."""
     func_name = None
     arity = 0

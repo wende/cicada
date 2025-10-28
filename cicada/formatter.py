@@ -738,7 +738,7 @@ No functions matching `{function_name}` were found in the index.
         Returns:
             Formatted Markdown string
         """
-        lines = []
+        lines: list[str] = []
 
         for _, result in enumerate(results, 1):
             _result_type = result["type"]
@@ -786,7 +786,7 @@ No functions matching `{function_name}` were found in the index.
 class JSONFormatter:
     """Formats JSON data with customizable options."""
 
-    def __init__(self, indent: int = 2, sort_keys: bool = False):
+    def __init__(self, indent: int | None = 2, sort_keys: bool = False):
         """
         Initialize the formatter.
 

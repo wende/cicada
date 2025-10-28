@@ -56,16 +56,17 @@ class PRIndexBuilder:
         total_comments = sum(len(pr.get("comments", [])) for pr in prs)
 
         # Build index structure
-        index = {
-            "metadata": {
-                "repo_owner": self.repo_owner,
-                "repo_name": self.repo_name,
-                "last_indexed_at": datetime.now().isoformat(),
-                "total_prs": len(prs),
-                "total_commits_mapped": len(commit_to_pr),
-                "total_comments": total_comments,
-                "total_files": len(file_to_prs),
-            },
+        metadata: Dict[str, Any] = {
+            "repo_owner": self.repo_owner,
+            "repo_name": self.repo_name,
+            "last_indexed_at": datetime.now().isoformat(),
+            "total_prs": len(prs),
+            "total_commits_mapped": len(commit_to_pr),
+            "total_comments": total_comments,
+            "total_files": len(file_to_prs),
+        }
+        index: Dict[str, Any] = {
+            "metadata": metadata,
             "prs": {str(pr["number"]): pr for pr in prs},
             "commit_to_pr": commit_to_pr,
             "file_to_prs": file_to_prs,

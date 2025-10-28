@@ -9,6 +9,7 @@ from cicada.utils.index_utils import (
     save_index,
     validate_index_structure,
     merge_indexes,
+    merge_indexes_incremental,
     get_index_stats,
 )
 
@@ -553,3 +554,263 @@ class TestGetIndexStats:
         assert stats["total_functions"] == 5
         assert stats["public_functions"] == 2
         assert stats["private_functions"] == 3
+
+
+class TestMergeIndexesIncremental:
+    """Tests for merge_indexes_incremental function"""
+
+    def test_merge_incremental_basic(self):
+        """Test basic incremental merge"""
+        old_index = {
+            "modules": {
+                "Module1": {"file": "lib/module1.ex", "functions": []},
+                "Module2": {"file": "lib/module2.ex", "functions": []},
+            },
+            "metadata": {"total_modules": 2, "total_functions": 0},
+        }
+
+        new_index = {
+            "modules": {
+                "Module3": {"file": "lib/module3.ex", "functions": []},
+            },
+            "metadata": {},
+        }
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert "Module1" in result["modules"]
+        assert "Module2" in result["modules"]
+        assert "Module3" in result["modules"]
+        assert result["metadata"]["total_modules"] == 3
+
+    def test_merge_incremental_with_deletions(self):
+        """Test incremental merge with deleted files"""
+        old_index = {
+            "modules": {
+                "Module1": {"file": "lib/module1.ex", "functions": []},
+                "Module2": {"file": "lib/module2.ex", "functions": []},
+                "Module3": {"file": "lib/module3.ex", "functions": []},
+            },
+            "metadata": {},
+        }
+
+        new_index = {"modules": {}, "metadata": {}}
+
+        deleted_files = ["lib/module2.ex"]
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert "Module1" in result["modules"]
+        assert "Module2" not in result["modules"]  # Deleted
+        assert "Module3" in result["modules"]
+        assert result["metadata"]["total_modules"] == 2
+
+    def test_merge_incremental_update_existing(self):
+        """Test incremental merge that updates existing modules"""
+        old_index = {
+            "modules": {
+                "Module1": {
+                    "file": "lib/module1.ex",
+                    "functions": [{"name": "old_func", "type": "def"}],
+                },
+            },
+            "metadata": {},
+        }
+
+        new_index = {
+            "modules": {
+                "Module1": {
+                    "file": "lib/module1.ex",
+                    "functions": [
+                        {"name": "old_func", "type": "def"},
+                        {"name": "new_func", "type": "def"},
+                    ],
+                },
+            },
+            "metadata": {},
+        }
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert len(result["modules"]["Module1"]["functions"]) == 2
+        assert result["metadata"]["total_modules"] == 1
+
+    def test_merge_incremental_empty_old_index(self):
+        """Test incremental merge with empty old index (first run)"""
+        old_index = {"modules": {}, "metadata": {}}
+
+        new_index = {
+            "modules": {
+                "Module1": {"file": "lib/module1.ex", "functions": []},
+            },
+            "metadata": {},
+        }
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert "Module1" in result["modules"]
+        assert result["metadata"]["total_modules"] == 1
+
+    def test_merge_incremental_empty_new_index(self):
+        """Test incremental merge with empty new index (no changes)"""
+        old_index = {
+            "modules": {
+                "Module1": {"file": "lib/module1.ex", "functions": []},
+            },
+            "metadata": {},
+        }
+
+        new_index = {"modules": {}, "metadata": {}}
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert "Module1" in result["modules"]
+        assert result["metadata"]["total_modules"] == 1
+
+    def test_merge_incremental_updates_function_counts(self):
+        """Test that incremental merge updates function counts correctly"""
+        old_index = {
+            "modules": {
+                "Module1": {
+                    "file": "lib/module1.ex",
+                    "functions": [{"name": "func1", "type": "def"}],
+                },
+            },
+            "metadata": {},
+        }
+
+        new_index = {
+            "modules": {
+                "Module2": {
+                    "file": "lib/module2.ex",
+                    "functions": [
+                        {"name": "func2", "type": "def"},
+                        {"name": "func3", "type": "defp"},
+                    ],
+                },
+            },
+            "metadata": {},
+        }
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert result["metadata"]["total_modules"] == 2
+        assert result["metadata"]["total_functions"] == 3
+        assert result["metadata"]["public_functions"] == 2
+        assert result["metadata"]["private_functions"] == 1
+
+    def test_merge_incremental_delete_multiple_files(self):
+        """Test deleting multiple files at once"""
+        old_index = {
+            "modules": {
+                "Module1": {"file": "lib/module1.ex", "functions": []},
+                "Module2": {"file": "lib/module2.ex", "functions": []},
+                "Module3": {"file": "lib/module3.ex", "functions": []},
+                "Module4": {"file": "lib/module4.ex", "functions": []},
+            },
+            "metadata": {},
+        }
+
+        new_index = {"modules": {}, "metadata": {}}
+
+        deleted_files = ["lib/module1.ex", "lib/module3.ex"]
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        assert "Module1" not in result["modules"]
+        assert "Module2" in result["modules"]
+        assert "Module3" not in result["modules"]
+        assert "Module4" in result["modules"]
+        assert result["metadata"]["total_modules"] == 2
+
+    def test_merge_incremental_metadata_priority(self):
+        """Test that new_index metadata takes priority"""
+        old_index = {
+            "modules": {},
+            "metadata": {"indexed_at": "2025-01-01", "repo_path": "/old/path"},
+        }
+
+        new_index = {
+            "modules": {},
+            "metadata": {"indexed_at": "2025-01-02"},
+        }
+
+        deleted_files = []
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        # New index metadata should override old
+        assert result["metadata"]["indexed_at"] == "2025-01-02"
+        # But counts should be updated regardless
+        assert "total_modules" in result["metadata"]
+
+    def test_merge_incremental_complex_scenario(self):
+        """Test a complex scenario with additions, updates, and deletions"""
+        old_index = {
+            "modules": {
+                "Unchanged": {
+                    "file": "lib/unchanged.ex",
+                    "functions": [{"name": "f1", "type": "def"}],
+                },
+                "ToBeUpdated": {
+                    "file": "lib/updated.ex",
+                    "functions": [{"name": "f2", "type": "def"}],
+                },
+                "ToBeDeleted": {
+                    "file": "lib/deleted.ex",
+                    "functions": [{"name": "f3", "type": "def"}],
+                },
+            },
+            "metadata": {},
+        }
+
+        new_index = {
+            "modules": {
+                "ToBeUpdated": {
+                    "file": "lib/updated.ex",
+                    "functions": [
+                        {"name": "f2", "type": "def"},
+                        {"name": "f4", "type": "defp"},
+                    ],
+                },
+                "NewModule": {
+                    "file": "lib/new.ex",
+                    "functions": [{"name": "f5", "type": "def"}],
+                },
+            },
+            "metadata": {},
+        }
+
+        deleted_files = ["lib/deleted.ex"]
+
+        result = merge_indexes_incremental(old_index, new_index, deleted_files)
+
+        # Unchanged should remain
+        assert "Unchanged" in result["modules"]
+        assert len(result["modules"]["Unchanged"]["functions"]) == 1
+
+        # ToBeUpdated should have new functions
+        assert "ToBeUpdated" in result["modules"]
+        assert len(result["modules"]["ToBeUpdated"]["functions"]) == 2
+
+        # ToBeDeleted should be removed
+        assert "ToBeDeleted" not in result["modules"]
+
+        # NewModule should be added
+        assert "NewModule" in result["modules"]
+
+        # Check stats
+        assert result["metadata"]["total_modules"] == 3
+        assert result["metadata"]["total_functions"] == 4
+        assert result["metadata"]["public_functions"] == 3
+        assert result["metadata"]["private_functions"] == 1

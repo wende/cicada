@@ -138,7 +138,7 @@ class GitHubAPIClient:
             return []
 
         # Build GraphQL query for batch fetching
-        pr_queries = []
+        pr_queries: list[str] = []
         for i, num in enumerate(pr_numbers):
             pr_queries.append(
                 f"""

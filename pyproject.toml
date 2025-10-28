@@ -31,7 +31,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "black>=24.0.0",
-    "basedpyright>=1.0.0",
+    "pyrefly>=0.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -151,3 +151,8 @@ reportUnknownLambdaType = false
 reportDeprecated = false
 reportReturnType = false
 reportPrivateUsage = false
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.39.1",
+]

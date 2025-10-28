@@ -96,7 +96,7 @@ class SignatureBuilder:
             formatted = SignatureBuilder._format_args_with_types(args)
             # Returns: "attrs: map, opts: keyword"
         """
-        formatted_args = []
+        formatted_args: list[str] = []
         for arg in args_with_types:
             if arg.get("type"):
                 formatted_args.append(f"{arg['name']}: {arg['type']}")
