@@ -237,6 +237,11 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self._search_by_keywords(keywords)
+        elif name == "find_dead_code":
+            min_confidence = arguments.get("min_confidence", "high")
+            output_format = arguments.get("format", "markdown")
+
+            return await self._find_dead_code(min_confidence, output_format)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -1217,6 +1222,41 @@ class CicadaServer:
         )
 
         return [TextContent(type="text", text=formatted_result)]
+
+    async def _find_dead_code(
+        self, min_confidence: str, output_format: str
+    ) -> list[TextContent]:
+        """
+        Find potentially unused public functions.
+
+        Args:
+            min_confidence: Minimum confidence level ('high', 'medium', or 'low')
+            output_format: Output format ('markdown' or 'json')
+
+        Returns:
+            TextContent with formatted dead code analysis
+        """
+        from cicada.dead_code_analyzer import DeadCodeAnalyzer
+        from cicada.find_dead_code import (
+            filter_by_confidence,
+            format_markdown,
+            format_json,
+        )
+
+        # Run analysis
+        analyzer = DeadCodeAnalyzer(self.index)
+        results = analyzer.analyze()
+
+        # Filter by confidence
+        results = filter_by_confidence(results, min_confidence)
+
+        # Format output
+        if output_format == "json":
+            output = format_json(results)
+        else:
+            output = format_markdown(results)
+
+        return [TextContent(type="text", text=output)]
 
     async def run(self):
         """Run the MCP server."""
