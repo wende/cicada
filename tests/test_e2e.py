@@ -10,7 +10,6 @@ from cicada.indexer import ElixirIndexer
 from cicada.mcp_server import CicadaServer
 
 
-
 @pytest.fixture
 def index_path():
     """Fixture to create test index."""

@@ -23,7 +23,6 @@ from cicada.utils import load_index
 from cicada.mcp_tools import get_tool_definitions
 
 
-
 class CicadaServer:
     """MCP server for Elixir module search."""
 
