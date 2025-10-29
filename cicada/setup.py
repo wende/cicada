@@ -276,10 +276,13 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
 
     # Check if running via uvx and suggest permanent installation
     import shutil
+    from cicada import __version__
 
     if not shutil.which("cicada-server"):
         print("💡 Tip: For best experience, install Cicada permanently:")
-        print("   uv tool install git+https://github.com/wende/cicada.git@v0.1.1")
+        print(
+            f"   uv tool install git+https://github.com/wende/cicada.git@v{__version__}"
+        )
         print()
         print("   Benefits:")
         print("   • Faster MCP server startup")
