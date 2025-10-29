@@ -22,10 +22,7 @@ dependencies = [
 
 [project.scripts]
 cicada-server = "cicada.mcp_server:main"
-cicada = "cicada.install:main"
-cicada-index = "cicada.indexer:main"
-cicada-index-pr = "cicada.pr_indexer:main"
-cicada-find-dead-code = "cicada.find_dead_code:main"
+cicada = "cicada.cli:main"
 
 
 [tool.setuptools.packages.find]

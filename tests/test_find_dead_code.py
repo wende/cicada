@@ -480,7 +480,7 @@ def test_main_missing_index_file(tmp_path, capsys):
     assert exc.value.code == 1
     captured = capsys.readouterr()
     assert "Error: Index file not found" in captured.err
-    assert "Run 'cicada-index' first" in captured.err
+    assert "Run 'cicada index' first" in captured.err
 
 
 def test_main_invalid_index_file(tmp_path, capsys):
