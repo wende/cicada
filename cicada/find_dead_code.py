@@ -237,7 +237,7 @@ Examples:
     index_path = Path(args.index)
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        print(f"\nRun 'cicada-index' first to create the index.", file=sys.stderr)
+        print(f"\nRun 'cicada index' first to create the index.", file=sys.stderr)
         sys.exit(1)
 
     try:

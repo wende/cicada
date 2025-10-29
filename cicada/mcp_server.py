@@ -803,7 +803,7 @@ class CicadaServer:
             if not index_path.exists():
                 error_msg = (
                     "PR index not found. Please run:\n"
-                    "  cicada-index-pr\n\n"
+                    "  cicada index-pr\n\n"
                     "This will create the PR index at .cicada/pr_index.json"
                 )
                 return [TextContent(type="text", text=error_msg)]
@@ -835,7 +835,7 @@ class CicadaServer:
                     # PR exists but not in index - suggest update
                     error_msg = (
                         "PR index is incomplete. Please run:\n"
-                        "  cicada-index-pr\n\n"
+                        "  cicada index-pr\n\n"
                         "This will update the index with recent PRs (incremental by default)."
                     )
                     return [TextContent(type="text", text=error_msg)]
@@ -1088,7 +1088,7 @@ class CicadaServer:
         if not self.pr_index:
             error_msg = (
                 "PR index not available. Please run:\n"
-                "  python cicada/pr_indexer.py\n\n"
+                "  cicada index-pr\n\n"
                 "This will create the PR index at .cicada/pr_index.json"
             )
             return [TextContent(type="text", text=error_msg)]
@@ -1201,7 +1201,7 @@ class CicadaServer:
         if not self._has_keywords:
             error_msg = (
                 "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada-index --extract-keywords\n\n"
+                "  cicada index --extract-keywords\n\n"
                 "This will extract keywords from documentation using NLP."
             )
             return [TextContent(type="text", text=error_msg)]

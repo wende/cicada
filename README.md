@@ -85,9 +85,10 @@ cicada
 
 **Available commands after install:**
 - `cicada-server` - MCP server
-- `cicada` - Project setup
-- `cicada-index` - Elixir code indexer (checks for updates)
-- `cicada-index-pr` - PR indexer (checks for updates)
+- `cicada` or `cicada ./path` - Project setup
+- `cicada index` - Elixir code indexer (checks for updates)
+- `cicada index-pr` - PR indexer (checks for updates)
+- `cicada find-dead-code` - Find potentially unused functions
 
 ### Try Before Installing
 
@@ -121,7 +122,7 @@ After installation, ask your AI coding assistant:
 
 **For PR features**, first run:
 ```bash
-cicada-index-pr .
+cicada index-pr .
 ```
 
 ---
@@ -179,10 +180,10 @@ cicada --skip-install
 cicada /path/to/other/project
 ```
 
-**Note:** The `--pr-info` flag has been removed. Use `cicada-index-pr` instead:
+**Note:** The `--pr-info` flag has been removed. Use `cicada index-pr` instead:
 ```bash
 # After setup, optionally index PRs
-cicada-index-pr .
+cicada index-pr .
 ```
 
 ### Re-indexing
@@ -191,7 +192,7 @@ After code changes, re-index your project:
 
 ```bash
 # Re-index Elixir code
-cicada-index --output .cicada/index.json
+cicada index --output .cicada/index.json
 
 # Or re-run full setup (skips install by default)
 cicada --skip-install
@@ -203,10 +204,10 @@ Index pull requests for enhanced git history features:
 
 ```bash
 # Full index (first time, requires GitHub CLI)
-cicada-index-pr .
+cicada index-pr .
 
 # Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
+cicada index-pr . --clean
 ```
 
 **Requirements:**
