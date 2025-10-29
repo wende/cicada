@@ -159,9 +159,10 @@ cicada
 
 **Available commands after install:**
 - `cicada-server` - MCP server
-- `cicada` - Project setup
-- `cicada-index` - Elixir code indexer (checks for updates)
-- `cicada-index-pr` - PR indexer (checks for updates)
+- `cicada` or `cicada ./path` - Project setup
+- `cicada index` - Elixir code indexer (checks for updates)
+- `cicada index-pr` - PR indexer (checks for updates)
+- `cicada find-dead-code` - Find potentially unused functions
 
 ### Try Before Installing
 
@@ -195,7 +196,7 @@ After installation, ask your AI coding assistant:
 
 **For PR features**, first run:
 ```bash
-cicada-index-pr .
+cicada index-pr .
 ```
 
 ---
@@ -253,10 +254,10 @@ cicada --skip-install
 cicada /path/to/other/project
 ```
 
-**Note:** The `--pr-info` flag has been removed. Use `cicada-index-pr` instead:
+**Note:** The `--pr-info` flag has been removed. Use `cicada index-pr` instead:
 ```bash
 # After setup, optionally index PRs
-cicada-index-pr .
+cicada index-pr .
 ```
 
 ### Re-indexing
@@ -265,7 +266,7 @@ After code changes, re-index your project:
 
 ```bash
 # Re-index Elixir code
-cicada-index --output .cicada/index.json
+cicada index --output .cicada/index.json
 
 # Or re-run full setup (skips install by default)
 cicada --skip-install
@@ -277,10 +278,10 @@ Index pull requests for enhanced git history features:
 
 ```bash
 # Full index (first time, requires GitHub CLI)
-cicada-index-pr .
+cicada index-pr .
 
 # Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
+cicada index-pr . --clean
 ```
 
 **Requirements:**
@@ -381,21 +382,21 @@ cicada /path/to/other/project   # Setup in different directory
 
 ### Indexing Tools
 
-**`cicada-index`** - Index Elixir codebase
+**`cicada index`** - Index Elixir codebase
 ```bash
-cicada-index                         # Index current directory
-cicada-index --output .cicada/index.json
-cicada-index --extract-keywords      # Include NLP keyword extraction
+cicada index                         # Index current directory
+cicada index --output .cicada/index.json
+cicada index --extract-keywords      # Include NLP keyword extraction
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites
 - Resolves aliases for accurate tracking
 - Optional keyword extraction for semantic search
 
-**`cicada-index-pr`** - Index GitHub pull requests
+**`cicada index-pr`** - Index GitHub pull requests
 ```bash
-cicada-index-pr .              # Index PRs for current repo
-cicada-index-pr . --clean      # Full rebuild from scratch
+cicada index-pr .              # Index PRs for current repo
+cicada index-pr . --clean      # Full rebuild from scratch
 ```
 - Requires GitHub CLI (`gh`) authenticated
 - Indexes PR metadata and review comments
@@ -404,12 +405,12 @@ cicada-index-pr . --clean      # Full rebuild from scratch
 
 ### Analysis Tools
 
-**`cicada-find-dead-code`** - Find unused functions (CLI version)
+**`cicada find-dead-code`** - Find unused functions (CLI version)
 ```bash
-cicada-find-dead-code                      # Show high confidence only
-cicada-find-dead-code --min-confidence low # Show all candidates
-cicada-find-dead-code --format json        # JSON output
-cicada-find-dead-code --index path/to/index.json
+cicada find-dead-code                      # Show high confidence only
+cicada find-dead-code --min-confidence low # Show all candidates
+cicada find-dead-code --format json        # JSON output
+cicada find-dead-code --index path/to/index.json
 ```
 - Analyzes function usage across codebase
 - Categorizes by confidence level
@@ -571,7 +572,7 @@ When reporting bugs or requesting features:
 
 Run the indexer first:
 ```bash
-cicada-index /path/to/project
+cicada index /path/to/project
 ```
 
 ### "Module not found"
@@ -599,14 +600,14 @@ brew install gh  # macOS
 gh auth login
 
 # Index PRs (first time or after new PRs)
-cicada-index-pr .
+cicada index-pr .
 
 # Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
+cicada index-pr . --clean
 ```
 
 **Common issues:**
-- "No PR index found" → Run `cicada-index-pr .`
+- "No PR index found" → Run `cicada index-pr .`
 - "Not a GitHub repository" → Ensure repo has GitHub remote
 - Slow indexing → Incremental updates are used by default
 

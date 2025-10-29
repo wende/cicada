@@ -327,7 +327,7 @@ def check_tools_in_path():
     """Check if cicada tools are in PATH."""
     import shutil
 
-    tools = ["cicada-server", "cicada-index"]
+    tools = ["cicada-server", "cicada"]
     visible_tools = [tool for tool in tools if shutil.which(tool)]
 
     if len(visible_tools) == len(tools):

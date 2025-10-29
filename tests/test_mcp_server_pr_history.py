@@ -64,7 +64,7 @@ class TestFindPRForLine:
 
         assert len(result) == 1
         assert "PR index not found" in result[0].text
-        assert "cicada-index-pr" in result[0].text
+        assert "cicada index-pr" in result[0].text
 
     @pytest.mark.asyncio
     async def test_finds_pr_with_mock(self, test_server_with_pr_index):
@@ -218,7 +218,7 @@ class TestGetFilePRHistory:
 
         assert len(result) == 1
         assert "PR index not available" in result[0].text
-        assert "pr_indexer.py" in result[0].text
+        assert "cicada index-pr" in result[0].text
 
     @pytest.mark.asyncio
     async def test_file_not_found(self, test_server_with_pr_data):

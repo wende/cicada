@@ -998,7 +998,7 @@ class TestCheckToolsInPath:
             assert mock_which.call_count == 2
             calls = [call[0][0] for call in mock_which.call_args_list]
             assert "cicada-server" in calls
-            assert "cicada-index" in calls
+            assert "cicada" in calls
 
 
 if __name__ == "__main__":

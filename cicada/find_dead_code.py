@@ -191,9 +191,9 @@ Confidence Levels:
   low    - Zero usage, but module passed as value (possible dynamic calls)
 
 Examples:
-  cicada-find-dead-code                      # Show high confidence candidates
-  cicada-find-dead-code --min-confidence low # Show all candidates
-  cicada-find-dead-code --format json        # Output as JSON
+  cicada find-dead-code                      # Show high confidence candidates
+  cicada find-dead-code --min-confidence low # Show all candidates
+  cicada find-dead-code --format json        # Output as JSON
         """,
     )
 
@@ -223,7 +223,7 @@ Examples:
     index_path = Path(args.index)
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        print("\nRun 'cicada-index' first to create the index.", file=sys.stderr)
+        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
         sys.exit(1)
 
     try:
