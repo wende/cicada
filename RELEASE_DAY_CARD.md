@@ -46,7 +46,7 @@ cicada --version  # Should show: 0.2.0
 ```bash
 cd ~/test-project
 cicada
-cicada-index .
+cicada index .
 ```
 
 ---
@@ -142,7 +142,7 @@ uv tool install git+https://github.com/wende/cicada.git@v0.1.1
 
 ### "Index format not recognized"
 ```bash
-rm -rf .cicada/ && cicada-index .
+rm -rf .cicada/ && cicada index .
 ```
 
 ### "Command not found"

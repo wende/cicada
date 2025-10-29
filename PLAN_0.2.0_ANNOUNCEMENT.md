@@ -134,10 +134,10 @@ No more waiting for full re-indexing! CICADA now tracks file changes and updates
 
 ```bash
 # Before: 45 seconds for full re-index
-cicada-index .
+cicada index .
 
 # After: 3 seconds for incremental update
-cicada-index .  # Automatically detects and indexes only changed files
+cicada index .  # Automatically detects and indexes only changed files
 ```
 
 #### Enhanced Keyword Search
@@ -219,7 +219,7 @@ After installation, try these enhanced queries:
 vim lib/my_module.ex
 
 # Re-index (only updates changed files)
-cicada-index .  # ⚡ Much faster!
+cicada index .  # ⚡ Much faster!
 ```
 ```
 
@@ -268,7 +268,7 @@ CICADA now intelligently tracks file changes and updates only what's necessary.
 echo "def new_function, do: :ok" >> lib/my_module.ex
 
 # Re-index (only processes changed files)
-cicada-index .  # ⚡ 3 seconds instead of 45!
+cicada index .  # ⚡ 3 seconds instead of 45!
 ```
 
 **Implementation:** Uses file modification times and content hashing to detect changes. See [technical docs](docs/INCREMENTAL_INDEXING.md) for details.
@@ -330,7 +330,7 @@ Error: Failed to parse lib/my_module.ex:line 42
 
 **Progress Indicators:**
 ```bash
-$ cicada-index .
+$ cicada index .
 📊 Scanning files... 450 found
 🔍 Parsing Elixir files... ████████████████░░░░ 80% (360/450)
 💾 Building index... done
@@ -360,7 +360,7 @@ $ cicada setup
 mv .cicada/index.json .cicada/index.json.v0.1.1.bak
 
 # Create new index
-cicada-index .
+cicada index .
 ```
 
 **Why:** New format enables incremental updates and better compression
@@ -372,16 +372,16 @@ cicada-index .
 - Deprecated `CICADA_LEGACY_MODE` environment variable
 
 **Changed:**
-- `cicada-index --output` now relative to project root (was absolute path)
+- `cicada index --output` now relative to project root (was absolute path)
 
 **Migration:**
 ```bash
 # Old (v0.1.1)
-cicada-index --output /absolute/path/index.json
+cicada index --output /absolute/path/index.json
 
 # New (v0.2.0)
 cd /project/root
-cicada-index --output .cicada/index.json
+cicada index --output .cicada/index.json
 ```
 
 ### API Changes (if applicable)
@@ -432,7 +432,7 @@ rm -rf .cicada/
 
 # Create new index
 cicada setup  # Re-run setup
-cicada-index .
+cicada index .
 ```
 
 ### Step 4: Update MCP Configuration (if needed)
@@ -449,7 +449,7 @@ cicada setup --force
 cicada-server --test
 
 # Try a search
-cicada-find-dead-code  # Should work with new index
+cicada find-dead-code  # Should work with new index
 ```
 
 ### Rollback (if needed)
@@ -619,10 +619,10 @@ This guide helps you migrate from CICADA 0.1.x to 0.2.0.
 **Solution:**
 ```bash
 rm -rf .cicada/
-cicada-index .
+cicada index .
 ```
 
-### Issue: "Command not found: cicada-index"
+### Issue: "Command not found: cicada index"
 
 **Cause:** Tool not in PATH after upgrade  
 **Solution:**

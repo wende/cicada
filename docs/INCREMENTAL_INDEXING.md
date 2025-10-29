@@ -38,26 +38,26 @@ The incremental indexing system allows you to reindex your Elixir codebase effic
 
 ```bash
 # First run: full index with hash computation
-cicada-index
+cicada index
 
 # Subsequent runs: automatic incremental indexing
-cicada-index  # Only processes changed files
+cicada index  # Only processes changed files
 
 # Force full reindex (ignore hashes)
-cicada-index --full
+cicada index --full
 ```
 
 ### With Keyword Extraction
 
 ```bash
 # First run with keywords (slow but only once)
-cicada-index --extract-keywords
+cicada index --extract-keywords
 
 # Subsequent runs with keywords (much faster!)
-cicada-index --extract-keywords  # Only extracts from changed files
+cicada index --extract-keywords  # Only extracts from changed files
 
 # Force full keyword reindex
-cicada-index --extract-keywords --full
+cicada index --extract-keywords --full
 ```
 
 ### Output Example
@@ -128,7 +128,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada-index --extract-keywords
+cicada index --extract-keywords
 ```
 
 The incremental indexing system will:
@@ -291,19 +291,19 @@ _handle_interrupt() called
 **During active development:**
 ```bash
 # Edit 2-3 files, reindex frequently
-cicada-index --extract-keywords  # ~1-2s instead of ~50s
+cicada index --extract-keywords  # ~1-2s instead of ~50s
 ```
 
 **After git pull:**
 ```bash
 # Pulled 10 changed files from main branch
-cicada-index  # ~3s instead of ~12s
+cicada index  # ~3s instead of ~12s
 ```
 
 **Clean build:**
 ```bash
 # Switched to different branch with many changes
-cicada-index --full  # ~12s (same as before)
+cicada index --full  # ~12s (same as before)
 ```
 
 ## File Patterns
@@ -346,10 +346,10 @@ priv/           # Private resources
 **Solution:**
 ```bash
 # Force full reindex
-cicada-index --full
+cicada index --full
 
 # With keywords
-cicada-index --extract-keywords --full
+cicada index --extract-keywords --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -366,7 +366,7 @@ cicada-index --extract-keywords --full
 ```bash
 # Delete hash file and reindex
 rm .cicada/hashes.json
-cicada-index
+cicada index
 ```
 
 ### Issue: Incremental indexing too slow
@@ -378,7 +378,7 @@ cicada-index
 ```bash
 # Check which files are detected as changed
 # Look for "Changes detected:" output
-cicada-index
+cicada index
 ```
 
 **Common causes:**
@@ -410,7 +410,7 @@ If file truly changed but hash matches (unlikely):
 # Force reindex of specific files by deleting their hashes
 # Edit .cicada/hashes.json manually or:
 rm .cicada/hashes.json
-cicada-index
+cicada index
 ```
 
 ## Best Practices
@@ -421,10 +421,10 @@ Add to your development workflow:
 
 ```bash
 # After pulling changes
-git pull && cicada-index
+git pull && cicada index
 
 # Before committing (if using keyword search)
-cicada-index --extract-keywords && git commit
+cicada index --extract-keywords && git commit
 ```
 
 ### 2. CI/CD Integration
@@ -435,7 +435,7 @@ In your CI pipeline:
 # .github/workflows/ci.yml
 - name: Index codebase
   run: |
-    cicada-index --extract-keywords
+    cicada index --extract-keywords
     # Run tests that depend on index
     pytest tests/
 ```
@@ -449,7 +449,7 @@ Create `.git/hooks/pre-commit`:
 ```bash
 #!/bin/bash
 # Reindex changed files before commit
-cicada-index --extract-keywords
+cicada index --extract-keywords
 ```
 
 ### 4. Gitignore Configuration
@@ -469,7 +469,7 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada-index --extract-keywords --full
+cicada index --extract-keywords --full
 ```
 
 This ensures:
@@ -619,4 +619,4 @@ Incremental indexing provides:
 ✅ **Zero configuration** - works out of the box
 ✅ **Backward compatible** - gracefully handles missing hashes
 
-Simply run `cicada-index` as usual - incremental indexing happens automatically!
+Simply run `cicada index` as usual - incremental indexing happens automatically!

@@ -205,9 +205,9 @@ Confidence Levels:
   low    - Zero usage, but module passed as value (possible dynamic calls)
 
 Examples:
-  cicada-find-dead-code                      # Show high confidence candidates
-  cicada-find-dead-code --min-confidence low # Show all candidates
-  cicada-find-dead-code --format json        # Output as JSON
+  cicada find-dead-code                      # Show high confidence candidates
+  cicada find-dead-code --min-confidence low # Show all candidates
+  cicada find-dead-code --format json        # Output as JSON
         """,
     )
 

@@ -213,7 +213,7 @@ rm -rf .cicada/
 
 # Step 3: Re-index
 cicada setup
-cicada-index .
+cicada index .
 ```
 
 ---
@@ -247,7 +247,7 @@ cicada-index .
 **Migration:**
 ```bash
 rm -rf .cicada/
-cicada-index .
+cicada index .
 ```
 
 **Why:** New format enables incremental updates and better compression
@@ -285,10 +285,10 @@ cicada-index .
 ```bash
 # Clean and rebuild
 rm -rf .cicada/
-cicada-index .
+cicada index .
 ```
 
-### "Command not found: cicada-index"
+### "Command not found: cicada index"
 
 ```bash
 # Reinstall
@@ -430,7 +430,7 @@ cicada --version
 # Test in sample project
 cd ~/test-project
 cicada
-cicada-index .
+cicada index .
 ```
 
 ### 11:00 AM - Announcements
