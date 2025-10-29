@@ -479,6 +479,10 @@ def update_claude_md(repo_path):
             with open(claude_md_path, "w") as f:
                 _ = f.write(new_content)
             print(f"✓ Replaced existing <cicada> instructions in CLAUDE.md")
+        elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
+            # Content already mentions cicada, don't add duplication
+            # This handles cases where users manually added cicada instructions
+            print(f"✓ CLAUDE.md already mentions cicada, skipping update")
         else:
             # Append the instruction
             with open(claude_md_path, "a") as f:

@@ -6,14 +6,14 @@ help:
 	@echo "  make install       - Install dependencies with uv"
 	@echo "  make setup-fixtures - Setup test fixtures"
 	@echo "  make extract-keywords - Extract keywords for test fixtures"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-verbose  - Run tests with verbose output"
-	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
-	@echo "  make cover         - Run tests with coverage report (min 80%)"
-	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Run pyrefly type checker (excludes tests)"
-	@echo "  make pre-commit    - Run all pre-commit checks"
-	@echo "  make ci-test       - Run tests in CI environment"
+	@echo "  make test          - Run all tests (auto-installs dependencies)"
+	@echo "  make test-verbose  - Run tests with verbose output (auto-installs dependencies)"
+	@echo "  make test-watch    - Run tests in watch mode (auto-installs dependencies)"
+	@echo "  make cover         - Run tests with coverage report (auto-installs dependencies)"
+	@echo "  make format        - Format code with black (auto-installs dependencies)"
+	@echo "  make lint          - Run pyrefly type checker (auto-installs dependencies)"
+	@echo "  make pre-commit    - Run all pre-commit checks (auto-installs dependencies)"
+	@echo "  make ci-test       - Run tests in CI environment (auto-installs dependencies)"
 	@echo "  make clean         - Remove generated files"
 
 # Setup dependencies with uv
@@ -39,32 +39,32 @@ extract-keywords:
 	@echo "✓ Keywords extracted for test fixtures"
 
 # Run tests
-test: setup-fixtures extract-keywords
+test: install setup-fixtures extract-keywords
 	@uv run pytest
 
 # Run tests with verbose output
-test-verbose: setup-fixtures extract-keywords
+test-verbose: install setup-fixtures extract-keywords
 	@uv run pytest -v
 
 # Run tests in watch mode
-test-watch: setup-fixtures extract-keywords
+test-watch: install setup-fixtures extract-keywords
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: setup-fixtures extract-keywords
+cover: install setup-fixtures extract-keywords
 	@uv run pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
-format:
+format: install
 	@uv run black cicada tests
 
 # Check code formatting with pyrefly type checker
-lint:
+lint: install
 	@uv run pyrefly check cicada --project-excludes tests
 
 # Run all pre-commit checks
-pre-commit:
+pre-commit: install
 	@echo "Running pre-commit checks..."
 	@echo "Running black formatter..."
 	@uv run black .
@@ -75,7 +75,7 @@ pre-commit:
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: setup-fixtures extract-keywords
+ci-test: install setup-fixtures extract-keywords
 	@uv run pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
