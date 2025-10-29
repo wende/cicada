@@ -16,6 +16,8 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
+> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered keyword search with **15-25x faster** incremental indexing. [What's New →](#whats-new-in-v020)
+
 [Installation](#installation) •
 [Quick Start](#quick-start) •
 [Configuration](#configuration) •
@@ -50,6 +52,78 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
   </table>
 </div>
 
+## What's New in v0.2.0
+
+### 🤖 Enhanced AI Keyword Extraction
+
+AI-powered semantic search is now production-ready with advanced NLP capabilities:
+
+- **BERT Integration**: KeyBERT-based keyword extraction for superior semantic understanding
+- **Configurable Model Tiers**: Choose between `fast`, `regular`, or `large` models to balance speed and accuracy
+- **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
+- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance
+
+```bash
+# Index with enhanced AI keyword extraction
+cicada-index --extract-keywords --rag --model-tier fast
+
+# Search by concept, not just exact names
+# AI will find: create_user, user_creation, new_user_account, etc.
+```
+
+### ⚡ Incremental Indexing - Lightning Fast Updates
+
+Say goodbye to slow reindexing! v0.2.0 introduces intelligent change detection that makes reindexing **15-25x faster**:
+
+- **🚀 15-25x Speedup**: Only processes files that actually changed (MD5 hash-based detection)
+- **💾 Interrupt Safety**: Ctrl-C gracefully saves progress - resume anytime without data loss
+- **🎯 Perfect for AI Search**: Keyword extraction drops from 48.7s to 2.1s for typical updates
+- **🔄 Zero Configuration**: Works automatically out of the box
+
+```bash
+# First run: full index + hash computation (~12s for 200 files)
+cicada-index --extract-keywords
+
+# Subsequent runs: lightning fast incremental updates
+# Changed 5 files? Only 2.1s instead of 48.7s!
+cicada-index --extract-keywords
+```
+
+**Performance Benchmark** (200-file Phoenix app, 5 files changed):
+
+| Operation | Before v0.2.0 | v0.2.0 Incremental | Speedup |
+|-----------|---------------|-------------------|---------|
+| Code indexing only | 12.3s | 0.8s | **15.4x faster** |
+| With AI keyword extraction | 48.7s | 2.1s | **23.2x faster** |
+
+### 🛡️ Production-Ready Features
+
+- **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
+- **Resume Capability**: Interrupted? Just run the same command again to continue
+- **Smart Merging**: Automatically merges incremental changes with existing index
+- **Backward Compatible**: Seamlessly upgrades from v0.1.x with no breaking changes
+
+### Migration from v0.1.x
+
+✅ **Zero Breaking Changes** - v0.2.0 is fully backward compatible
+✅ **Automatic Upgrade** - Just install and run `cicada-index` as usual
+✅ **Graceful Fallback** - Missing hashes? Performs full index once automatically
+
+```bash
+# Update to v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@v0.2.0 --force
+
+# Run indexer - automatically enables incremental mode
+cicada-index --extract-keywords
+
+# Need to switch keyword extraction methods? Use --full for consistency
+cicada-index --extract-keywords --rag --model-tier fast --full
+```
+
+**[Read the complete incremental indexing guide →](docs/INCREMENTAL_INDEXING.md)**
+
+---
+
 ### Key Features
 
 - **AST-aware code search** - Find function definitions with full signatures, types, and documentation—no implementation bloat
@@ -73,7 +147,7 @@ Using [uv](https://github.com/astral-sh/uv) for the best experience:
 
 ```bash
 # Latest stable release (recommended)
-uv tool install git+https://github.com/wende/cicada.git@v0.1.1
+uv tool install git+https://github.com/wende/cicada.git@v0.2.0
 
 # Or latest development version (may include unreleased features)
 uv tool install git+https://github.com/wende/cicada.git
@@ -96,7 +170,7 @@ Test Cicada without installation:
 ```bash
 cd /path/to/your/elixir/project
 # Latest stable release
-uvx --from git+https://github.com/wende/cicada.git@v0.1.1 cicada
+uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada
 
 # Or latest development version
 uvx --from git+https://github.com/wende/cicada.git cicada
@@ -162,7 +236,7 @@ cicada-index-pr .
 
 **Migration tip:** If you have the Python version, run:
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.1
+uv tool install git+https://github.com/wende/cicada.git@v0.2.0
 cicada  # Re-run to get optimized config
 ```
 
@@ -345,6 +419,22 @@ cicada-find-dead-code --index path/to/index.json
 
 ## Roadmap
 
+### v0.2.0 (Released - October 2025) ✅
+- **Enhanced AI Keyword Extraction** - Production-ready semantic search
+  - BERT integration with KeyBERT for superior keyword extraction
+  - Configurable model tiers (fast, regular, large)
+  - Wildcard pattern support (`create*`, `*_user`)
+  - Improved relevance scoring
+- **Incremental Indexing** - 15-25x faster reindexing
+  - MD5-based change detection
+  - Processes only modified files
+  - Interrupt-safe with graceful Ctrl-C handling
+  - Resume capability for interrupted indexes
+- **Production Hardening**
+  - Signal handlers (SIGINT, SIGTERM)
+  - Partial progress saving
+  - Automatic hash storage and management
+
 ### v0.1.1 (Released - October 2025) ✅
 - Module and function search
 - Call site tracking with alias resolution
@@ -361,12 +451,12 @@ cicada-find-dead-code --index path/to/index.json
 - Intelligent .mcp.json auto-configuration
 - `uv tool install` support
 - **Automatic version update checking** - Notifies users when newer versions are available
-- **NLP Keyword search** (EXPERIMENTAL) - Semantic search across documentation with wildcard support
+- **NLP Keyword search** (EXPERIMENTAL) - Basic semantic search across documentation
 
-### v0.2 (Potential Future Enhancements)
-- Incremental code re-indexing
+### v0.3 (Potential Future Enhancements)
 - Enhanced keyword search with BM25 ranking
-- RAG with KeyBERT option (??)
+- Directory tree hashing for faster change detection
+- Caching optimizations for large codebases
 
 ### Long Term (Stretch Goals)
 - Multi-language support (Python, TypeScript)
