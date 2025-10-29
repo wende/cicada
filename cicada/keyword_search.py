@@ -437,7 +437,7 @@ class KeywordSearcher:
         self,
         query_keywords: List[str],
         item_keywords: List[str],
-        identifier_name: str = None,
+        identifier_name: str | None = None,
     ) -> Dict[str, Any]:
         """
         Count matching keywords between query and item using wildcard patterns.

@@ -6,20 +6,35 @@ Walks an Elixir repository and indexes all modules and functions.
 
 import argparse
 import os
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
 from cicada.parser import ElixirParser
-from cicada.utils import save_index
+from cicada.utils import (
+    save_index,
+    load_index,
+    merge_indexes_incremental,
+    validate_index_structure,
+)
+from cicada.utils.hash_utils import (
+    load_file_hashes,
+    save_file_hashes,
+    detect_file_changes,
+    compute_hashes_for_files,
+)
 
 
 class ElixirIndexer:
     """Indexes Elixir repositories to extract module and function information."""
 
-    def __init__(self):
+    # Progress reporting interval - report every N files processed
+    PROGRESS_REPORT_INTERVAL = 10
+
+    def __init__(self, verbose: bool = False):
         """Initialize the indexer with a parser."""
         self.parser = ElixirParser()
-        self.verbose = False
+        self.verbose = verbose
         self.excluded_dirs = {
             "deps",
             "_build",
@@ -28,6 +43,39 @@ class ElixirIndexer:
             "assets",
             "priv",
         }
+        self._interrupted = False
+
+    def _handle_interrupt(self, signum, frame):
+        """Handle interrupt signals (Ctrl-C, SIGTERM) gracefully."""
+        print(
+            "\n\n⚠️  Interrupt received. Finishing current file and saving progress..."
+        )
+        print("   Press Ctrl-C again to force quit (may lose progress)\n")
+        self._interrupted = True
+        # Restore default handler so second Ctrl-C will kill immediately
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+    def _check_and_report_interruption(
+        self, files_processed: int, total_files: int
+    ) -> bool:
+        """
+        Check if interrupted and report status.
+
+        Args:
+            files_processed: Number of files processed so far
+            total_files: Total number of files to process
+
+        Returns:
+            True if interrupted, False otherwise
+        """
+        if self._interrupted:
+            print(
+                f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files"
+            )
+            print("   Saving partial progress...")
+            return True
+        return False
 
     def index_repository(
         self,
@@ -49,12 +97,17 @@ class ElixirIndexer:
         Returns:
             Dictionary containing the index data
         """
-        repo_path = Path(repo_path).resolve()
+        repo_path_obj = Path(repo_path).resolve()
 
-        if not repo_path.exists():
-            raise ValueError(f"Repository path does not exist: {repo_path}")
+        if not repo_path_obj.exists():
+            raise ValueError(f"Repository path does not exist: {repo_path_obj}")
 
-        print(f"Indexing repository: {repo_path}")
+        print(f"Indexing repository: {repo_path_obj}")
+
+        # Set up signal handlers for graceful interruption
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        self._interrupted = False
 
         # Initialize keyword extractor if requested
         keyword_extractor = None
@@ -71,7 +124,7 @@ class ElixirIndexer:
                 extract_keywords = False
 
         # Find all Elixir files
-        elixir_files = self._find_elixir_files(repo_path)
+        elixir_files = self._find_elixir_files(repo_path_obj)
         total_files = len(elixir_files)
 
         print(f"Found {total_files} Elixir files")
@@ -118,10 +171,10 @@ class ElixirIndexer:
                         if keyword_extractor:
                             for func in functions:
                                 if func.get("doc"):
+                                    func_name = func.get("name", "")
                                     try:
                                         # Include function name in text for keyword extraction
                                         # This ensures the function name identifier gets 10x weight
-                                        func_name = func.get("name", "")
                                         text_for_keywords = f"{func_name} {func['doc']}"
                                         func_keywords = (
                                             keyword_extractor.extract_keywords_simple(
@@ -140,7 +193,7 @@ class ElixirIndexer:
 
                         # Store module info
                         module_info = {
-                            "file": str(file_path.relative_to(repo_path)),
+                            "file": str(file_path.relative_to(repo_path_obj)),
                             "line": module_data["line"],
                             "moduledoc": module_data.get("moduledoc"),
                             "functions": functions,
@@ -167,11 +220,18 @@ class ElixirIndexer:
                 files_processed += 1
 
                 # Progress reporting
-                if files_processed % 10 == 0:
+                if files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
                     print(f"  Processed {files_processed}/{total_files} files...")
+
+                # Check for interruption after each file
+                if self._check_and_report_interruption(files_processed, total_files):
+                    break
 
             except Exception as e:
                 print(f"  Skipping {file_path}: {e}")
+                # Check for interruption even after error
+                if self._check_and_report_interruption(files_processed, total_files):
+                    break
                 continue
 
         # Build final index
@@ -181,28 +241,49 @@ class ElixirIndexer:
                 "indexed_at": datetime.now().isoformat(),
                 "total_modules": len(all_modules),
                 "total_functions": total_functions,
-                "repo_path": str(repo_path),
+                "repo_path": str(repo_path_obj),
             },
         }
 
         # Save to file
-        output_path = Path(output_path)
+        output_path_obj = Path(output_path)
 
         # Check if .cicada directory exists (first run detection)
-        is_first_run = not output_path.parent.exists()
+        is_first_run = not output_path_obj.parent.exists()
 
         # On first run, add .cicada/ to .gitignore if it exists
         if is_first_run:
             from cicada.utils.path_utils import ensure_gitignore_has_cicada
 
-            if ensure_gitignore_has_cicada(repo_path):
+            if ensure_gitignore_has_cicada(repo_path_obj):
                 print("✓ Added .cicada/ to .gitignore")
 
-        save_index(index, output_path, create_dirs=True)
+        save_index(index, output_path_obj, create_dirs=True)
 
-        print(f"\nIndexing complete!")
-        print(f"  Modules: {len(all_modules)}")
-        print(f"  Functions: {total_functions}")
+        # Compute and save hashes for all PROCESSED files for future incremental updates
+        print("Computing file hashes for incremental updates...")
+        # Only hash files that were actually processed
+        processed_files = [
+            str(f.relative_to(repo_path_obj)) for f in elixir_files[:files_processed]
+        ]
+        file_hashes = compute_hashes_for_files(processed_files, str(repo_path_obj))
+        save_file_hashes(str(output_path_obj.parent), file_hashes)
+
+        # Report completion status
+        if self._interrupted:
+            print(f"\n✓ Partial index saved!")
+            print(
+                f"  Processed: {files_processed}/{total_files} files ({files_processed/total_files*100:.1f}%)"
+            )
+            print(f"  Modules: {len(all_modules)}")
+            print(f"  Functions: {total_functions}")
+            print(
+                f"\n💡 Run the command again to continue indexing remaining {total_files - files_processed} file(s)"
+            )
+        else:
+            print(f"\nIndexing complete!")
+            print(f"  Modules: {len(all_modules)}")
+            print(f"  Functions: {total_functions}")
 
         # Report keyword extraction failures if any
         if extract_keywords and keyword_extraction_failures > 0:
@@ -211,9 +292,264 @@ class ElixirIndexer:
             )
             print("   Some documentation may not be indexed for keyword search.")
 
-        print(f"\nIndex saved to: {output_path}")
+        print(f"\nIndex saved to: {output_path_obj}")
+        print(f"Hashes saved to: {output_path_obj.parent}/hashes.json")
 
         return index
+
+    def incremental_index_repository(
+        self,
+        repo_path: str,
+        output_path: str = ".cicada/index.json",
+        extract_keywords: bool = False,
+        spacy_model: str = "small",
+        force_full: bool = False,
+    ):
+        """
+        Incrementally index an Elixir repository using file hashing.
+
+        Only processes files that have been added, modified, or deleted since
+        the last indexing run. Falls back to full indexing if no previous
+        index or hashes exist.
+
+        Args:
+            repo_path: Path to the Elixir repository root
+            output_path: Path where the index JSON file will be saved
+            extract_keywords: If True, extract keywords from documentation using NLP
+            spacy_model: Size of spaCy model to use for keyword extraction
+            force_full: If True, ignore existing hashes and do full reindex
+
+        Returns:
+            Dictionary containing the index data
+        """
+        repo_path_obj = Path(repo_path).resolve()
+        output_path_obj = Path(output_path)
+        cicada_dir = output_path_obj.parent
+
+        if not repo_path_obj.exists():
+            raise ValueError(f"Repository path does not exist: {repo_path_obj}")
+
+        # Load existing index and hashes
+        existing_index = load_index(output_path_obj) if not force_full else None
+        existing_hashes = load_file_hashes(str(cicada_dir)) if not force_full else {}
+
+        # Validate existing index structure if loaded
+        if existing_index:
+            is_valid, error = validate_index_structure(existing_index)
+            if not is_valid:
+                print(
+                    f"Warning: Existing index is corrupted ({error}). Performing full reindex..."
+                )
+                existing_index = None
+
+        # If no existing data, do full index
+        if not existing_index or not existing_hashes:
+            print("No existing index or hashes found. Performing full index...")
+            return self.index_repository(
+                str(repo_path_obj), str(output_path_obj), extract_keywords, spacy_model
+            )
+
+        print(f"Performing incremental index of: {repo_path_obj}")
+
+        # Set up signal handlers for graceful interruption
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        self._interrupted = False
+
+        # Find all current Elixir files
+        elixir_files = self._find_elixir_files(repo_path_obj)
+        # Convert to relative paths
+        relative_files = [str(f.relative_to(repo_path_obj)) for f in elixir_files]
+
+        # Detect file changes
+        print("Detecting file changes...")
+        new_files, modified_files, deleted_files = detect_file_changes(
+            relative_files, existing_hashes, str(repo_path_obj)
+        )
+
+        # Calculate what needs to be processed
+        files_to_process = new_files + modified_files
+        total_changes = len(new_files) + len(modified_files) + len(deleted_files)
+
+        if total_changes == 0:
+            print("No changes detected. Index is up to date.")
+            return existing_index
+
+        print(f"Changes detected:")
+        print(f"  New files: {len(new_files)}")
+        print(f"  Modified files: {len(modified_files)}")
+        print(f"  Deleted files: {len(deleted_files)}")
+
+        if files_to_process:
+            print(f"\nProcessing {len(files_to_process)} changed file(s)...")
+
+        # Initialize keyword extractor if requested
+        keyword_extractor = None
+        if extract_keywords:
+            try:
+                from cicada.keyword_extractor import KeywordExtractor
+
+                keyword_extractor = KeywordExtractor(
+                    verbose=True, model_size=spacy_model
+                )
+            except Exception as e:
+                print(f"Warning: Could not initialize keyword extractor: {e}")
+                print("Continuing without keyword extraction...")
+                extract_keywords = False
+
+        # Process changed files
+        all_modules = {}
+        total_functions = 0
+        files_processed = 0
+        keyword_extraction_failures = 0
+
+        for relative_file in files_to_process:
+            file_path = repo_path_obj / relative_file
+            try:
+                modules = self.parser.parse_file(str(file_path))
+
+                if modules:
+                    for module_data in modules:
+                        module_name = module_data["module"]
+                        functions = module_data["functions"]
+
+                        # Calculate stats
+                        public_count = sum(1 for f in functions if f["type"] == "def")
+                        private_count = sum(1 for f in functions if f["type"] == "defp")
+
+                        # Extract keywords if enabled
+                        module_keywords = None
+                        if keyword_extractor and module_data.get("moduledoc"):
+                            try:
+                                module_keywords = (
+                                    keyword_extractor.extract_keywords_simple(
+                                        module_data["moduledoc"], top_n=10
+                                    )
+                                )
+                            except Exception as e:
+                                keyword_extraction_failures += 1
+
+                        # Extract keywords from function docs
+                        if keyword_extractor:
+                            for func in functions:
+                                if func.get("doc"):
+                                    try:
+                                        func_name = func.get("name", "")
+                                        text_for_keywords = f"{func_name} {func['doc']}"
+                                        func_keywords = (
+                                            keyword_extractor.extract_keywords_simple(
+                                                text_for_keywords, top_n=10
+                                            )
+                                        )
+                                        if func_keywords:
+                                            func["keywords"] = func_keywords
+                                    except Exception as e:
+                                        keyword_extraction_failures += 1
+
+                        # Store module info
+                        module_info = {
+                            "file": relative_file,
+                            "line": module_data["line"],
+                            "moduledoc": module_data.get("moduledoc"),
+                            "functions": functions,
+                            "total_functions": len(functions),
+                            "public_functions": public_count,
+                            "private_functions": private_count,
+                            "aliases": module_data.get("aliases", {}),
+                            "imports": module_data.get("imports", []),
+                            "requires": module_data.get("requires", []),
+                            "uses": module_data.get("uses", []),
+                            "behaviours": module_data.get("behaviours", []),
+                            "value_mentions": module_data.get("value_mentions", []),
+                            "calls": module_data.get("calls", []),
+                        }
+
+                        # Add module keywords if extracted
+                        if module_keywords:
+                            module_info["keywords"] = module_keywords
+
+                        all_modules[module_name] = module_info
+                        total_functions += len(functions)
+
+                files_processed += 1
+
+                # Check for interruption after each file
+                if self._check_and_report_interruption(
+                    files_processed, len(files_to_process)
+                ):
+                    break
+
+            except Exception as e:
+                print(f"  Skipping {file_path}: {e}")
+                # Check for interruption even after error
+                if self._check_and_report_interruption(
+                    files_processed, len(files_to_process)
+                ):
+                    break
+                continue
+
+        # Build index for changed files
+        new_index = {
+            "modules": all_modules,
+            "metadata": {
+                "indexed_at": datetime.now().isoformat(),
+                "repo_path": str(repo_path_obj),
+            },
+        }
+
+        # Merge with existing index
+        print("\nMerging with existing index...")
+        merged_index = merge_indexes_incremental(
+            existing_index, new_index, deleted_files
+        )
+
+        # Update hashes for all current files
+        print("Updating file hashes...")
+        updated_hashes = dict(existing_hashes)
+
+        # Compute hashes only for files that were actually processed
+        actually_processed = files_to_process[:files_processed]
+        new_hashes = compute_hashes_for_files(actually_processed, str(repo_path_obj))
+        updated_hashes.update(new_hashes)
+
+        # Remove hashes for deleted files
+        for deleted_file in deleted_files:
+            updated_hashes.pop(deleted_file, None)
+
+        # Save index and hashes
+        save_index(merged_index, output_path_obj, create_dirs=True)
+        save_file_hashes(str(cicada_dir), updated_hashes)
+
+        # Report completion status
+        if self._interrupted:
+            remaining = len(files_to_process) - files_processed
+            print(f"\n✓ Partial index saved!")
+            print(
+                f"  Processed: {files_processed}/{len(files_to_process)} changed file(s)"
+            )
+            print(f"  Total modules: {merged_index['metadata']['total_modules']}")
+            print(f"  Total functions: {merged_index['metadata']['total_functions']}")
+            print(f"  Files deleted: {len(deleted_files)}")
+            print(
+                f"\n💡 Run the command again to continue indexing remaining {remaining} changed file(s)"
+            )
+        else:
+            print(f"\nIncremental indexing complete!")
+            print(f"  Total modules: {merged_index['metadata']['total_modules']}")
+            print(f"  Total functions: {merged_index['metadata']['total_functions']}")
+            print(f"  Files processed: {files_processed}")
+            print(f"  Files deleted: {len(deleted_files)}")
+
+        # Report keyword extraction failures if any
+        if extract_keywords and keyword_extraction_failures > 0:
+            print(
+                f"\n⚠️  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
+            )
+
+        print(f"\nIndex saved to: {output_path_obj}")
+        print(f"Hashes saved to: {cicada_dir}/hashes.json")
+
+        return merged_index
 
     def _find_elixir_files(self, repo_path: Path) -> list:
         """Find all Elixir source files in the repository."""
@@ -265,15 +601,23 @@ def main():
         help="Size of spaCy model to use for keyword extraction (default: small). "
         "Medium and large models provide better accuracy but are slower.",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force full reindex, ignoring existing hashes (default: incremental)",
+    )
 
     args = parser.parse_args()
 
     indexer = ElixirIndexer()
-    indexer.index_repository(
+
+    # Use incremental indexing by default (unless --full flag is set)
+    indexer.incremental_index_repository(
         args.repo,
         args.output,
         extract_keywords=args.extract_keywords,
         spacy_model=args.spacy_model,
+        force_full=args.full,
     )
 
 

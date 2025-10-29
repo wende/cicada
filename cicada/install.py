@@ -56,6 +56,8 @@ def install_cicada(target_dir, github_url=None):
     try:
         mcp_server_module = importlib.import_module("cicada.mcp_server")
         # Get the site-packages or installation directory
+        if mcp_server_module.__file__ is None:
+            raise ImportError("Could not determine module path")
         package_path = Path(mcp_server_module.__file__).parent.parent
         print(f"✓ Using installed cicada package")
         return package_path, True  # Already installed
@@ -326,7 +328,9 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
         print(f"   Tools not found in PATH - add ~/.local/bin to PATH")
 
     # Build MCP server configuration
-    server_config = {"command": command}
+    from typing import Any
+
+    server_config: dict[str, Any] = {"command": command}
 
     if args:
         server_config["args"] = args

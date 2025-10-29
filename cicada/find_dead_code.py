@@ -246,6 +246,10 @@ Examples:
         print(f"Error loading index: {e}", file=sys.stderr)
         sys.exit(1)
 
+    if index is None:
+        print(f"Error: Could not load index from {index_path}", file=sys.stderr)
+        sys.exit(1)
+
     # Run analysis
     analyzer = DeadCodeAnalyzer(index)
     results = analyzer.analyze()

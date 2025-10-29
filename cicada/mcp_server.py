@@ -9,6 +9,7 @@ Author: Cursor(Auto)
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 from mcp.server import Server
@@ -29,7 +30,7 @@ class CicadaServer:
         """Initialize the server with configuration."""
         self.config = self._load_config(config_path)
         self.index = self._load_index()
-        self._pr_index = None  # Lazy load PR index only when needed
+        self._pr_index: dict | None = None  # Lazy load PR index only when needed
         self.server = Server("cicada")
 
         # Cache keyword availability check
@@ -37,12 +38,12 @@ class CicadaServer:
 
         # Initialize git helper
         repo_path = self.config.get("repository", {}).get("path", ".")
+        self.git_helper: GitHelper | None = None
         try:
             self.git_helper = GitHelper(repo_path)
         except Exception as e:
             # If git initialization fails, set to None
             # (e.g., not a git repository)
-            self.git_helper = None
             print(f"Warning: Git helper not available: {e}", file=sys.stderr)
 
         # Register handlers
@@ -56,14 +57,21 @@ class CicadaServer:
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
         with open(config_file, "r") as f:
-            return yaml.safe_load(f)
+            data = yaml.safe_load(f)
+            return data if isinstance(data, dict) else {}
 
-    def _load_index(self) -> dict:
+    def _load_index(self) -> dict[str, Any]:
         """Load the index from JSON file."""
         index_path = Path(self.config["storage"]["index_path"])
 
         try:
-            return load_index(index_path, raise_on_error=True)
+            result = load_index(index_path, raise_on_error=True)
+            if result is None:
+                raise FileNotFoundError(
+                    f"Index file not found: {index_path}\n"
+                    f"Run 'python indexer.py <path>' to create an index first."
+                )
+            return result
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"Index file not found: {index_path}\n"
@@ -71,7 +79,7 @@ class CicadaServer:
             )
 
     @property
-    def pr_index(self) -> dict:
+    def pr_index(self) -> dict[str, Any] | None:
         """Lazy load the PR index from JSON file."""
         if self._pr_index is None:
             # Get repo path from config
@@ -82,7 +90,7 @@ class CicadaServer:
             )
         return self._pr_index
 
-    def _load_pr_index(self) -> dict:
+    def _load_pr_index(self) -> dict[str, Any] | None:
         """Load the PR index from JSON file."""
         # Get repo path from config
         repo_path = Path(self.config.get("repository", {}).get("path", "."))
@@ -126,11 +134,13 @@ class CicadaServer:
 
             # If file_path is provided, resolve it to module_name
             if file_path:
-                module_name = self._resolve_file_to_module(file_path)
-                if not module_name:
+                resolved_module = self._resolve_file_to_module(file_path)
+                if not resolved_module:
                     error_msg = f"Could not find module in file: {file_path}"
                     return [TextContent(type="text", text=error_msg)]
+                module_name = resolved_module
 
+            assert module_name is not None, "module_name must be provided"
             return await self._search_module(
                 module_name, output_format, private_functions
             )
@@ -600,7 +610,7 @@ class CicadaServer:
         # Dedent: strip common leading whitespace
         if extracted_lines:
             # Find minimum indentation (excluding empty/whitespace-only lines)
-            min_indent = float("inf")
+            min_indent: int | float = float("inf")
             for line in extracted_lines:
                 if line.strip():  # Skip empty/whitespace-only lines
                     leading_spaces = len(line) - len(line.lstrip())
@@ -609,9 +619,10 @@ class CicadaServer:
             # Strip the common indentation from all lines
             if min_indent != float("inf") and min_indent > 0:
                 dedented_lines = []
+                min_indent_int = int(min_indent)
                 for line in extracted_lines:
-                    if len(line) >= min_indent:
-                        dedented_lines.append(line[min_indent:])
+                    if len(line) >= min_indent_int:
+                        dedented_lines.append(line[min_indent_int:])
                     else:
                         dedented_lines.append(line)
                 extracted_lines = dedented_lines
@@ -724,11 +735,12 @@ class CicadaServer:
         if module_name not in self.index["modules"]:
             return None
 
-        module_data = self.index["modules"][module_name]
+        module_data = cast(dict[str, Any], self.index["modules"][module_name])
+        functions: list[Any] = module_data.get("functions", [])
 
         # Find the function whose definition line is closest before the target line
-        best_match = None
-        for func in module_data["functions"]:
+        best_match: dict[str, Any] | None = None
+        for func in functions:
             func_line = func["line"]
             # The function must be defined before or at the line
             if func_line <= line:

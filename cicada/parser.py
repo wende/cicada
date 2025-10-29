@@ -7,7 +7,7 @@ Author: Cursor(Auto)
 """
 
 import tree_sitter_elixir as ts_elixir
-from tree_sitter import Language, Parser
+from tree_sitter import Parser, Language
 
 from .extractors import (
     extract_modules,
@@ -31,10 +31,9 @@ class ElixirParser:
 
     def __init__(self):
         """Initialize the tree-sitter parser with Elixir grammar."""
-        self.language = Language(ts_elixir.language())
-        self.parser = Parser(self.language)
+        self.parser = Parser(Language(ts_elixir.language()))  # type: ignore[no-matching-overload]
 
-    def parse_file(self, file_path: str) -> dict:
+    def parse_file(self, file_path: str) -> list[dict] | None:
         """
         Parse an Elixir file and extract module and function information.
 
