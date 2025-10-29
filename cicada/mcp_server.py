@@ -80,8 +80,11 @@ class CicadaServer:
                 config_path = get_config_path(repo_path)
                 if config_path.exists():
                     return str(config_path)
-            except Exception:
-                pass
+            except Exception as e:
+                print(
+                    f"Warning: Could not load from new storage structure: {e}",
+                    file=sys.stderr,
+                )
 
         # Fall back to old structure for backward compatibility
         if repo_path:
@@ -135,8 +138,11 @@ class CicadaServer:
                         pr_index_path, verbose=True, raise_on_error=False
                     )
                     return self._pr_index
-            except Exception:
-                pass
+            except Exception as e:
+                print(
+                    f"Warning: Could not load PR index from new storage structure: {e}",
+                    file=sys.stderr,
+                )
 
             # Fall back to old structure for backward compatibility
             pr_index_path = repo_path / ".cicada" / "pr_index.json"
@@ -155,8 +161,11 @@ class CicadaServer:
             pr_index_path = get_pr_index_path(repo_path)
             if pr_index_path.exists():
                 return load_index(pr_index_path, verbose=True, raise_on_error=False)
-        except Exception:
-            pass
+        except Exception as e:
+            print(
+                f"Warning: Could not load PR index from new storage structure: {e}",
+                file=sys.stderr,
+            )
 
         # Fall back to old structure for backward compatibility
         pr_index_path = repo_path / ".cicada" / "pr_index.json"

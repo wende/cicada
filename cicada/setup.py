@@ -27,6 +27,64 @@ from cicada.utils import (
 EditorType = Literal["claude", "cursor", "vs"]
 
 
+def _load_existing_config(config_path: Path) -> dict:
+    """
+    Load existing configuration file with error handling.
+
+    Args:
+        config_path: Path to the config file
+
+    Returns:
+        Loaded config dict, or empty dict if file doesn't exist or is invalid
+    """
+    if not config_path.exists():
+        return {}
+
+    try:
+        with open(config_path, "r") as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(
+            f"Warning: Existing config at {config_path} is malformed, creating new one: {e}"
+        )
+        return {}
+    except IOError as e:
+        print(f"Warning: Could not read config file {config_path}: {e}")
+        return {}
+
+
+def _build_server_config(
+    command: str, args: list, cwd: str | None, repo_path: Path, storage_dir: Path
+) -> dict:
+    """
+    Build the MCP server configuration.
+
+    Args:
+        command: Command to run the MCP server
+        args: Command line arguments
+        cwd: Working directory (optional)
+        repo_path: Path to the repository
+        storage_dir: Path to the storage directory
+
+    Returns:
+        Server configuration dict
+    """
+    server_config = {"command": command}
+
+    if args:
+        server_config["args"] = args
+
+    if cwd:
+        server_config["cwd"] = cwd
+
+    server_config["env"] = {
+        "CICADA_REPO_PATH": str(repo_path),
+        "CICADA_CONFIG_DIR": str(storage_dir),
+    }
+
+    return server_config
+
+
 def get_mcp_config_for_editor(
     editor: EditorType, repo_path: Path, storage_dir: Path
 ) -> tuple[Path, dict]:
@@ -44,7 +102,6 @@ def get_mcp_config_for_editor(
     # Detect installation method
     import shutil
 
-    # Check if cicada-server is available
     has_cicada_server = shutil.which("cicada-server") is not None
 
     if has_cicada_server:
@@ -52,132 +109,52 @@ def get_mcp_config_for_editor(
         args = []
         cwd = None
     else:
-        # Fallback to python with module path
         python_bin = sys.executable
         command = str(python_bin)
         args = ["-m", "cicada.mcp_server"]
         cwd = None
 
-    if editor == "claude":
-        # Claude Code uses .mcp.json
-        config_path = repo_path / ".mcp.json"
+    # Editor-specific specifications
+    editor_specs = {
+        "claude": {
+            "config_path": repo_path / ".mcp.json",
+            "config_key": "mcpServers",
+            "needs_dir": False,
+        },
+        "cursor": {
+            "config_path": repo_path / ".cursor" / "mcp.json",
+            "config_key": "mcpServers",
+            "needs_dir": True,
+        },
+        "vs": {
+            "config_path": repo_path / ".vscode" / "settings.json",
+            "config_key": "mcp.servers",
+            "needs_dir": True,
+        },
+    }
 
-        # Load existing config if present
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                config = {}
-        else:
-            config = {}
-
-        # Ensure mcpServers section exists
-        if "mcpServers" not in config:
-            config["mcpServers"] = {}
-
-        # Build server configuration
-        server_config = {"command": command}
-
-        if args:
-            server_config["args"] = args
-
-        if cwd:
-            server_config["cwd"] = cwd
-
-        # Add environment variables
-        server_config["env"] = {
-            "CICADA_REPO_PATH": str(repo_path),
-            "CICADA_CONFIG_DIR": str(storage_dir),
-        }
-
-        # Add or update cicada configuration
-        config["mcpServers"]["cicada"] = server_config
-
-        return config_path, config
-
-    elif editor == "cursor":
-        # Cursor uses .cursor/mcp.json (similar to Claude Code)
-        config_dir = repo_path / ".cursor"
-        config_dir.mkdir(exist_ok=True)
-        config_path = config_dir / "mcp.json"
-
-        # Load existing config if present
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                config = {}
-        else:
-            config = {}
-
-        # Ensure mcpServers section exists
-        if "mcpServers" not in config:
-            config["mcpServers"] = {}
-
-        # Build server configuration
-        server_config = {"command": command}
-
-        if args:
-            server_config["args"] = args
-
-        if cwd:
-            server_config["cwd"] = cwd
-
-        # Add environment variables
-        server_config["env"] = {
-            "CICADA_REPO_PATH": str(repo_path),
-            "CICADA_CONFIG_DIR": str(storage_dir),
-        }
-
-        # Add or update cicada configuration
-        config["mcpServers"]["cicada"] = server_config
-
-        return config_path, config
-
-    elif editor == "vs":
-        # VS Code uses .vscode/settings.json with MCP extension
-        config_dir = repo_path / ".vscode"
-        config_dir.mkdir(exist_ok=True)
-        config_path = config_dir / "settings.json"
-
-        # Load existing config if present
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                config = {}
-        else:
-            config = {}
-
-        # Ensure mcp.servers section exists
-        if "mcp.servers" not in config:
-            config["mcp.servers"] = {}
-
-        # Build server configuration
-        server_config = {"command": command}
-
-        if args:
-            server_config["args"] = args
-
-        if cwd:
-            server_config["cwd"] = cwd
-
-        # Add environment variables
-        server_config["env"] = {
-            "CICADA_REPO_PATH": str(repo_path),
-            "CICADA_CONFIG_DIR": str(storage_dir),
-        }
-
-        # Add or update cicada configuration
-        config["mcp.servers"]["cicada"] = server_config
-
-        return config_path, config
-
-    else:
+    if editor not in editor_specs:
         raise ValueError(f"Unsupported editor: {editor}")
+
+    spec = editor_specs[editor]
+    config_path = spec["config_path"]
+
+    # Create parent directory if needed
+    if spec["needs_dir"]:
+        config_path.parent.mkdir(exist_ok=True)
+
+    # Load existing config
+    config = _load_existing_config(config_path)
+
+    # Ensure config section exists
+    if spec["config_key"] not in config:
+        config[spec["config_key"]] = {}
+
+    # Build and add server configuration
+    server_config = _build_server_config(command, args, cwd, repo_path, storage_dir)
+    config[spec["config_key"]]["cicada"] = server_config
+
+    return config_path, config
 
 
 def create_config_yaml(repo_path: Path, storage_dir: Path) -> None:
@@ -210,24 +187,32 @@ def index_repository(repo_path: Path) -> None:
 
     Args:
         repo_path: Path to the repository
+
+    Raises:
+        Exception: If indexing fails
     """
     print(f"Indexing repository at {repo_path}...")
     print("(Keyword extraction enabled with small spaCy model)")
 
-    index_path = get_index_path(repo_path)
-    indexer = ElixirIndexer(verbose=True)
+    try:
+        index_path = get_index_path(repo_path)
+        indexer = ElixirIndexer(verbose=True)
 
-    # Index with keyword extraction enabled by default
-    # Note: Using 'small' model for compatibility with uvx
-    # For better accuracy, install permanently and use cicada-index with --spacy-model medium/large
-    indexer.index_repository(
-        repo_path=str(repo_path),
-        output_path=str(index_path),
-        extract_keywords=True,
-        spacy_model="small",
-    )
+        # Index with keyword extraction enabled by default
+        # Note: Using 'small' model for compatibility with uvx
+        # For better accuracy, install permanently and use cicada-index with --spacy-model medium/large
+        indexer.index_repository(
+            repo_path=str(repo_path),
+            output_path=str(index_path),
+            extract_keywords=True,
+            spacy_model="small",
+        )
 
-    print(f"✓ Repository indexed at {index_path}")
+        print(f"✓ Repository indexed at {index_path}")
+    except Exception as e:
+        print(f"Error: Failed to index repository: {e}")
+        print("Please check that the repository contains valid Elixir files.")
+        raise
 
 
 def setup(editor: EditorType, repo_path: Path | None = None) -> None:
@@ -291,6 +276,7 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
 
     # Check if running via uvx and suggest permanent installation
     import shutil
+
     if not shutil.which("cicada-server"):
         print("💡 Tip: For best experience, install Cicada permanently:")
         print("   uv tool install git+https://github.com/wende/cicada.git@v0.1.1")
@@ -325,6 +311,16 @@ def main():
     # Determine repo path
     repo_path = Path(args.repo) if args.repo else Path.cwd()
 
+    # Validate path exists
+    if not repo_path.exists():
+        print(f"Error: Path does not exist: {repo_path}")
+        sys.exit(1)
+
+    # Validate path is a directory
+    if not repo_path.is_dir():
+        print(f"Error: Path is not a directory: {repo_path}")
+        sys.exit(1)
+
     # Check if it's an Elixir repository
     if not (repo_path / "mix.exs").exists():
         print(f"Error: {repo_path} does not appear to be an Elixir project")
@@ -332,7 +328,11 @@ def main():
         sys.exit(1)
 
     # Run setup
-    setup(args.editor, repo_path)
+    try:
+        setup(args.editor, repo_path)
+    except Exception as e:
+        print(f"\nError: Setup failed: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
