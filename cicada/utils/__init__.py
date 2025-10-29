@@ -17,6 +17,15 @@ from .function_grouper import FunctionGrouper
 from .call_site_formatter import CallSiteFormatter
 from .signature_builder import SignatureBuilder
 from .text_utils import split_identifier, split_camel_snake_case
+from .storage import (
+    get_repo_hash,
+    get_storage_dir,
+    create_storage_dir,
+    get_index_path,
+    get_config_path,
+    get_hashes_path,
+    get_pr_index_path,
+)
 
 __all__ = [
     "SubprocessRunner",
@@ -33,4 +42,11 @@ __all__ = [
     "SignatureBuilder",
     "split_identifier",
     "split_camel_snake_case",
+    "get_repo_hash",
+    "get_storage_dir",
+    "create_storage_dir",
+    "get_index_path",
+    "get_config_path",
+    "get_hashes_path",
+    "get_pr_index_path",
 ]

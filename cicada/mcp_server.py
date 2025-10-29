@@ -7,6 +7,7 @@ Provides an MCP tool to search for Elixir modules and their functions.
 Author: Cursor(Auto)
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -19,15 +20,24 @@ from mcp.types import Tool, TextContent
 from cicada.formatter import ModuleFormatter
 from cicada.pr_finder import PRFinder
 from cicada.git_helper import GitHelper
-from cicada.utils import load_index
+from cicada.utils import load_index, get_config_path, get_pr_index_path
 from cicada.mcp_tools import get_tool_definitions
 
 
 class CicadaServer:
     """MCP server for Elixir module search."""
 
-    def __init__(self, config_path: str = ".cicada/config.yaml"):
-        """Initialize the server with configuration."""
+    def __init__(self, config_path: str | None = None):
+        """
+        Initialize the server with configuration.
+
+        Args:
+            config_path: Path to config file. If None, uses environment variables
+                        or default path.
+        """
+        if config_path is None:
+            config_path = self._get_config_path()
+
         self.config = self._load_config(config_path)
         self.index = self._load_index()
         self._pr_index: dict | None = None  # Lazy load PR index only when needed
@@ -49,6 +59,38 @@ class CicadaServer:
         # Register handlers
         _ = self.server.list_tools()(self.list_tools)
         _ = self.server.call_tool()(self.call_tool)
+
+    def _get_config_path(self) -> str:
+        """
+        Determine the config file path from environment or defaults.
+
+        Returns:
+            Path to the config file
+        """
+        # Check if CICADA_CONFIG_DIR is set (new temp directory approach)
+        config_dir = os.environ.get("CICADA_CONFIG_DIR")
+        if config_dir:
+            return str(Path(config_dir) / "config.yaml")
+
+        # Check if CICADA_REPO_PATH is set and use new storage structure
+        repo_path = os.environ.get("CICADA_REPO_PATH")
+        if repo_path:
+            try:
+                # Try to use the new storage structure
+                config_path = get_config_path(repo_path)
+                if config_path.exists():
+                    return str(config_path)
+            except Exception:
+                pass
+
+        # Fall back to old structure for backward compatibility
+        if repo_path:
+            old_path = Path(repo_path) / ".cicada" / "config.yaml"
+            if old_path.exists():
+                return str(old_path)
+
+        # Default to .cicada/config.yaml in current directory
+        return ".cicada/config.yaml"
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
@@ -84,6 +126,19 @@ class CicadaServer:
         if self._pr_index is None:
             # Get repo path from config
             repo_path = Path(self.config.get("repository", {}).get("path", "."))
+
+            # Try new storage structure first
+            try:
+                pr_index_path = get_pr_index_path(repo_path)
+                if pr_index_path.exists():
+                    self._pr_index = load_index(
+                        pr_index_path, verbose=True, raise_on_error=False
+                    )
+                    return self._pr_index
+            except Exception:
+                pass
+
+            # Fall back to old structure for backward compatibility
             pr_index_path = repo_path / ".cicada" / "pr_index.json"
             self._pr_index = load_index(
                 pr_index_path, verbose=True, raise_on_error=False
@@ -94,8 +149,17 @@ class CicadaServer:
         """Load the PR index from JSON file."""
         # Get repo path from config
         repo_path = Path(self.config.get("repository", {}).get("path", "."))
-        pr_index_path = repo_path / ".cicada" / "pr_index.json"
 
+        # Try new storage structure first
+        try:
+            pr_index_path = get_pr_index_path(repo_path)
+            if pr_index_path.exists():
+                return load_index(pr_index_path, verbose=True, raise_on_error=False)
+        except Exception:
+            pass
+
+        # Fall back to old structure for backward compatibility
+        pr_index_path = repo_path / ".cicada" / "pr_index.json"
         return load_index(pr_index_path, verbose=True, raise_on_error=False)
 
     def _check_keywords_available(self) -> bool:
