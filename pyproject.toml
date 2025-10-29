@@ -27,6 +27,7 @@ cicada-index = "cicada.indexer:main"
 cicada-index-pr = "cicada.pr_indexer:main"
 cicada-find-dead-code = "cicada.find_dead_code:main"
 
+
 [tool.setuptools.packages.find]
 include = ["cicada*"]
 
@@ -153,4 +154,6 @@ dev = [
     "pytest-xdist>=3.8.0",
     "black>=24.0.0",
     "basedpyright>=1.0.0",
+    "pyrefly>=0.39.1",
+    "vulture>=2.14",
 ]

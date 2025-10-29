@@ -33,9 +33,9 @@ class KeyBERTExtractor:
     BASE_SCORE_SPLIT_WORD = 0.3  # Base score for split words not found by BERT
 
     # Class variable to hold KeyBERT class (lazily loaded)
-    _KeyBERT = None
+    _KeyBERT: type | None = None
 
-    def __init__(self, verbose: bool = False, model_tier: str = None):
+    def __init__(self, verbose: bool = False, model_tier: str | None = None):
         """
         Initialize KeyBERT model.
 
@@ -219,7 +219,8 @@ class KeyBERTExtractor:
         # 2. Use KeyBERT to extract semantic keywords
         # Extract more than needed to have candidates for weighting
         try:
-            keybert_keywords = self.kw_model.extract_keywords(
+            # KeyBERT return type can vary, use type ignore for external library
+            keybert_keywords: List[Tuple[str, float]] = self.kw_model.extract_keywords(  # type: ignore[assignment]
                 text,
                 top_n=top_n * self.KEYBERT_CANDIDATE_MULTIPLIER,
                 keyphrase_ngram_range=(1, 1),  # Single words only
@@ -230,11 +231,11 @@ class KeyBERTExtractor:
             keybert_keywords = []
 
         # 3. Build weighted keyword scores
-        keyword_scores = {}
+        keyword_scores: Dict[str, float] = {}
 
         # Add KeyBERT keywords with their semantic similarity scores
         for keyword, score in keybert_keywords:
-            keyword_lower = keyword.lower()
+            keyword_lower: str = keyword.lower()
             keyword_scores[keyword_lower] = score
 
         # 4. Apply code identifier boosting

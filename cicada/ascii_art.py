@@ -40,7 +40,9 @@ def generate_gradient_ascii_art():
 
         # Create ANSI color code for this line
         color_code = f"\033[38;2;{r};{g};{b}m"
-        result_lines.append(f"{color_code}{line}\033[0m")
+        # Cast to str to satisfy type checker's LiteralString requirement
+        colored_line: str = str(color_code + line + "\033[0m")
+        result_lines.append(colored_line)  # type: ignore[arg-type]
 
     return "\n" + "\n".join(result_lines) + "\n"
 

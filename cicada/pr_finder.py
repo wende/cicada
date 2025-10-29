@@ -35,7 +35,7 @@ class PRFinder:
         self.repo_path = Path(repo_path).resolve()
         self.use_index = use_index
         self.index_path = index_path
-        self.index = None
+        self.index: dict[str, Any] | None = None
         self.verbose = verbose
 
         self._validate_git_repo()
@@ -116,7 +116,7 @@ class PRFinder:
 
     def _run_git_blame(
         self, file_path: str, line_number: int
-    ) -> Optional[Dict[str, str]]:
+    ) -> Optional[Dict[str, str | None]]:
         """
         Run git blame to find the commit that introduced a specific line.
 
@@ -294,14 +294,16 @@ class PRFinder:
 
         # Find PR for the commit - check index first, then network
         pr_info = None
+        commit_sha = blame_info["commit"]
+        assert commit_sha is not None
 
         if self.use_index and self.index:
             # Try index lookup first (fast, no network)
-            pr_info = self._lookup_pr_in_index(blame_info["commit"])
+            pr_info = self._lookup_pr_in_index(commit_sha)
 
         # Fall back to network lookup if not found in index
         if pr_info is None and (not self.use_index or not self.index):
-            pr_info = self._find_pr_for_commit(blame_info["commit"])
+            pr_info = self._find_pr_for_commit(commit_sha)
 
         return {
             "file_path": file_path_str,

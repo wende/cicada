@@ -135,7 +135,7 @@ def _extract_examples_from_doc(doc_text: str) -> tuple[str, str | None]:
     examples_lines_content = examples_lines[1:]
 
     # Find minimum indentation from non-empty lines
-    min_indent = float("inf")
+    min_indent: int | float = float("inf")
     for line in examples_lines_content:
         if line.strip():  # Skip blank lines
             indent = len(line) - len(line.lstrip())
@@ -143,10 +143,11 @@ def _extract_examples_from_doc(doc_text: str) -> tuple[str, str | None]:
 
     # Remove the common indentation from all lines
     if min_indent < float("inf"):
-        dedented_lines = []
+        dedented_lines: list[str] = []
+        min_indent_int = int(min_indent)
         for line in examples_lines_content:
             if line.strip():  # Non-empty line
-                dedented_lines.append(line[min_indent:])
+                dedented_lines.append(line[min_indent_int:])
             else:  # Empty line
                 dedented_lines.append(line)
         examples_content = "\n".join(dedented_lines).strip()

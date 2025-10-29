@@ -1,26 +1,35 @@
-.PHONY: help install setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
+.PHONY: help install install-deps setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  make install       - Install dependencies with uv"
+	@echo "  make install       - Full install (deps + cicada tool to ~/.local/bin)"
+	@echo "  make install-deps  - Install dependencies only (no tool installation)"
 	@echo "  make setup-fixtures - Setup test fixtures"
 	@echo "  make test          - Run all tests"
 	@echo "  make test-verbose  - Run tests with verbose output"
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
 	@echo "  make cover         - Run tests with coverage report (min 80%)"
 	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Check code formatting"
+	@echo "  make lint          - Run pyrefly type checker and vulture dead code detector"
 	@echo "  make pre-commit    - Run all pre-commit checks"
 	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
 	@echo "  make reset         - Full reset (cache, models, .cicada dirs)"
 
-# Setup dependencies with uv
-install:
+# Install dependencies only
+install-deps:
 	@echo "Installing dependencies with uv..."
-	@uv sync --all-extras
-	@echo "✓ Dependencies installed. SpaCy models will be downloaded on first use."
+	@uv sync --dev
+	@echo "✓ Dependencies installed (models will be downloaded on first use if needed)"
+
+# Full installation (deps + tool)
+install: install-deps
+	@echo ""
+	@echo "Installing cicada tool to ~/.local/bin/..."
+	@uv tool install --editable . --force
+	@echo "✓ cicada installed in editable mode"
+	@echo "  Command 'cicada' now uses code from $(PWD)"
 
 # Setup test fixtures
 setup-fixtures:
@@ -47,10 +56,15 @@ cover: setup-fixtures
 format:
 	@uv run black cicada tests
 
-# Check code formatting
+# Check code formatting with pyrefly type checker and vulture dead code detector
 lint:
-	@uv run black --check cicada tests
-	@uv run basedpyright cicada
+	@FAILED=0; \
+	echo "Running pyrefly type checker..."; \
+	uv run pyrefly check cicada --project-excludes tests || FAILED=1; \
+	echo ""; \
+	echo "Running vulture dead code detector..."; \
+	uv run vulture cicada --min-confidence 80 || FAILED=1; \
+	exit $$FAILED
 
 # Run all pre-commit checks
 pre-commit:
@@ -58,8 +72,7 @@ pre-commit:
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
-	@echo "Running basedpyright type checker (errors only)..."
-	@uv run basedpyright cicada 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
+	@$(MAKE) lint
 	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 

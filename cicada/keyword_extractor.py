@@ -122,12 +122,17 @@ class KeywordExtractor:
             )
 
             return result.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        except FileNotFoundError:
             if self.verbose:
-                if isinstance(e, FileNotFoundError):
-                    print("uv not found", file=sys.stderr)
-                else:
-                    print(f"uv pip install failed: {e}", file=sys.stderr)
+                print(
+                    "uv not found. Please install uv or manually install the model:",
+                    file=sys.stderr,
+                )
+                print(f"  uv pip install {model_url}", file=sys.stderr)
+            return False
+        except subprocess.CalledProcessError as e:
+            if self.verbose:
+                print(f"uv pip install failed: {e}", file=sys.stderr)
             return False
         except Exception as e:
             if self.verbose:

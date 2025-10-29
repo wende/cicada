@@ -220,7 +220,8 @@ def show_first_time_setup() -> tuple[str, str]:
         sys.exit(1)
 
     tier_map = {0: "fast", 1: "regular", 2: "max"}
-    tier = tier_map[tier_index]
+    # Ensure tier_index is treated as int (TerminalMenu.show() returns int | tuple | None)
+    tier = tier_map[int(tier_index) if isinstance(tier_index, int) else tier_index[0]]
 
     print()
     print(f"{GREEN}✓{RESET} Selected: {method.upper()} - {tier.capitalize()} model")

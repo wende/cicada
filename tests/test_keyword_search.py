@@ -191,7 +191,7 @@ class TestKeywordExtractor:
         extractor.verbose = True
         extractor.model_name = "en_core_web_md"
 
-        # Should fail since uv is required
+        # Should return False when uv is not found (no fallback to pip)
         assert extractor._download_model() is False
 
     def test_download_model_both_fail(self, monkeypatch):
@@ -857,16 +857,16 @@ class TestWildcardSearch:
             """
 defmodule TestModule do
   @moduledoc "Test module for wildcard search"
-  
+
   @doc "Creates a new user account"
   def create_user(name), do: name
-  
-  @doc "Creates a new admin account"  
+
+  @doc "Creates a new admin account"
   def create_admin(name), do: name
-  
+
   @doc "Tests user functionality"
   def test_user_func(x), do: x
-  
+
   @doc "Tests admin functionality"
   def test_admin_func(x), do: x
 end
@@ -913,11 +913,11 @@ end
             """
 defmodule TestModule do
   @moduledoc "Test module for wildcard comparison"
-  
+
   @doc "Creates a new user account"
   def create_user(name), do: name
-  
-  @doc "Creates a new admin account"  
+
+  @doc "Creates a new admin account"
   def create_admin(name), do: name
 end
 """
@@ -952,11 +952,11 @@ end
             """
 defmodule TestModule do
   @moduledoc "Test module for wildcard identifier boost"
-  
+
   @doc "Creates a new user account"
   def create_user(name), do: name
-  
-  @doc "Creates a new admin account"  
+
+  @doc "Creates a new admin account"
   def create_admin(name), do: name
 end
 """
