@@ -1354,10 +1354,83 @@ class CicadaServer:
 async def async_main():
     """Async main entry point."""
     try:
+        # Check if setup is needed before starting server
+        _auto_setup_if_needed()
+
         server = CicadaServer()
         await server.run()
     except Exception as e:
         print(f"Error starting server: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _auto_setup_if_needed():
+    """
+    Automatically run setup if the repository hasn't been indexed yet.
+
+    This enables zero-config MCP usage - just point the MCP config to cicada-server
+    and it will index the repository on first run.
+    """
+    from cicada.utils import (
+        get_config_path,
+        get_index_path,
+        create_storage_dir,
+        get_storage_dir,
+    )
+    from cicada.setup import index_repository, create_config_yaml
+
+    # Determine repository path from environment or current directory
+    repo_path_str = os.environ.get("CICADA_REPO_PATH")
+    if repo_path_str:
+        repo_path = Path(repo_path_str).resolve()
+    else:
+        repo_path = Path.cwd().resolve()
+
+    # Check if config and index already exist
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+
+    if config_path.exists() and index_path.exists():
+        # Already set up, nothing to do
+        return
+
+    # Setup needed - create storage and index
+    print("=" * 60, file=sys.stderr)
+    print("Cicada: First-time setup detected", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print(file=sys.stderr)
+
+    # Validate it's an Elixir project
+    if not (repo_path / "mix.exs").exists():
+        print(
+            f"Error: {repo_path} does not appear to be an Elixir project",
+            file=sys.stderr,
+        )
+        print("(mix.exs not found)", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        # Create storage directory
+        storage_dir = create_storage_dir(repo_path)
+        print(f"Repository: {repo_path}", file=sys.stderr)
+        print(f"Storage: {storage_dir}", file=sys.stderr)
+        print(file=sys.stderr)
+
+        # Index repository
+        index_repository(repo_path)
+        print(file=sys.stderr)
+
+        # Create config.yaml
+        create_config_yaml(repo_path, storage_dir)
+        print(file=sys.stderr)
+
+        print("=" * 60, file=sys.stderr)
+        print("✓ Setup Complete! Starting server...", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+        print(file=sys.stderr)
+
+    except Exception as e:
+        print(f"Error during auto-setup: {e}", file=sys.stderr)
         sys.exit(1)
 
 

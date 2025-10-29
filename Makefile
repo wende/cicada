@@ -31,10 +31,8 @@ extract-keywords:
 	@echo "Extracting keywords for test fixtures..."
 	@if command -v uv >/dev/null 2>&1; then \
 		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		uv run cicada-index --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
 	else \
 		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
 	fi
 	@echo "✓ Keywords extracted for test fixtures"
 
