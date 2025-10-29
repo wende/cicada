@@ -45,6 +45,7 @@ def get_tool_definitions() -> list[Tool]:
                 },
                 "required": [],
             },
+            _meta={"anti_pattern": "Searching for module structure"},
         ),
         Tool(
             name="search_function",
@@ -88,6 +89,7 @@ def get_tool_definitions() -> list[Tool]:
                 },
                 "required": ["function_name"],
             },
+            _meta={"anti_pattern": "Searching for function definitions"},
         ),
         Tool(
             name="search_module_usage",
@@ -112,6 +114,7 @@ def get_tool_definitions() -> list[Tool]:
                 },
                 "required": ["module_name"],
             },
+            _meta={"anti_pattern": "Searching for module imports/usage"},
         ),
         Tool(
             name="find_pr_for_line",
@@ -254,6 +257,9 @@ def get_tool_definitions() -> list[Tool]:
                     },
                 },
                 "required": ["keywords"],
+            },
+            _meta={
+                "anti_pattern": "Searching for module/function usecase by keyword",
             },
         ),
         Tool(

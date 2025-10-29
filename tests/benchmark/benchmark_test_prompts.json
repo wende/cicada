@@ -1,0 +1,227 @@
+{
+  "description": "Example test prompts for benchmarking cicada MCP tool call frequency",
+  "test_suites": {
+    "basic_searches": {
+      "description": "Basic module and function searches using elixir_project",
+      "tests": [
+        {
+          "name": "Simple Module Search",
+          "prompt": "What functions are available in the AB.TypeParser module?",
+          "expected_tools": ["search_module"]
+        },
+        {
+          "name": "Function Definition Lookup",
+          "prompt": "Show me the definition of the create_invalid_input_generator function in AB.InvalidGenerators",
+          "expected_tools": ["search_function"]
+        }
+      ]
+    },
+    "usage_analysis": {
+      "description": "Function and module usage tracking in elixir_project",
+      "tests": [
+        {
+          "name": "Function Call Sites",
+          "prompt": "Where is the type_to_generator function called in the AB library codebase?",
+          "expected_tools": ["search_function", "search_module_usage"]
+        },
+        {
+          "name": "Module Dependencies",
+          "prompt": "Show me all files that import or use the AB.Generators module",
+          "expected_tools": ["search_module_usage"]
+        },
+        {
+          "name": "Function Usage Examples",
+          "prompt": "Give me examples of how parse_spec is used across the codebase with code snippets",
+          "expected_tools": ["search_function"]
+        }
+      ]
+    },
+    "git_attribution": {
+      "description": "Git history and PR attribution queries for elixir_project",
+      "tests": [
+        {
+          "name": "Line Attribution",
+          "prompt": "Which PR introduced line 25 in tests/fixtures/elixir_project/lib/ab/type_parser.ex?",
+          "expected_tools": ["find_pr_for_line"]
+        },
+        {
+          "name": "File PR History",
+          "prompt": "Show me all PRs that modified the tests/fixtures/elixir_project/lib/ab/generators.ex file",
+          "expected_tools": ["get_file_pr_history"]
+        },
+        {
+          "name": "Function History",
+          "prompt": "What is the commit history of the create_input_generator function in AB.Generators?",
+          "expected_tools": ["get_commit_history", "search_function"]
+        },
+        {
+          "name": "Code Authorship",
+          "prompt": "Who wrote the code between lines 40-80 in tests/fixtures/elixir_project/lib/ab.ex?",
+          "expected_tools": ["get_blame"]
+        }
+      ]
+    },
+    "complex_multi_tool": {
+      "description": "Complex queries requiring multiple tool invocations on elixir_project",
+      "tests": [
+        {
+          "name": "Module Analysis with History",
+          "prompt": "Analyze the AB.TypeFormatter module - show all functions, where they're used, and who created them",
+          "expected_tools": [
+            "search_module",
+            "search_function",
+            "get_commit_history",
+            "get_blame"
+          ]
+        },
+        {
+          "name": "Function Refactoring Analysis",
+          "prompt": "I want to refactor the types_equivalent? function in AB.TypeParser. Show me its definition, all call sites, and any PRs that discussed it",
+          "expected_tools": [
+            "search_function",
+            "search_module_usage",
+            "get_file_pr_history"
+          ]
+        },
+        {
+          "name": "Feature Investigation",
+          "prompt": "Find all code related to invalid input generation in the AB library, show module structure, and explain when it was added",
+          "expected_tools": [
+            "search_module",
+            "search_function",
+            "search_by_keywords",
+            "get_commit_history"
+          ]
+        }
+      ]
+    },
+    "semantic_search": {
+      "description": "Keyword-based semantic searches in elixir_project",
+      "tests": [
+        {
+          "name": "Concept Search",
+          "prompt": "Find all code related to typespec parsing and validation in the AB library",
+          "expected_tools": ["search_by_keywords"]
+        },
+        {
+          "name": "Wildcard Pattern Search",
+          "prompt": "Find all functions that start with 'create_' or 'run_' in the AB library",
+          "expected_tools": ["search_by_keywords"]
+        },
+        {
+          "name": "Topic Discovery",
+          "prompt": "Show me all modules and functions related to generator creation and StreamData in AB",
+          "expected_tools": ["search_by_keywords", "search_module"]
+        }
+      ]
+    },
+    "code_quality": {
+      "description": "Code quality and analysis queries for elixir_project",
+      "tests": [
+        {
+          "name": "Dead Code Analysis",
+          "prompt": "Find potentially unused functions in the AB library",
+          "expected_tools": ["find_dead_code"]
+        },
+        {
+          "name": "High Confidence Dead Code",
+          "prompt": "Show me functions in the AB library that are definitely not used anywhere",
+          "expected_tools": ["find_dead_code"]
+        },
+        {
+          "name": "Module Health Check",
+          "prompt": "Analyze the AB.Validators module for unused exports",
+          "expected_tools": [
+            "search_module",
+            "find_dead_code",
+            "search_module_usage"
+          ]
+        }
+      ]
+    },
+    "realistic_scenarios": {
+      "description": "Real-world development scenarios using actual elixir_project modules",
+      "tests": [
+        {
+          "name": "Bug Investigation",
+          "prompt": "The create_input_generator function in AB.Generators is generating wrong data types. Show me its implementation, recent changes, and where it's called in tests",
+          "expected_tools": [
+            "search_function",
+            "get_commit_history",
+            "search_module_usage"
+          ]
+        },
+        {
+          "name": "Code Review Context",
+          "prompt": "I'm reviewing a PR that changes AB.TypeParser. Show me what the TypeParser module does, how it's used across the codebase, and its PR history",
+          "expected_tools": [
+            "search_module",
+            "search_module_usage",
+            "get_file_pr_history"
+          ]
+        },
+        {
+          "name": "Onboarding Question",
+          "prompt": "I'm new to the AB library codebase. Explain what the AB module does and show me the main public API functions like property_test and compare_test",
+          "expected_tools": ["search_module", "search_function"]
+        },
+        {
+          "name": "Breaking Change Impact",
+          "prompt": "If I change the signature of get_function_spec in AB.TypeParser, what will break? Show me all callers and their context",
+          "expected_tools": ["search_function", "search_module_usage"]
+        },
+        {
+          "name": "Feature Origin",
+          "prompt": "When was the suggest_typespec_correction feature added to the AB library? Show me the PR that introduced it and the TypespecCorrector module implementation",
+          "expected_tools": [
+            "search_by_keywords",
+            "search_function",
+            "get_commit_history",
+            "find_pr_for_line"
+          ]
+        }
+      ]
+    },
+    "stress_tests": {
+      "description": "High complexity queries to stress test tool usage on elixir_project",
+      "tests": [
+        {
+          "name": "Complete Module Audit",
+          "prompt": "Give me a complete audit of the AB.TypeParser module: all functions, their usage, git history, authors, PRs, and any dead code",
+          "expected_tools": [
+            "search_module",
+            "search_function",
+            "search_module_usage",
+            "get_file_pr_history",
+            "get_commit_history",
+            "get_blame",
+            "find_dead_code"
+          ]
+        },
+        {
+          "name": "Cross-Module Analysis",
+          "prompt": "Analyze the relationship between AB.TypeParser, AB.Generators, and AB.Validators modules. Show dependencies, shared functions, and evolution over time",
+          "expected_tools": [
+            "search_module",
+            "search_module_usage",
+            "get_commit_history"
+          ]
+        },
+        {
+          "name": "Full Stack Trace",
+          "prompt": "Trace the execution flow from when property_test macro is called to generators running. Show all modules and functions involved in the AB library",
+          "expected_tools": [
+            "search_module",
+            "search_function",
+            "search_module_usage"
+          ]
+        }
+      ]
+    }
+  },
+  "notes": {
+    "expected_tools": "List of tools expected to be used for each test (not enforced, just for reference)",
+    "prompt_engineering": "Prompts are designed to naturally trigger cicada tool usage",
+    "customization": "Feel free to add your own test cases or modify existing ones"
+  }
+}

@@ -5,24 +5,24 @@ Quick guide to measuring cicada MCP tool call frequency when using Claude Code.
 ## Quick Start
 
 ```bash
-# Simple test
-python tests/benchmark_mcp_tool_calls.py
+# List available test suites
+python tests/benchmark/benchmark_mcp_tool_calls.py --list-suites
 
 # Run full test suite
-python tests/benchmark_mcp_tool_calls.py --test-suite
-
-# List available test suites
-python tests/benchmark_mcp_tool_calls.py --list-suites --load-tests tests/benchmark_test_prompts.json
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite
 
 # Run specific test suite
-python tests/benchmark_mcp_tool_calls.py --test-suite git_attribution
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite git_attribution
+
+# Run custom prompt
+python tests/benchmark/benchmark_mcp_tool_calls.py --prompt "Find all modules that handle indexing"
 ```
 
 ## Files
 
 - **`benchmark_mcp_tool_calls.py`** - Main benchmark script
 - **`benchmark_test_prompts.json`** - Test case definitions organized into suites
-- **`../docs/MCP_TOOL_CALL_BENCHMARKING.md`** - Complete documentation
+- **`../../docs/MCP_TOOL_CALL_BENCHMARKING.md`** - Complete documentation
 
 ## What It Does
 
@@ -72,7 +72,7 @@ Tool Usage Across All Tests:
 
 ## Full Documentation
 
-See [docs/MCP_TOOL_CALL_BENCHMARKING.md](../docs/MCP_TOOL_CALL_BENCHMARKING.md) for:
+See [docs/MCP_TOOL_CALL_BENCHMARKING.md](../../docs/MCP_TOOL_CALL_BENCHMARKING.md) for:
 - Detailed usage instructions
 - Claude Code configuration options
 - Tool call detection methods

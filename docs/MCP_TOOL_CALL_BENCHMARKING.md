@@ -4,7 +4,7 @@ This document describes the automated benchmarking system for measuring cicada M
 
 ## Overview
 
-The benchmark script (`tests/benchmark_mcp_tool_calls.py`) automates testing of how frequently Claude Code invokes cicada MCP tools when processing various prompts. This is useful for:
+The benchmark script (`tests/benchmark/benchmark_mcp_tool_calls.py`) automates testing of how frequently Claude Code invokes cicada MCP tools when processing various prompts. This is useful for:
 
 - Understanding tool usage patterns
 - Optimizing tool descriptions for better adoption
@@ -45,24 +45,20 @@ pip install -e ".[dev]"
 
 ### Basic Usage
 
-Run a simple default test:
+List available test suites:
 
 ```bash
-python tests/benchmark_mcp_tool_calls.py
+python tests/benchmark/benchmark_mcp_tool_calls.py --list-suites
 ```
 
-This will:
-1. Display all cicada tool descriptions
-2. Run a default prompt: "What modules are available in this codebase?"
-3. Count MCP tool calls
-4. Display results
+This will display all available test suites with their descriptions and test counts.
 
 ### Custom Single Test
 
 Test a specific prompt:
 
 ```bash
-python tests/benchmark_mcp_tool_calls.py --prompt "Show me where the load_index function is called"
+python tests/benchmark/benchmark_mcp_tool_calls.py --prompt "Show me where the load_index function is called"
 ```
 
 ### Full Test Suite
@@ -71,10 +67,10 @@ Run multiple predefined test cases:
 
 ```bash
 # Run built-in default test suite
-python tests/benchmark_mcp_tool_calls.py --test-suite
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite
 
 # Run all test suites from JSON file
-python tests/benchmark_mcp_tool_calls.py --test-suite --load-tests tests/benchmark_test_prompts.json
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite --load-tests tests/benchmark/benchmark_test_prompts.json
 ```
 
 ### List Available Test Suites
@@ -82,7 +78,7 @@ python tests/benchmark_mcp_tool_calls.py --test-suite --load-tests tests/benchma
 See all available test suites:
 
 ```bash
-python tests/benchmark_mcp_tool_calls.py --list-suites --load-tests tests/benchmark_test_prompts.json
+python tests/benchmark/benchmark_mcp_tool_calls.py --list-suites --load-tests tests/benchmark/benchmark_test_prompts.json
 ```
 
 Output:
@@ -104,10 +100,10 @@ Run a specific test suite from the JSON file:
 
 ```bash
 # Run only git attribution tests
-python tests/benchmark_mcp_tool_calls.py --test-suite git_attribution
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite git_attribution
 
 # Run realistic scenarios
-python tests/benchmark_mcp_tool_calls.py --test-suite realistic_scenarios --load-tests tests/benchmark_test_prompts.json
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite realistic_scenarios --load-tests tests/benchmark/benchmark_test_prompts.json
 ```
 
 ### Custom Repository Path
@@ -115,7 +111,7 @@ python tests/benchmark_mcp_tool_calls.py --test-suite realistic_scenarios --load
 Test against a different repository:
 
 ```bash
-python tests/benchmark_mcp_tool_calls.py --repo-path /path/to/elixir/project --test-suite
+python tests/benchmark/benchmark_mcp_tool_calls.py --repo-path /path/to/elixir/project --test-suite
 ```
 
 ## Output Format
@@ -240,7 +236,7 @@ Searches raw output for tool name mentions as a fallback when JSON parsing is in
 
 ### Method 1: JSON File (Recommended)
 
-Edit `tests/benchmark_test_prompts.json` to add or modify test cases:
+Edit `tests/benchmark/benchmark_test_prompts.json` to add or modify test cases:
 
 ```json
 {
@@ -261,7 +257,7 @@ Edit `tests/benchmark_test_prompts.json` to add or modify test cases:
 
 Then run:
 ```bash
-python tests/benchmark_mcp_tool_calls.py --test-suite my_custom_suite
+python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite my_custom_suite
 ```
 
 ### Method 2: Edit Python Script

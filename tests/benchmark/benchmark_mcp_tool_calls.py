@@ -11,29 +11,33 @@ Requirements:
 - uv package manager (for running cicada server)
 
 Usage:
-    python tests/benchmark_mcp_tool_calls.py
-    python tests/benchmark_mcp_tool_calls.py --prompt "Custom prompt"
-    python tests/benchmark_mcp_tool_calls.py --test-suite
-    python tests/benchmark_mcp_tool_calls.py --test-suite basic_searches
-    python tests/benchmark_mcp_tool_calls.py --load-tests tests/benchmark_test_prompts.json
+    python tests/benchmark/benchmark_mcp_tool_calls.py --list-suites
+    python tests/benchmark/benchmark_mcp_tool_calls.py --prompt "Custom prompt"
+    python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite
+    python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite basic_searches
+    python tests/benchmark/benchmark_mcp_tool_calls.py --load-tests tests/benchmark/benchmark_test_prompts.json
 """
 
 import argparse
 import json
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class MCPToolCallBenchmark:
     """Benchmark suite for measuring cicada MCP tool call frequency."""
 
-    def __init__(self, repo_path: Path = Path(".")):
+    def __init__(self, repo_path: Path = Path("."), debug: bool = False):
         self.repo_path = repo_path
+        self.debug = debug
         self.results: List[Dict[str, Any]] = []
+        self.results_lock = threading.Lock()
 
     def get_cicada_tool_descriptions(self) -> Dict[str, str]:
         """
@@ -63,29 +67,11 @@ class MCPToolCallBenchmark:
 
             return tool_descriptions
         except ImportError as e:
-            print(f"Error importing cicada tools: {e}", file=sys.stderr)
-            print("Using fallback tool list...", file=sys.stderr)
-
-            # Fallback list of known cicada tools
-            fallback_tools = {
-                "search_module": "PREFERRED for Elixir: View a module's complete API",
-                "search_function": "PREFERRED for Elixir: Find function definitions and call sites",
-                "search_module_usage": "PREFERRED for Elixir: Find all module usage and dependencies",
-                "find_pr_for_line": "PREFERRED for git history: Discover why code exists",
-                "get_commit_history": "PREFERRED for git history: Get commit log for files or functions",
-                "get_blame": "PREFERRED for authorship: Git blame showing who wrote each line",
-                "get_file_pr_history": "Get all PRs that modified a file",
-                "search_by_keywords": "Semantic search for code by concept/topic",
-                "find_dead_code": "Find potentially unused public functions",
-            }
-
-            for name, desc in fallback_tools.items():
-                print(f"Tool: {name}")
-                print(f"Description: {desc}")
-                print("-" * 80)
-                print()
-
-            return fallback_tools
+            print(f"Error: Unable to import cicada tools: {e}", file=sys.stderr)
+            print(
+                "Make sure the cicada package is installed correctly.", file=sys.stderr
+            )
+            sys.exit(1)
 
     def run_claude_headless(
         self,
@@ -114,14 +100,17 @@ class MCPToolCallBenchmark:
             "stream-json",
         ]
 
-        print(f"Running: {' '.join(cmd[:4])}...")
-        print(f"Prompt: {prompt[:100]}...")
-        print()
-
         try:
+            # Run from repo_path so cicada MCP server finds its config there
+            abs_repo_path = (
+                self.repo_path.resolve()
+                if isinstance(self.repo_path, Path)
+                else Path(self.repo_path).resolve()
+            )
+
             result = subprocess.run(
                 cmd,
-                cwd=self.repo_path,
+                cwd=abs_repo_path,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -131,7 +120,9 @@ class MCPToolCallBenchmark:
                 print(f"Error running Claude Code: {result.stderr}", file=sys.stderr)
                 return result.stdout, {}
 
-            return result.stdout, self._parse_json_output(result.stdout)
+            json_data = self._parse_json_output(result.stdout)
+
+            return result.stdout, json_data
 
         except subprocess.TimeoutExpired:
             print(f"Command timed out after {timeout} seconds", file=sys.stderr)
@@ -154,73 +145,85 @@ class MCPToolCallBenchmark:
             Dictionary containing parsed events
         """
         events = []
+        parse_errors = 0
         for line in output.strip().split("\n"):
             if not line.strip():
                 continue
             try:
                 event = json.loads(line)
                 events.append(event)
-            except json.JSONDecodeError:
-                continue
+            except json.JSONDecodeError as e:
+                parse_errors += 1
+                if self.debug:
+                    line_preview = line[:100] + "..." if len(line) > 100 else line
+                    print(f"Debug: JSON parse error: {e}", file=sys.stderr)
+                    print(f"Debug: Failed line: {line_preview}", file=sys.stderr)
+
+        if self.debug and parse_errors > 0:
+            print(f"Debug: Total JSON parse errors: {parse_errors}", file=sys.stderr)
 
         return {"events": events}
 
     def count_mcp_tool_calls(
         self, output: str, json_data: Dict[str, Any]
-    ) -> Dict[str, int]:
+    ) -> Tuple[Dict[str, int], int]:
         """
-        Count MCP tool calls from Claude Code output.
+        Count cicada MCP tool calls from Claude Code output.
 
         Args:
             output: Raw output string
             json_data: Parsed JSON data
 
         Returns:
-            Dictionary mapping tool names to call counts
+            Tuple of (cicada_tool_calls dict, total_tool_calls count)
         """
-        tool_calls = defaultdict(int)
+        cicada_calls = defaultdict(int)
+        total_calls = 0
 
         # Parse JSON events for tool calls
         events = json_data.get("events", [])
+
+        # Show first few events for debugging
         for event in events:
             # Look for tool invocation events
             if isinstance(event, dict):
-                # Check for tool_call events
+                # Check for tool_call events at top level
                 if event.get("type") == "tool_use":
                     tool_name = event.get("name")
-                    if tool_name:
-                        tool_calls[tool_name] += 1
+                    total_calls += 1
+                    if tool_name and "cicada" in tool_name.lower():
+                        cicada_calls[tool_name] += 1
+                        print(f"✓ Cicada tool: {tool_name}")
 
-                # Check for function_calls in content
+                # Check for assistant messages with embedded tool calls
+                if event.get("type") == "assistant":
+                    message = event.get("message", {})
+                    if isinstance(message, dict):
+                        content = message.get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if (
+                                    isinstance(item, dict)
+                                    and item.get("type") == "tool_use"
+                                ):
+                                    tool_name = item.get("name")
+                                    total_calls += 1
+                                    if tool_name and "cicada" in tool_name.lower():
+                                        cicada_calls[tool_name] += 1
+
+                # Check for function_calls in content at top level
                 content = event.get("content", [])
                 if isinstance(content, list):
                     for item in content:
                         if isinstance(item, dict) and item.get("type") == "tool_use":
                             tool_name = item.get("name")
-                            if tool_name:
-                                tool_calls[tool_name] += 1
+                            total_calls += 1
+                            if tool_name and "cicada" in tool_name.lower():
+                                cicada_calls[tool_name] += 1
 
-        # Fallback: Parse raw output for tool mentions
-        # Look for patterns like "mcp__cicada__search_module" or tool invocation logs
-        cicada_tools = [
-            "search_module",
-            "search_function",
-            "search_module_usage",
-            "find_pr_for_line",
-            "get_commit_history",
-            "get_blame",
-            "get_file_pr_history",
-            "search_by_keywords",
-            "find_dead_code",
-        ]
-
-        for tool in cicada_tools:
-            # Count mentions of tool in output
-            count = output.lower().count(tool.lower())
-            if count > 0:
-                tool_calls[tool] = max(tool_calls[tool], count)
-
-        return dict(tool_calls)
+        cicada_total = sum(cicada_calls.values())
+        print(f"Total tool calls: {total_calls}, Cicada: {cicada_total}")
+        return dict(cicada_calls), total_calls
 
     def run_single_test(
         self, prompt: str, test_name: str = "Unnamed Test"
@@ -235,34 +238,42 @@ class MCPToolCallBenchmark:
         Returns:
             Test result dictionary
         """
-        print("\n" + "=" * 80)
         print(f"TEST: {test_name}")
-        print("=" * 80)
+        print("-" * 40)
         print()
 
         start_time = time.time()
         output, json_data = self.run_claude_headless(prompt)
         elapsed_time = time.time() - start_time
 
-        tool_calls = self.count_mcp_tool_calls(output, json_data)
-        total_calls = sum(tool_calls.values())
+        cicada_tool_calls, total_tool_calls = self.count_mcp_tool_calls(
+            output, json_data
+        )
+        cicada_calls = sum(cicada_tool_calls.values())
+        cicada_percentage = (
+            (cicada_calls / total_tool_calls * 100) if total_tool_calls > 0 else 0
+        )
 
         result = {
             "test_name": test_name,
             "prompt": prompt,
             "elapsed_time": elapsed_time,
-            "tool_calls": tool_calls,
-            "total_calls": total_calls,
+            "cicada_tool_calls": cicada_tool_calls,
+            "cicada_calls": cicada_calls,
+            "total_tool_calls": total_tool_calls,
+            "cicada_percentage": cicada_percentage,
             "output_length": len(output),
         }
 
-        self.results.append(result)
+        with self.results_lock:
+            self.results.append(result)
 
         # Print results
         print(f"Duration: {elapsed_time:.2f}s")
-        print(f"Total MCP Tool Calls: {total_calls}")
-        print(f"Tool Call Breakdown:")
-        for tool, count in sorted(tool_calls.items()):
+        print(f"Total Tool Calls: {total_tool_calls}")
+        print(f"Cicada Tool Calls: {cicada_calls} ({cicada_percentage:.1f}%)")
+        print(f"Cicada Tool Breakdown:")
+        for tool, count in sorted(cicada_tool_calls.items()):
             print(f"  - {tool}: {count}")
         print()
 
@@ -316,7 +327,10 @@ class MCPToolCallBenchmark:
             return []
 
     def run_test_suite(
-        self, suite_name: str | None = None, json_path: Path | None = None
+        self,
+        suite_name: str | None = None,
+        json_path: Path | None = None,
+        max_workers: int = 1,
     ) -> List[Dict[str, Any]]:
         """
         Run a complete test suite with multiple prompts.
@@ -324,6 +338,7 @@ class MCPToolCallBenchmark:
         Args:
             suite_name: Optional name of specific suite to run
             json_path: Optional path to JSON file with test cases
+            max_workers: Number of parallel workers (default: 1, sequential)
 
         Returns:
             List of test results
@@ -332,43 +347,51 @@ class MCPToolCallBenchmark:
         print("STARTING TEST SUITE")
         if suite_name:
             print(f"Suite: {suite_name}")
+        if max_workers > 1:
+            print(f"Parallel execution: {max_workers} workers")
         print("=" * 80)
         print()
 
         # Load test cases
-        if json_path and json_path.exists():
-            test_cases = self.load_test_cases_from_json(json_path, suite_name)
-        else:
-            # Default built-in test cases
-            test_cases = [
-                {
-                    "name": "Simple Module Search",
-                    "prompt": "What functions are available in the Cicada.Formatter module?",
-                },
-                {
-                    "name": "Function Usage Search",
-                    "prompt": "Show me where the load_index function is called in the codebase",
-                },
-                {
-                    "name": "Complex Multi-Tool Query",
-                    "prompt": "Find all modules that handle MCP server functionality, show their functions, and identify who created them using git history",
-                },
-                {
-                    "name": "Git Attribution Query",
-                    "prompt": "Which PR introduced the search_module function in mcp_server.py?",
-                },
-                {
-                    "name": "Code Analysis",
-                    "prompt": "Analyze the indexer.py file and tell me what it does",
-                },
-            ]
+        if not json_path or not json_path.exists():
+            print(
+                "Error: Test file not found. Please provide a test file with --load-tests.",
+                file=sys.stderr,
+            )
+            print("Use --list-suites to see available test suites.", file=sys.stderr)
+            return []
+
+        test_cases = self.load_test_cases_from_json(json_path, suite_name)
 
         if not test_cases:
             print("No test cases to run.", file=sys.stderr)
             return []
 
-        for test_case in test_cases:
-            self.run_single_test(test_case["prompt"], test_case["name"])
+        if max_workers == 1:
+            # Sequential execution
+            for test_case in test_cases:
+                self.run_single_test(test_case["prompt"], test_case["name"])
+        else:
+            # Parallel execution
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tests
+                future_to_test = {
+                    executor.submit(
+                        self.run_single_test, test_case["prompt"], test_case["name"]
+                    ): test_case
+                    for test_case in test_cases
+                }
+
+                # Process results as they complete
+                for future in as_completed(future_to_test):
+                    test_case = future_to_test[future]
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(
+                            f"Test '{test_case['name']}' failed with error: {e}",
+                            file=sys.stderr,
+                        )
 
         return self.results
 
@@ -385,35 +408,42 @@ class MCPToolCallBenchmark:
 
         total_tests = len(self.results)
         total_time = sum(r["elapsed_time"] for r in self.results)
-        total_tool_calls = sum(r["total_calls"] for r in self.results)
+        total_tool_calls = sum(r["total_tool_calls"] for r in self.results)
+        total_cicada_calls = sum(r["cicada_calls"] for r in self.results)
+        overall_cicada_percentage = (
+            (total_cicada_calls / total_tool_calls * 100) if total_tool_calls > 0 else 0
+        )
 
-        # Aggregate tool call statistics
-        all_tool_calls = defaultdict(int)
+        # Aggregate cicada tool call statistics
+        all_cicada_calls = defaultdict(int)
         for result in self.results:
-            for tool, count in result["tool_calls"].items():
-                all_tool_calls[tool] += count
+            for tool, count in result["cicada_tool_calls"].items():
+                all_cicada_calls[tool] += count
 
         print(f"Total Tests: {total_tests}")
         print(f"Total Time: {total_time:.2f}s")
         print(f"Average Time per Test: {total_time / total_tests:.2f}s")
-        print(f"Total MCP Tool Calls: {total_tool_calls}")
+        print(f"Total Tool Calls: {total_tool_calls}")
         print(
-            f"Average Tool Calls per Test: {total_tool_calls / total_tests:.2f}"
+            f"Cicada Tool Calls: {total_cicada_calls} ({overall_cicada_percentage:.1f}%)"
         )
+        print(f"Average Cicada Calls per Test: {total_cicada_calls / total_tests:.2f}")
         print()
 
-        print("Tool Usage Across All Tests:")
+        print("Cicada Tool Usage Across All Tests:")
         for tool, count in sorted(
-            all_tool_calls.items(), key=lambda x: x[1], reverse=True
+            all_cicada_calls.items(), key=lambda x: x[1], reverse=True
         ):
-            percentage = (count / total_tool_calls * 100) if total_tool_calls > 0 else 0
+            percentage = (
+                (count / total_cicada_calls * 100) if total_cicada_calls > 0 else 0
+            )
             print(f"  - {tool}: {count} ({percentage:.1f}%)")
         print()
 
         print("Individual Test Results:")
         for i, result in enumerate(self.results, 1):
             print(
-                f"{i}. {result['test_name']}: {result['total_calls']} calls in {result['elapsed_time']:.2f}s"
+                f"{i}. {result['test_name']}: {result['cicada_calls']}/{result['total_tool_calls']} cicada calls ({result['cicada_percentage']:.1f}%) in {result['elapsed_time']:.2f}s"
             )
         print()
 
@@ -425,20 +455,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run default test
-  python tests/benchmark_mcp_tool_calls.py
+  # List available test suites
+  python tests/benchmark/benchmark_mcp_tool_calls.py --list-suites
 
   # Run single custom prompt
-  python tests/benchmark_mcp_tool_calls.py --prompt "Show me the indexer module"
+  python tests/benchmark/benchmark_mcp_tool_calls.py --prompt "Show me the indexer module"
 
-  # Run built-in test suite
-  python tests/benchmark_mcp_tool_calls.py --test-suite
+  # Run full test suite
+  python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite
 
-  # Run specific test suite from JSON
-  python tests/benchmark_mcp_tool_calls.py --test-suite basic_searches --load-tests tests/benchmark_test_prompts.json
+  # Run specific test suite
+  python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite basic_searches
 
   # Run all tests from JSON file
-  python tests/benchmark_mcp_tool_calls.py --test-suite --load-tests tests/benchmark_test_prompts.json
+  python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite --load-tests tests/benchmark/benchmark_test_prompts.json
+
+  # Run tests in parallel with 4 workers
+  python tests/benchmark/benchmark_mcp_tool_calls.py --test-suite --parallel 4
         """,
     )
     parser.add_argument(
@@ -455,7 +488,7 @@ Examples:
     parser.add_argument(
         "--load-tests",
         type=Path,
-        help="Path to JSON file with test cases (default: tests/benchmark_test_prompts.json)",
+        help="Path to JSON file with test cases (default: tests/benchmark/benchmark_test_prompts.json)",
     )
     parser.add_argument(
         "--repo-path",
@@ -468,11 +501,36 @@ Examples:
         action="store_true",
         help="List available test suites and exit",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug output (shows JSON parsing errors)",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Run N tests in parallel (default: 1, sequential)",
+    )
 
     args = parser.parse_args()
 
+    # Validate repo path
+    if not args.repo_path.exists():
+        print(
+            f"Error: Repository path does not exist: {args.repo_path}", file=sys.stderr
+        )
+        sys.exit(1)
+    if not args.repo_path.is_dir():
+        print(
+            f"Error: Repository path is not a directory: {args.repo_path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     # Default test file path
-    if args.load_tests is None and args.test_suite is not None:
+    if args.load_tests is None and (args.test_suite is not None or args.list_suites):
         default_test_path = Path(__file__).parent / "benchmark_test_prompts.json"
         if default_test_path.exists():
             args.load_tests = default_test_path
@@ -495,7 +553,7 @@ Examples:
             print("No test file specified or found.", file=sys.stderr)
         sys.exit(0)
 
-    benchmark = MCPToolCallBenchmark(repo_path=args.repo_path)
+    benchmark = MCPToolCallBenchmark(repo_path=args.repo_path, debug=args.debug)
 
     # Show tool descriptions first
     benchmark.get_cicada_tool_descriptions()
@@ -503,15 +561,15 @@ Examples:
     # Run tests
     if args.test_suite is not None:
         suite_name = args.test_suite if args.test_suite != "__all__" else None
-        benchmark.run_test_suite(suite_name, args.load_tests)
+        benchmark.run_test_suite(suite_name, args.load_tests, max_workers=args.parallel)
     elif args.prompt:
         benchmark.run_single_test(args.prompt, "Custom Test")
     else:
-        # Default: run a simple test
-        benchmark.run_single_test(
-            "What modules are available in this codebase?",
-            "Default Simple Test",
+        print(
+            "Error: No test specified. Use --prompt or --test-suite.", file=sys.stderr
         )
+        print("Run with --help to see usage examples.", file=sys.stderr)
+        sys.exit(1)
 
     # Print summary
     benchmark.print_summary()
