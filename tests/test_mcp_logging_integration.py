@@ -108,9 +108,7 @@ class TestMCPLoggingIntegration:
 
         # Execute a command that will fail
         with pytest.raises(ValueError):
-            await server.call_tool_with_logging(
-                name="invalid_tool", arguments={}
-            )
+            await server.call_tool_with_logging(name="invalid_tool", arguments={})
 
         # Check that a log file was created
         log_files = list(Path(log_dir).glob("*.jsonl"))

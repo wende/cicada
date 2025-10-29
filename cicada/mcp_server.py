@@ -149,8 +149,8 @@ class CicadaServer:
             end_time = time.perf_counter()
             execution_time_ms = (end_time - start_time) * 1000
 
-            # Log the command execution
-            self.logger.log_command(
+            # Log the command execution (async to prevent event loop blocking)
+            await self.logger.log_command_async(
                 tool_name=name,
                 arguments=arguments,
                 response=response,

@@ -4,8 +4,8 @@ This module provides logging capabilities for all MCP tool executions,
 storing logs in JSONL format organized by date.
 """
 
+import asyncio
 import json
-import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -99,6 +99,38 @@ class CommandLogger:
                 file=sys.stderr,
             )
 
+    async def log_command_async(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        response: Any,
+        execution_time_ms: float,
+        timestamp: Optional[datetime] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """Async version of log_command that runs file I/O in a thread pool.
+
+        This prevents blocking the event loop when logging commands.
+
+        Args:
+            tool_name: Name of the tool that was executed.
+            arguments: Arguments passed to the tool.
+            response: Response from the tool execution.
+            execution_time_ms: Execution time in milliseconds.
+            timestamp: Timestamp of the execution. If None, uses current time.
+            error: Error message if the command failed.
+        """
+        # Run the synchronous log_command in a thread pool
+        await asyncio.to_thread(
+            self.log_command,
+            tool_name,
+            arguments,
+            response,
+            execution_time_ms,
+            timestamp,
+            error,
+        )
+
     def _serialize_response(self, response: Any) -> Any:
         """Serialize the response for JSON storage.
 
@@ -108,24 +140,20 @@ class CommandLogger:
         Returns:
             JSON-serializable representation of the response.
         """
-        # Handle MCP TextContent objects
-        if hasattr(response, "__dict__"):
-            # Try to convert to dict if it's an object
-            try:
-                if hasattr(response, "text"):
-                    # MCP TextContent object
-                    return {"type": "text", "text": response.text}
-                elif isinstance(response, list):
-                    return [self._serialize_response(item) for item in response]
-                else:
-                    # Generic object
-                    return str(response)
-            except Exception:
-                return str(response)
-        elif isinstance(response, list):
+        # Handle common types first
+        if isinstance(response, list):
             return [self._serialize_response(item) for item in response]
         elif isinstance(response, dict):
             return {k: self._serialize_response(v) for k, v in response.items()}
+        elif hasattr(response, "text"):
+            # MCP TextContent object
+            return {"type": "text", "text": response.text}
+        elif hasattr(response, "__dict__"):
+            # Generic object - convert to string
+            try:
+                return str(response)
+            except Exception:
+                return str(response)
         else:
             return response
 
@@ -153,6 +181,13 @@ class CommandLogger:
         logs = []
 
         if date:
+            # Validate date format to prevent path traversal
+            try:
+                datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                # Invalid date format - return empty list
+                return []
+
             # Read from specific date file
             log_file = self.log_dir / f"{date}.jsonl"
             if log_file.exists():
