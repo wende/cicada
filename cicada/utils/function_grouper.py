@@ -5,7 +5,7 @@ This module provides utilities for grouping functions by name and arity,
 eliminating duplication across formatter and other modules.
 """
 
-from typing import Dict, List, Any, Tuple
+from typing import Any
 
 
 class FunctionGrouper:
@@ -18,8 +18,8 @@ class FunctionGrouper:
 
     @staticmethod
     def group_by_name_arity(
-        functions: List[Dict[str, Any]],
-    ) -> Dict[Tuple[str, int], List[Dict[str, Any]]]:
+        functions: list[dict[str, Any]],
+    ) -> dict[tuple[str, int], list[dict[str, Any]]]:
         """
         Group functions by their (name, arity) tuple.
 
@@ -46,7 +46,7 @@ class FunctionGrouper:
             #     ('create', 2): [{'name': 'create', 'arity': 2, ...}]
             # }
         """
-        grouped: Dict[Tuple[str, int], List[Dict[str, Any]]] = {}
+        grouped: dict[tuple[str, int], list[dict[str, Any]]] = {}
 
         for func in functions:
             key = (func["name"], func["arity"])

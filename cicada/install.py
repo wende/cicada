@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, BOLD, DIM, RESET
+from cicada.colors import BLUE, CYAN, GRAY, GREEN, RED, RESET, YELLOW
 
 
 def run_command(cmd, cwd=None, check=True, capture_output=True):
@@ -128,7 +128,7 @@ def install_dependencies_uv(cicada_dir):
 
     # Use uv to sync dependencies
     # uv will automatically create a venv and install everything
-    _ = run_command(f"uv sync", cwd=cicada_dir)
+    _ = run_command("uv sync", cwd=cicada_dir)
 
     # Find the python binary uv created
     venv_path = cicada_dir / ".venv"
@@ -182,9 +182,7 @@ def install_dependencies(cicada_dir, use_uv=None):
     if use_uv is None:
         use_uv = check_uv_available()
         if use_uv:
-            print(
-                f"{GREEN}✓{RESET} Detected uv - using it for faster installation (recommended)"
-            )
+            print(f"{GREEN}✓{RESET} Detected uv - using it for faster installation (recommended)")
         else:
             print(f"{YELLOW}⚠{RESET} uv not available - falling back to pip (slower)")
 
@@ -252,7 +250,7 @@ def index_repository(
     cmd.extend(["--model-tier", model_tier])
 
     # Run without capturing output so users can see download progress
-    result = run_command(cmd, capture_output=False)
+    run_command(cmd, capture_output=False)
 
     try:
         rel_path = output_path.relative_to(Path.cwd())
@@ -300,10 +298,7 @@ def detect_installation_method():
         )
 
     # Check if running from a uv tools directory (permanent install)
-    if (
-        ".local/share/uv/tools" in script_path_str
-        or ".local/bin/cicada-" in script_path_str
-    ):
+    if ".local/share/uv/tools" in script_path_str or ".local/bin/cicada-" in script_path_str:
         # Installed via uv tool install
         return (
             "cicada-server",
@@ -353,10 +348,10 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     # Load existing config if present, otherwise create new one
     if mcp_config_path.exists():
         try:
-            with open(mcp_config_path, "r") as f:
+            with open(mcp_config_path) as f:
                 config = json.load(f)
             print(f"{GREEN}✓{RESET} Found existing .mcp.json, will merge configuration")
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(
                 f"{YELLOW}Warning:{RESET} Could not read existing .mcp.json ({e}), creating new one"
             )
@@ -377,9 +372,7 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
         print(f"{GREEN}✓{RESET} Installation: {description}")
     elif tools_status == "partial":
         print(f"{YELLOW}⚠{RESET}  Installation: {description}")
-        print(
-            f"{GRAY}   Some tools not found in PATH - add ~/.local/bin to PATH{RESET}"
-        )
+        print(f"{GRAY}   Some tools not found in PATH - add ~/.local/bin to PATH{RESET}")
     else:
         print(f"{YELLOW}⚠{RESET}  Installation: {description}")
         print(f"{GRAY}   Tools not found in PATH - add ~/.local/bin to PATH{RESET}")
@@ -472,7 +465,7 @@ def create_gitattributes(repo_path):
     # Read existing .gitattributes if present
     existing_lines = []
     if gitattributes_path.exists():
-        with open(gitattributes_path, "r") as f:
+        with open(gitattributes_path) as f:
             existing_lines = [line.rstrip() for line in f.readlines()]
 
     # Check if elixir patterns already exist
@@ -484,7 +477,7 @@ def create_gitattributes(repo_path):
 
     # Add elixir patterns
     with open(gitattributes_path, "a") as f:
-        if existing_lines and not existing_lines[-1] == "":
+        if existing_lines and existing_lines[-1] != "":
             _ = f.write("\n")  # Add newline if file doesn't end with one
 
         _ = f.write("# Elixir function tracking for git log -L\n")
@@ -528,7 +521,7 @@ def update_claude_md(repo_path):
 
     try:
         # Read existing content
-        with open(claude_md_path, "r") as f:
+        with open(claude_md_path) as f:
             content = f.read()
 
         # Check if instruction already exists
@@ -569,13 +562,13 @@ def is_gitignored(repo_path, file_pattern):
         return False
 
     try:
-        with open(gitignore_path, "r") as f:
+        with open(gitignore_path) as f:
             content = f.read()
         # Simple check - look for the pattern in the file
         # This handles .cicada/, .cicada, /.cicada/, etc.
         base_pattern = file_pattern.rstrip("/").lstrip("/")
         return base_pattern in content
-    except (IOError, OSError):
+    except OSError:
         return False
 
 
@@ -590,7 +583,7 @@ def print_setup_summary(repo_path, _index_path):
     repo_path = Path(repo_path).resolve()
 
     print()
-    print(f"Files created/modified:")
+    print("Files created/modified:")
     print()
 
     # List of files to check
@@ -635,11 +628,7 @@ def print_setup_summary(repo_path, _index_path):
     if needs_gitignore:
         print(f"{RED}⚠️{RESET}  Warning: The following should be in .gitignore:")
         for item in needs_gitignore:
-            reason = (
-                "build artifacts and cache"
-                if item == ".cicada/"
-                else "local configuration"
-            )
+            reason = "build artifacts and cache" if item == ".cicada/" else "local configuration"
             print(f"{RED}   • {item:12} ({reason}){RESET}")
         print()
         print(f"{YELLOW}Add them to .gitignore with this command:{RESET}")
@@ -659,6 +648,7 @@ def check_config_version(repo_path):
             - old_version: The version string from config, or None
     """
     import yaml
+
     from cicada import __version__ as current_version
 
     repo_path = Path(repo_path).resolve()
@@ -668,7 +658,7 @@ def check_config_version(repo_path):
         return False, False, None
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = yaml.safe_load(f)
 
         old_version = config.get("version") if config else None
@@ -794,9 +784,7 @@ def main():
         print(f"{CYAN}   Current version:   {current_version}{RESET}")
         print(f"{CYAN}{'=' * 70}{RESET}")
         print()
-        response = (
-            input("Would you like to reconfigure cicada? [Y/n]: ").strip().lower()
-        )
+        response = input("Would you like to reconfigure cicada? [Y/n]: ").strip().lower()
         if response in ["", "y", "yes"]:
             show_interactive = True
 
@@ -868,9 +856,7 @@ def main():
     )
 
     # Create config.yaml
-    create_config_yaml(
-        cicada_dir, args.repo, index_path, args.keyword_method, args.model_tier
-    )
+    create_config_yaml(cicada_dir, args.repo, index_path, args.keyword_method, args.model_tier)
 
     # Create .gitattributes for Elixir function tracking
     _ = create_gitattributes(args.repo)
@@ -888,12 +874,12 @@ def main():
     print(f"{YELLOW}✓ Setup Complete!{RESET}")
     print(f"{CYAN}{'=' * 60}{RESET}")
     print()
-    print(f"Next steps:")
-    print(f"1. Restart Claude Code")
+    print("Next steps:")
+    print("1. Restart Claude Code")
     print()
-    print(f"2. Try asking Claude Code:")
-    print(f"   - 'Where is [Module] used?'")
-    print(f"   - 'Show me the functions in [ModuleName]")
+    print("2. Try asking Claude Code:")
+    print("   - 'Where is [Module] used?'")
+    print("   - 'Show me the functions in [ModuleName]")
     print()
 
 

@@ -34,9 +34,7 @@ def format_markdown(results: dict) -> str:
         f"(skipped {summary['skipped_impl']} with @impl, "
         f"{summary['skipped_files']} in test/script files)"
     )
-    lines.append(
-        f"Found **{summary['total_candidates']} potentially unused functions**\n"
-    )
+    lines.append(f"Found **{summary['total_candidates']} potentially unused functions**\n")
 
     candidates = results["candidates"]
 
@@ -46,9 +44,7 @@ def format_markdown(results: dict) -> str:
         label = f" HIGH CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
         bar_length = 80
         padding = (bar_length - len(label)) // 2
-        lines.append(
-            f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}"
-        )
+        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
         lines.append("Functions with zero usage in codebase\n")
 
         # Group by module
@@ -62,9 +58,7 @@ def format_markdown(results: dict) -> str:
             lines.append(f"### {module}")
             lines.append(f"{funcs[0]['file']}\n")
             for func in funcs:
-                lines.append(
-                    f"- `{func['function']}/{func['arity']}` (line {func['line']})"
-                )
+                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
             lines.append("")
 
     # Medium confidence
@@ -73,9 +67,7 @@ def format_markdown(results: dict) -> str:
         label = f" MEDIUM CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
         bar_length = 80
         padding = (bar_length - len(label)) // 2
-        lines.append(
-            f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}"
-        )
+        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
         lines.append(
             "Functions with zero usage, but module has behaviors/uses (possible callbacks)\n"
         )
@@ -101,9 +93,7 @@ def format_markdown(results: dict) -> str:
             lines.append("")
 
             for func in funcs:
-                lines.append(
-                    f"- `{func['function']}/{func['arity']}` (line {func['line']})"
-                )
+                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
             lines.append("")
 
     # Low confidence
@@ -112,9 +102,7 @@ def format_markdown(results: dict) -> str:
         label = f" LOW CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
         bar_length = 80
         padding = (bar_length - len(label)) // 2
-        lines.append(
-            f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}"
-        )
+        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
         lines.append(
             "Functions with zero usage, but module passed as value (possible dynamic calls)\n"
         )
@@ -139,9 +127,7 @@ def format_markdown(results: dict) -> str:
             lines.append("")
 
             for func in funcs:
-                lines.append(
-                    f"- `{func['function']}/{func['arity']}` (line {func['line']})"
-                )
+                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
             lines.append("")
 
     if summary["total_candidates"] == 0:
@@ -237,7 +223,7 @@ Examples:
     index_path = Path(args.index)
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        print(f"\nRun 'cicada-index' first to create the index.", file=sys.stderr)
+        print("\nRun 'cicada-index' first to create the index.", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -258,10 +244,7 @@ Examples:
     results = filter_by_confidence(results, args.min_confidence)
 
     # Format output
-    if args.format == "json":
-        output = format_json(results)
-    else:
-        output = format_markdown(results)
+    output = format_json(results) if args.format == "json" else format_markdown(results)
 
     print(output)
 

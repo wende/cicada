@@ -70,9 +70,7 @@ class TestRunCommand:
         with patch("subprocess.run") as mock_run:
             from subprocess import CalledProcessError
 
-            mock_run.side_effect = CalledProcessError(
-                returncode=1, cmd="fail", stderr="error"
-            )
+            mock_run.side_effect = CalledProcessError(returncode=1, cmd="fail", stderr="error")
 
             with pytest.raises(CalledProcessError):
                 run_command("fail", check=True)
@@ -119,9 +117,7 @@ class TestInstallCicada:
         """Test when cicada is already installed as a package."""
         # Mock the cicada.mcp_server module to simulate installed package
         mock_module = MagicMock()
-        mock_module.__file__ = (
-            "/usr/local/lib/python3.11/site-packages/cicada/mcp_server.py"
-        )
+        mock_module.__file__ = "/usr/local/lib/python3.11/site-packages/cicada/mcp_server.py"
 
         with patch.dict("sys.modules", {"cicada.mcp_server": mock_module}):
             path, already_installed = install_cicada(str(tmp_path))
@@ -392,9 +388,7 @@ class TestDetectInstallationMethod:
 
     def test_detect_uv_tools_permanent(self):
         """Test detection of uv tool install."""
-        with patch(
-            "sys.argv", ["/Users/user/.local/share/uv/tools/cicada/bin/cicada-setup"]
-        ):
+        with patch("sys.argv", ["/Users/user/.local/share/uv/tools/cicada/bin/cicada-setup"]):
             command, args, cwd, _description = detect_installation_method()
 
             assert command == "cicada-server"
@@ -507,9 +501,7 @@ class TestCreateMCPConfig:
             config = json.loads(config_path.read_text())
             assert "env" in config["mcpServers"]["cicada"]
             assert "CICADA_REPO_PATH" in config["mcpServers"]["cicada"]["env"]
-            assert config["mcpServers"]["cicada"]["env"]["CICADA_REPO_PATH"] == str(
-                repo_path
-            )
+            assert config["mcpServers"]["cicada"]["env"]["CICADA_REPO_PATH"] == str(repo_path)
 
 
 class TestCreateConfigYAML:

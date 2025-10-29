@@ -91,9 +91,7 @@ class TestGetFunctionBlameFormatting:
     @pytest.mark.asyncio
     async def test_error_handling(self, test_server_with_git):
         """Should handle errors gracefully"""
-        test_server_with_git.git_helper.get_function_history.side_effect = Exception(
-            "Git error"
-        )
+        test_server_with_git.git_helper.get_function_history.side_effect = Exception("Git error")
 
         result = await test_server_with_git._get_function_history("test.ex", 1, 10)
 
@@ -162,9 +160,7 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_long_description_trimmed(self, test_server_with_long_description):
         """Should trim long PR descriptions"""
-        result = await test_server_with_long_description._get_file_pr_history(
-            "lib/test.ex"
-        )
+        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
 
         assert len(result) == 1
         text = result[0].text
@@ -175,9 +171,7 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_comment_variations(self, test_server_with_long_description):
         """Should handle different comment formats"""
-        result = await test_server_with_long_description._get_file_pr_history(
-            "lib/test.ex"
-        )
+        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
 
         assert len(result) == 1
         text = result[0].text
@@ -192,15 +186,11 @@ class TestGetFilePRHistoryFormatting:
         assert "reviewer1" in text
 
     @pytest.mark.asyncio
-    async def test_absolute_path_outside_repo(
-        self, test_server_with_long_description, tmp_path
-    ):
+    async def test_absolute_path_outside_repo(self, test_server_with_long_description, tmp_path):
         """Should handle absolute paths outside repository"""
         outside_path = Path("/totally/different/path/file.ex")
 
-        result = await test_server_with_long_description._get_file_pr_history(
-            str(outside_path)
-        )
+        result = await test_server_with_long_description._get_file_pr_history(str(outside_path))
 
         assert len(result) == 1
         assert "not within repository" in result[0].text

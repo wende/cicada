@@ -225,16 +225,12 @@ class TestKeywordExtractor:
 
         def mock_run(cmd, **_kwargs):
             # Simulate successful download
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout="Installed successfully", stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, 0, stdout="Installed successfully", stderr="")
 
         monkeypatch.setattr(spacy, "load", mock_load)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        with pytest.raises(
-            RuntimeError, match="Failed to load spaCy model.*after download"
-        ):
+        with pytest.raises(RuntimeError, match="Failed to load spaCy model.*after download"):
             KeywordExtractor(verbose=True, model_size="medium")
 
     def test_download_with_verbose_output(self, monkeypatch):
@@ -315,9 +311,7 @@ class TestKeywordExtractor:
         # Check verbose output was printed
         captured = capsys.readouterr()
         assert "Unexpected error during download" in captured.err
-        assert (
-            "RuntimeError" in captured.err or "Unexpected network error" in captured.err
-        )
+        assert "RuntimeError" in captured.err or "Unexpected network error" in captured.err
 
     def test_download_model_file_not_found_verbose(self, monkeypatch, capsys):
         """Test _download_model with FileNotFoundError shows verbose message"""
@@ -571,9 +565,7 @@ class TestKeywordSearcher:
         function_results = [r for r in results if r["type"] == "function"]
         assert len(function_results) > 0
 
-        validate_func = next(
-            (r for r in function_results if "validate" in r["name"]), None
-        )
+        validate_func = next((r for r in function_results if "validate" in r["name"]), None)
         assert validate_func is not None
         assert validate_func["function"] == "validate"
 
@@ -887,9 +879,7 @@ end
         assert len(results) > 0
 
         # Should find functions with "create" in their names
-        function_names = [
-            result["name"] for result in results if result["type"] == "function"
-        ]
+        function_names = [result["name"] for result in results if result["type"] == "function"]
         assert any("create" in name for name in function_names)
 
         # Test wildcard search for test_* patterns
@@ -900,9 +890,7 @@ end
         assert len(results) > 0
 
         # Should find functions with "test_" in their names
-        function_names = [
-            result["name"] for result in results if result["type"] == "function"
-        ]
+        function_names = [result["name"] for result in results if result["type"] == "function"]
         assert any("test_" in name for name in function_names)
 
     def test_wildcard_vs_exact_search(self, tmp_path):
@@ -1072,9 +1060,7 @@ class TestNameCoveragePenalty:
         # One extra word = 30% penalty (multiplier = 0.7)
         assert penalty == 0.7
 
-    def test_calculate_name_coverage_penalty_multiple_extra_words(
-        self, exact_vs_extra_index
-    ):
+    def test_calculate_name_coverage_penalty_multiple_extra_words(self, exact_vs_extra_index):
         """Test penalty scales with number of extra words"""
         searcher = KeywordSearcher(exact_vs_extra_index)
 

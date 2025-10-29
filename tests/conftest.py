@@ -85,9 +85,7 @@ def setup_test_environment():
             "MyAppTest.UserTest": {
                 "file": "test/my_app/user_test.exs",
                 "line": 1,
-                "functions": [
-                    {"name": "test_create_user", "arity": 1, "line": 10, "type": "def"}
-                ],
+                "functions": [{"name": "test_create_user", "arity": 1, "line": 10, "type": "def"}],
                 "calls": [
                     {
                         "module": "User",

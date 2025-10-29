@@ -223,9 +223,7 @@ def test_format_markdown_empty_results(empty_results):
 def test_format_markdown_high_confidence_single(results_with_high_only):
     """Test markdown with high confidence - plural vs singular."""
     # Modify to have single function
-    results_with_high_only["candidates"]["high"] = [
-        results_with_high_only["candidates"]["high"][0]
-    ]
+    results_with_high_only["candidates"]["high"] = [results_with_high_only["candidates"]["high"][0]]
     results_with_high_only["summary"]["total_candidates"] = 1
 
     output = format_markdown(results_with_high_only)

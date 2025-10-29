@@ -411,9 +411,7 @@ class TestInteractiveSetup:
         for tier_index, expected_tier in test_cases:
             mock_menu_instance.show.side_effect = [0, tier_index]  # spaCy + tier
             method, tier = show_first_time_setup()
-            assert (
-                tier == expected_tier
-            ), f"Expected {expected_tier} for index {tier_index}"
+            assert tier == expected_tier, f"Expected {expected_tier} for index {tier_index}"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -715,9 +713,7 @@ class TestFallbackScenarios:
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     @patch("builtins.input")
-    def test_fallback_on_exception_during_tier_menu(
-        self, mock_input, mock_menu_class, mock_ascii
-    ):
+    def test_fallback_on_exception_during_tier_menu(self, mock_input, mock_menu_class, mock_ascii):
         """Test fallback when exception occurs during tier selection"""
         from cicada.interactive_setup import show_first_time_setup
 
@@ -739,9 +735,7 @@ class TestFallbackScenarios:
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     @patch("builtins.input")
-    def test_fallback_message_shown(
-        self, mock_input, mock_menu_class, mock_ascii, capsys
-    ):
+    def test_fallback_message_shown(self, mock_input, mock_menu_class, mock_ascii, capsys):
         """Test that fallback message is shown when terminal menu fails"""
         from cicada.interactive_setup import show_first_time_setup
 

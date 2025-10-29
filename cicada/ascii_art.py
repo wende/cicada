@@ -1,6 +1,6 @@
 """ASCII art and banner generation for Cicada CLI."""
 
-from cicada.colors import CYAN, YELLOW, BOLD, RESET
+from cicada.colors import CYAN, RESET, YELLOW
 
 
 def generate_gradient_ascii_art():

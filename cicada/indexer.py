@@ -10,20 +10,21 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from cicada.colors import DIM, GRAY, GREEN, RESET, YELLOW
 from cicada.parser import ElixirParser
 from cicada.utils import (
-    save_index,
     load_index,
     merge_indexes_incremental,
+    save_index,
     validate_index_structure,
 )
 from cicada.utils.hash_utils import (
+    compute_hashes_for_files,
+    detect_file_changes,
     load_file_hashes,
     save_file_hashes,
-    detect_file_changes,
-    compute_hashes_for_files,
 )
-from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, GREY, DIM, RESET
 
 
 class ElixirIndexer:
@@ -52,18 +53,14 @@ class ElixirIndexer:
 
     def _handle_interrupt(self, _signum, _frame):
         """Handle interrupt signals (Ctrl-C, SIGTERM) gracefully."""
-        print(
-            "\n\n⚠️  Interrupt received. Finishing current file and saving progress..."
-        )
+        print("\n\n⚠️  Interrupt received. Finishing current file and saving progress...")
         print("   Press Ctrl-C again to force quit (may lose progress)\n")
         self._interrupted = True
         # Restore default handler so second Ctrl-C will kill immediately
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
-    def _check_and_report_interruption(
-        self, files_processed: int, total_files: int
-    ) -> bool:
+    def _check_and_report_interruption(self, files_processed: int, total_files: int) -> bool:
         """
         Check if interrupted and report status.
 
@@ -75,9 +72,7 @@ class ElixirIndexer:
             True if interrupted, False otherwise
         """
         if self._interrupted:
-            print(
-                f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files"
-            )
+            print(f"\n⚠️  Interrupted after processing {files_processed}/{total_files} files")
             print("   Saving partial progress...")
             return True
         return False
@@ -122,9 +117,7 @@ class ElixirIndexer:
                 if keyword_method == "bert":
                     from cicada.keybert_extractor import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(
-                        verbose=True, model_tier=model_tier
-                    )
+                    keyword_extractor = KeyBERTExtractor(verbose=True, model_tier=model_tier)
                 else:
                     from cicada.keyword_extractor import KeywordExtractor
 
@@ -135,9 +128,7 @@ class ElixirIndexer:
                         "max": "large",
                     }
                     spacy_model = tier_to_spacy.get(model_tier, "medium")
-                    keyword_extractor = KeywordExtractor(
-                        verbose=True, model_size=spacy_model
-                    )
+                    keyword_extractor = KeywordExtractor(verbose=True, model_size=spacy_model)
             except ModuleNotFoundError as e:
                 print(f"Warning: Could not import keyword extractor module: {e}")
                 print("Please run: uv sync")
@@ -182,10 +173,8 @@ class ElixirIndexer:
                         module_keywords = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                module_keywords = (
-                                    keyword_extractor.extract_keywords_simple(
-                                        module_data["moduledoc"], top_n=10
-                                    )
+                                module_keywords = keyword_extractor.extract_keywords_simple(
+                                    module_data["moduledoc"], top_n=10
                                 )
                             except Exception as e:
                                 keyword_extraction_failures += 1
@@ -204,10 +193,8 @@ class ElixirIndexer:
                                         # Include function name in text for keyword extraction
                                         # This ensures the function name identifier gets 10x weight
                                         text_for_keywords = f"{func_name} {func['doc']}"
-                                        func_keywords = (
-                                            keyword_extractor.extract_keywords_simple(
-                                                text_for_keywords, top_n=10
-                                            )
+                                        func_keywords = keyword_extractor.extract_keywords_simple(
+                                            text_for_keywords, top_n=10
                                         )
                                         if func_keywords:
                                             func["keywords"] = func_keywords
@@ -249,9 +236,7 @@ class ElixirIndexer:
 
                 # Progress reporting
                 if files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
-                    print(
-                        f"  {DIM}Processed {files_processed}/{total_files} files...{RESET}"
-                    )
+                    print(f"  {DIM}Processed {files_processed}/{total_files} files...{RESET}")
 
                 # Check for interruption after each file
                 if self._check_and_report_interruption(files_processed, total_files):
@@ -320,9 +305,7 @@ class ElixirIndexer:
             print(
                 f"\n{YELLOW}⚠{RESET}  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
             )
-            print(
-                f"   {GRAY}Some documentation may not be indexed for keyword search.{RESET}"
-            )
+            print(f"   {GRAY}Some documentation may not be indexed for keyword search.{RESET}")
 
         try:
             rel_output_path = Path(output_path).relative_to(Path.cwd())
@@ -375,9 +358,7 @@ class ElixirIndexer:
         if existing_index:
             is_valid, error = validate_index_structure(existing_index)
             if not is_valid:
-                print(
-                    f"Warning: Existing index is corrupted ({error}). Performing full reindex..."
-                )
+                print(f"Warning: Existing index is corrupted ({error}). Performing full reindex...")
                 existing_index = None
 
         # If no existing data, do full index
@@ -417,7 +398,7 @@ class ElixirIndexer:
             print("No changes detected. Index is up to date.")
             return existing_index
 
-        print(f"Changes detected:")
+        print("Changes detected:")
         print(f"  New files: {len(new_files)}")
         print(f"  Modified files: {len(modified_files)}")
         print(f"  Deleted files: {len(deleted_files)}")
@@ -432,9 +413,7 @@ class ElixirIndexer:
                 if keyword_method == "bert":
                     from cicada.keybert_extractor import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(
-                        verbose=True, model_tier=model_tier
-                    )
+                    keyword_extractor = KeyBERTExtractor(verbose=True, model_tier=model_tier)
                 else:
                     from cicada.keyword_extractor import KeywordExtractor
 
@@ -445,9 +424,7 @@ class ElixirIndexer:
                         "max": "large",
                     }
                     spacy_model = tier_to_spacy.get(model_tier, "medium")
-                    keyword_extractor = KeywordExtractor(
-                        verbose=True, model_size=spacy_model
-                    )
+                    keyword_extractor = KeywordExtractor(verbose=True, model_size=spacy_model)
             except Exception as e:
                 print(f"Warning: Could not initialize keyword extractor: {e}")
                 print("Continuing without keyword extraction...")
@@ -477,12 +454,10 @@ class ElixirIndexer:
                         module_keywords = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                module_keywords = (
-                                    keyword_extractor.extract_keywords_simple(
-                                        module_data["moduledoc"], top_n=10
-                                    )
+                                module_keywords = keyword_extractor.extract_keywords_simple(
+                                    module_data["moduledoc"], top_n=10
                                 )
-                            except Exception as e:
+                            except Exception:
                                 keyword_extraction_failures += 1
 
                         # Extract keywords from function docs
@@ -492,14 +467,12 @@ class ElixirIndexer:
                                     try:
                                         func_name = func.get("name", "")
                                         text_for_keywords = f"{func_name} {func['doc']}"
-                                        func_keywords = (
-                                            keyword_extractor.extract_keywords_simple(
-                                                text_for_keywords, top_n=10
-                                            )
+                                        func_keywords = keyword_extractor.extract_keywords_simple(
+                                            text_for_keywords, top_n=10
                                         )
                                         if func_keywords:
                                             func["keywords"] = func_keywords
-                                    except Exception as e:
+                                    except Exception:
                                         keyword_extraction_failures += 1
 
                         # Store module info
@@ -530,17 +503,13 @@ class ElixirIndexer:
                 files_processed += 1
 
                 # Check for interruption after each file
-                if self._check_and_report_interruption(
-                    files_processed, len(files_to_process)
-                ):
+                if self._check_and_report_interruption(files_processed, len(files_to_process)):
                     break
 
             except Exception as e:
                 print(f"  Skipping {file_path}: {e}")
                 # Check for interruption even after error
-                if self._check_and_report_interruption(
-                    files_processed, len(files_to_process)
-                ):
+                if self._check_and_report_interruption(files_processed, len(files_to_process)):
                     break
                 continue
 
@@ -555,9 +524,7 @@ class ElixirIndexer:
 
         # Merge with existing index
         print("\nMerging with existing index...")
-        merged_index = merge_indexes_incremental(
-            existing_index, new_index, deleted_files
-        )
+        merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
 
         # Update hashes for all current files
         print("Updating file hashes...")
@@ -579,10 +546,8 @@ class ElixirIndexer:
         # Report completion status
         if self._interrupted:
             remaining = len(files_to_process) - files_processed
-            print(f"\n✓ Partial index saved!")
-            print(
-                f"  Processed: {files_processed}/{len(files_to_process)} changed file(s)"
-            )
+            print("\n✓ Partial index saved!")
+            print(f"  Processed: {files_processed}/{len(files_to_process)} changed file(s)")
             print(f"  Total modules: {merged_index['metadata']['total_modules']}")
             print(f"  Total functions: {merged_index['metadata']['total_functions']}")
             print(f"  Files deleted: {len(deleted_files)}")
@@ -590,7 +555,7 @@ class ElixirIndexer:
                 f"\n💡 Run the command again to continue indexing remaining {remaining} changed file(s)"
             )
         else:
-            print(f"\nIncremental indexing complete!")
+            print("\nIncremental indexing complete!")
             print(f"  Total modules: {merged_index['metadata']['total_modules']}")
             print(f"  Total functions: {merged_index['metadata']['total_functions']}")
             print(f"  Files processed: {files_processed}")

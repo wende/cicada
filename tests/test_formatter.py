@@ -252,9 +252,7 @@ def test_format_function_results_markdown_with_consolidated_call_sites():
         }
     ]
 
-    markdown = ModuleFormatter.format_function_results_markdown(
-        "target_function", results
-    )
+    markdown = ModuleFormatter.format_function_results_markdown("target_function", results)
 
     # Should have a single consolidated line for the caller
     assert (
@@ -304,9 +302,7 @@ def test_format_function_results_markdown_with_code_lines():
         }
     ]
 
-    markdown = ModuleFormatter.format_function_results_markdown(
-        "target_function", results
-    )
+    markdown = ModuleFormatter.format_function_results_markdown("target_function", results)
 
     # Should have consolidated header
     assert (
@@ -314,15 +310,9 @@ def test_format_function_results_markdown_with_code_lines():
     ), "Expected consolidated call sites header in markdown output"
 
     # Should have both code examples
-    assert (
-        ":10" in markdown and ":20" in markdown
-    ), "Expected both line numbers in output"
-    assert (
-        "TargetModule.target_function(data)" in markdown
-    ), "Expected first code example"
-    assert (
-        "TargetModule.target_function(other_data)" in markdown
-    ), "Expected second code example"
+    assert ":10" in markdown and ":20" in markdown, "Expected both line numbers in output"
+    assert "TargetModule.target_function(data)" in markdown, "Expected first code example"
+    assert "TargetModule.target_function(other_data)" in markdown, "Expected second code example"
 
 
 def test_format_function_results_markdown_with_additional_call_sites():
@@ -382,26 +372,18 @@ def test_format_function_results_markdown_with_additional_call_sites():
         }
     ]
 
-    markdown = ModuleFormatter.format_function_results_markdown(
-        "target_function", results
-    )
+    markdown = ModuleFormatter.format_function_results_markdown("target_function", results)
 
     # Should have Usage Examples section with the first 2
     assert "Usage Examples:" in markdown, "Expected Usage Examples section"
-    assert (
-        "TargetModule.target_function(data1)" in markdown
-    ), "Expected first code example"
-    assert (
-        "TargetModule.target_function(data2)" in markdown
-    ), "Expected second code example"
+    assert "TargetModule.target_function(data1)" in markdown, "Expected first code example"
+    assert "TargetModule.target_function(data2)" in markdown, "Expected second code example"
 
     # Should have Other Call Sites section with the remaining 3
     assert "Other Call Sites:" in markdown, "Expected Other Call Sites section"
     assert "MyApp.Caller3.execute/0" in markdown, "Expected Caller3 in other call sites"
     assert "MyApp.Caller4.run/1" in markdown, "Expected Caller4 in other call sites"
-    assert (
-        "MyApp.TestCaller.test_function/1" in markdown
-    ), "Expected TestCaller in other call sites"
+    assert "MyApp.TestCaller.test_function/1" in markdown, "Expected TestCaller in other call sites"
 
     # Verify that Caller1 and Caller2 are NOT in Other Call Sites
     # (they should only appear in Usage Examples)
@@ -441,9 +423,7 @@ def test_format_module_markdown_with_private_functions_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown(
-        "TestModule", data, private_functions="only"
-    )
+    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
 
     # Should show only private functions
     assert "private_func" in result
@@ -470,9 +450,7 @@ def test_format_module_markdown_with_private_functions_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown(
-        "TestModule", data, private_functions="include"
-    )
+    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="include")
 
     # Should show both public and private
     assert "private_func" in result
@@ -501,16 +479,12 @@ def test_format_module_markdown_no_private_when_only_requested():
     data = {
         "file": "lib/test.ex",
         "line": 1,
-        "functions": [
-            {"name": "public_func", "arity": 0, "type": "def", "line": 10, "args": []}
-        ],
+        "functions": [{"name": "public_func", "arity": 0, "type": "def", "line": 10, "args": []}],
         "public_functions": 1,
         "private_functions": 0,
     }
 
-    result = ModuleFormatter.format_module_markdown(
-        "TestModule", data, private_functions="only"
-    )
+    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
 
     assert "*No private functions found*" in result
 
@@ -535,9 +509,7 @@ def test_format_module_json_with_private_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json(
-        "TestModule", data, private_functions="only"
-    )
+    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="only")
     parsed = json.loads(result)
 
     # Should only have private function
@@ -565,9 +537,7 @@ def test_format_module_json_with_private_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json(
-        "TestModule", data, private_functions="include"
-    )
+    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="include")
     parsed = json.loads(result)
 
     # Should have both functions
@@ -787,11 +757,7 @@ def test_json_formatter_format_dict():
     # Should be formatted with 4 spaces and sorted
     assert "\n" in result
     parsed = json.loads(result)
-    assert (
-        list(parsed.keys()) == ["a", "m", "z"]
-        if formatter.sort_keys
-        else list(data.keys())
-    )
+    assert list(parsed.keys()) == ["a", "m", "z"] if formatter.sort_keys else list(data.keys())
 
 
 def test_json_formatter_format_file(tmp_path):

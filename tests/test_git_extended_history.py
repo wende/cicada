@@ -139,9 +139,7 @@ class TestFunctionEvolution:
         file_path = "cicada/git_helper.py"
         function_name = "get_pr_info"
 
-        evolution = git_helper.get_function_evolution(
-            file_path, function_name=function_name
-        )
+        evolution = git_helper.get_function_evolution(file_path, function_name=function_name)
 
         # May be None if no history found
         if evolution:

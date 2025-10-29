@@ -6,9 +6,10 @@ separating index construction logic from API and mapping concerns.
 """
 
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Any
 
-from cicada.utils import load_index as load_index_util, save_index as save_index_util
+from cicada.utils import load_index as load_index_util
+from cicada.utils import save_index as save_index_util
 
 
 class PRIndexBuilder:
@@ -31,8 +32,8 @@ class PRIndexBuilder:
         self.repo_name = repo_name
 
     def build_index(
-        self, prs: List[Dict[str, Any]], preserve_last_pr: Optional[int] = None
-    ) -> Dict[str, Any]:
+        self, prs: list[dict[str, Any]], preserve_last_pr: int | None = None
+    ) -> dict[str, Any]:
         """
         Build the index structure from PR data.
 
@@ -56,7 +57,7 @@ class PRIndexBuilder:
         total_comments = sum(len(pr.get("comments", [])) for pr in prs)
 
         # Build index structure
-        metadata: Dict[str, Any] = {
+        metadata: dict[str, Any] = {
             "repo_owner": self.repo_owner,
             "repo_name": self.repo_name,
             "last_indexed_at": datetime.now().isoformat(),
@@ -65,7 +66,7 @@ class PRIndexBuilder:
             "total_comments": total_comments,
             "total_files": len(file_to_prs),
         }
-        index: Dict[str, Any] = {
+        index: dict[str, Any] = {
             "metadata": metadata,
             "prs": {str(pr["number"]): pr for pr in prs},
             "commit_to_pr": commit_to_pr,
@@ -86,7 +87,7 @@ class PRIndexBuilder:
         )
         return index
 
-    def _build_commit_mapping(self, prs: List[Dict[str, Any]]) -> Dict[str, int]:
+    def _build_commit_mapping(self, prs: list[dict[str, Any]]) -> dict[str, int]:
         """
         Build commit SHA -> PR number mapping.
 
@@ -103,7 +104,7 @@ class PRIndexBuilder:
                 commit_to_pr[commit] = pr_number
         return commit_to_pr
 
-    def _build_file_mapping(self, prs: List[Dict[str, Any]]) -> Dict[str, List[int]]:
+    def _build_file_mapping(self, prs: list[dict[str, Any]]) -> dict[str, list[int]]:
         """
         Build file path -> PR numbers mapping.
 
@@ -128,8 +129,8 @@ class PRIndexBuilder:
         return file_to_prs
 
     def merge_indexes(
-        self, existing_index: Dict[str, Any], new_prs: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, existing_index: dict[str, Any], new_prs: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Merge new PRs into existing index.
 
@@ -155,29 +156,25 @@ class PRIndexBuilder:
         existing_index["file_to_prs"] = file_to_prs
 
         # Count total comments
-        total_comments = sum(
-            len(pr.get("comments", [])) for pr in existing_index["prs"].values()
-        )
+        total_comments = sum(len(pr.get("comments", [])) for pr in existing_index["prs"].values())
 
         # Update metadata
         existing_index["metadata"]["last_indexed_at"] = datetime.now().isoformat()
         existing_index["metadata"]["total_prs"] = len(existing_index["prs"])
-        existing_index["metadata"]["total_commits_mapped"] = len(
-            existing_index["commit_to_pr"]
-        )
+        existing_index["metadata"]["total_commits_mapped"] = len(existing_index["commit_to_pr"])
         existing_index["metadata"]["total_comments"] = total_comments
         existing_index["metadata"]["total_files"] = len(file_to_prs)
 
         # Update last_pr_number to the highest PR we have in the index
         if existing_index["prs"]:
-            all_pr_numbers = [int(num) for num in existing_index["prs"].keys()]
+            all_pr_numbers = [int(num) for num in existing_index["prs"]]
             existing_index["metadata"]["last_pr_number"] = max(all_pr_numbers)
 
         return existing_index
 
     def merge_partial_clean(
-        self, existing_index: Dict[str, Any], partial_index: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, existing_index: dict[str, Any], partial_index: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Merge a partial clean build with an existing index.
 
@@ -202,17 +199,13 @@ class PRIndexBuilder:
             merged["prs"][pr_num_str] = pr_data
 
         # Rebuild commit -> PR mapping from scratch
-        merged["commit_to_pr"] = self._build_commit_mapping(
-            list(merged["prs"].values())
-        )
+        merged["commit_to_pr"] = self._build_commit_mapping(list(merged["prs"].values()))
 
         # Rebuild file -> PRs mapping from scratch
         merged["file_to_prs"] = self._build_file_mapping(list(merged["prs"].values()))
 
         # Count total comments
-        total_comments = sum(
-            len(pr.get("comments", [])) for pr in merged["prs"].values()
-        )
+        total_comments = sum(len(pr.get("comments", [])) for pr in merged["prs"].values())
 
         # Update metadata (use partial_index's last_pr_number which was preserved)
         merged["metadata"]["last_indexed_at"] = datetime.now().isoformat()
@@ -220,17 +213,12 @@ class PRIndexBuilder:
         merged["metadata"]["total_commits_mapped"] = len(merged["commit_to_pr"])
         merged["metadata"]["total_comments"] = total_comments
         merged["metadata"]["total_files"] = len(merged["file_to_prs"])
-        merged["metadata"]["last_pr_number"] = partial_index["metadata"].get(
-            "last_pr_number", 0
-        )
+        merged["metadata"]["last_pr_number"] = partial_index["metadata"].get("last_pr_number", 0)
 
-        print(
-            f"Merged: {len(merged['prs'])} total PRs "
-            f"({len(partial_index['prs'])} new/updated)"
-        )
+        print(f"Merged: {len(merged['prs'])} total PRs ({len(partial_index['prs'])} new/updated)")
         return merged
 
-    def load_existing_index(self, index_path: str) -> Optional[Dict[str, Any]]:
+    def load_existing_index(self, index_path: str) -> dict[str, Any] | None:
         """
         Load existing index file if it exists.
 
@@ -242,7 +230,7 @@ class PRIndexBuilder:
         """
         return load_index_util(index_path, verbose=True, raise_on_error=False)
 
-    def save_index(self, index: Dict[str, Any], output_path: str) -> None:
+    def save_index(self, index: dict[str, Any], output_path: str) -> None:
         """
         Save index to file.
 

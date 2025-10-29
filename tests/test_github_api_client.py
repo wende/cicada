@@ -29,9 +29,7 @@ class TestGitHubAPIClientInit:
 
     def test_init_with_valid_parameters(self, tmp_path):
         """Test initialization with valid parameters."""
-        client = GitHubAPIClient(
-            repo_path=tmp_path, repo_owner="testowner", repo_name="testrepo"
-        )
+        client = GitHubAPIClient(repo_path=tmp_path, repo_owner="testowner", repo_name="testrepo")
 
         assert client.repo_path == tmp_path
         assert client.repo_owner == "testowner"
@@ -117,9 +115,7 @@ class TestGetRepoInfo:
 
         assert owner == "testowner"
         assert repo_name == "testrepo"
-        assert mock_runner.verify_called_with(
-            "gh repo view --json nameWithOwner -q .nameWithOwner"
-        )
+        assert mock_runner.verify_called_with("gh repo view --json nameWithOwner -q .nameWithOwner")
 
     def test_get_repo_info_invalid_format(self, tmp_path):
         """Test repo info with invalid format."""
@@ -175,9 +171,7 @@ class TestFetchPRList:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh pr list --state all --json number --limit 10000",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_pr_list_response(count=3)
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_pr_list_response(count=3)),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -186,9 +180,7 @@ class TestFetchPRList:
         prs = client.fetch_pr_list()
 
         assert prs == [1, 2, 3]
-        assert mock_runner.verify_called_with(
-            "gh pr list --state all --json number --limit 10000"
-        )
+        assert mock_runner.verify_called_with("gh pr list --state all --json number --limit 10000")
 
     def test_fetch_pr_list_success_merged_state(self, tmp_path):
         """Test PR list fetching with merged state filter."""
@@ -215,9 +207,7 @@ class TestFetchPRList:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh pr list --state all --json number --limit 5",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_pr_list_response(count=5)
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_pr_list_response(count=5)),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -226,9 +216,7 @@ class TestFetchPRList:
         prs = client.fetch_pr_list(limit=5)
 
         assert prs == [1, 2, 3, 4, 5]
-        assert mock_runner.verify_called_with(
-            "gh pr list --state all --json number --limit 5"
-        )
+        assert mock_runner.verify_called_with("gh pr list --state all --json number --limit 5")
 
     def test_fetch_pr_list_empty_response(self, tmp_path):
         """Test PR list fetching with empty response."""
@@ -250,9 +238,7 @@ class TestFetchPRList:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh pr list --state all --json number --limit 10000",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_malformed_json_response()
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_malformed_json_response()),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -266,9 +252,7 @@ class TestFetchPRList:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh pr list --state all --json number --limit 10000",
-            response=MockCompletedProcess(
-                returncode=1, stderr="API rate limit exceeded"
-            ),
+            response=MockCompletedProcess(returncode=1, stderr="API rate limit exceeded"),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -320,9 +304,7 @@ class TestFetchPRsBatchGraphQL:
         ]
         mock_runner.add_gh_response(
             command="gh api graphql -f",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_graphql_response(prs_data)
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_graphql_response(prs_data)),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -340,9 +322,7 @@ class TestFetchPRsBatchGraphQL:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh api graphql -f",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_pr_with_complex_comments()
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_pr_with_complex_comments()),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -359,9 +339,7 @@ class TestFetchPRsBatchGraphQL:
         pr_data = create_single_pr_data(file_count=5)
         mock_runner.add_gh_response(
             command="gh api graphql -f",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_graphql_response([pr_data])
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_graphql_response([pr_data])),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -393,9 +371,7 @@ class TestFetchPRsBatchGraphQL:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh api graphql -f",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_malformed_json_response()
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_malformed_json_response()),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -409,9 +385,7 @@ class TestFetchPRsBatchGraphQL:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command="gh api graphql -f",
-            response=MockCompletedProcess(
-                returncode=0, stdout=create_pr_with_no_metadata()
-            ),
+            response=MockCompletedProcess(returncode=0, stdout=create_pr_with_no_metadata()),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -862,9 +836,7 @@ class TestFetchPRCommitsRest:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command=["pr", "view", "1", "--json", "commits", "-q", ".commits[].oid"],
-            response=MockCompletedProcess(
-                returncode=0, stdout="abc123\ndef456\nghi789"
-            ),
+            response=MockCompletedProcess(returncode=0, stdout="abc123\ndef456\nghi789"),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -913,9 +885,7 @@ class TestFetchPRFilesRest:
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
             command=["pr", "view", "1", "--json", "files", "-q", ".files[].path"],
-            response=MockCompletedProcess(
-                returncode=0, stdout="file1.py\nfile2.py\nfile3.py"
-            ),
+            response=MockCompletedProcess(returncode=0, stdout="file1.py\nfile2.py\nfile3.py"),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")

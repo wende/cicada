@@ -391,9 +391,7 @@ class TestMergePartialClean:
         """Test that partial merge counts comments correctly"""
         builder = PRIndexBuilder("owner", "repo")
         existing_index = {
-            "prs": {
-                "100": {"number": 100, "commits": [], "comments": [{"body": "c1"}]}
-            },
+            "prs": {"100": {"number": 100, "commits": [], "comments": [{"body": "c1"}]}},
             "commit_to_pr": {},
             "file_to_prs": {},
             "metadata": {},

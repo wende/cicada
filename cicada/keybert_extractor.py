@@ -3,9 +3,9 @@ Keyword Extraction using KeyBERT
 Semantic keyword extraction using transformer-based embeddings
 """
 
-import sys
 import re
-from typing import List, Tuple, Dict, Any
+import sys
+from typing import Any
 
 from cicada.utils import split_camel_snake_case
 
@@ -23,12 +23,8 @@ class KeyBERTExtractor:
     # Weighting strategy constants for keyword extraction
     # These control how different types of keywords are prioritized
     KEYBERT_CANDIDATE_MULTIPLIER = 3  # Extract 3x keywords for weighted reranking
-    CODE_IDENTIFIER_BOOST = (
-        10  # 10x weight for exact code identifiers (e.g., function names)
-    )
-    CODE_SPLIT_WORD_BOOST = (
-        3  # 3x weight for identifier components (e.g., "user" from "getUserId")
-    )
+    CODE_IDENTIFIER_BOOST = 10  # 10x weight for exact code identifiers (e.g., function names)
+    CODE_SPLIT_WORD_BOOST = 3  # 3x weight for identifier components (e.g., "user" from "getUserId")
     BASE_SCORE_IDENTIFIER = 0.5  # Base score for identifiers not found by BERT
     BASE_SCORE_SPLIT_WORD = 0.3  # Base score for split words not found by BERT
 
@@ -99,7 +95,7 @@ class KeyBERTExtractor:
                 f"Ensure the model is downloaded and available. Error: {e}"
             ) from e
 
-    def extract_code_identifiers(self, text: str) -> Tuple[List[str], List[str]]:
+    def extract_code_identifiers(self, text: str) -> tuple[list[str], list[str]]:
         """
         Extract code-specific identifiers and their split words.
 
@@ -129,15 +125,13 @@ class KeyBERTExtractor:
             split_text = split_camel_snake_case(identifier)
             # Extract individual words (lowercase, length > 1)
             words = [
-                word.lower()
-                for word in split_text.split()
-                if len(word) > 1 and word.isalpha()
+                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
             ]
             split_words.extend(words)
 
         return identifiers, list(set(split_words))
 
-    def extract_keywords_simple(self, text: str, top_n: int = 10) -> List[str]:
+    def extract_keywords_simple(self, text: str, top_n: int = 10) -> list[str]:
         """
         Extract keywords and return a simple list of keyword strings.
 
@@ -160,7 +154,7 @@ class KeyBERTExtractor:
                 print(f"Warning: Keyword extraction failed: {e}", file=sys.stderr)
             return []
 
-    def extract_keywords(self, text: str, top_n: int = 15) -> Dict[str, Any]:
+    def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
         """
         Extract keywords using KeyBERT semantic analysis with code identifier emphasis.
 
@@ -220,7 +214,7 @@ class KeyBERTExtractor:
         # Extract more than needed to have candidates for weighting
         try:
             # KeyBERT return type can vary, use type ignore for external library
-            keybert_keywords: List[Tuple[str, float]] = self.kw_model.extract_keywords(  # type: ignore[assignment]
+            keybert_keywords: list[tuple[str, float]] = self.kw_model.extract_keywords(  # type: ignore[assignment]
                 text,
                 top_n=top_n * self.KEYBERT_CANDIDATE_MULTIPLIER,
                 keyphrase_ngram_range=(1, 1),  # Single words only
@@ -231,7 +225,7 @@ class KeyBERTExtractor:
             keybert_keywords = []
 
         # 3. Build weighted keyword scores
-        keyword_scores: Dict[str, float] = {}
+        keyword_scores: dict[str, float] = {}
 
         # Add KeyBERT keywords with their semantic similarity scores
         for keyword, score in keybert_keywords:
@@ -246,9 +240,7 @@ class KeyBERTExtractor:
                 keyword_scores[identifier] *= self.CODE_IDENTIFIER_BOOST
             else:
                 # Add with high base score if not found by KeyBERT
-                keyword_scores[identifier] = (
-                    self.BASE_SCORE_IDENTIFIER * self.CODE_IDENTIFIER_BOOST
-                )
+                keyword_scores[identifier] = self.BASE_SCORE_IDENTIFIER * self.CODE_IDENTIFIER_BOOST
 
         # 5. Apply split word boosting (lower than full identifiers)
         # Split words are components of identifiers, somewhat important but less than full names
@@ -257,21 +249,17 @@ class KeyBERTExtractor:
             if word in keyword_scores:
                 keyword_scores[word] *= self.CODE_SPLIT_WORD_BOOST
             else:
-                keyword_scores[word] = (
-                    self.BASE_SCORE_SPLIT_WORD * self.CODE_SPLIT_WORD_BOOST
-                )
+                keyword_scores[word] = self.BASE_SCORE_SPLIT_WORD * self.CODE_SPLIT_WORD_BOOST
 
         # 5. Sort by weighted score and take top_n
-        top_keywords = sorted(keyword_scores.items(), key=lambda x: x[1], reverse=True)[
-            :top_n
-        ]
+        top_keywords = sorted(keyword_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
         # 6. No noun_chunks since we're using single words only
         noun_chunks = []
 
         # 7. Calculate basic statistics
         words = text.split()
-        unique_words = set(w.lower() for w in words if w.isalpha())
+        unique_words = {w.lower() for w in words if w.isalpha()}
         sentences = text.count(".") + text.count("!") + text.count("?")
 
         stats = {

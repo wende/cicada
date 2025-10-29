@@ -25,9 +25,7 @@ class TestFindPRForLine:
             json.dump(index, f)
 
         pr_index = {
-            "prs": {
-                "123": {"number": 123, "title": "Add feature", "author": "developer"}
-            },
+            "prs": {"123": {"number": 123, "title": "Add feature", "author": "developer"}},
             "commit_to_pr": {"abc123": 123},
         }
         pr_index_path = tmp_path / ".cicada" / "pr_index.json"
@@ -80,9 +78,7 @@ class TestFindPRForLine:
             mock_finder.format_result.return_value = "PR #123: Test PR"
             mock_finder_class.return_value = mock_finder
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
             assert "PR #123" in result[0].text
@@ -227,9 +223,7 @@ class TestGetFilePRHistory:
     @pytest.mark.asyncio
     async def test_file_not_found(self, test_server_with_pr_data):
         """Should return message when file has no PRs"""
-        result = await test_server_with_pr_data._get_file_pr_history(
-            "lib/nonexistent.ex"
-        )
+        result = await test_server_with_pr_data._get_file_pr_history("lib/nonexistent.ex")
 
         assert len(result) == 1
         assert "No pull requests found" in result[0].text
@@ -293,9 +287,7 @@ class TestExtractCompleteCall:
             (["first()\n", "second()\n", "last()\n"], 3, ["last()"]),
         ],
     )
-    def test_extracts_code_with_context(
-        self, lines, line_num, should_contain, test_server
-    ):
+    def test_extracts_code_with_context(self, lines, line_num, should_contain, test_server):
         """Should extract code with appropriate context"""
         result = test_server._extract_complete_call(lines, line_num)
 
@@ -469,15 +461,10 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
-            assert (
-                "incomplete" in result[0].text.lower()
-                or "update" in result[0].text.lower()
-            )
+            assert "incomplete" in result[0].text.lower() or "update" in result[0].text.lower()
 
     @pytest.mark.asyncio
     async def test_no_pr_in_both(self, test_server_with_pr_index):
@@ -498,9 +485,7 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
             assert "Commit abc123" in result[0].text

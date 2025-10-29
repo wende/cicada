@@ -11,7 +11,7 @@ except ImportError:
     has_terminal_menu = False
 
 from cicada.ascii_art import generate_gradient_ascii_art
-from cicada.colors import SELECTED, PRIMARY, GREY, RESET, BOLD, GREEN
+from cicada.colors import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED
 
 
 def _text_based_setup() -> tuple[str, str]:
@@ -45,7 +45,7 @@ def _text_based_setup() -> tuple[str, str]:
             print("Invalid choice. Please enter 1 or 2.")
         except (KeyboardInterrupt, EOFError):
             print()
-            print(f"Setup cancelled. Exiting...")
+            print("Setup cancelled. Exiting...")
             sys.exit(1)
 
     print()
@@ -139,9 +139,9 @@ def show_first_time_setup() -> tuple[str, str]:
         method_index = method_menu.show()
     except (KeyboardInterrupt, EOFError):
         print()
-        print(f"Setup cancelled. Exiting...")
+        print("Setup cancelled. Exiting...")
         sys.exit(1)
-    except Exception as e:
+    except Exception:
         # Terminal doesn't support the menu - fall back to text-based
         print(
             f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
@@ -151,7 +151,7 @@ def show_first_time_setup() -> tuple[str, str]:
 
     if method_index is None:
         print()
-        print(f"Setup cancelled. Exiting...")
+        print("Setup cancelled. Exiting...")
         sys.exit(1)
 
     method = "spacy" if method_index == 0 else "bert"
@@ -174,12 +174,8 @@ def show_first_time_setup() -> tuple[str, str]:
         print(
             f"{PRIMARY}   KeyBERT uses AI embeddings to find semantically similar keywords{RESET}"
         )
-        print(
-            f'{PRIMARY}   Example: "We use Kubernetes for container orchestration"{RESET}'
-        )
-        print(
-            f'{PRIMARY}   Output: "Kubernetes", "deployment", "microservices", "DevOps"{RESET}'
-        )
+        print(f'{PRIMARY}   Example: "We use Kubernetes for container orchestration"{RESET}')
+        print(f'{PRIMARY}   Output: "Kubernetes", "deployment", "microservices", "DevOps"{RESET}')
         print()
         tier_items = [
             "Fast (80MB, ~1s) - Recommended for bigger projects",
@@ -205,7 +201,7 @@ def show_first_time_setup() -> tuple[str, str]:
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
         sys.exit(1)
-    except Exception as e:
+    except Exception:
         # Terminal doesn't support the menu - fall back to text-based
         print(
             f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",

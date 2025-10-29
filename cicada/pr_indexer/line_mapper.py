@@ -7,7 +7,7 @@ allowing comments to track code changes over time.
 
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 from cicada.utils import SubprocessRunner
 
@@ -31,7 +31,7 @@ class LineMapper:
         self.repo_path = repo_path
         self.runner = SubprocessRunner(cwd=repo_path)
 
-    def map_all_comment_lines(self, prs: List[Dict[str, Any]]) -> None:
+    def map_all_comment_lines(self, prs: list[dict[str, Any]]) -> None:
         """
         Map all comment lines in PRs to current line numbers.
 
@@ -83,7 +83,7 @@ class LineMapper:
 
     def map_line_to_current(
         self, file_path: str, original_line: int, commit_sha: str
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Map a line number from a PR commit to the current HEAD.
 
@@ -127,9 +127,7 @@ class LineMapper:
 
             # Search for the same content in current file
             # Look for exact match near the original line number
-            current_line = self._find_matching_line(
-                current_lines, original_content, original_line
-            )
+            current_line = self._find_matching_line(current_lines, original_content, original_line)
 
             return current_line
 
@@ -152,7 +150,7 @@ class LineMapper:
         except subprocess.CalledProcessError:
             return False
 
-    def _get_file_lines(self, ref: str, file_path: str) -> Optional[List[str]]:
+    def _get_file_lines(self, ref: str, file_path: str) -> list[str] | None:
         """
         Get file lines at a specific git ref.
 
@@ -164,9 +162,7 @@ class LineMapper:
             List of file lines, or None if file doesn't exist at that ref
         """
         try:
-            result = self.runner.run_git_command(
-                ["show", f"{ref}:{file_path}"], check=False
-            )
+            result = self.runner.run_git_command(["show", f"{ref}:{file_path}"], check=False)
 
             if result.returncode != 0:
                 return None
@@ -178,11 +174,11 @@ class LineMapper:
 
     def _find_matching_line(
         self,
-        current_lines: List[str],
+        current_lines: list[str],
         original_content: str,
         original_line: int,
         search_range: int = 20,
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Find a matching line in the current file.
 

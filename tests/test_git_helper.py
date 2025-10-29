@@ -121,9 +121,7 @@ def test_get_function_history():
     # Check that commits have relevance field
     if commits:
         for commit in commits:
-            assert (
-                "relevance" in commit
-            ), "Function history commits should have 'relevance' field"
+            assert "relevance" in commit, "Function history commits should have 'relevance' field"
             assert commit["relevance"] in [
                 "mentioned",
                 "file_change",

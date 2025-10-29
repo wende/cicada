@@ -56,9 +56,7 @@ class MockSubprocessRunner:
         self.generic_responses: dict[str, MockCompletedProcess] = {}
         self.call_history: list[dict[str, Any]] = []
 
-    def add_git_response(
-        self, command: str | list[str], response: MockCompletedProcess
-    ) -> None:
+    def add_git_response(self, command: str | list[str], response: MockCompletedProcess) -> None:
         """
         Add a git command response.
 
@@ -69,9 +67,7 @@ class MockSubprocessRunner:
         key = self._normalize_command(command)
         self.git_responses[key] = response
 
-    def add_gh_response(
-        self, command: str | list[str], response: MockCompletedProcess
-    ) -> None:
+    def add_gh_response(self, command: str | list[str], response: MockCompletedProcess) -> None:
         """
         Add a GitHub CLI command response.
 
@@ -150,9 +146,7 @@ class MockSubprocessRunner:
 
         if response is None:
             # Default response for unmatched commands
-            response = MockCompletedProcess(
-                returncode=0, stdout="", stderr="", args=cmd
-            )
+            response = MockCompletedProcess(returncode=0, stdout="", stderr="", args=cmd)
 
         # Raise exception if check=True and command failed
         if check and response.returncode != 0:
@@ -255,9 +249,7 @@ class MockSubprocessRunner:
         # This handles cases where the pattern is a subset of the full command
         return pattern in cmd
 
-    def verify_called_with(
-        self, expected_cmd: str | list[str], call_index: int = -1
-    ) -> bool:
+    def verify_called_with(self, expected_cmd: str | list[str], call_index: int = -1) -> bool:
         """
         Verify that a command was called with expected arguments.
 
@@ -305,9 +297,7 @@ class MockSubprocessRunner:
         return [
             call
             for call in self.call_history
-            if self._command_matches(
-                self._normalize_command(call["cmd"]), command_pattern
-            )
+            if self._command_matches(self._normalize_command(call["cmd"]), command_pattern)
         ]
 
     def reset(self) -> None:

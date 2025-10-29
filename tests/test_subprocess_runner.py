@@ -126,9 +126,7 @@ class TestSubprocessRunner:
             ("run_gh_command", "pr list", "gh pr list"),
         ],
     )
-    def test_command_prefixes(
-        self, method, command_input, expected_prefix, monkeypatch
-    ):
+    def test_command_prefixes(self, method, command_input, expected_prefix, monkeypatch):
         """Should prepend correct command prefix (git/gh)"""
         calls = []
 

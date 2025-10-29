@@ -6,11 +6,10 @@ functions used throughout the codebase.
 """
 
 from pathlib import Path
-from typing import Optional, Union
 
 
 def normalize_file_path(
-    file_path: Union[str, Path],
+    file_path: str | Path,
     strip_leading_dot: bool = True,
     strip_trailing_whitespace: bool = True,
 ) -> str:
@@ -43,8 +42,8 @@ def normalize_file_path(
 
 
 def resolve_to_repo_root(
-    file_path: Union[str, Path],
-    repo_root: Union[str, Path],
+    file_path: str | Path,
+    repo_root: str | Path,
 ) -> Path:
     """
     Resolve a file path relative to repository root.
@@ -77,12 +76,12 @@ def resolve_to_repo_root(
     try:
         return file_path_obj.relative_to(repo_root_obj)
     except ValueError:
-        raise ValueError(f"File path {file_path} is not within repository {repo_root}")
+        raise ValueError(f"File path {file_path} is not within repository {repo_root}") from None
 
 
 def match_file_path(
-    candidate: Union[str, Path],
-    target: Union[str, Path],
+    candidate: str | Path,
+    target: str | Path,
     normalize: bool = True,
 ) -> bool:
     """
@@ -122,13 +121,10 @@ def match_file_path(
         return True
 
     # Target ends with candidate (partial path provided)
-    if target_str.endswith(candidate_str):
-        return True
-
-    return False
+    return bool(target_str.endswith(candidate_str))
 
 
-def find_repo_root(start_path: Optional[Union[str, Path]] = None) -> Optional[Path]:
+def find_repo_root(start_path: str | Path | None = None) -> Path | None:
     """
     Find the git repository root starting from a given path.
 
@@ -142,10 +138,7 @@ def find_repo_root(start_path: Optional[Union[str, Path]] = None) -> Optional[Pa
         find_repo_root('/repo/lib/user') -> Path('/repo')
         find_repo_root('/not/a/repo') -> None
     """
-    if start_path is None:
-        current = Path.cwd()
-    else:
-        current = Path(start_path).resolve()
+    current = Path.cwd() if start_path is None else Path(start_path).resolve()
 
     # Walk up the directory tree looking for .git
     for parent in [current] + list(current.parents):
@@ -156,8 +149,8 @@ def find_repo_root(start_path: Optional[Union[str, Path]] = None) -> Optional[Pa
 
 
 def ensure_relative_to_repo(
-    file_path: Union[str, Path],
-    repo_root: Union[str, Path],
+    file_path: str | Path,
+    repo_root: str | Path,
 ) -> str:
     """
     Ensure a file path is relative to the repository root.
@@ -181,7 +174,7 @@ def ensure_relative_to_repo(
     return normalize_file_path(resolved)
 
 
-def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
+def ensure_gitignore_has_cicada(repo_root: str | Path) -> bool:
     """
     Ensure .gitignore contains .cicada/ directory entry.
 
@@ -207,7 +200,7 @@ def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
 
     try:
         # Read existing .gitignore
-        with open(gitignore_path, "r") as f:
+        with open(gitignore_path) as f:
             content = f.read()
 
         # Check if .cicada/ is already present in actual gitignore patterns
@@ -215,15 +208,17 @@ def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
         for line in content.splitlines():
             # Strip whitespace and skip empty lines and comments
             stripped = line.strip()
-            if stripped and not stripped.startswith("#"):
-                # Check if this line contains .cicada as a gitignore pattern
-                # Valid patterns: .cicada, .cicada/, /.cicada, /.cicada/, **/.cicada/, etc.
-                if (
+            # Check if this line contains .cicada as a gitignore pattern
+            # Valid patterns: .cicada, .cicada/, /.cicada, /.cicada/, **/.cicada/, etc.
+            if (
+                stripped
+                and not stripped.startswith("#")
+                and (
                     stripped in (".cicada", ".cicada/")
-                    or stripped.endswith("/.cicada")
-                    or stripped.endswith("/.cicada/")
-                ):
-                    return False
+                    or stripped.endswith(("/.cicada", "/.cicada/"))
+                )
+            ):
+                return False
 
         # Add .cicada/ to .gitignore
         with open(gitignore_path, "a") as f:
@@ -235,6 +230,6 @@ def ensure_gitignore_has_cicada(repo_root: Union[str, Path]) -> bool:
 
         return True
 
-    except (IOError, OSError):
+    except OSError:
         # Fail silently if we can't read/write the file
         return False

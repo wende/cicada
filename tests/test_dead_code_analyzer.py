@@ -291,9 +291,7 @@ def test_low_confidence_with_value_mentions(sample_index):
     assert ("MyApp.DynamicModule", "dynamic_func") in candidate_functions
 
     # Check that it includes mentioned_in info
-    dynamic_candidate = next(
-        c for c in low_candidates if c["function"] == "dynamic_func"
-    )
+    dynamic_candidate = next(c for c in low_candidates if c["function"] == "dynamic_func")
     assert "mentioned_in" in dynamic_candidate
     assert len(dynamic_candidate["mentioned_in"]) > 0
 

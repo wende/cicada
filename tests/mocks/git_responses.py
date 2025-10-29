@@ -69,9 +69,7 @@ def create_git_ls_files_response(file_paths: List[str], exists: bool = True) -> 
     return ""
 
 
-def create_git_log_response(
-    commits: List[Dict[str, str]], format_string: str = "%H %s"
-) -> str:
+def create_git_log_response(commits: List[Dict[str, str]], format_string: str = "%H %s") -> str:
     """
     Create mock git log output.
 

@@ -3,14 +3,15 @@ Keyword Extraction using spaCy
 Advanced NLP-based keyword extraction for programming documentation
 """
 
-import spacy
-from collections import Counter
 import re
-import sys
 import subprocess
+import sys
+from collections import Counter
 
-from cicada.utils import split_camel_snake_case
+import spacy
+
 from cicada.colors import DIM, RESET
+from cicada.utils import split_camel_snake_case
 
 
 class KeywordExtractor:
@@ -58,7 +59,7 @@ class KeywordExtractor:
                 raise RuntimeError(
                     f"Failed to download spaCy model '{self.model_name}'. "
                     f"Please install it manually with: python -m spacy download {self.model_name}"
-                )
+                ) from None
 
             # Try loading again after download
             try:
@@ -169,9 +170,7 @@ class KeywordExtractor:
             split_text = split_camel_snake_case(identifier)
             # Extract individual words (lowercase, length > 1)
             words = [
-                word.lower()
-                for word in split_text.split()
-                if len(word) > 1 and word.isalpha()
+                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
             ]
             split_words.extend(words)
 
@@ -260,9 +259,7 @@ class KeywordExtractor:
 
         # 3. Extract adjectives (descriptors)
         adjectives = [
-            token.lemma_.lower()
-            for token in doc
-            if token.pos_ == "ADJ" and not token.is_stop
+            token.lemma_.lower() for token in doc if token.pos_ == "ADJ" and not token.is_stop
         ]
 
         # 4. Extract proper nouns (named entities, technologies)
@@ -270,9 +267,7 @@ class KeywordExtractor:
 
         # 5. Extract noun chunks (multi-word concepts)
         noun_chunks = [
-            chunk.text.lower()
-            for chunk in doc.noun_chunks
-            if len(chunk.text.split()) > 1
+            chunk.text.lower() for chunk in doc.noun_chunks if len(chunk.text.split()) > 1
         ]
 
         # 6. Extract named entities
@@ -286,26 +281,20 @@ class KeywordExtractor:
         # Give code split words 3x weight for fuzzy matching
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
         all_keywords = (
-            nouns
-            + verbs
-            + proper_nouns
-            + (code_identifiers_lower * 10)
-            + (code_split_words * 3)
+            nouns + verbs + proper_nouns + (code_identifiers_lower * 10) + (code_split_words * 3)
         )
         keyword_freq = Counter(all_keywords)
         top_keywords = keyword_freq.most_common(top_n)
 
         # 9. Calculate TF scores (simple version)
-        total_words = len(
-            [token for token in doc if not token.is_stop and not token.is_punct]
-        )
+        total_words = len([token for token in doc if not token.is_stop and not token.is_punct])
         tf_scores = {word: (freq / total_words) for word, freq in keyword_freq.items()}
 
         # Statistics
         stats = {
             "total_tokens": len(doc),
             "total_words": total_words,
-            "unique_words": len(set([t.text.lower() for t in doc if not t.is_punct])),
+            "unique_words": len({t.text.lower() for t in doc if not t.is_punct}),
             "sentences": len(list(doc.sents)),
         }
 
@@ -319,8 +308,6 @@ class KeywordExtractor:
             "entities": entities,
             "code_identifiers": code_identifiers,
             "code_split_words": code_split_words,
-            "tf_scores": dict(
-                sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]
-            ),
+            "tf_scores": dict(sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]),
             "stats": stats,
         }

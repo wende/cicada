@@ -8,11 +8,11 @@ offering comprehensive commit history for files and functions.
 Author: Cursor(Auto)
 """
 
-import git
 import subprocess
 from datetime import datetime
-from typing import List, Dict, Optional
 from pathlib import Path
+
+import git
 
 
 class GitHelper:
@@ -31,7 +31,7 @@ class GitHelper:
         self.repo = git.Repo(repo_path)
         self.repo_path = Path(repo_path)
 
-    def get_file_history(self, file_path: str, max_commits: int = 10) -> List[Dict]:
+    def get_file_history(self, file_path: str, max_commits: int = 10) -> list[dict]:
         """
         Get commit history for a specific file
 
@@ -53,9 +53,7 @@ class GitHelper:
 
         try:
             # Get commits that touched this file
-            for commit in self.repo.iter_commits(
-                paths=file_path, max_count=max_commits
-            ):
+            for commit in self.repo.iter_commits(paths=file_path, max_count=max_commits):
                 commits.append(
                     {
                         "sha": commit.hexsha[:8],  # Short SHA
@@ -78,7 +76,7 @@ class GitHelper:
         function_name: str,
         _line_number: int,
         max_commits: int = 5,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Get commit history for a specific function using heuristics.
 
@@ -123,11 +121,11 @@ class GitHelper:
     def get_function_history_precise(
         self,
         file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
-        function_name: Optional[str] = None,
+        start_line: int | None = None,
+        end_line: int | None = None,
+        function_name: str | None = None,
         max_commits: int = 5,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Get precise commit history for a function using git log -L.
 
@@ -158,14 +156,13 @@ class GitHelper:
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
         """
         commits = []
-        import subprocess
 
         # Determine tracking mode
         use_function_tracking = function_name is not None
         use_line_tracking = start_line is not None and end_line is not None
 
         if not use_function_tracking and not use_line_tracking:
-            print(f"Error: Must provide either function_name or (start_line, end_line)")
+            print("Error: Must provide either function_name or (start_line, end_line)")
             return []
 
         try:
@@ -239,10 +236,10 @@ class GitHelper:
     def get_function_evolution(
         self,
         file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
-        function_name: Optional[str] = None,
-    ) -> Optional[Dict]:
+        start_line: int | None = None,
+        end_line: int | None = None,
+        function_name: str | None = None,
+    ) -> dict | None:
         """
         Get evolution metadata for a function (creation, last modification, change count).
 
@@ -297,9 +294,7 @@ class GitHelper:
                     if days_between > 0:
                         months = days_between / 30.0
                         modification_frequency = (
-                            total_modifications / months
-                            if months > 0
-                            else total_modifications
+                            total_modifications / months if months > 0 else total_modifications
                         )
                 except Exception:
                     # If date parsing fails, skip frequency calculation
@@ -330,9 +325,7 @@ class GitHelper:
             print(f"Error getting function evolution for {file_path}: {e}")
             return None
 
-    def get_function_history(
-        self, file_path: str, start_line: int, end_line: int
-    ) -> List[Dict]:
+    def get_function_history(self, file_path: str, start_line: int, end_line: int) -> list[dict]:
         """
         Get line-by-line authorship for a function using git blame.
 
@@ -357,7 +350,6 @@ class GitHelper:
             - lines: List of {number, content} for each line
         """
         blame_groups = []
-        import subprocess
 
         try:
             # Use git blame with line range
@@ -401,10 +393,8 @@ class GitHelper:
                 elif line.startswith("author-time "):
                     try:
                         timestamp = int(line[12:])
-                        current_commit["date"] = datetime.fromtimestamp(
-                            timestamp
-                        ).isoformat()
-                    except:
+                        current_commit["date"] = datetime.fromtimestamp(timestamp).isoformat()
+                    except (ValueError, OSError):
                         current_commit["date"] = line[12:]
                 # Actual code line (starts with tab)
                 elif line.startswith("\t"):
@@ -469,9 +459,7 @@ class GitHelper:
 
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr if e.stderr else str(e)
-            print(
-                f"Warning: git blame failed for {file_path}:{start_line}-{end_line}: {error_msg}"
-            )
+            print(f"Warning: git blame failed for {file_path}:{start_line}-{end_line}: {error_msg}")
             return []
         except Exception as e:
             print(f"Error getting blame for {file_path}: {e}")
@@ -479,7 +467,7 @@ class GitHelper:
 
         return blame_groups
 
-    def get_recent_commits(self, max_count: int = 20) -> List[Dict]:
+    def get_recent_commits(self, max_count: int = 20) -> list[dict]:
         """
         Get recent commits in the repository
 
@@ -512,7 +500,7 @@ class GitHelper:
 
         return commits
 
-    def get_commit_details(self, commit_sha: str) -> Optional[Dict]:
+    def get_commit_details(self, commit_sha: str) -> dict | None:
         """
         Get detailed information about a specific commit
 
@@ -560,7 +548,7 @@ class GitHelper:
             print(f"Error getting commit {commit_sha}: {e}")
             return None
 
-    def search_commits(self, query: str, max_results: int = 10) -> List[Dict]:
+    def search_commits(self, query: str, max_results: int = 10) -> list[dict]:
         """
         Search commit messages for a query string
 

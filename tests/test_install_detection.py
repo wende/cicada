@@ -26,13 +26,9 @@ def test_uvx_detection():
             assert (
                 command != "cicada-server"
             ), f"uvx path {uvx_path} incorrectly detected as permanent install"
-            assert (
-                args is not None and len(args) > 0
-            ), "Should have args for Python mode"
+            assert args is not None and len(args) > 0, "Should have args for Python mode"
             assert "mcp_server.py" in str(args[0]), "Should point to mcp_server.py"
-            assert (
-                "uvx" in description.lower()
-            ), f"Description should mention uvx: {description}"
+            assert "uvx" in description.lower(), f"Description should mention uvx: {description}"
 
     print("✅ All uvx detection tests passed")
 
@@ -80,9 +76,7 @@ def test_direct_python_detection():
                 assert (
                     command != "cicada-server"
                 ), f"Direct Python path {python_path} incorrectly detected"
-                assert (
-                    args is not None and len(args) > 0
-                ), "Should have args for Python mode"
+                assert args is not None and len(args) > 0, "Should have args for Python mode"
                 assert "mcp_server.py" in str(args[0]), "Should point to mcp_server.py"
 
     print("✅ All direct Python detection tests passed")

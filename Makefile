@@ -11,7 +11,8 @@ help:
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
 	@echo "  make cover         - Run tests with coverage report (min 80%)"
 	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Run pyrefly type checker and vulture dead code detector"
+	@echo "  make lint          - Run ruff linter, pyrefly type checker and vulture dead code detector"
+	@echo "  make lint-fix      - Auto-fix issues with ruff"
 	@echo "  make pre-commit    - Run all pre-commit checks"
 	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
@@ -56,9 +57,18 @@ cover: setup-fixtures
 format:
 	@uv run black cicada tests
 
-# Check code formatting with pyrefly type checker and vulture dead code detector
+# Auto-fix issues with ruff
+lint-fix:
+	@echo "Running ruff with auto-fix..."
+	@uv run ruff check cicada --fix
+	@echo "✓ Auto-fixable issues resolved"
+
+# Check code formatting with ruff linter, pyrefly type checker and vulture dead code detector
 lint:
 	@FAILED=0; \
+	echo "Running ruff linter..."; \
+	uv run ruff check cicada || FAILED=1; \
+	echo ""; \
 	echo "Running pyrefly type checker..."; \
 	uv run pyrefly check cicada --project-excludes tests || FAILED=1; \
 	echo ""; \

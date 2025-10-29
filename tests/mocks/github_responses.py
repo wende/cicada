@@ -11,9 +11,7 @@ import json
 from typing import Dict, List, Any, Optional
 
 
-def create_pr_list_response(
-    count: int = 5, state: str = "all", start_number: int = 1
-) -> str:
+def create_pr_list_response(count: int = 5, state: str = "all", start_number: int = 1) -> str:
     """
     Create a mock PR list response.
 
@@ -69,8 +67,7 @@ def create_graphql_response(
         if include_commits:
             pr_data["commits"] = {
                 "nodes": [
-                    {"commit": {"oid": f"commit{i}_{j}"}}
-                    for j in range(pr.get("commit_count", 2))
+                    {"commit": {"oid": f"commit{i}_{j}"}} for j in range(pr.get("commit_count", 2))
                 ]
             }
         else:
@@ -78,9 +75,7 @@ def create_graphql_response(
 
         if include_files:
             pr_data["files"] = {
-                "nodes": [
-                    {"path": f"file{i}_{j}.py"} for j in range(pr.get("file_count", 3))
-                ]
+                "nodes": [{"path": f"file{i}_{j}.py"} for j in range(pr.get("file_count", 3))]
             }
         else:
             pr_data["files"] = {"nodes": []}
@@ -310,15 +305,11 @@ def create_pr_with_complex_comments() -> str:
     complex_threads = [
         {
             "isResolved": True,
-            "comments": {
-                "nodes": create_review_comments_response(3, "resolved_file.py", True)
-            },
+            "comments": {"nodes": create_review_comments_response(3, "resolved_file.py", True)},
         },
         {
             "isResolved": False,
-            "comments": {
-                "nodes": create_review_comments_response(2, "active_file.py", False)
-            },
+            "comments": {"nodes": create_review_comments_response(2, "active_file.py", False)},
         },
     ]
 

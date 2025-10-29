@@ -31,9 +31,7 @@ def _find_modules_recursive(node, source_code: bytes, modules: list):
 
         # Check if this is a defmodule call
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
-                "utf-8"
-            )
+            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
             if target_text == "defmodule":
                 # Extract module name from arguments
@@ -41,9 +39,9 @@ def _find_modules_recursive(node, source_code: bytes, modules: list):
 
                 for arg_child in arguments.children:
                     if arg_child.type == "alias":
-                        module_name = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         break
 
                 if module_name and do_block:
@@ -84,17 +82,15 @@ def _find_moduledoc_recursive(node, source_code: bytes) -> str | None:
             # Check if this is a moduledoc attribute
             for call_child in operand.children:
                 if call_child.type == "identifier":
-                    attr_name = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
 
                     if attr_name == "moduledoc":
                         # Extract the documentation string from the arguments
                         for arg_child in operand.children:
                             if arg_child.type == "arguments":
-                                doc_string = extract_string_from_arguments(
-                                    arg_child, source_code
-                                )
+                                doc_string = extract_string_from_arguments(arg_child, source_code)
                                 if doc_string:
                                     return doc_string
 
@@ -106,9 +102,9 @@ def _find_moduledoc_recursive(node, source_code: bytes) -> str | None:
             is_defmodule = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text == "defmodule":
                         is_defmodule = True
                         break

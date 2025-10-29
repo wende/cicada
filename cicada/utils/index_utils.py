@@ -8,14 +8,14 @@ JSON index files with consistent error handling.
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
+from typing import Any
 
 
 def load_index(
-    index_path: Union[str, Path],
+    index_path: str | Path,
     verbose: bool = False,
     raise_on_error: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Load a JSON index file.
 
@@ -42,7 +42,7 @@ def load_index(
         return None
 
     try:
-        with open(index_file, "r") as f:
+        with open(index_file) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         if raise_on_error:
@@ -50,7 +50,7 @@ def load_index(
         if verbose:
             print(f"Warning: Could not parse index: {e}", file=sys.stderr)
         return None
-    except IOError as e:
+    except OSError as e:
         if raise_on_error:
             raise
         if verbose:
@@ -59,8 +59,8 @@ def load_index(
 
 
 def save_index(
-    index: Dict[str, Any],
-    output_path: Union[str, Path],
+    index: dict[str, Any],
+    output_path: str | Path,
     indent: int = 2,
     create_dirs: bool = True,
     verbose: bool = False,
@@ -93,8 +93,8 @@ def save_index(
 
 def validate_index_structure(
     index: Any,
-    required_keys: Optional[list[str]] = None,
-) -> tuple[bool, Optional[str]]:
+    required_keys: list[str] | None = None,
+) -> tuple[bool, str | None]:
     """
     Validate the structure of an index dictionary.
 
@@ -133,9 +133,9 @@ def validate_index_structure(
 
 
 def merge_indexes(
-    *indexes: Dict[str, Any],
+    *indexes: dict[str, Any],
     strategy: str = "last_wins",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Merge multiple index dictionaries.
 
@@ -180,7 +180,7 @@ def merge_indexes(
     return merged
 
 
-def get_index_stats(index: Dict[str, Any]) -> Dict[str, Any]:
+def get_index_stats(index: dict[str, Any]) -> dict[str, Any]:
     """
     Get statistics about an index.
 
@@ -226,10 +226,10 @@ def get_index_stats(index: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def merge_indexes_incremental(
-    old_index: Dict[str, Any],
-    new_index: Dict[str, Any],
+    old_index: dict[str, Any],
+    new_index: dict[str, Any],
     deleted_files: list[str],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Merge old and new indexes for incremental reindexing.
 

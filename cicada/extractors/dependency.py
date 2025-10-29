@@ -25,9 +25,7 @@ def _find_aliases_recursive(node, source_code: bytes, aliases: dict):
                 arguments = child
 
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
-                "utf-8"
-            )
+            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
             if target_text == "alias":
                 # Parse the alias
@@ -42,9 +40,9 @@ def _find_aliases_recursive(node, source_code: bytes, aliases: dict):
             is_function_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["def", "defp", "defmodule"]:
                         is_function_def = True
                         break
@@ -69,9 +67,7 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
     for arg_child in arguments_node.children:
         # Simple alias: alias MyApp.User
         if arg_child.type == "alias":
-            full_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                "utf-8"
-            )
+            full_name = source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
             # Get the last part as the short name
             short_name = full_name.split(".")[-1]
             result[short_name] = full_name
@@ -84,9 +80,9 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
 
             for dot_child in arg_child.children:
                 if dot_child.type == "alias":
-                    module_prefix = source_code[
-                        dot_child.start_byte : dot_child.end_byte
-                    ].decode("utf-8")
+                    module_prefix = source_code[dot_child.start_byte : dot_child.end_byte].decode(
+                        "utf-8"
+                    )
                 elif dot_child.type == "tuple":
                     tuple_node = dot_child
 
@@ -154,18 +150,16 @@ def _find_imports_recursive(node, source_code: bytes, imports: list):
                 arguments = child
 
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
-                "utf-8"
-            )
+            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
             if target_text == "import":
                 # Parse the import - imports are simpler than aliases
                 # import MyModule or import MyModule, only: [func: 1]
                 for arg_child in arguments.children:
                     if arg_child.type == "alias":
-                        module_name = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         imports.append(module_name)
 
     # Recursively search children, but skip function bodies
@@ -174,9 +168,9 @@ def _find_imports_recursive(node, source_code: bytes, imports: list):
             is_function_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["def", "defp", "defmodule"]:
                         is_function_def = True
                         break
@@ -207,17 +201,15 @@ def _find_requires_recursive(node, source_code: bytes, requires: list):
                 arguments = child
 
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
-                "utf-8"
-            )
+            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
             if target_text == "require":
                 # Parse the require
                 for arg_child in arguments.children:
                     if arg_child.type == "alias":
-                        module_name = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         requires.append(module_name)
 
     # Recursively search children, but skip function bodies
@@ -226,9 +218,9 @@ def _find_requires_recursive(node, source_code: bytes, requires: list):
             is_function_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["def", "defp", "defmodule"]:
                         is_function_def = True
                         break
@@ -259,17 +251,15 @@ def _find_uses_recursive(node, source_code: bytes, uses: list):
                 arguments = child
 
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode(
-                "utf-8"
-            )
+            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
             if target_text == "use":
                 # Parse the use
                 for arg_child in arguments.children:
                     if arg_child.type == "alias":
-                        module_name = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         uses.append(module_name)
 
     # Recursively search children, but skip function bodies
@@ -278,9 +268,9 @@ def _find_uses_recursive(node, source_code: bytes, uses: list):
             is_function_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["def", "defp", "defmodule"]:
                         is_function_def = True
                         break
@@ -319,9 +309,7 @@ def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
 
             for child in behaviour_call.children:
                 if child.type == "identifier":
-                    identifier_text = source_code[
-                        child.start_byte : child.end_byte
-                    ].decode("utf-8")
+                    identifier_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
                 elif child.type == "arguments":
                     arguments_node = child
 
@@ -330,15 +318,15 @@ def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
                 for arg_child in arguments_node.children:
                     if arg_child.type == "alias":
                         # @behaviour ModuleName
-                        module_name = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         behaviours.append(module_name)
                     elif arg_child.type == "atom":
                         # @behaviour :module_name
-                        atom_text = source_code[
-                            arg_child.start_byte : arg_child.end_byte
-                        ].decode("utf-8")
+                        atom_text = source_code[arg_child.start_byte : arg_child.end_byte].decode(
+                            "utf-8"
+                        )
                         # Remove leading colon and convert to module format if needed
                         behaviours.append(atom_text.lstrip(":"))
 
@@ -348,9 +336,9 @@ def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
             is_function_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["def", "defp", "defmodule"]:
                         is_function_def = True
                         break

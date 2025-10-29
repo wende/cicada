@@ -19,9 +19,7 @@ def _find_function_calls_recursive(node, source_code: bytes, calls: list):
         is_function_def = False
         for child in node.children:
             if child.type == "identifier":
-                func_text = source_code[child.start_byte : child.end_byte].decode(
-                    "utf-8"
-                )
+                func_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
                 if func_text in ["def", "defp", "defmodule"]:
                     is_function_def = True
                     break
@@ -67,18 +65,16 @@ def _parse_function_call(call_node, source_code: bytes) -> dict | None:
             # Extract module and function from dot
             for dot_child in child.children:
                 if dot_child.type == "alias":
-                    module_name = source_code[
-                        dot_child.start_byte : dot_child.end_byte
-                    ].decode("utf-8")
+                    module_name = source_code[dot_child.start_byte : dot_child.end_byte].decode(
+                        "utf-8"
+                    )
                 elif dot_child.type == "identifier":
-                    function_name = source_code[
-                        dot_child.start_byte : dot_child.end_byte
-                    ].decode("utf-8")
+                    function_name = source_code[dot_child.start_byte : dot_child.end_byte].decode(
+                        "utf-8"
+                    )
         elif child.type == "identifier" and not has_dot:
             # Local function call
-            function_name = source_code[child.start_byte : child.end_byte].decode(
-                "utf-8"
-            )
+            function_name = source_code[child.start_byte : child.end_byte].decode("utf-8")
         elif child.type == "arguments":
             arguments_node = child
 
@@ -151,9 +147,9 @@ def _find_value_mentions_recursive(node, source_code: bytes, value_mentions: lis
                     # Check if this is alias/import/require/use/defmodule
                     for child in current.children:
                         if child.type == "identifier":
-                            func_text = source_code[
-                                child.start_byte : child.end_byte
-                            ].decode("utf-8")
+                            func_text = source_code[child.start_byte : child.end_byte].decode(
+                                "utf-8"
+                            )
                             if func_text in [
                                 "alias",
                                 "import",

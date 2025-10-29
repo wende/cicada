@@ -82,9 +82,7 @@ class TestKeyBERTExtractorInitialization:
 
                 assert extractor.model_tier == "regular"
                 assert extractor.model_name == "BAAI/bge-small-en-v1.5"
-                mock_keybert_class.assert_called_once_with(
-                    model="BAAI/bge-small-en-v1.5"
-                )
+                mock_keybert_class.assert_called_once_with(model="BAAI/bge-small-en-v1.5")
 
     def test_initialization_max_model(self):
         """Test initialization with max model tier"""
@@ -108,9 +106,7 @@ class TestKeyBERTExtractorInitialization:
 
                 assert extractor.model_tier == "max"
                 assert extractor.model_name == "paraphrase-mpnet-base-v2"
-                mock_keybert_class.assert_called_once_with(
-                    model="paraphrase-mpnet-base-v2"
-                )
+                mock_keybert_class.assert_called_once_with(model="paraphrase-mpnet-base-v2")
 
     def test_initialization_verbose_output(self, capsys):
         """Test verbose output during initialization"""
@@ -318,9 +314,7 @@ class TestExtractKeywordsSimple:
         extractor.verbose = True
 
         # Make extract_keywords raise an exception
-        with patch.object(
-            extractor, "extract_keywords", side_effect=Exception("Error")
-        ):
+        with patch.object(extractor, "extract_keywords", side_effect=Exception("Error")):
             result = extractor.extract_keywords_simple("test text", top_n=5)
 
             assert result == []
@@ -332,9 +326,7 @@ class TestExtractKeywordsSimple:
         extractor = self._create_mock_extractor()
         extractor.verbose = False
 
-        with patch.object(
-            extractor, "extract_keywords", side_effect=Exception("Error")
-        ):
+        with patch.object(extractor, "extract_keywords", side_effect=Exception("Error")):
             result = extractor.extract_keywords_simple("test text", top_n=5)
             assert result == []
 
@@ -581,18 +573,12 @@ class TestModelTierConfiguration:
 
     def test_fast_model_configuration(self):
         """Test fast model is configured correctly"""
-        assert (
-            KeyBERTExtractor.KEYBERT_MODELS["fast"] == "all-MiniLM-L6-v2"
-        )  # 80MB model
+        assert KeyBERTExtractor.KEYBERT_MODELS["fast"] == "all-MiniLM-L6-v2"  # 80MB model
 
     def test_regular_model_configuration(self):
         """Test regular model is configured correctly"""
-        assert (
-            KeyBERTExtractor.KEYBERT_MODELS["regular"] == "BAAI/bge-small-en-v1.5"
-        )  # 133MB model
+        assert KeyBERTExtractor.KEYBERT_MODELS["regular"] == "BAAI/bge-small-en-v1.5"  # 133MB model
 
     def test_max_model_configuration(self):
         """Test max model is configured correctly"""
-        assert (
-            KeyBERTExtractor.KEYBERT_MODELS["max"] == "paraphrase-mpnet-base-v2"
-        )  # 420MB model
+        assert KeyBERTExtractor.KEYBERT_MODELS["max"] == "paraphrase-mpnet-base-v2"  # 420MB model
