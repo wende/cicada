@@ -52,24 +52,24 @@ def main():
         help="Output path for the index file (default: .cicada/index.json)",
     )
     index_parser.add_argument(
-        "--extract-keywords",
+        "--nlp",
         action="store_true",
-        help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
-    )
-    index_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Use fast keyword extraction model (lower accuracy, faster speed)",
-    )
-    index_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Use maximum quality keyword extraction model (highest accuracy, slower speed)",
+        help="Use NLP keyword extraction (spaCy-based)",
     )
     index_parser.add_argument(
         "--rag",
         action="store_true",
         help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
+    )
+    index_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Use fast tier model (requires --nlp or --rag)",
+    )
+    index_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Use maximum quality tier model (requires --nlp or --rag)",
     )
 
     # ========================================================================
@@ -179,27 +179,43 @@ def handle_install(args):
 def handle_index(args):
     """Handle the index subcommand."""
     from cicada.indexer import ElixirIndexer
+    from cicada.interactive_setup import show_first_time_setup
     from cicada.version_check import check_for_updates
 
     # Check for updates (non-blocking, fails silently)
     check_for_updates()
 
-    # Determine model tier from flags
-    if args.fast:
-        model_tier = "fast"
-    elif args.max:
-        model_tier = "max"
-    else:
-        model_tier = "regular"
+    # Validate that --fast or --max requires --nlp or --rag
+    if (args.fast or args.max) and not (args.nlp or args.rag):
+        print("Error: --fast or --max requires either --nlp or --rag", file=sys.stderr)
+        sys.exit(1)
 
-    # Determine keyword method
-    keyword_method = "bert" if args.rag else "spacy"
+    # Both --nlp and --rag cannot be specified
+    if args.nlp and args.rag:
+        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+        sys.exit(1)
+
+    # Check if no extraction flags provided - trigger interactive setup
+    if not args.nlp and not args.rag:
+        print("No keyword extraction method specified. Starting interactive setup...\n")
+        keyword_method, model_tier = show_first_time_setup()
+    else:
+        # Determine model tier from flags
+        if args.fast:
+            model_tier = "fast"
+        elif args.max:
+            model_tier = "max"
+        else:
+            model_tier = "regular"
+
+        # Determine keyword method
+        keyword_method = "bert" if args.rag else "spacy"
 
     indexer = ElixirIndexer()
     indexer.index_repository(
         args.repo,
         args.output,
-        extract_keywords=args.extract_keywords,
+        extract_keywords=True,
         keyword_method=keyword_method,
         model_tier=model_tier,
     )
