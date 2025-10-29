@@ -27,3 +27,15 @@ else
     python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --extract-keywords
 fi
 echo "✓ Test fixtures generated successfully"
+
+# Create config.yaml for acceptance tests
+echo "Extracting keywords for test fixtures..."
+mkdir -p tests/fixtures/.cicada
+cat > tests/fixtures/.cicada/config.yaml << EOF
+repository:
+  path: $FIXTURE_DIR
+
+storage:
+  index_path: tests/fixtures/.cicada/index.json
+EOF
+echo "✓ Keywords extracted for test fixtures"

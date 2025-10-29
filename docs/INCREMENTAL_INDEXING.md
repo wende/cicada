@@ -60,6 +60,27 @@ cicada index --extract-keywords  # Only extracts from changed files
 cicada index --extract-keywords --full
 ```
 
+### Switching Keyword Extraction Methods
+
+When switching between keyword extraction methods (spaCy vs BERT), you should use `--full` to ensure consistent keywords across all files:
+
+```bash
+# Initially indexed with spaCy (default)
+cicada-index --extract-keywords
+
+# Switching to BERT - use --full for consistency
+cicada-index --extract-keywords --rag --model-tier fast --full
+
+# Switching back to spaCy - use --full again
+cicada-index --extract-keywords --model-tier regular --full
+```
+
+**Why use `--full`?**
+- Without `--full`, incremental indexing only reprocesses changed files
+- Unchanged files retain keywords from the previous extraction method
+- Results in mixed keyword extraction methods in a single index
+- Using `--full` ensures all files use the same extraction method
+
 ### Output Example
 
 **Incremental indexing with changes:**

@@ -12,17 +12,38 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cicada.colors import CYAN, BLUE, GREEN, YELLOW, RED, GRAY, BOLD, DIM, RESET
 
-def run_command(cmd, cwd=None, check=True):
-    """Run a shell command and return the result."""
+
+def run_command(cmd, cwd=None, check=True, capture_output=True):
+    """Run a shell command and return the result.
+
+    Args:
+        cmd: Either a string (for shell=True) or list of arguments (for shell=False).
+             List form is preferred for security.
+        cwd: Working directory for the command
+        check: Whether to raise exception on non-zero exit
+        capture_output: Whether to capture stdout/stderr
+    """
     try:
-        result = subprocess.run(
-            cmd, shell=True, check=check, cwd=cwd, capture_output=True, text=True
-        )
+        # Prefer list form (shell=False) for security
+        use_shell = isinstance(cmd, str)
+        if capture_output:
+            result = subprocess.run(
+                cmd,
+                shell=use_shell,
+                check=check,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            result = subprocess.run(cmd, shell=use_shell, check=check, cwd=cwd)
         return result
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {cmd}", file=sys.stderr)
-        print(f"Error: {e.stderr}", file=sys.stderr)
+        if capture_output and hasattr(e, "stderr"):
+            print(f"Error: {e.stderr}", file=sys.stderr)
         raise
 
 
@@ -35,7 +56,7 @@ def check_python():
             file=sys.stderr,
         )
         sys.exit(1)
-    print(f"✓ Python {version.major}.{version.minor} detected")
+    print(f"{GREEN}✓{RESET} Python {version.major}.{version.minor} detected")
 
 
 def install_cicada(target_dir, github_url=None):
@@ -59,7 +80,7 @@ def install_cicada(target_dir, github_url=None):
         if mcp_server_module.__file__ is None:
             raise ImportError("Could not determine module path")
         package_path = Path(mcp_server_module.__file__).parent.parent
-        print(f"✓ Using installed cicada package")
+        print(f"{GREEN}✓{RESET} Using installed cicada package")
         return package_path, True  # Already installed
     except ImportError:
         pass
@@ -67,20 +88,20 @@ def install_cicada(target_dir, github_url=None):
     # If we're already in the cicada directory, use it
     current_dir = Path.cwd()
     if (current_dir / "cicada" / "mcp_server.py").exists():
-        print(f"✓ Using existing cicada installation at {current_dir}")
+        print(f"{GREEN}✓{RESET} Using existing cicada installation at {current_dir}")
         return current_dir, False
 
     # Check if target directory already has cicada
     if (target_path / "cicada" / "mcp_server.py").exists():
-        print(f"✓ Using existing cicada installation at {target_path}")
+        print(f"{GREEN}✓{RESET} Using existing cicada installation at {target_path}")
         return target_path, False
 
     # Download from GitHub
     if github_url:
-        print(f"Downloading cicada from {github_url}...")
+        print(f"{BLUE}Downloading cicada from {github_url}...{RESET}")
         target_path.parent.mkdir(parents=True, exist_ok=True)
         _ = run_command(f"git clone {github_url} {target_path}")
-        print(f"✓ Downloaded cicada to {target_path}")
+        print(f"{GREEN}✓{RESET} Downloaded cicada to {target_path}")
     else:
         print("Error: cicada not found and no GitHub URL provided", file=sys.stderr)
         print(
@@ -103,7 +124,7 @@ def check_uv_available():
 
 def install_dependencies_uv(cicada_dir):
     """Install Python dependencies using uv (fast!)."""
-    print("Installing dependencies with uv...")
+    print(f"{BLUE}Installing dependencies with uv...{RESET}")
 
     # Use uv to sync dependencies
     # uv will automatically create a venv and install everything
@@ -118,20 +139,20 @@ def install_dependencies_uv(cicada_dir):
         venv_path = cicada_dir / "venv"
         python_bin = venv_path / "bin" / "python"
 
-    print("✓ Dependencies installed with uv")
+    print(f"{GREEN}✓{RESET} Dependencies installed with uv")
     return python_bin
 
 
 def install_dependencies_pip(cicada_dir):
     """Install Python dependencies using traditional pip (legacy method)."""
-    print("Installing dependencies with pip (legacy method)...")
+    print(f"{BLUE}Installing dependencies with pip (legacy method)...{RESET}")
 
     # Check if venv exists
     venv_path = cicada_dir / "venv"
     python_bin = venv_path / "bin" / "python"
 
     if not venv_path.exists():
-        print("Creating virtual environment...")
+        print(f"{BLUE}Creating virtual environment...{RESET}")
         _ = run_command(f"python -m venv {venv_path}")
 
     # Install dependencies
@@ -142,7 +163,7 @@ def install_dependencies_pip(cicada_dir):
     # Install package in editable mode
     _ = run_command(f"{python_bin} -m pip install -e {cicada_dir}")
 
-    print("✓ Dependencies installed with pip")
+    print(f"{GREEN}✓{RESET} Dependencies installed with pip")
     return python_bin
 
 
@@ -161,9 +182,11 @@ def install_dependencies(cicada_dir, use_uv=None):
     if use_uv is None:
         use_uv = check_uv_available()
         if use_uv:
-            print("✓ Detected uv - using it for faster installation (recommended)")
+            print(
+                f"{GREEN}✓{RESET} Detected uv - using it for faster installation (recommended)"
+            )
         else:
-            print("⚠ uv not available - falling back to pip (slower)")
+            print(f"{YELLOW}⚠{RESET} uv not available - falling back to pip (slower)")
 
     if use_uv:
         return install_dependencies_uv(cicada_dir)
@@ -172,12 +195,19 @@ def install_dependencies(cicada_dir, use_uv=None):
 
 
 def index_repository(
-    cicada_dir, python_bin, repo_path, fetch_pr_info=False, spacy_model="small"
+    cicada_dir,
+    python_bin,
+    repo_path,
+    fetch_pr_info=False,
+    keyword_method="spacy",
+    model_tier="regular",
 ):
     """Index the Elixir repository."""
-    print(f"Indexing repository at {repo_path}...")
-
     repo_path = Path(repo_path).resolve()
+    try:
+        rel_path = repo_path.relative_to(Path.cwd())
+    except ValueError:
+        rel_path = repo_path
     output_path = repo_path / ".cicada" / "index.json"
 
     # Check if .cicada directory exists (first run detection)
@@ -191,21 +221,44 @@ def index_repository(
         from cicada.utils.path_utils import ensure_gitignore_has_cicada
 
         if ensure_gitignore_has_cicada(repo_path):
-            print("✓ Added .cicada/ to .gitignore")
+            print(f"{GREEN}✓{RESET} Added .cicada/ to .gitignore")
+
+    # Print indexing message without newline
+    try:
+        rel_repo_path = repo_path.relative_to(Path.cwd())
+    except ValueError:
+        rel_repo_path = repo_path
+    print(f"  - Indexing repository at: {rel_repo_path}{RESET}")
 
     # Run indexer
     indexer_script = cicada_dir / "cicada" / "indexer.py"
-    cmd = f"{python_bin} {indexer_script} {repo_path} --output {output_path}"
+
+    # Build command as list to prevent command injection
+    cmd = [
+        str(python_bin),
+        str(indexer_script),
+        str(repo_path),
+        "--output",
+        str(output_path),
+        "--extract-keywords",
+    ]
 
     if fetch_pr_info:
-        cmd += " --pr-info"
+        cmd.append("--pr-info")
 
-    # Add spacy model option
-    cmd += f" --spacy-model {spacy_model}"
+    # Add keyword extraction options
+    if keyword_method == "bert":
+        cmd.append("--rag")
+    cmd.extend(["--model-tier", model_tier])
 
-    _ = run_command(cmd)
+    # Run without capturing output so users can see download progress
+    result = run_command(cmd, capture_output=False)
 
-    print(f"✓ Repository indexed at {output_path}")
+    try:
+        rel_path = output_path.relative_to(Path.cwd())
+    except ValueError:
+        rel_path = output_path
+    print(f"{GREEN}✓{RESET} Repository indexed at {rel_path}")
     return output_path
 
 
@@ -292,7 +345,7 @@ def check_tools_in_path():
 
 def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     """Create or update .mcp.json configuration file with intelligent command detection."""
-    print("Creating .mcp.json configuration...")
+    print(f"{GREEN}✓{RESET} Creating .mcp.json configuration...")
 
     repo_path = Path(repo_path).resolve()
     mcp_config_path = repo_path / ".mcp.json"
@@ -302,9 +355,11 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
         try:
             with open(mcp_config_path, "r") as f:
                 config = json.load(f)
-            print(f"✓ Found existing .mcp.json, will merge configuration")
+            print(f"{GREEN}✓{RESET} Found existing .mcp.json, will merge configuration")
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not read existing .mcp.json ({e}), creating new one")
+            print(
+                f"{YELLOW}Warning:{RESET} Could not read existing .mcp.json ({e}), creating new one"
+            )
             config = {}
     else:
         config = {}
@@ -319,13 +374,15 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     # Check if tools are visible in PATH
     tools_status = check_tools_in_path()
     if tools_status == "all_visible":
-        print(f"✓ Installation: {description}")
+        print(f"{GREEN}✓{RESET} Installation: {description}")
     elif tools_status == "partial":
-        print(f"⚠️  Installation: {description}")
-        print(f"   Some tools not found in PATH - add ~/.local/bin to PATH")
+        print(f"{YELLOW}⚠{RESET}  Installation: {description}")
+        print(
+            f"{GRAY}   Some tools not found in PATH - add ~/.local/bin to PATH{RESET}"
+        )
     else:
-        print(f"⚠️  Installation: {description}")
-        print(f"   Tools not found in PATH - add ~/.local/bin to PATH")
+        print(f"{YELLOW}⚠{RESET}  Installation: {description}")
+        print(f"{GRAY}   Tools not found in PATH - add ~/.local/bin to PATH{RESET}")
 
     # Build MCP server configuration
     from typing import Any
@@ -348,18 +405,27 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     with open(mcp_config_path, "w") as f:
         json.dump(config, f, indent=2)
 
-    print(f"✓ MCP configuration updated at {mcp_config_path}")
+    try:
+        rel_path = mcp_config_path.relative_to(Path.cwd())
+    except ValueError:
+        rel_path = mcp_config_path
+    print(f"{GREEN}✓{RESET} MCP configuration updated at {rel_path}")
 
     # Show what was configured
-    if command == "cicada-server":
-        print("✅ Using 'cicada-server' command (fast, no paths needed)")
-    else:
-        print(f"ℹ️  Using Python: {command}")
+    if command != "cicada-server":
+        print(f"{CYAN}ℹ{RESET}  Using Python: {command}")
 
     return mcp_config_path
 
 
-def create_config_yaml(_cicada_dir, repo_path, index_path):
+def create_config_yaml(
+    _cicada_dir,
+    repo_path,
+    index_path,
+    keyword_method="spacy",
+    model_tier="regular",
+    version=None,
+):
     """Create or update config.yaml in repository's .cicada directory."""
     repo_path = Path(repo_path).resolve()
     config_path = repo_path / ".cicada" / "config.yaml"
@@ -367,17 +433,33 @@ def create_config_yaml(_cicada_dir, repo_path, index_path):
     # Ensure .cicada directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    config_content = f"""repository:
+    # Get current version
+    if version is None:
+        from cicada import __version__
+
+        version = __version__
+
+    config_content = f"""version: {version}
+
+repository:
   path: {repo_path}
 
 storage:
   index_path: {index_path}
+
+keywords:
+  method: {keyword_method}
+  model: {model_tier}
 """
 
     with open(config_path, "w") as f:
         _ = f.write(config_content)
 
-    print(f"✓ Config file created at {config_path}")
+    try:
+        rel_path = config_path.relative_to(Path.cwd())
+    except ValueError:
+        rel_path = config_path
+    print(f"{GREEN}✓{RESET} Config file created at {rel_path}")
 
 
 def create_gitattributes(repo_path):
@@ -397,7 +479,7 @@ def create_gitattributes(repo_path):
     has_elixir = any(pattern in existing_lines for pattern in elixir_patterns)
 
     if has_elixir:
-        print(f"✓ .gitattributes already has Elixir patterns")
+        print(f"{GREEN}✓{RESET} .gitattributes already has Elixir patterns")
         return gitattributes_path
 
     # Add elixir patterns
@@ -409,7 +491,7 @@ def create_gitattributes(repo_path):
         for pattern in elixir_patterns:
             _ = f.write(f"{pattern}\n")
 
-    print(f"✓ Added Elixir patterns to {gitattributes_path}")
+    print(f"{GREEN}✓{RESET} Added Elixir patterns to {gitattributes_path}")
     return gitattributes_path
 
 
@@ -451,7 +533,7 @@ def update_claude_md(repo_path):
 
         # Check if instruction already exists
         if "cicada-mcp" in content or "use the cicada-mcp MCP server" in content:
-            print(f"✓ CLAUDE.md already mentions cicada-mcp")
+            print(f"{GREEN}✓{RESET} CLAUDE.md already mentions cicada-mcp")
             return
 
         # Append the instruction
@@ -463,7 +545,7 @@ def update_claude_md(repo_path):
             _ = f.write("\n")
             _ = f.write(instruction_content)
 
-        print(f"✓ Updated CLAUDE.md with cicada-mcp usage instructions")
+        print(f"{GREEN}✓{RESET} Updated CLAUDE.md with cicada-mcp usage instructions")
     except Exception:
         # Fail silently on any errors
         pass
@@ -505,22 +587,18 @@ def print_setup_summary(repo_path, _index_path):
         repo_path: Path to repository root
         index_path: Path to the created index file
     """
-    # ANSI color codes
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    RESET = "\033[0m"
-
     repo_path = Path(repo_path).resolve()
 
     print()
-    print(f"{YELLOW}Files created/modified:{RESET}")
+    print(f"Files created/modified:")
     print()
 
     # List of files to check
     files_created = [
         (".cicada/", "Cicada index directory"),
         (".mcp.json", "MCP server configuration"),
+        (".gitattributes", "Git function tracking configuration"),
+        ("CLAUDE.md", "Updated with cicada-mcp instructions"),
     ]
 
     # Check each file
@@ -529,12 +607,20 @@ def print_setup_summary(repo_path, _index_path):
         file_path = repo_path / file_pattern.rstrip("/")
 
         if file_path.exists():
-            status = (
-                f"{GREEN}✓ gitignored{RESET}"
-                if is_ignored
-                else f"{RED}✗ not gitignored{RESET}"
-            )
-            print(f"  {YELLOW}{file_pattern:20}{RESET} {description:35} {status}")
+            # CLAUDE.md doesn't need a status - user decides whether to commit it
+            if file_pattern == "CLAUDE.md":
+                print(f"  {YELLOW}{file_pattern:20}{RESET} {description:35}")
+            else:
+                # .gitattributes is always green (user shouldn't gitignore it)
+                if file_pattern == ".gitattributes":
+                    status = f"{GREEN}✓ should be committed{RESET}"
+                else:
+                    status = (
+                        f"{GREEN}✓ gitignored{RESET}"
+                        if is_ignored
+                        else f"{RED}✗ not gitignored{RESET}"
+                    )
+                print(f"  {YELLOW}{file_pattern:20}{RESET} {description:35} {status}")
 
     print()
 
@@ -547,7 +633,7 @@ def print_setup_summary(repo_path, _index_path):
 
     # Show warnings if files are not gitignored
     if needs_gitignore:
-        print(f"{RED}⚠️  Warning: The following should be in .gitignore:{RESET}")
+        print(f"{RED}⚠️{RESET}  Warning: The following should be in .gitignore:")
         for item in needs_gitignore:
             reason = (
                 "build artifacts and cache"
@@ -560,6 +646,44 @@ def print_setup_summary(repo_path, _index_path):
         items_with_newlines = "\\n".join(needs_gitignore)
         print(f"  printf '\\n{items_with_newlines}\\n' >> .gitignore")
         print()
+
+
+def check_config_version(repo_path):
+    """
+    Check if config.yaml exists and compare its version with current version.
+
+    Returns:
+        tuple: (config_exists, needs_upgrade, old_version)
+            - config_exists: True if config.yaml exists
+            - needs_upgrade: True if config version < current version
+            - old_version: The version string from config, or None
+    """
+    import yaml
+    from cicada import __version__ as current_version
+
+    repo_path = Path(repo_path).resolve()
+    config_path = repo_path / ".cicada" / "config.yaml"
+
+    if not config_path.exists():
+        return False, False, None
+
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        old_version = config.get("version") if config else None
+
+        if old_version is None:
+            # No version field - old config format
+            return True, True, "unknown"
+
+        # Compare versions (simple string comparison works for semver)
+        needs_upgrade = old_version < current_version
+        return True, needs_upgrade, old_version
+
+    except Exception:
+        # If we can't read/parse config, treat as needs upgrade
+        return True, True, "unknown"
 
 
 def main():
@@ -603,18 +727,94 @@ def main():
         help="Force use of pip for dependency installation (traditional)",
     )
     _ = parser.add_argument(
-        "--spacy-model",
-        choices=["small", "medium", "large"],
-        default="small",
-        help="Size of spaCy model to use for keyword extraction (default: small). "
-        "Medium and large models provide better accuracy but are slower.",
+        "--init",
+        action="store_true",
+        help="Force reconfiguration with interactive setup menu",
+    )
+
+    # Keyword extraction method selection
+    _ = parser.add_argument(
+        "--rag",
+        action="store_true",
+        help="Use KeyBERT (semantic embeddings) instead of spaCy (grammar-based). "
+        "Provides better semantic understanding but slower initialization.",
+    )
+
+    # Create mutually exclusive group for model tier selection
+    model_group = parser.add_mutually_exclusive_group()
+    _ = model_group.add_argument(
+        "--fast",
+        action="store_const",
+        const="fast",
+        dest="model_flag",
+        help="Fast model tier (spaCy: 12MB, KeyBERT: 80MB) - recommended",
+    )
+    _ = model_group.add_argument(
+        "--regular",
+        action="store_const",
+        const="regular",
+        dest="model_flag",
+        help="Regular model tier (spaCy: 40MB, KeyBERT: 133MB) - balanced",
+    )
+    _ = model_group.add_argument(
+        "--max",
+        action="store_const",
+        const="max",
+        dest="model_flag",
+        help="Max model tier (spaCy: 560MB, KeyBERT: 420MB) - highest quality",
     )
 
     args = parser.parse_args()
 
-    print("=" * 60)
-    print("Cicada MCP Setup")
-    print("=" * 60)
+    # Check version and determine if we need to show interactive setup
+    repo_path = Path(args.repo).resolve()
+    config_exists, needs_upgrade, old_version = check_config_version(repo_path)
+
+    # Determine if we should show interactive menu
+    # Only show interactive menu if:
+    # 1. --init flag is provided, OR
+    # 2. First-time run (config doesn't exist) AND no CLI flags provided
+    cli_flags_provided = args.model_flag or args.rag
+
+    show_interactive = False
+    if args.init:
+        # --init flag forces reconfiguration only if no CLI flags provided
+        show_interactive = not cli_flags_provided
+    elif not config_exists and not cli_flags_provided:
+        # First-time run with no CLI flags - show interactive menu
+        show_interactive = True
+    elif needs_upgrade and not cli_flags_provided:
+        # Version upgrade detected and no model flags provided - ask user
+        from cicada import __version__ as current_version
+
+        print()
+        print(f"{CYAN}{'=' * 70}{RESET}")
+        print(f"{CYAN}🔄 Cicada version upgrade detected!{RESET}")
+        print(f"{CYAN}   Installed version: {old_version}{RESET}")
+        print(f"{CYAN}   Current version:   {current_version}{RESET}")
+        print(f"{CYAN}{'=' * 70}{RESET}")
+        print()
+        response = (
+            input("Would you like to reconfigure cicada? [Y/n]: ").strip().lower()
+        )
+        if response in ["", "y", "yes"]:
+            show_interactive = True
+
+    # Determine keyword extraction method and model tier
+    # Priority: CLI flags > interactive menu > default (spacy, regular)
+    if show_interactive:
+        # First-time run or user confirmed reconfiguration - show interactive menu
+        from cicada.interactive_setup import show_first_time_setup
+
+        keyword_method, model_tier = show_first_time_setup()
+    else:
+        # Determine from CLI flags or use defaults
+        keyword_method = "bert" if args.rag else "spacy"
+        model_tier = args.model_flag if args.model_flag else "regular"
+
+    # Store the selected configuration back in args for consistency
+    args.keyword_method = keyword_method
+    args.model_tier = model_tier
 
     # Check Python version
     check_python()
@@ -637,7 +837,7 @@ def main():
     if is_already_installed:
         # Package already installed, use current Python
         python_bin = sys.executable
-        print(f"✓ Using Python from installed package: {python_bin}")
+        print(f"{GREEN}✓{RESET} Using Python from installed package: {python_bin}")
     elif not args.skip_install:
         # Determine which package manager to use
         use_uv = None
@@ -655,15 +855,22 @@ def main():
             python_bin = cicada_dir / "venv" / "bin" / "python"
         if not python_bin.exists():
             python_bin = sys.executable
-        print(f"✓ Skipping dependency installation, using {python_bin}")
+        print(f"{GREEN}✓{RESET} Skipping dependency installation, using {python_bin}")
 
     # Index repository
     index_path = index_repository(
-        cicada_dir, python_bin, args.repo, args.pr_info, args.spacy_model
+        cicada_dir,
+        python_bin,
+        args.repo,
+        args.pr_info,
+        args.keyword_method,
+        args.model_tier,
     )
 
     # Create config.yaml
-    create_config_yaml(cicada_dir, args.repo, index_path)
+    create_config_yaml(
+        cicada_dir, args.repo, index_path, args.keyword_method, args.model_tier
+    )
 
     # Create .gitattributes for Elixir function tracking
     _ = create_gitattributes(args.repo)
@@ -677,16 +884,16 @@ def main():
     # Print summary of created files and gitignore status
     print_setup_summary(args.repo, index_path)
 
-    print("=" * 60)
-    print("✓ Setup Complete!")
-    print("=" * 60)
+    print(f"{CYAN}{'=' * 60}{RESET}")
+    print(f"{YELLOW}✓ Setup Complete!{RESET}")
+    print(f"{CYAN}{'=' * 60}{RESET}")
     print()
-    print("Next steps:")
-    print("1. Restart Claude Code")
+    print(f"Next steps:")
+    print(f"1. Restart Claude Code")
     print()
-    print("2. Try asking Claude Code:")
-    print("   - 'Where is [Module] used?'")
-    print("   - 'Show me the functions in [ModuleName]'")
+    print(f"2. Try asking Claude Code:")
+    print(f"   - 'Where is [Module] used?'")
+    print(f"   - 'Show me the functions in [ModuleName]")
     print()
 
 

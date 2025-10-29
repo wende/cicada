@@ -29,6 +29,11 @@ from cicada.install import (
     create_mcp_config,
     create_config_yaml,
     create_gitattributes,
+    update_claude_md,
+    is_gitignored,
+    print_setup_summary,
+    check_config_version,
+    check_tools_in_path,
 )
 
 
@@ -591,7 +596,7 @@ class TestMainFunction:
         (cicada_dir / "cicada" / "mcp_server.py").touch()
 
         with (
-            patch("sys.argv", ["install.py", str(repo_path)]),
+            patch("sys.argv", ["install.py", str(repo_path), "--fast"]),
             patch("cicada.install.check_python"),
             patch("cicada.install.install_cicada", return_value=(cicada_dir, False)),
             patch("cicada.install.install_dependencies", return_value=Path("/python")),
@@ -614,7 +619,10 @@ class TestMainFunction:
         (repo_path / ".git").mkdir()
 
         with (
-            patch("sys.argv", ["install.py", str(repo_path), "--skip-install"]),
+            patch(
+                "sys.argv",
+                ["install.py", str(repo_path), "--skip-install", "--fast"],
+            ),
             patch("cicada.install.check_python"),
             patch("cicada.install.install_cicada") as mock_install,
             patch("cicada.install.index_repository", return_value=Path("index.json")),
@@ -631,6 +639,374 @@ class TestMainFunction:
             main()
 
             # install_dependencies should not be called
+
+
+class TestUpdateClaudeMd:
+    """Test update_claude_md function."""
+
+    def test_update_claude_md_file_not_exists(self, tmp_path):
+        """Test that function returns silently when CLAUDE.md doesn't exist."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Should not raise, should return silently
+        update_claude_md(repo_path)
+
+        claude_md = repo_path / "CLAUDE.md"
+        assert not claude_md.exists()
+
+    def test_update_claude_md_already_mentions_cicada(self, tmp_path):
+        """Test that function skips update if cicada-mcp already mentioned."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("# Project\n\nUse cicada-mcp for searching.\n")
+
+        update_claude_md(repo_path)
+
+        # Content should remain unchanged
+        content = claude_md.read_text()
+        assert content == "# Project\n\nUse cicada-mcp for searching.\n"
+
+    def test_update_claude_md_adds_instructions(self, tmp_path):
+        """Test that function adds instructions when not present."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("# Project\n\nSome instructions.\n")
+
+        update_claude_md(repo_path)
+
+        content = claude_md.read_text()
+        assert "cicada-mcp" in content
+        assert "search_function" in content
+        assert "search_module" in content
+
+    def test_update_claude_md_adds_newline_if_needed(self, tmp_path):
+        """Test that function adds newline before instructions if file doesn't end with one."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("# Project")  # No trailing newline
+
+        update_claude_md(repo_path)
+
+        content = claude_md.read_text()
+        # Should have added newlines before instructions
+        assert "\n\n<cicada>" in content
+
+    def test_update_claude_md_handles_errors_silently(self, tmp_path):
+        """Test that function fails silently on errors."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("Test")
+
+        # Make file read-only to cause error
+        claude_md.chmod(0o444)
+
+        # Should not raise
+        with patch("builtins.open", side_effect=PermissionError()):
+            update_claude_md(repo_path)
+
+
+class TestIsGitignored:
+    """Test is_gitignored function."""
+
+    def test_is_gitignored_no_gitignore_file(self, tmp_path):
+        """Test when .gitignore doesn't exist."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        result = is_gitignored(repo_path, ".cicada/")
+        assert result is False
+
+    def test_is_gitignored_pattern_exists(self, tmp_path):
+        """Test when pattern is in .gitignore."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text("node_modules/\n.cicada/\n*.log\n")
+
+        result = is_gitignored(repo_path, ".cicada/")
+        assert result is True
+
+    def test_is_gitignored_pattern_not_exists(self, tmp_path):
+        """Test when pattern is not in .gitignore."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text("node_modules/\n*.log\n")
+
+        result = is_gitignored(repo_path, ".cicada/")
+        assert result is False
+
+    def test_is_gitignored_pattern_variations(self, tmp_path):
+        """Test that function handles pattern variations."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text(".cicada\n")
+
+        # Should match .cicada/ when .gitignore has .cicada
+        result = is_gitignored(repo_path, ".cicada/")
+        assert result is True
+
+        # Should match .cicada when .gitignore has .cicada
+        result = is_gitignored(repo_path, ".cicada")
+        assert result is True
+
+    def test_is_gitignored_with_leading_slash(self, tmp_path):
+        """Test pattern with leading slash."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text("/.cicada/\n")
+
+        result = is_gitignored(repo_path, "/.cicada/")
+        assert result is True
+
+    def test_is_gitignored_io_error(self, tmp_path):
+        """Test that IOError returns False."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text("test")
+
+        with patch("builtins.open", side_effect=IOError()):
+            result = is_gitignored(repo_path, ".cicada/")
+            assert result is False
+
+
+class TestPrintSetupSummary:
+    """Test print_setup_summary function."""
+
+    def test_print_setup_summary_basic(self, tmp_path, capsys):
+        """Test basic summary printing."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create files
+        (repo_path / ".cicada").mkdir()
+        (repo_path / ".mcp.json").write_text("{}")
+        (repo_path / ".gitattributes").write_text("*.ex linguist-language=Elixir")
+        (repo_path / "CLAUDE.md").write_text("# Project")
+
+        # Create .gitignore with .cicada/
+        gitignore = repo_path / ".gitignore"
+        gitignore.write_text(".cicada/\n")
+
+        print_setup_summary(repo_path, repo_path / ".cicada" / "index.json")
+
+        captured = capsys.readouterr()
+        assert "Files created/modified:" in captured.out
+        assert ".cicada/" in captured.out
+        assert ".mcp.json" in captured.out
+        assert ".gitattributes" in captured.out
+        assert "CLAUDE.md" in captured.out
+
+    def test_print_setup_summary_with_warnings(self, tmp_path, capsys):
+        """Test summary with gitignore warnings."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create files but no .gitignore
+        (repo_path / ".cicada").mkdir()
+        (repo_path / ".mcp.json").write_text("{}")
+
+        print_setup_summary(repo_path, repo_path / ".cicada" / "index.json")
+
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
+        assert "should be in .gitignore" in captured.out
+        assert ".cicada/" in captured.out
+        assert ".mcp.json" in captured.out
+
+    def test_print_setup_summary_gitignore_suggestion(self, tmp_path, capsys):
+        """Test that function shows gitignore command suggestion."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        (repo_path / ".cicada").mkdir()
+        (repo_path / ".mcp.json").write_text("{}")
+
+        print_setup_summary(repo_path, repo_path / ".cicada" / "index.json")
+
+        captured = capsys.readouterr()
+        assert "printf" in captured.out
+        assert ".gitignore" in captured.out
+
+    def test_print_setup_summary_gitattributes_always_green(self, tmp_path, capsys):
+        """Test that .gitattributes is always shown as should be committed."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        (repo_path / ".gitattributes").write_text("*.ex linguist-language=Elixir")
+
+        print_setup_summary(repo_path, repo_path / ".cicada" / "index.json")
+
+        captured = capsys.readouterr()
+        assert "should be committed" in captured.out
+
+
+class TestCheckConfigVersion:
+    """Test check_config_version function."""
+
+    def test_check_config_version_no_config(self, tmp_path):
+        """Test when config.yaml doesn't exist."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        (repo_path / ".cicada").mkdir()
+
+        exists, needs_upgrade, version = check_config_version(repo_path)
+
+        assert exists is False
+        assert needs_upgrade is False
+        assert version is None
+
+    def test_check_config_version_no_version_field(self, tmp_path):
+        """Test when config exists but has no version field."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        cicada_dir = repo_path / ".cicada"
+        cicada_dir.mkdir()
+
+        config_path = cicada_dir / "config.yaml"
+        config_path.write_text("keyword_method: spacy\nmodel_tier: regular\n")
+
+        exists, needs_upgrade, version = check_config_version(repo_path)
+
+        assert exists is True
+        assert needs_upgrade is True
+        assert version == "unknown"
+
+    def test_check_config_version_same_version(self, tmp_path):
+        """Test when config version matches current version."""
+        from cicada import __version__
+
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        cicada_dir = repo_path / ".cicada"
+        cicada_dir.mkdir()
+
+        config_path = cicada_dir / "config.yaml"
+        config_path.write_text(f"version: {__version__}\nkeyword_method: spacy\n")
+
+        exists, needs_upgrade, version = check_config_version(repo_path)
+
+        assert exists is True
+        assert needs_upgrade is False
+        assert version == __version__
+
+    def test_check_config_version_old_version(self, tmp_path):
+        """Test when config version is older than current."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        cicada_dir = repo_path / ".cicada"
+        cicada_dir.mkdir()
+
+        config_path = cicada_dir / "config.yaml"
+        config_path.write_text("version: 0.0.1\nkeyword_method: spacy\n")
+
+        exists, needs_upgrade, version = check_config_version(repo_path)
+
+        assert exists is True
+        assert needs_upgrade is True
+        assert version == "0.0.1"
+
+    def test_check_config_version_parse_error(self, tmp_path):
+        """Test handling of YAML parse errors."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        cicada_dir = repo_path / ".cicada"
+        cicada_dir.mkdir()
+
+        config_path = cicada_dir / "config.yaml"
+        config_path.write_text("invalid: yaml: content: [unclosed\n")
+
+        exists, needs_upgrade, version = check_config_version(repo_path)
+
+        # Should treat parse errors as needs upgrade
+        assert exists is True
+        assert needs_upgrade is True
+        assert version == "unknown"
+
+    def test_check_config_version_io_error(self, tmp_path):
+        """Test handling of IO errors."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        cicada_dir = repo_path / ".cicada"
+        cicada_dir.mkdir()
+
+        config_path = cicada_dir / "config.yaml"
+        config_path.write_text("version: 0.1.0\n")
+
+        with patch("builtins.open", side_effect=IOError()):
+            exists, needs_upgrade, version = check_config_version(repo_path)
+
+            # Should treat IO errors as needs upgrade
+            assert exists is True
+            assert needs_upgrade is True
+            assert version == "unknown"
+
+
+class TestCheckToolsInPath:
+    """Test check_tools_in_path function."""
+
+    def test_check_tools_all_visible(self):
+        """Test when all tools are in PATH."""
+        with patch("shutil.which") as mock_which:
+            mock_which.return_value = "/usr/local/bin/cicada-server"
+
+            result = check_tools_in_path()
+
+            assert result == "all_visible"
+
+    def test_check_tools_partial_visible(self):
+        """Test when some tools are in PATH."""
+        with patch("shutil.which") as mock_which:
+
+            def which_side_effect(tool):
+                if tool == "cicada-server":
+                    return "/usr/local/bin/cicada-server"
+                return None
+
+            mock_which.side_effect = which_side_effect
+
+            result = check_tools_in_path()
+
+            assert result == "partial"
+
+    def test_check_tools_none_visible(self):
+        """Test when no tools are in PATH."""
+        with patch("shutil.which") as mock_which:
+            mock_which.return_value = None
+
+            result = check_tools_in_path()
+
+            assert result == "none"
+
+    def test_check_tools_in_path_checks_both_tools(self):
+        """Test that function checks both cicada-server and cicada-index."""
+        with patch("shutil.which") as mock_which:
+            mock_which.return_value = "/usr/local/bin/tool"
+
+            check_tools_in_path()
+
+            # Should be called for both tools
+            assert mock_which.call_count == 2
+            calls = [call[0][0] for call in mock_which.call_args_list]
+            assert "cicada-server" in calls
+            assert "cicada-index" in calls
 
 
 if __name__ == "__main__":

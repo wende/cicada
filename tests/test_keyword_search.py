@@ -181,7 +181,7 @@ class TestKeywordExtractor:
         def mock_run(cmd, **_kwargs):
             if cmd[0] == "uv":
                 raise FileNotFoundError("uv not found")
-            # Simulate successful pip install
+            # Should not reach this point
             return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
 
         monkeypatch.setattr(spacy, "load", mock_load)
@@ -195,7 +195,7 @@ class TestKeywordExtractor:
         assert extractor._download_model() is False
 
     def test_download_model_both_fail(self, monkeypatch):
-        """Test _download_model when both uv and pip fail"""
+        """Test _download_model when uv pip install fails"""
         import spacy
         import subprocess
 
@@ -265,6 +265,113 @@ class TestKeywordExtractor:
         # Should succeed with verbose output
         extractor = KeywordExtractor(verbose=True, model_size="small")
         assert extractor.nlp is mock_nlp
+
+    def test_download_model_unknown_model_verbose_output(self, monkeypatch, capsys):
+        """Test _download_model with unknown model name shows verbose message"""
+        import spacy
+
+        def mock_load(name):
+            raise OSError("Model not found")
+
+        monkeypatch.setattr(spacy, "load", mock_load)
+
+        extractor = KeywordExtractor.__new__(KeywordExtractor)
+        extractor.verbose = True
+        extractor.model_name = "unknown_model_xyz"
+
+        result = extractor._download_model()
+
+        # Should return False
+        assert result is False
+
+        # Check verbose output was printed
+        captured = capsys.readouterr()
+        assert "Unknown model: unknown_model_xyz" in captured.err
+
+    def test_download_model_unexpected_exception_verbose(self, monkeypatch, capsys):
+        """Test _download_model handles unexpected exceptions with verbose output"""
+        import spacy
+        import subprocess
+
+        def mock_load(name):
+            raise OSError("Model not found")
+
+        def mock_run(cmd, **_kwargs):
+            # Raise an unexpected exception (not CalledProcessError or FileNotFoundError)
+            raise RuntimeError("Unexpected network error")
+
+        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        extractor = KeywordExtractor.__new__(KeywordExtractor)
+        extractor.verbose = True
+        extractor.model_name = "en_core_web_md"
+
+        result = extractor._download_model()
+
+        # Should return False
+        assert result is False
+
+        # Check verbose output was printed
+        captured = capsys.readouterr()
+        assert "Unexpected error during download" in captured.err
+        assert (
+            "RuntimeError" in captured.err or "Unexpected network error" in captured.err
+        )
+
+    def test_download_model_file_not_found_verbose(self, monkeypatch, capsys):
+        """Test _download_model with FileNotFoundError shows verbose message"""
+        import spacy
+        import subprocess
+
+        def mock_load(name):
+            raise OSError("Model not found")
+
+        def mock_run(cmd, **_kwargs):
+            raise FileNotFoundError("uv not found")
+
+        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        extractor = KeywordExtractor.__new__(KeywordExtractor)
+        extractor.verbose = True
+        extractor.model_name = "en_core_web_md"
+
+        result = extractor._download_model()
+
+        # Should return False
+        assert result is False
+
+        # Check verbose output was printed
+        captured = capsys.readouterr()
+        assert "uv not found" in captured.err
+
+    def test_download_model_called_process_error_verbose(self, monkeypatch, capsys):
+        """Test _download_model with CalledProcessError shows verbose message"""
+        import spacy
+        import subprocess
+
+        def mock_load(name):
+            raise OSError("Model not found")
+
+        def mock_run(cmd, **_kwargs):
+            raise subprocess.CalledProcessError(1, cmd, stderr="Installation failed")
+
+        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        extractor = KeywordExtractor.__new__(KeywordExtractor)
+        extractor.verbose = True
+        extractor.model_name = "en_core_web_md"
+
+        result = extractor._download_model()
+
+        # Should return False
+        assert result is False
+
+        # Check verbose output was printed
+        captured = capsys.readouterr()
+        assert "uv pip install failed" in captured.err
 
     def test_extract_keywords_simple_basic(self):
         """Test basic keyword extraction"""

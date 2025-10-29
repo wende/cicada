@@ -15,21 +15,15 @@ dependencies = [
     "tree-sitter-elixir>=0.1.0",
     "gitpython>=3.1.0",
     "spacy>=3.8.7",
+    "keybert>=0.8.0",
     "rank-bm25>=0.2.2",
+    "simple-term-menu>=1.6.0",
 ]
 
 [project.scripts]
 cicada-server = "cicada.mcp_server:main"
 cicada = "cicada.cli:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
-    "pytest-cov>=6.0.0",
-    "black>=24.0.0",
-    "pyrefly>=0.1.0",
-]
 
 [tool.setuptools.packages.find]
 include = ["cicada*"]
@@ -151,5 +145,12 @@ reportPrivateUsage = false
 
 [dependency-groups]
 dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "black>=24.0.0",
+    "basedpyright>=1.0.0",
     "pyrefly>=0.39.1",
+    "vulture>=2.14",
 ]

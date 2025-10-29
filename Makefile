@@ -1,26 +1,35 @@
-.PHONY: help install setup-fixtures extract-keywords test test-verbose test-watch cover clean format lint pre-commit ci-test
+.PHONY: help install install-deps setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  make install       - Install dependencies with uv"
+	@echo "  make install       - Full install (deps + cicada tool to ~/.local/bin)"
+	@echo "  make install-deps  - Install dependencies only (no tool installation)"
 	@echo "  make setup-fixtures - Setup test fixtures"
-	@echo "  make extract-keywords - Extract keywords for test fixtures"
 	@echo "  make test          - Run all tests"
 	@echo "  make test-verbose  - Run tests with verbose output"
 	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
 	@echo "  make cover         - Run tests with coverage report (min 80%)"
 	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Run pyrefly type checker (excludes tests)"
+	@echo "  make lint          - Run pyrefly type checker and vulture dead code detector"
 	@echo "  make pre-commit    - Run all pre-commit checks"
 	@echo "  make ci-test       - Run tests in CI environment"
 	@echo "  make clean         - Remove generated files"
+	@echo "  make reset         - Full reset (cache, models, .cicada dirs)"
 
-# Setup dependencies with uv
-install:
+# Install dependencies only
+install-deps:
 	@echo "Installing dependencies with uv..."
-	@uv sync --extra dev
+	@uv sync --dev
 	@echo "✓ Dependencies installed (models will be downloaded on first use if needed)"
+
+# Full installation (deps + tool)
+install: install-deps
+	@echo ""
+	@echo "Installing cicada tool to ~/.local/bin/..."
+	@uv tool install --editable . --force
+	@echo "✓ cicada installed in editable mode"
+	@echo "  Command 'cicada' now uses code from $(PWD)"
 
 # Setup test fixtures
 setup-fixtures:
@@ -39,29 +48,35 @@ extract-keywords:
 	@echo "✓ Keywords extracted for test fixtures"
 
 # Run tests
-test: setup-fixtures extract-keywords
-	@uv run pytest
+test: setup-fixtures
+	@uv run pytest -n auto
 
 # Run tests with verbose output
-test-verbose: setup-fixtures extract-keywords
-	@uv run pytest -v
+test-verbose: setup-fixtures
+	@uv run pytest -n auto -v
 
 # Run tests in watch mode
-test-watch: setup-fixtures extract-keywords
+test-watch: setup-fixtures
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: setup-fixtures extract-keywords
-	@uv run pytest --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+cover: setup-fixtures
+	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
 format:
 	@uv run black cicada tests
 
-# Check code formatting with pyrefly type checker
+# Check code formatting with pyrefly type checker and vulture dead code detector
 lint:
-	@uv run pyrefly check cicada --project-excludes tests
+	@FAILED=0; \
+	echo "Running pyrefly type checker..."; \
+	uv run pyrefly check cicada --project-excludes tests || FAILED=1; \
+	echo ""; \
+	echo "Running vulture dead code detector..."; \
+	uv run vulture cicada --min-confidence 80 || FAILED=1; \
+	exit $$FAILED
 
 # Run all pre-commit checks
 pre-commit:
@@ -69,14 +84,13 @@ pre-commit:
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
-	@echo "Running pyrefly type checker (errors only)..."
-	@uv run pyrefly check cicada --project-excludes tests 2>&1 | grep -E "^\s+.*error:|errors," | head -20 || true
+	@$(MAKE) lint
 	@$(MAKE) cover
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: setup-fixtures extract-keywords
-	@uv run pytest -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+ci-test: setup-fixtures
+	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
@@ -92,3 +106,24 @@ clean:
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete
 	@echo "Cleaned up generated files"
+
+# Full reset: clean everything including cache, models, and cicada directories
+reset: clean
+	@echo "Performing full cicada reset..."
+	@echo "1. Clearing uv cache..."
+	@uv cache clean 2>&1 || true
+	@echo "2. Uninstalling spaCy models from tool environment..."
+	@uv tool run --from cicada python -m pip uninstall -y \
+		en-core-web-sm en-core-web-md en-core-web-lg 2>&1 || \
+		echo "   Could not uninstall models (cicada tool may not be installed)"
+	@echo "3. Removing .cicada directories..."
+	@rm -rf .cicada
+	@rm -rf tests/fixtures/.cicada
+	@rm -rf tests/fixtures/test_project/.cicada
+	@rm -rf tests/fixtures/elixir_project/.cicada
+	@echo "4. Removing .mcp.json..."
+	@rm -f .mcp.json
+	@echo "✓ Full reset complete!"
+	@echo ""
+	@echo "To reinstall cicada:"
+	@echo "  uv tool install --editable . --force"
