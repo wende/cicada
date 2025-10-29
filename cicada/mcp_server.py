@@ -8,6 +8,7 @@ Author: Cursor(Auto)
 """
 
 import sys
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,6 +22,7 @@ from cicada.pr_finder import PRFinder
 from cicada.git_helper import GitHelper
 from cicada.utils import load_index
 from cicada.mcp_tools import get_tool_definitions
+from cicada.command_logger import get_logger
 
 
 class CicadaServer:
@@ -46,9 +48,12 @@ class CicadaServer:
             # (e.g., not a git repository)
             print(f"Warning: Git helper not available: {e}", file=sys.stderr)
 
+        # Initialize command logger
+        self.logger = get_logger()
+
         # Register handlers
         _ = self.server.list_tools()(self.list_tools)
-        _ = self.server.call_tool()(self.call_tool)
+        _ = self.server.call_tool()(self.call_tool_with_logging)
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
@@ -118,6 +123,41 @@ class CicadaServer:
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
         return get_tool_definitions()
+
+    async def call_tool_with_logging(
+        self, name: str, arguments: dict
+    ) -> list[TextContent]:
+        """Wrapper for call_tool that logs execution details."""
+        from datetime import datetime
+
+        # Record start time
+        start_time = time.perf_counter()
+        timestamp = datetime.now()
+        error_msg = None
+        response = None
+
+        try:
+            # Call the actual tool handler
+            response = await self.call_tool(name, arguments)
+            return response
+        except Exception as e:
+            # Capture error if tool execution fails
+            error_msg = str(e)
+            raise
+        finally:
+            # Calculate execution time in milliseconds
+            end_time = time.perf_counter()
+            execution_time_ms = (end_time - start_time) * 1000
+
+            # Log the command execution (async to prevent event loop blocking)
+            await self.logger.log_command_async(
+                tool_name=name,
+                arguments=arguments,
+                response=response,
+                execution_time_ms=execution_time_ms,
+                timestamp=timestamp,
+                error=error_msg,
+            )
 
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent]:
         """Handle tool calls."""
