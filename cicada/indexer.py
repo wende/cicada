@@ -27,6 +27,96 @@ from cicada.utils.hash_utils import (
 )
 
 
+def prompt_model_change(old_method: str, old_tier: str, new_method: str, new_tier: str) -> bool:
+    """
+    Prompt user about model configuration change and ask if they want to reindex.
+
+    Args:
+        old_method: Previous keyword extraction method (e.g., 'spacy', 'bert')
+        old_tier: Previous model tier (e.g., 'fast', 'regular', 'max')
+        new_method: New keyword extraction method
+        new_tier: New model tier
+
+    Returns:
+        bool: True if user wants to continue with reindex, False to abort
+    """
+    from cicada.colors import BOLD, GREEN, RED, RESET, YELLOW
+
+    try:
+        from simple_term_menu import TerminalMenu  # type: ignore
+
+        has_terminal_menu = True
+    except ImportError:
+        has_terminal_menu = False
+
+    print()
+    print(f"{YELLOW}⚠  Model Configuration Change Detected{RESET}")
+    print()
+    print(f"  {BOLD}Previous configuration:{RESET}")
+    print(f"    Method: {old_method.upper()}")
+    print(f"    Model:  {old_tier.capitalize()}")
+    print()
+    print(f"  {BOLD}New configuration:{RESET}")
+    print(f"    Method: {new_method.upper()}")
+    print(f"    Model:  {new_tier.capitalize()}")
+    print()
+    print("  Changing the model requires reindexing the entire codebase.")
+    print()
+
+    if has_terminal_menu:
+        menu_items = [
+            "Continue - Reindex entire codebase with new model",
+            "Abort - Keep existing index with old model",
+        ]
+        try:
+            menu = TerminalMenu(  # type: ignore
+                menu_items,
+                title="What would you like to do?",
+                menu_cursor="» ",
+                menu_cursor_style=("fg_yellow", "bold"),
+                menu_highlight_style=("fg_yellow", "bold"),
+                cycle_cursor=True,
+                clear_screen=False,
+            )
+            choice = menu.show()
+            print()
+
+            if choice is None or choice == 1:
+                print(f"{GREEN}✓{RESET} Keeping existing index")
+                return False
+            else:
+                print(f"{GREEN}✓{RESET} Proceeding with full reindex")
+                return True
+        except (KeyboardInterrupt, EOFError):
+            print()
+            print(f"{RED}✗{RESET} Aborted by user")
+            sys.exit(1)
+    else:
+        # Fallback to text-based prompt
+        print("Options:")
+        print("  1. Continue - Reindex entire codebase with new model")
+        print("  2. Abort - Keep existing index with old model")
+        print()
+
+        while True:
+            try:
+                choice = input("Enter your choice (1 or 2): ").strip()
+                if choice == "1":
+                    print()
+                    print(f"{GREEN}✓{RESET} Proceeding with full reindex")
+                    return True
+                elif choice == "2":
+                    print()
+                    print(f"{GREEN}✓{RESET} Keeping existing index")
+                    return False
+                else:
+                    print("Invalid choice. Please enter 1 or 2.")
+            except (KeyboardInterrupt, EOFError):
+                print()
+                print(f"{RED}✗{RESET} Aborted by user")
+                sys.exit(1)
+
+
 class ElixirIndexer:
     """Indexes Elixir repositories to extract module and function information."""
 
@@ -257,6 +347,8 @@ class ElixirIndexer:
                 "total_modules": len(all_modules),
                 "total_functions": total_functions,
                 "repo_path": str(repo_path_obj),
+                "keyword_method": keyword_method if extract_keywords else None,
+                "model_tier": model_tier if extract_keywords else None,
             },
         }
 
@@ -371,6 +463,37 @@ class ElixirIndexer:
                 keyword_method,
                 model_tier,
             )
+
+        # Check if model configuration has changed
+        if extract_keywords and existing_index:
+            old_metadata = existing_index.get("metadata", {})
+            old_method = old_metadata.get("keyword_method")
+            old_tier = old_metadata.get("model_tier")
+
+            # If old index had keywords but config differs, prompt user
+            if (
+                old_method is not None
+                and old_tier is not None
+                and (old_method != keyword_method or old_tier != model_tier)
+            ):
+                should_reindex = prompt_model_change(
+                    old_method, old_tier, keyword_method, model_tier
+                )
+
+                if not should_reindex:
+                    # User chose to abort - keep existing index
+                    print("Keeping existing index. No changes made.")
+                    return existing_index
+
+                # User chose to continue - do full reindex
+                print("Performing full reindex with new model configuration...")
+                return self.index_repository(
+                    str(repo_path_obj),
+                    str(output_path_obj),
+                    extract_keywords,
+                    keyword_method,
+                    model_tier,
+                )
 
         print(f"Performing incremental index of: {repo_path_obj}")
 
@@ -519,6 +642,8 @@ class ElixirIndexer:
             "metadata": {
                 "indexed_at": datetime.now().isoformat(),
                 "repo_path": str(repo_path_obj),
+                "keyword_method": keyword_method if extract_keywords else None,
+                "model_tier": model_tier if extract_keywords else None,
             },
         }
 

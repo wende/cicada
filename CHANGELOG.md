@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resume capability - continue from where you left off
   - Double Ctrl-C for force quit when needed
 
+- **Model Configuration Tracking**: Automatic detection and warning for model changes during incremental indexing
+  - Tracks keyword extraction method (spaCy vs KeyBERT) and model tier in index metadata
+  - Detects configuration changes and prompts user before proceeding
+  - Interactive menu to choose: reindex with new model or keep existing index
+  - Prevents inconsistent indexes with mixed model configurations
+  - Falls back to text input when terminal menus unavailable
+  - Fully backward compatible with existing indexes
+
 ### Changed
 
 - Indexing workflow now uses incremental mode by default
