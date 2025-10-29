@@ -415,6 +415,9 @@ def create_gitattributes(repo_path):
 
 def update_claude_md(repo_path):
     """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
+    import re
+    from cicada.mcp_tools import get_tool_definitions
+
     repo_path = Path(repo_path).resolve()
     claude_md_path = repo_path / "CLAUDE.md"
 
@@ -422,25 +425,42 @@ def update_claude_md(repo_path):
     if not claude_md_path.exists():
         return
 
-    instruction_content = """<cicada>
+    # Auto-generate tool list from mcp_tools.py
+    tools = get_tool_definitions()
+    tool_list = []
+    grep_antipatterns = []
+
+    for tool in tools:
+        # Extract first sentence from description (up to first period or newline)
+        desc = tool.description.split("\n")[0].strip()
+        if "." in desc:
+            desc = desc.split(".")[0] + "."
+        tool_list.append(f"  - {desc} `mcp__cicada__{tool.name}`")
+
+        # Get anti-pattern from tool metadata
+        if tool.meta and "anti_pattern" in tool.meta:
+            grep_antipatterns.append(f"  - ❌ {tool.meta['anti_pattern']}")
+
+    tool_list_str = "\n".join(tool_list)
+    grep_antipatterns_str = (
+        "\n".join(grep_antipatterns)
+        if grep_antipatterns
+        else "  - ❌ Searching for Elixir code structure"
+    )
+
+    instruction_content = f"""<cicada>
   **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - Finding function definitions: `mcp__cicada__search_function`
-  - Finding module APIs: `mcp__cicada__search_module`
-  - Finding module usage: `mcp__cicada__search_module_usage`
-  - Finding who wrote code: `mcp__cicada__find_pr_for_line`
-  - Finding file history: `mcp__cicada__get_commit_history`
+{tool_list_str}
 
   ### DO NOT use Grep for:
-  - ❌ Searching for function names
-  - ❌ Finding where functions are called
-  - ❌ Exploring module structure
+{grep_antipatterns_str}
 
-  ### Only use Grep for:
+  ### You can still use Grep for:
   - ✓ Non-code files (markdown, JSON, config)
   - ✓ String literal searches
-  - ✓ Pattern matching in comments
+  - ✓ Pattern matching in single line comments
 </cicada>
 """
 
@@ -449,21 +469,31 @@ def update_claude_md(repo_path):
         with open(claude_md_path, "r") as f:
             content = f.read()
 
-        # Check if instruction already exists
-        if "cicada-mcp" in content or "use the cicada-mcp MCP server" in content:
-            print(f"✓ CLAUDE.md already mentions cicada-mcp")
-            return
+        # Pattern to find existing <cicada>...</cicada> tags
+        cicada_pattern = re.compile(r"<cicada>.*?</cicada>", re.DOTALL)
 
-        # Append the instruction
-        with open(claude_md_path, "a") as f:
-            # Add newline if file doesn't end with one
-            if content and not content.endswith("\n"):
+        # Check if <cicada> tags exist
+        if cicada_pattern.search(content):
+            # Replace existing content between tags
+            new_content = cicada_pattern.sub(instruction_content, content)
+            with open(claude_md_path, "w") as f:
+                _ = f.write(new_content)
+            print(f"✓ Replaced existing <cicada> instructions in CLAUDE.md")
+        elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
+            # Content already mentions cicada, don't add duplication
+            # This handles cases where users manually added cicada instructions
+            print(f"✓ CLAUDE.md already mentions cicada, skipping update")
+        else:
+            # Append the instruction
+            with open(claude_md_path, "a") as f:
+                # Add newline if file doesn't end with one
+                if content and not content.endswith("\n"):
+                    _ = f.write("\n")
+
                 _ = f.write("\n")
+                _ = f.write(instruction_content)
 
-            _ = f.write("\n")
-            _ = f.write(instruction_content)
-
-        print(f"✓ Updated CLAUDE.md with cicada-mcp usage instructions")
+            print(f"✓ Added cicada-mcp usage instructions to CLAUDE.md")
     except Exception:
         # Fail silently on any errors
         pass
