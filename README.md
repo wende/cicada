@@ -61,7 +61,7 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
 
 ## Installation
 
-### One-Command Setup (Recommended)
+### Recommended: Permanent Installation
 
 **Installing UV:**
 ```bash
@@ -69,7 +69,37 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # or: brew install uv
 ```
 
-**Single-command setup for your editor:**
+**Install Cicada permanently for best experience:**
+
+```bash
+# Step 1: Install once
+uv tool install git+https://github.com/wende/cicada.git@v0.1.1
+
+# Step 2: Setup in each project (one command per project)
+cd /path/to/your/elixir/project
+cicada claude  # or: cicada cursor, cicada vs
+```
+
+**That's it!** The setup command:
+- Indexes your codebase with keyword extraction
+- Stores all files in `~/.cicada/projects/<hash>/` (outside your repo)
+- Creates only an MCP config file in your repo (`.mcp.json` for Claude Code)
+- Configures the MCP server automatically
+
+**After setup:**
+1. Restart your editor
+2. Start coding with AI-powered Elixir intelligence!
+
+**Available commands after installation:**
+- `cicada [claude|cursor|vs]` - One-command setup per project
+- `cicada-server` - MCP server (auto-started by editor)
+- `cicada-index` - Re-index code with custom options (medium/large spaCy models)
+- `cicada-index-pr` - Index pull requests for PR attribution
+- `cicada-install` - Legacy setup (creates `.cicada/` in repo)
+
+### Try Before Installing
+
+Want to test Cicada first? Use `uvx` for a quick trial:
 
 ```bash
 cd /path/to/your/elixir/project
@@ -84,35 +114,14 @@ uvx --from git+https://github.com/wende/cicada.git@v0.1.1 cicada cursor
 uvx --from git+https://github.com/wende/cicada.git@v0.1.1 cicada vs
 ```
 
-**That's it!** This single command:
-- Indexes your codebase with keyword extraction
-- Stores all files in `~/.cicada/projects/<hash>/` (outside your repo)
-- Creates only an MCP config file in your repo (`.mcp.json` for Claude Code)
-- Configures the MCP server automatically
+**Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
+- ✅ Faster MCP server startup (no temporary environment creation)
+- ✅ Access to all CLI commands (`cicada-index`, `cicada-index-pr`)
+- ✅ Fine-tuned keyword extraction with medium/large spaCy models
+- ✅ PR indexing features
+- ✅ Custom re-indexing options
 
-**After setup:**
-1. Restart your editor
-2. Start coding with AI-powered Elixir intelligence!
-
-### Advanced Installation
-
-For permanent installation with all commands:
-
-```bash
-# Install permanently
-uv tool install git+https://github.com/wende/cicada.git@v0.1.1
-
-# Then setup in each project
-cd /path/to/your/elixir/project
-cicada claude  # or: cicada cursor, cicada vs
-```
-
-**Available commands after permanent install:**
-- `cicada [claude|cursor|vs]` - One-command setup
-- `cicada-server` - MCP server (auto-started by editor)
-- `cicada-index` - Re-index code manually
-- `cicada-index-pr` - Index pull requests
-- `cicada-install` - Legacy setup (creates `.cicada/` in repo)
+Once you're convinced, install permanently with `uv tool install` above!
 
 ---
 

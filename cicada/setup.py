@@ -212,12 +212,14 @@ def index_repository(repo_path: Path) -> None:
         repo_path: Path to the repository
     """
     print(f"Indexing repository at {repo_path}...")
-    print("(Keyword extraction enabled)")
+    print("(Keyword extraction enabled with small spaCy model)")
 
     index_path = get_index_path(repo_path)
     indexer = ElixirIndexer(verbose=True)
 
     # Index with keyword extraction enabled by default
+    # Note: Using 'small' model for compatibility with uvx
+    # For better accuracy, install permanently and use cicada-index with --spacy-model medium/large
     indexer.index_repository(
         repo_path=str(repo_path),
         output_path=str(index_path),
@@ -286,6 +288,18 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
     print("All index files are stored outside your repository.")
     print(f"Only {config_path.name} was added to your repo.")
     print()
+
+    # Check if running via uvx and suggest permanent installation
+    import shutil
+    if not shutil.which("cicada-server"):
+        print("💡 Tip: For best experience, install Cicada permanently:")
+        print("   uv tool install git+https://github.com/wende/cicada.git@v0.1.1")
+        print()
+        print("   Benefits:")
+        print("   • Faster MCP server startup")
+        print("   • Access to cicada-index with medium/large spaCy models")
+        print("   • PR indexing with cicada-index-pr")
+        print()
 
 
 def main():
