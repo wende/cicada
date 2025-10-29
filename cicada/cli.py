@@ -57,11 +57,19 @@ def main():
         help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
     )
     index_parser.add_argument(
-        "--model-tier",
-        choices=["fast", "regular", "max"],
-        default="regular",
-        help="Model tier to use for keyword extraction (default: regular). "
-        "Higher tiers provide better accuracy but are slower.",
+        "--fast",
+        action="store_true",
+        help="Use fast keyword extraction model (lower accuracy, faster speed)",
+    )
+    index_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Use maximum quality keyword extraction model (highest accuracy, slower speed)",
+    )
+    index_parser.add_argument(
+        "--rag",
+        action="store_true",
+        help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
     )
 
     # ========================================================================
@@ -176,12 +184,24 @@ def handle_index(args):
     # Check for updates (non-blocking, fails silently)
     check_for_updates()
 
+    # Determine model tier from flags
+    if args.fast:
+        model_tier = "fast"
+    elif args.max:
+        model_tier = "max"
+    else:
+        model_tier = "regular"
+
+    # Determine keyword method
+    keyword_method = "bert" if args.rag else "spacy"
+
     indexer = ElixirIndexer()
     indexer.index_repository(
         args.repo,
         args.output,
         extract_keywords=args.extract_keywords,
-        model_tier=args.model_tier,
+        keyword_method=keyword_method,
+        model_tier=model_tier,
     )
 
 
