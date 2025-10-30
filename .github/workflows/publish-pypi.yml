@@ -1,5 +1,9 @@
 name: Publish to PyPI
 
+# Required GitHub Secrets:
+# - PYPI_API_TOKEN: API token for publishing to PyPI (https://pypi.org/manage/account/token/)
+# - TEST_PYPI_API_TOKEN: API token for TestPyPI (https://test.pypi.org/manage/account/token/)
+
 on:
   release:
     types: [published]
@@ -35,6 +39,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Install spaCy language models
+        run: |
+          uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+          uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl
+
+      - name: Clone test fixture
+        run: |
+          git clone https://github.com/wende/ab tests/fixtures/elixir_project
+
       - name: Run tests
         run: uv run pytest
 
@@ -51,7 +64,7 @@ jobs:
             --token $UV_PUBLISH_TOKEN
 
       - name: Publish to PyPI
-        if: github.event_name == 'release' && github.event.inputs.test_pypi != 'true'
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_pypi != 'true')
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
@@ -62,4 +75,4 @@ jobs:
         run: |
           sleep 60  # Wait for PyPI to index the package
           pip install cicada
-          cicada --version
+          python -c "import cicada; print(f'Cicada version: {cicada.__version__}')"
