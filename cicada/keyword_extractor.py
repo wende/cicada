@@ -3,7 +3,6 @@ Keyword Extraction using spaCy
 Advanced NLP-based keyword extraction for programming documentation
 """
 
-import spacy
 from collections import Counter
 import re
 import sys
