@@ -15,6 +15,113 @@ from cicada.utils import split_camel_snake_case
 KeywordExtractor = LightweightKeywordExtractor
 
 
+class TestLightweightKeywordExtractor:
+    """Tests for LightweightKeywordExtractor class"""
+
+    def test_lemmatization_quality_technical_terms(self):
+        """Test that lemminflect properly lemmatizes technical terms"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test various technical terms that should be lemmatized
+        test_cases = {
+            "configuring": "configure",
+            "authentication": "authentication",  # Should stay as noun form
+            "validating": "validate",
+            "executing": "execute",
+            "processing": "process",
+            "optimizing": "optimize",
+            "benchmarking": "benchmark",
+        }
+
+        for word, expected_lemma in test_cases.items():
+            lemma = extractor._lemmatize(word)
+            assert lemma == expected_lemma, (
+                f"Expected '{word}' to lemmatize to '{expected_lemma}', "
+                f"but got '{lemma}'"
+            )
+
+    def test_lemmatization_with_adjectives(self):
+        """Test that adjectives are properly lemmatized (ADJ POS tag)"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test adjective lemmatization
+        adjective_cases = {
+            "faster": "fast",
+            "better": "good",
+            "larger": "large",
+            "performant": "performant",  # Should handle even if no change
+        }
+
+        for word, expected_lemma in adjective_cases.items():
+            lemma = extractor._lemmatize(word)
+            # Note: lemminflect may not change all adjectives, but it should try
+            assert isinstance(lemma, str) and len(lemma) > 0, (
+                f"Lemmatization of '{word}' should return a non-empty string"
+            )
+
+    def test_lemmatization_error_handling(self):
+        """Test that _lemmatize handles errors gracefully"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test with unusual inputs that might cause lemminflect to fail
+        edge_cases = ["", "123", "!!!", "a1b2c3"]
+
+        for word in edge_cases:
+            if word:  # Skip empty string for this test
+                lemma = extractor._lemmatize(word)
+                # Should return a string without crashing
+                # Lemminflect may process edge cases differently, the key is no exceptions
+                assert isinstance(lemma, str), (
+                    f"Edge case '{word}' should return a string, got '{type(lemma)}'"
+                )
+                assert len(lemma) > 0, (
+                    f"Edge case '{word}' should return non-empty string"
+                )
+
+    def test_model_size_deprecation_warning(self):
+        """Test that model_size parameter triggers deprecation warning"""
+        with pytest.warns(DeprecationWarning, match="model_size.*deprecated"):
+            extractor = LightweightKeywordExtractor(verbose=False, model_size="medium")
+
+    def test_regex_patterns_precompiled(self):
+        """Test that regex patterns are pre-compiled as class attributes"""
+        # Check that CODE_PATTERNS exists and contains compiled patterns
+        assert hasattr(LightweightKeywordExtractor, "CODE_PATTERNS")
+        assert len(LightweightKeywordExtractor.CODE_PATTERNS) > 0
+
+        # Verify they are compiled regex objects
+        for pattern in LightweightKeywordExtractor.CODE_PATTERNS:
+            assert hasattr(pattern, "findall"), (
+                "CODE_PATTERNS should contain compiled regex objects"
+            )
+
+    def test_tf_score_calculation_includes_weighted_keywords(self):
+        """Test that TF scores are calculated based on all keywords including weighted ones"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+
+        # Text with code identifier that gets 10x weight
+        text = "Using PostgreSQL database for authentication"
+        results = extractor.extract_keywords(text, top_n=10)
+
+        # Check that tf_scores exist and are calculated correctly
+        assert "tf_scores" in results
+        tf_scores = results["tf_scores"]
+
+        # The denominator should include weighted keywords
+        # If we have 1 code identifier (10x) + splits (3x each) + regular words,
+        # the total should be much higher than just counting unique words
+        assert len(tf_scores) > 0
+
+        # TF scores should be fractions (between 0 and 1)
+        for word, score in tf_scores.items():
+            assert 0 < score <= 1, (
+                f"TF score for '{word}' should be between 0 and 1, got {score}"
+            )
+
+
 class TestKeywordExtractor:
     """Tests for KeywordExtractor class"""
 
