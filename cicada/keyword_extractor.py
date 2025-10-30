@@ -1,17 +1,38 @@
 """
 Keyword Extraction using spaCy
 Advanced NLP-based keyword extraction for programming documentation
+
+DEPRECATED: This module is being replaced by lightweight_keyword_extractor.py
+which provides faster performance using lemminflect instead of spaCy.
+
+The spaCy-based extractor has been kept for backward compatibility and for
+cases where advanced NLP features are needed. For most use cases, prefer
+LightweightKeywordExtractor from cicada.lightweight_keyword_extractor.
+
+Performance comparison:
+- LightweightKeywordExtractor: ~0.1s startup time
+- KeywordExtractor (spaCy): ~2s startup time
+
+See: cicada.lightweight_keyword_extractor.LightweightKeywordExtractor
 """
 
-import re
-import subprocess
-import sys
 from collections import Counter
+import re
+import sys
+import subprocess
 
-import spacy
-
-from cicada.colors import DIM, RESET
 from cicada.utils import split_camel_snake_case
+
+# Lazy import spacy only when needed
+spacy = None
+
+
+def _ensure_spacy_imported():
+    """Import spacy only when needed."""
+    global spacy
+    if spacy is None:
+        import spacy as spacy_module
+        spacy = spacy_module
 
 
 class KeywordExtractor:
@@ -26,7 +47,7 @@ class KeywordExtractor:
 
     def __init__(self, verbose: bool = False, model_size: str = "small"):
         """
-        Initialize spaCy model.
+        Initialize keyword extractor with lazy model loading.
 
         Args:
             verbose: If True, print status messages during initialization
@@ -45,28 +66,53 @@ class KeywordExtractor:
 
         self.model_size = model_size
         self.model_name = self.SPACY_MODELS[model_size]
+        self.nlp = None  # Lazy-loaded on first use
+
+    def _ensure_model_loaded(self):
+        """
+        Ensure the spaCy model is loaded, downloading if necessary.
+        Only called when model is actually needed (lazy loading).
+        """
+        if self.nlp is not None:
+            return  # Already loaded
+
+        # Ensure spacy is imported
+        _ensure_spacy_imported()
 
         if self.verbose:
-            print(f"\n  Loading spaCy model ({model_size})...", file=sys.stderr)
+            print(f"Loading spaCy model ({self.model_size})...", file=sys.stderr)
 
         try:
-            self.nlp = spacy.load(self.model_name)
+            # Import the model directly as a Python package (fast failure if not installed)
+            import importlib
+
+            model_module = importlib.import_module(self.model_name)
+            self.nlp = model_module.load()
             if self.verbose:
-                print(f"  {DIM}✓ Model loaded successfully{RESET}", file=sys.stderr)
-        except OSError:
-            # Model not found, try to download it
+                print("✓ Model loaded successfully", file=sys.stderr)
+        except (ImportError, AttributeError):
+            # Model not installed, download it
+            if self.verbose:
+                print(
+                    f"Model '{self.model_name}' not found. Downloading...",
+                    file=sys.stderr,
+                )
+
             if not self._download_model():
                 raise RuntimeError(
                     f"Failed to download spaCy model '{self.model_name}'. "
                     f"Please install it manually with: python -m spacy download {self.model_name}"
-                ) from None
+                )
 
-            # Try loading again after download
+            # Try importing again after download
             try:
-                self.nlp = spacy.load(self.model_name)
+                import importlib
+
+                model_module = importlib.import_module(self.model_name)
+                self.nlp = model_module.load()
                 if self.verbose:
-                    print(f"  {DIM}✓ Model loaded successfully{RESET}", file=sys.stderr)
-            except OSError as e:
+                    print("✓ Model loaded successfully", file=sys.stderr)
+            except (ImportError, AttributeError) as e:
                 raise RuntimeError(
                     f"Failed to load spaCy model '{self.model_name}' after download. "
                     f"Please try installing it manually: python -m spacy download {self.model_name}"
@@ -93,36 +139,22 @@ class KeywordExtractor:
 
         model_url = model_urls[self.model_name]
 
-        # Use uv pip install with --python flag to target current environment
-        # Don't capture output so progress bars are visible
+        # Use uv pip install (works in uv-managed environments)
         try:
             if self.verbose:
-                print(f"Downloading {self.model_name}...", file=sys.stderr)
-                sys.stderr.flush()
-
-            # Try to pass stdin/stdout/stderr for TTY progress bars
-            # Fall back to DEVNULL if stdin/stdout/stderr are pseudofiles (e.g., in tests)
-            try:
-                # Check if stdin is a real file
-                _ = sys.stdin.fileno()
-                stdin = sys.stdin
-                stdout = sys.stdout
-                stderr = sys.stderr
-            except (AttributeError, OSError):
-                # stdin/stdout/stderr are pseudofiles, use DEVNULL
-                stdin = subprocess.DEVNULL
-                stdout = subprocess.DEVNULL
-                stderr = subprocess.DEVNULL
+                print(f"Running: uv pip install {model_url}", file=sys.stderr)
 
             result = subprocess.run(
-                ["uv", "pip", "install", "--python", sys.executable, model_url],
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
+                ["uv", "pip", "install", model_url],
+                capture_output=True,
+                text=True,
                 check=True,
             )
 
-            return result.returncode == 0
+            if self.verbose and result.stdout:
+                print(result.stdout, file=sys.stderr)
+
+            return True
         except FileNotFoundError:
             if self.verbose:
                 print(
@@ -133,7 +165,7 @@ class KeywordExtractor:
             return False
         except subprocess.CalledProcessError as e:
             if self.verbose:
-                print(f"uv pip install failed: {e}", file=sys.stderr)
+                print(f"uv pip install failed: {e.stderr}", file=sys.stderr)
             return False
         except Exception as e:
             if self.verbose:
@@ -170,7 +202,9 @@ class KeywordExtractor:
             split_text = split_camel_snake_case(identifier)
             # Extract individual words (lowercase, length > 1)
             words = [
-                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
+                word.lower()
+                for word in split_text.split()
+                if len(word) > 1 and word.isalpha()
             ]
             split_words.extend(words)
 
@@ -191,6 +225,7 @@ class KeywordExtractor:
             return []
 
         try:
+            self._ensure_model_loaded()
             results = self.extract_keywords(text, top_n=top_n)
             # Extract just the keyword strings from top_keywords tuples
             return [keyword for keyword, _ in results["top_keywords"]]
@@ -240,6 +275,9 @@ class KeywordExtractor:
                     "sentences": 0,
                 },
             }
+        # Ensure model is loaded (lazy loading on first use)
+        self._ensure_model_loaded()
+
         # Process with spaCy
         doc = self.nlp(text)
 
@@ -259,7 +297,9 @@ class KeywordExtractor:
 
         # 3. Extract adjectives (descriptors)
         adjectives = [
-            token.lemma_.lower() for token in doc if token.pos_ == "ADJ" and not token.is_stop
+            token.lemma_.lower()
+            for token in doc
+            if token.pos_ == "ADJ" and not token.is_stop
         ]
 
         # 4. Extract proper nouns (named entities, technologies)
@@ -267,7 +307,9 @@ class KeywordExtractor:
 
         # 5. Extract noun chunks (multi-word concepts)
         noun_chunks = [
-            chunk.text.lower() for chunk in doc.noun_chunks if len(chunk.text.split()) > 1
+            chunk.text.lower()
+            for chunk in doc.noun_chunks
+            if len(chunk.text.split()) > 1
         ]
 
         # 6. Extract named entities
@@ -281,20 +323,26 @@ class KeywordExtractor:
         # Give code split words 3x weight for fuzzy matching
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
         all_keywords = (
-            nouns + verbs + proper_nouns + (code_identifiers_lower * 10) + (code_split_words * 3)
+            nouns
+            + verbs
+            + proper_nouns
+            + (code_identifiers_lower * 10)
+            + (code_split_words * 3)
         )
         keyword_freq = Counter(all_keywords)
         top_keywords = keyword_freq.most_common(top_n)
 
         # 9. Calculate TF scores (simple version)
-        total_words = len([token for token in doc if not token.is_stop and not token.is_punct])
+        total_words = len(
+            [token for token in doc if not token.is_stop and not token.is_punct]
+        )
         tf_scores = {word: (freq / total_words) for word, freq in keyword_freq.items()}
 
         # Statistics
         stats = {
             "total_tokens": len(doc),
             "total_words": total_words,
-            "unique_words": len({t.text.lower() for t in doc if not t.is_punct}),
+            "unique_words": len(set([t.text.lower() for t in doc if not t.is_punct])),
             "sentences": len(list(doc.sents)),
         }
 
@@ -308,6 +356,8 @@ class KeywordExtractor:
             "entities": entities,
             "code_identifiers": code_identifiers,
             "code_split_words": code_split_words,
-            "tf_scores": dict(sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]),
+            "tf_scores": dict(
+                sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]
+            ),
             "stats": stats,
         }

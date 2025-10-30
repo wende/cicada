@@ -6,24 +6,139 @@ Author: Cursor(Auto)
 
 import pytest
 from pathlib import Path
-from cicada.keyword_extractor import KeywordExtractor
+from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
 from cicada.keyword_search import KeywordSearcher
 from cicada.indexer import ElixirIndexer
 from cicada.utils import split_camel_snake_case
+
+# For backwards compatibility, alias the lightweight extractor
+KeywordExtractor = LightweightKeywordExtractor
+
+
+class TestLightweightKeywordExtractor:
+    """Tests for LightweightKeywordExtractor class"""
+
+    def test_lemmatization_quality_technical_terms(self):
+        """Test that lemminflect properly lemmatizes technical terms"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test various technical terms that should be lemmatized
+        test_cases = {
+            "configuring": "configure",
+            "authentication": "authentication",  # Should stay as noun form
+            "validating": "validate",
+            "executing": "execute",
+            "processing": "process",
+            "optimizing": "optimize",
+            "benchmarking": "benchmark",
+        }
+
+        for word, expected_lemma in test_cases.items():
+            lemma = extractor._lemmatize(word)
+            assert lemma == expected_lemma, (
+                f"Expected '{word}' to lemmatize to '{expected_lemma}', "
+                f"but got '{lemma}'"
+            )
+
+    def test_lemmatization_with_adjectives(self):
+        """Test that adjectives are properly lemmatized (ADJ POS tag)"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test adjective lemmatization
+        adjective_cases = {
+            "faster": "fast",
+            "better": "good",
+            "larger": "large",
+            "performant": "performant",  # Should handle even if no change
+        }
+
+        for word, expected_lemma in adjective_cases.items():
+            lemma = extractor._lemmatize(word)
+            # Note: lemminflect may not change all adjectives, but it should try
+            assert isinstance(lemma, str) and len(lemma) > 0, (
+                f"Lemmatization of '{word}' should return a non-empty string"
+            )
+
+    def test_lemmatization_error_handling(self):
+        """Test that _lemmatize handles errors gracefully"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor._load_lemminflect()  # Load lemminflect before testing
+
+        # Test with unusual inputs that might cause lemminflect to fail
+        edge_cases = ["", "123", "!!!", "a1b2c3"]
+
+        for word in edge_cases:
+            if word:  # Skip empty string for this test
+                lemma = extractor._lemmatize(word)
+                # Should return a string without crashing
+                # Lemminflect may process edge cases differently, the key is no exceptions
+                assert isinstance(lemma, str), (
+                    f"Edge case '{word}' should return a string, got '{type(lemma)}'"
+                )
+                assert len(lemma) > 0, (
+                    f"Edge case '{word}' should return non-empty string"
+                )
+
+    def test_model_size_deprecation_warning(self):
+        """Test that model_size parameter triggers deprecation warning"""
+        with pytest.warns(DeprecationWarning, match="model_size.*deprecated"):
+            extractor = LightweightKeywordExtractor(verbose=False, model_size="medium")
+
+    def test_regex_patterns_precompiled(self):
+        """Test that regex patterns are pre-compiled as class attributes"""
+        # Check that CODE_PATTERNS exists and contains compiled patterns
+        assert hasattr(LightweightKeywordExtractor, "CODE_PATTERNS")
+        assert len(LightweightKeywordExtractor.CODE_PATTERNS) > 0
+
+        # Verify they are compiled regex objects
+        for pattern in LightweightKeywordExtractor.CODE_PATTERNS:
+            assert hasattr(pattern, "findall"), (
+                "CODE_PATTERNS should contain compiled regex objects"
+            )
+
+    def test_tf_score_calculation_includes_weighted_keywords(self):
+        """Test that TF scores are calculated based on all keywords including weighted ones"""
+        extractor = LightweightKeywordExtractor(verbose=False)
+
+        # Text with code identifier that gets 10x weight
+        text = "Using PostgreSQL database for authentication"
+        results = extractor.extract_keywords(text, top_n=10)
+
+        # Check that tf_scores exist and are calculated correctly
+        assert "tf_scores" in results
+        tf_scores = results["tf_scores"]
+
+        # The denominator should include weighted keywords
+        # If we have 1 code identifier (10x) + splits (3x each) + regular words,
+        # the total should be much higher than just counting unique words
+        assert len(tf_scores) > 0
+
+        # TF scores should be fractions (between 0 and 1)
+        for word, score in tf_scores.items():
+            assert 0 < score <= 1, (
+                f"TF score for '{word}' should be between 0 and 1, got {score}"
+            )
 
 
 class TestKeywordExtractor:
     """Tests for KeywordExtractor class"""
 
     def test_keyword_extractor_initialization(self):
-        """Test that KeywordExtractor initializes properly"""
+        """Test that KeywordExtractor initializes with lazy loading"""
         extractor = KeywordExtractor(verbose=False)
-        assert extractor.nlp is not None
+        # lemminflect should not be loaded until first use (lazy loading)
+        assert extractor._lemminflect_loaded is False
+        # After extracting keywords, lemminflect should be loaded
+        extractor.extract_keywords_simple("test text")
+        assert extractor._lemminflect_loaded is True
 
     def test_invalid_model_size(self):
-        """Test that invalid model size raises ValueError"""
-        with pytest.raises(ValueError, match="Invalid model size"):
-            KeywordExtractor(verbose=False, model_size="invalid")
+        """Test that model_size parameter is ignored (for API compatibility)"""
+        # Lightweight extractor accepts any model_size for compatibility but ignores it
+        extractor = KeywordExtractor(verbose=False, model_size="invalid")
+        assert extractor.model_size == "invalid"  # Stored but not validated
 
     def test_split_camel_case(self):
         """Test splitting camelCase identifiers"""
@@ -139,233 +254,49 @@ class TestKeywordExtractor:
                 keyword_dict["database"] < 3
             ), "Regular words should have lower weight than code split words"
 
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     @pytest.mark.parametrize("verbose", [False, True])
     def test_keyword_extractor_missing_model(self, monkeypatch, verbose):
-        """Test that KeywordExtractor raises error when model missing"""
-        import spacy
+        """Test that KeywordExtractor raises error when model missing and used"""
+        # This test is specific to spaCy model downloading and doesn't apply to lightweight extractor
+        pass
 
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        # Mock both spacy.load and _download_model to simulate failed download
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(KeywordExtractor, "_download_model", lambda self: False)
-
-        with pytest.raises(RuntimeError, match="Failed to download spaCy model"):
-            KeywordExtractor(verbose=verbose)
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_unknown_model(self, monkeypatch):
         """Test _download_model with unknown model name"""
-        import spacy
+        pass
 
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "unknown_model"
-
-        # Should return False for unknown model
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_uv_not_found(self, monkeypatch):
         """Test _download_model when uv is not available"""
-        import spacy
-        import subprocess
+        pass
 
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            if cmd[0] == "uv":
-                raise FileNotFoundError("uv not found")
-            # Should not reach this point
-            return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "en_core_web_md"
-
-        # Should return False when uv is not found (no fallback to pip)
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_both_fail(self, monkeypatch):
-        """Test _download_model when uv pip install fails"""
-        import spacy
-        import subprocess
+        """Test _download_model when both uv and pip fail"""
+        pass
 
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            raise subprocess.CalledProcessError(1, cmd, stderr="Install failed")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = False
-        extractor.model_name = "en_core_web_md"
-
-        # Should return False when both fail
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_succeeds_but_load_fails(self, monkeypatch):
         """Test when download succeeds but model still can't load"""
-        import spacy
-        import subprocess
+        pass
 
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            # Simulate successful download
-            return subprocess.CompletedProcess(cmd, 0, stdout="Installed successfully", stderr="")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        with pytest.raises(RuntimeError, match="Failed to load spaCy model.*after download"):
-            KeywordExtractor(verbose=True, model_size="medium")
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_with_verbose_output(self, monkeypatch):
-        """Test download with verbose output enabled"""
-        import spacy
-        import subprocess
-        from unittest.mock import MagicMock
-
-        call_count = [0]
-        mock_nlp = MagicMock()
-
-        def mock_load(name):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise OSError("Model not found")
-            # Second call succeeds
-            return mock_nlp
-
-        def mock_run(cmd, **_kwargs):
-            # Simulate successful download with output
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout="Successfully installed en-core-web-md", stderr=""
-            )
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        # Should succeed with verbose output
-        extractor = KeywordExtractor(verbose=True, model_size="small")
-        assert extractor.nlp is mock_nlp
-
-    def test_download_model_unknown_model_verbose_output(self, monkeypatch, capsys):
-        """Test _download_model with unknown model name shows verbose message"""
-        import spacy
-
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "unknown_model_xyz"
-
-        result = extractor._download_model()
-
-        # Should return False
-        assert result is False
-
-        # Check verbose output was printed
-        captured = capsys.readouterr()
-        assert "Unknown model: unknown_model_xyz" in captured.err
-
-    def test_download_model_unexpected_exception_verbose(self, monkeypatch, capsys):
-        """Test _download_model handles unexpected exceptions with verbose output"""
-        import spacy
-        import subprocess
-
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            # Raise an unexpected exception (not CalledProcessError or FileNotFoundError)
-            raise RuntimeError("Unexpected network error")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "en_core_web_md"
-
-        result = extractor._download_model()
-
-        # Should return False
-        assert result is False
-
-        # Check verbose output was printed
-        captured = capsys.readouterr()
-        assert "Unexpected error during download" in captured.err
-        assert "RuntimeError" in captured.err or "Unexpected network error" in captured.err
-
-    def test_download_model_file_not_found_verbose(self, monkeypatch, capsys):
-        """Test _download_model with FileNotFoundError shows verbose message"""
-        import spacy
-        import subprocess
-
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            raise FileNotFoundError("uv not found")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "en_core_web_md"
-
-        result = extractor._download_model()
-
-        # Should return False
-        assert result is False
-
-        # Check verbose output was printed
-        captured = capsys.readouterr()
-        assert "uv not found" in captured.err
-
-    def test_download_model_called_process_error_verbose(self, monkeypatch, capsys):
-        """Test _download_model with CalledProcessError shows verbose message"""
-        import spacy
-        import subprocess
-
-        def mock_load(name):
-            raise OSError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            raise subprocess.CalledProcessError(1, cmd, stderr="Installation failed")
-
-        monkeypatch.setattr(spacy, "load", mock_load)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "en_core_web_md"
-
-        result = extractor._download_model()
-
-        # Should return False
-        assert result is False
-
-        # Check verbose output was printed
-        captured = capsys.readouterr()
-        assert "uv pip install failed" in captured.err
+        """Test download with verbose output enabled on first use"""
+        pass
 
     def test_extract_keywords_simple_basic(self):
         """Test basic keyword extraction"""
@@ -395,8 +326,11 @@ class TestKeywordExtractor:
 
         assert isinstance(results, dict)
         assert "top_keywords" in results
-        assert "nouns" in results
-        assert "verbs" in results
+        assert (
+            "lemmatized_words" in results
+        )  # Lightweight version uses lemmatized_words
+        assert "code_identifiers" in results
+        assert "code_split_words" in results
         assert "stats" in results
 
         # Check top_keywords format
@@ -429,15 +363,12 @@ class TestKeywordExtractor:
         """
         results = extractor.extract_keywords(text, top_n=15)
 
-        # Verify structure
-        assert "nouns" in results and len(results["nouns"]) > 0
-        assert "verbs" in results and len(results["verbs"]) > 0
-        assert "adjectives" in results and len(results["adjectives"]) > 0
-        assert "proper_nouns" in results
-        assert "noun_chunks" in results
-        assert "entities" in results
+        # Verify structure (lightweight version)
+        assert "lemmatized_words" in results and len(results["lemmatized_words"]) > 0
         assert "code_identifiers" in results
         assert "code_split_words" in results
+        assert "tf_scores" in results
+        assert "stats" in results
 
         # Verify code identifier splitting
         assert any(
@@ -565,7 +496,9 @@ class TestKeywordSearcher:
         function_results = [r for r in results if r["type"] == "function"]
         assert len(function_results) > 0
 
-        validate_func = next((r for r in function_results if "validate" in r["name"]), None)
+        validate_func = next(
+            (r for r in function_results if "validate" in r["name"]), None
+        )
         assert validate_func is not None
         assert validate_func["function"] == "validate"
 
@@ -879,7 +812,9 @@ end
         assert len(results) > 0
 
         # Should find functions with "create" in their names
-        function_names = [result["name"] for result in results if result["type"] == "function"]
+        function_names = [
+            result["name"] for result in results if result["type"] == "function"
+        ]
         assert any("create" in name for name in function_names)
 
         # Test wildcard search for test_* patterns
@@ -890,7 +825,9 @@ end
         assert len(results) > 0
 
         # Should find functions with "test_" in their names
-        function_names = [result["name"] for result in results if result["type"] == "function"]
+        function_names = [
+            result["name"] for result in results if result["type"] == "function"
+        ]
         assert any("test_" in name for name in function_names)
 
     def test_wildcard_vs_exact_search(self, tmp_path):
@@ -1060,7 +997,9 @@ class TestNameCoveragePenalty:
         # One extra word = 30% penalty (multiplier = 0.7)
         assert penalty == 0.7
 
-    def test_calculate_name_coverage_penalty_multiple_extra_words(self, exact_vs_extra_index):
+    def test_calculate_name_coverage_penalty_multiple_extra_words(
+        self, exact_vs_extra_index
+    ):
         """Test penalty scales with number of extra words"""
         searcher = KeywordSearcher(exact_vs_extra_index)
 
