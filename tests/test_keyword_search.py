@@ -142,13 +142,13 @@ class TestKeywordExtractor:
     @pytest.mark.parametrize("verbose", [False, True])
     def test_keyword_extractor_missing_model(self, monkeypatch, verbose):
         """Test that KeywordExtractor raises error when model missing"""
-        import spacy
+        import importlib
 
-        def mock_load(name):
-            raise OSError("Model not found")
+        def mock_import(name):
+            raise ImportError("Model not found")
 
-        # Mock both spacy.load and _download_model to simulate failed download
-        monkeypatch.setattr(spacy, "load", mock_load)
+        # Mock both importlib.import_module and _download_model to simulate failed download
+        monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(KeywordExtractor, "_download_model", lambda self: False)
 
         with pytest.raises(RuntimeError, match="Failed to download spaCy model"):
@@ -156,12 +156,12 @@ class TestKeywordExtractor:
 
     def test_download_model_unknown_model(self, monkeypatch):
         """Test _download_model with unknown model name"""
-        import spacy
+        import importlib
 
-        def mock_load(name):
-            raise OSError("Model not found")
+        def mock_import(name):
+            raise ImportError("Model not found")
 
-        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(importlib, "import_module", mock_import)
 
         extractor = KeywordExtractor.__new__(KeywordExtractor)
         extractor.verbose = True
@@ -172,11 +172,11 @@ class TestKeywordExtractor:
 
     def test_download_model_uv_not_found(self, monkeypatch):
         """Test _download_model when uv is not available"""
-        import spacy
+        import importlib
         import subprocess
 
-        def mock_load(name):
-            raise OSError("Model not found")
+        def mock_import(name):
+            raise ImportError("Model not found")
 
         def mock_run(cmd, **_kwargs):
             if cmd[0] == "uv":
@@ -184,7 +184,7 @@ class TestKeywordExtractor:
             # Simulate successful pip install
             return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
 
-        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         extractor = KeywordExtractor.__new__(KeywordExtractor)
@@ -196,16 +196,16 @@ class TestKeywordExtractor:
 
     def test_download_model_both_fail(self, monkeypatch):
         """Test _download_model when both uv and pip fail"""
-        import spacy
+        import importlib
         import subprocess
 
-        def mock_load(name):
-            raise OSError("Model not found")
+        def mock_import(name):
+            raise ImportError("Model not found")
 
         def mock_run(cmd, **_kwargs):
             raise subprocess.CalledProcessError(1, cmd, stderr="Install failed")
 
-        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         extractor = KeywordExtractor.__new__(KeywordExtractor)
@@ -217,11 +217,11 @@ class TestKeywordExtractor:
 
     def test_download_succeeds_but_load_fails(self, monkeypatch):
         """Test when download succeeds but model still can't load"""
-        import spacy
+        import importlib
         import subprocess
 
-        def mock_load(name):
-            raise OSError("Model not found")
+        def mock_import(name):
+            raise ImportError("Model not found")
 
         def mock_run(cmd, **_kwargs):
             # Simulate successful download
@@ -229,7 +229,7 @@ class TestKeywordExtractor:
                 cmd, 0, stdout="Installed successfully", stderr=""
             )
 
-        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         with pytest.raises(
@@ -239,20 +239,22 @@ class TestKeywordExtractor:
 
     def test_download_with_verbose_output(self, monkeypatch):
         """Test download with verbose output enabled"""
-        import spacy
+        import importlib
         import subprocess
         from unittest.mock import MagicMock
 
         call_count = [0]
         mock_nlp = MagicMock()
+        mock_module = MagicMock()
+        mock_module.load = MagicMock(return_value=mock_nlp)
 
-        def mock_load(name):
+        def mock_import(name):
             call_count[0] += 1
             if call_count[0] == 1:
                 # First call fails (model not found)
-                raise OSError("Model not found")
+                raise ImportError("Model not found")
             # Second call succeeds (after download)
-            return mock_nlp
+            return mock_module
 
         def mock_run(cmd, **_kwargs):
             # Simulate successful download with output
@@ -260,7 +262,7 @@ class TestKeywordExtractor:
                 cmd, 0, stdout="Successfully installed en-core-web-md", stderr=""
             )
 
-        monkeypatch.setattr(spacy, "load", mock_load)
+        monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         # Should succeed with verbose output

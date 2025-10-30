@@ -44,16 +44,20 @@ class KeywordExtractor:
         self.model_size = model_size
         self.model_name = self.SPACY_MODELS[model_size]
 
-        # Try to load model directly - it's faster to try and fail than to check
+        # Try to import model as Python package - fails instantly if not installed
         if self.verbose:
             print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
 
         try:
-            self.nlp = spacy.load(self.model_name)
+            # Import the model directly as a Python package (fast failure if not installed)
+            import importlib
+
+            model_module = importlib.import_module(self.model_name)
+            self.nlp = model_module.load()
             if self.verbose:
                 print("✓ Model loaded successfully", file=sys.stderr)
-        except OSError:
-            # Model not found, try to download it
+        except (ImportError, AttributeError):
+            # Model not installed, download it
             if self.verbose:
                 print(
                     f"Model '{self.model_name}' not found. Downloading...",
@@ -66,12 +70,15 @@ class KeywordExtractor:
                     f"Please install it manually with: python -m spacy download {self.model_name}"
                 )
 
-            # Try loading again after download
+            # Try importing again after download
             try:
-                self.nlp = spacy.load(self.model_name)
+                import importlib
+
+                model_module = importlib.import_module(self.model_name)
+                self.nlp = model_module.load()
                 if self.verbose:
                     print("✓ Model loaded successfully", file=sys.stderr)
-            except OSError as e:
+            except (ImportError, AttributeError) as e:
                 raise RuntimeError(
                     f"Failed to load spaCy model '{self.model_name}' after download. "
                     f"Please try installing it manually: python -m spacy download {self.model_name}"
