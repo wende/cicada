@@ -29,12 +29,18 @@ setup-fixtures:
 # Extract keywords for test fixtures
 extract-keywords:
 	@echo "Extracting keywords for test fixtures..."
-	@if command -v uv >/dev/null 2>&1; then \
-		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		uv run cicada-index --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
+	@if [ -d "tests/fixtures/elixir_project" ]; then \
+		FIXTURE_DIR="tests/fixtures/elixir_project"; \
+	elif [ -d "tests/fixtures/test_project" ]; then \
+		FIXTURE_DIR="tests/fixtures/test_project"; \
 	else \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
+		echo "Error: No test fixture found"; \
+		exit 1; \
+	fi; \
+	if command -v uv >/dev/null 2>&1; then \
+		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
+	else \
+		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
 	fi
 	@echo "✓ Keywords extracted for test fixtures"
 

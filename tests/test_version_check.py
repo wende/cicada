@@ -17,8 +17,15 @@ class TestGetCurrentVersion:
     """Tests for get_current_version function"""
 
     def test_returns_current_version(self):
-        """Should return the hardcoded current version"""
-        assert get_current_version() == "0.1.1"
+        """Should return the version from pyproject.toml"""
+        version = get_current_version()
+        # Verify it's a valid version string format
+        assert isinstance(version, str)
+        assert len(version.split(".")) >= 2  # At least major.minor
+        # Verify it matches the version in __init__.py (both read from pyproject.toml)
+        from cicada import __version__
+
+        assert version == __version__
 
 
 class TestGetLatestGithubTag:

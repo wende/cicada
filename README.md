@@ -61,7 +61,7 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
 
 ## Installation
 
-### Quick Install with UV (Recommended)
+### Recommended: Permanent Installation
 
 **Installing UV:**
 ```bash
@@ -69,40 +69,59 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # or: brew install uv
 ```
 
-Using [uv](https://github.com/astral-sh/uv) for the best experience:
+**Install Cicada permanently for best experience:**
 
 ```bash
-# Latest stable release (recommended)
-uv tool install git+https://github.com/wende/cicada.git@v0.1.1
+# Step 1: Install once
+uv tool install git+https://github.com/wende/cicada.git@v0.1.2
 
-# Or latest development version (may include unreleased features)
-uv tool install git+https://github.com/wende/cicada.git
-
-# Then setup in each project
+# Step 2: Setup in each project (one command per project)
 cd /path/to/your/elixir/project
-cicada
+cicada claude  # or: cicada cursor, cicada vs
 ```
 
-**Available commands after install:**
-- `cicada-server` - MCP server
-- `cicada` - Project setup
-- `cicada-index` - Elixir code indexer (checks for updates)
-- `cicada-index-pr` - PR indexer (checks for updates)
+**That's it!** The setup command:
+- Indexes your codebase with keyword extraction
+- Stores all files in `~/.cicada/projects/<hash>/` (outside your repo)
+- Creates only an MCP config file in your repo (`.mcp.json` for Claude Code)
+- Configures the MCP server automatically
+
+**After setup:**
+1. Restart your editor
+2. Start coding with AI-powered Elixir intelligence!
+
+**Available commands after installation:**
+- `cicada [claude|cursor|vs]` - One-command setup per project
+- `cicada-server` - MCP server (auto-started by editor)
+- `cicada-index` - Re-index code with custom options (medium/large spaCy models)
+- `cicada-index-pr` - Index pull requests for PR attribution
+- `cicada-install` - Legacy setup (creates `.cicada/` in repo)
 
 ### Try Before Installing
 
-Test Cicada without installation:
+Want to test Cicada first? Use `uvx` for a quick trial:
 
 ```bash
 cd /path/to/your/elixir/project
-# Latest stable release
-uvx --from git+https://github.com/wende/cicada.git@v0.1.1 cicada
 
-# Or latest development version
-uvx --from git+https://github.com/wende/cicada.git cicada
+# For Claude Code
+uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada claude
+
+# For Cursor
+uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada cursor
+
+# For VS Code
+uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada vs
 ```
 
-**Note:** This works but MCP server startup will be slower and you lose the option to use PR indexing features. Install permanently with `uv tool install` for best performance.
+**Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
+- ✅ Faster MCP server startup (no temporary environment creation)
+- ✅ Access to all CLI commands (`cicada-index`, `cicada-index-pr`)
+- ✅ Fine-tuned keyword extraction with medium/large spaCy models
+- ✅ PR indexing features
+- ✅ Custom re-indexing options
+
+Once you're convinced, install permanently with `uv tool install` above!
 
 ---
 
@@ -130,88 +149,79 @@ cicada-index-pr .
 
 ### Automatic Configuration
 
-`cicada` automatically detects how Cicada is installed and generates the optimal `.mcp.json`:
+The new simplified workflow stores all generated files outside your repository:
 
-**With `uv tool install` (recommended):**
+**Storage Structure:**
+```
+~/.cicada/
+  projects/
+    <repo-hash>/
+      config.yaml    # MCP server configuration
+      index.json     # Code index with keywords
+      pr_index.json  # PR attribution data (optional)
+      hashes.json    # For incremental indexing
+```
+
+**Your Repository (Clean!):**
+```
+your-project/
+  .mcp.json        # Only this file is added (for Claude Code)
+  # or .cursor/mcp.json for Cursor
+  # or .vscode/settings.json for VS Code
+```
+
+**Generated MCP Config (Claude Code example):**
 ```json
 {
   "mcpServers": {
     "cicada": {
       "command": "cicada-server",
-      "env": {"CICADA_REPO_PATH": "/path/to/project"}
+      "env": {
+        "CICADA_REPO_PATH": "/path/to/project",
+        "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"
+      }
     }
   }
 }
-```
-✅ Fast startup, no paths, portable!
-
-**With direct Python (fallback):**
-```json
-{
-  "mcpServers": {
-    "cicada": {
-      "command": "/usr/bin/python3",
-      "args": ["/path/to/cicada/cicada/mcp_server.py"],
-      "cwd": "/path/to/cicada",
-      "env": {"CICADA_REPO_PATH": "/path/to/project"}
-    }
-  }
-}
-```
-⚠️ Still works, but slower startup
-
-**Migration tip:** If you have the Python version, run:
-```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.1
-cicada  # Re-run to get optimized config
-```
-
-### Setup Options
-
-```bash
-# Basic setup (current directory)
-cicada
-
-# Skip dependency installation
-cicada --skip-install
-
-# Specify a different repository path
-cicada /path/to/other/project
-```
-
-**Note:** The `--pr-info` flag has been removed. Use `cicada-index-pr` instead:
-```bash
-# After setup, optionally index PRs
-cicada-index-pr .
 ```
 
 ### Re-indexing
 
-After code changes, re-index your project:
+After code changes, re-run the setup command:
 
 ```bash
-# Re-index Elixir code
-cicada-index --output .cicada/index.json
+# Re-index for Claude Code
+uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada claude
 
-# Or re-run full setup (skips install by default)
-cicada --skip-install
+# Or if permanently installed
+cicada claude
 ```
 
-### PR Indexing (Optional)
+This will:
+- Detect changed files (incremental indexing)
+- Update the index with new/modified code
+- Keep your existing MCP configuration
 
-Index pull requests for enhanced git history features:
+### Optional: PR Attribution
+
+Index pull requests for PR-related features:
 
 ```bash
-# Full index (first time, requires GitHub CLI)
+# After permanent installation
 cicada-index-pr .
 
-# Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
+# Or with uvx
+uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada-index-pr .
 ```
 
-**Requirements:**
-- GitHub CLI (`gh`) installed and authenticated
-- Run from a GitHub repository
+### Legacy Installation
+
+If you prefer the old setup (stores files in `.cicada/` directory in your repo):
+
+```bash
+# Only available after permanent installation
+cicada-install
+```
 
 **See also:** [PR Indexing Documentation](docs/PR_INDEXING.md)
 

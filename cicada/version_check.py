@@ -15,9 +15,9 @@ def get_current_version() -> str:
     Returns:
         Current version string (e.g., "0.1.0")
     """
-    # For now, return hardcoded version
-    # In a more robust implementation, we could parse pyproject.toml
-    return "0.1.1"
+    from cicada import __version__
+
+    return __version__
 
 
 def get_latest_github_tag(repo: str = "wende/cicada") -> Optional[str]:

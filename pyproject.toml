@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicada"
-version = "0.1.1"
+version = "0.1.2"
 description = "An Elixir module search MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,11 +16,14 @@ dependencies = [
     "gitpython>=3.1.0",
     "spacy>=3.8.7",
     "rank-bm25>=0.2.2",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.scripts]
 cicada-server = "cicada.mcp_server:main"
-cicada = "cicada.install:main"
+cicada = "cicada.setup:main"
+cicada-install = "cicada.install:main"
+cicada-clean = "cicada.clean:main"
 cicada-index = "cicada.indexer:main"
 cicada-index-pr = "cicada.pr_indexer:main"
 cicada-find-dead-code = "cicada.find_dead_code:main"
