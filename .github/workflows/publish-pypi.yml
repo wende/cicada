@@ -48,6 +48,9 @@ jobs:
         run: |
           git clone https://github.com/wende/ab tests/fixtures/elixir_project
 
+      - name: Setup test fixtures
+        run: bash tests/setup_fixtures.sh
+
       - name: Run tests
         run: uv run pytest
 
