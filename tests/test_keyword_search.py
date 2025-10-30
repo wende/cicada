@@ -6,10 +6,13 @@ Author: Cursor(Auto)
 
 import pytest
 from pathlib import Path
-from cicada.keyword_extractor import KeywordExtractor
+from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
 from cicada.keyword_search import KeywordSearcher
 from cicada.indexer import ElixirIndexer
 from cicada.utils import split_camel_snake_case
+
+# For backwards compatibility, alias the lightweight extractor
+KeywordExtractor = LightweightKeywordExtractor
 
 
 class TestKeywordExtractor:
@@ -18,16 +21,17 @@ class TestKeywordExtractor:
     def test_keyword_extractor_initialization(self):
         """Test that KeywordExtractor initializes with lazy loading"""
         extractor = KeywordExtractor(verbose=False)
-        # Model should not be loaded until first use (lazy loading)
-        assert extractor.nlp is None
-        # After extracting keywords, model should be loaded
+        # lemminflect should not be loaded until first use (lazy loading)
+        assert extractor._lemminflect_loaded is False
+        # After extracting keywords, lemminflect should be loaded
         extractor.extract_keywords_simple("test text")
-        assert extractor.nlp is not None
+        assert extractor._lemminflect_loaded is True
 
     def test_invalid_model_size(self):
-        """Test that invalid model size raises ValueError"""
-        with pytest.raises(ValueError, match="Invalid model size"):
-            KeywordExtractor(verbose=False, model_size="invalid")
+        """Test that model_size parameter is ignored (for API compatibility)"""
+        # Lightweight extractor accepts any model_size for compatibility but ignores it
+        extractor = KeywordExtractor(verbose=False, model_size="invalid")
+        assert extractor.model_size == "invalid"  # Stored but not validated
 
     def test_split_camel_case(self):
         """Test splitting camelCase identifiers"""
@@ -143,148 +147,49 @@ class TestKeywordExtractor:
                 keyword_dict["database"] < 3
             ), "Regular words should have lower weight than code split words"
 
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     @pytest.mark.parametrize("verbose", [False, True])
     def test_keyword_extractor_missing_model(self, monkeypatch, verbose):
         """Test that KeywordExtractor raises error when model missing and used"""
-        import importlib
+        # This test is specific to spaCy model downloading and doesn't apply to lightweight extractor
+        pass
 
-        def mock_import(name):
-            raise ImportError("Model not found")
-
-        # Mock both importlib.import_module and _download_model to simulate failed download
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-        monkeypatch.setattr(KeywordExtractor, "_download_model", lambda self: False)
-
-        # Extractor creates successfully (lazy loading)
-        extractor = KeywordExtractor(verbose=verbose)
-        assert extractor.nlp is None
-
-        # Error should occur when trying to use it (use extract_keywords not _simple)
-        with pytest.raises(RuntimeError, match="Failed to download spaCy model"):
-            extractor.extract_keywords("test text")
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_unknown_model(self, monkeypatch):
         """Test _download_model with unknown model name"""
-        import importlib
+        pass
 
-        def mock_import(name):
-            raise ImportError("Model not found")
-
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "unknown_model"
-
-        # Should return False for unknown model
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_uv_not_found(self, monkeypatch):
         """Test _download_model when uv is not available"""
-        import importlib
-        import subprocess
+        pass
 
-        def mock_import(name):
-            raise ImportError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            if cmd[0] == "uv":
-                raise FileNotFoundError("uv not found")
-            # Simulate successful pip install
-            return subprocess.CompletedProcess(cmd, 0, stdout="Success", stderr="")
-
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = True
-        extractor.model_name = "en_core_web_md"
-
-        # Should return False when uv is not found (no fallback to pip)
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_model_both_fail(self, monkeypatch):
         """Test _download_model when both uv and pip fail"""
-        import importlib
-        import subprocess
+        pass
 
-        def mock_import(name):
-            raise ImportError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            raise subprocess.CalledProcessError(1, cmd, stderr="Install failed")
-
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        extractor = KeywordExtractor.__new__(KeywordExtractor)
-        extractor.verbose = False
-        extractor.model_name = "en_core_web_md"
-
-        # Should return False when both fail
-        assert extractor._download_model() is False
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_succeeds_but_load_fails(self, monkeypatch):
         """Test when download succeeds but model still can't load"""
-        import importlib
-        import subprocess
+        pass
 
-        def mock_import(name):
-            raise ImportError("Model not found")
-
-        def mock_run(cmd, **_kwargs):
-            # Simulate successful download
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout="Installed successfully", stderr=""
-            )
-
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        # Extractor creates successfully (lazy loading)
-        extractor = KeywordExtractor(verbose=True, model_size="medium")
-
-        # Error should occur when trying to use it (use extract_keywords not _simple)
-        with pytest.raises(
-            RuntimeError, match="Failed to load spaCy model.*after download"
-        ):
-            extractor.extract_keywords("test text")
-
+    @pytest.mark.skip(
+        reason="Model download tests not applicable to lightweight extractor"
+    )
     def test_download_with_verbose_output(self, monkeypatch):
         """Test download with verbose output enabled on first use"""
-        import importlib
-        import subprocess
-        from unittest.mock import MagicMock
-
-        call_count = [0]
-        mock_nlp = MagicMock()
-        mock_module = MagicMock()
-        mock_module.load = MagicMock(return_value=mock_nlp)
-
-        def mock_import(name):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                # First call fails (model not found)
-                raise ImportError("Model not found")
-            # Second call succeeds (after download)
-            return mock_module
-
-        def mock_run(cmd, **_kwargs):
-            # Simulate successful download with output
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout="Successfully installed en-core-web-md", stderr=""
-            )
-
-        monkeypatch.setattr(importlib, "import_module", mock_import)
-        monkeypatch.setattr(subprocess, "run", mock_run)
-
-        # Extractor creates successfully (lazy loading)
-        extractor = KeywordExtractor(verbose=True, model_size="small")
-        assert extractor.nlp is None
-
-        # Model loads on first use
-        extractor.extract_keywords_simple("test text")
-        assert extractor.nlp is mock_nlp
+        pass
 
     def test_extract_keywords_simple_basic(self):
         """Test basic keyword extraction"""
@@ -314,8 +219,11 @@ class TestKeywordExtractor:
 
         assert isinstance(results, dict)
         assert "top_keywords" in results
-        assert "nouns" in results
-        assert "verbs" in results
+        assert (
+            "lemmatized_words" in results
+        )  # Lightweight version uses lemmatized_words
+        assert "code_identifiers" in results
+        assert "code_split_words" in results
         assert "stats" in results
 
         # Check top_keywords format
@@ -348,15 +256,12 @@ class TestKeywordExtractor:
         """
         results = extractor.extract_keywords(text, top_n=15)
 
-        # Verify structure
-        assert "nouns" in results and len(results["nouns"]) > 0
-        assert "verbs" in results and len(results["verbs"]) > 0
-        assert "adjectives" in results and len(results["adjectives"]) > 0
-        assert "proper_nouns" in results
-        assert "noun_chunks" in results
-        assert "entities" in results
+        # Verify structure (lightweight version)
+        assert "lemmatized_words" in results and len(results["lemmatized_words"]) > 0
         assert "code_identifiers" in results
         assert "code_split_words" in results
+        assert "tf_scores" in results
+        assert "stats" in results
 
         # Verify code identifier splitting
         assert any(
