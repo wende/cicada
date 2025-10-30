@@ -113,9 +113,9 @@ class ElixirIndexer:
         keyword_extractor = None
         if extract_keywords:
             try:
-                from cicada.keyword_extractor import KeywordExtractor
+                from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
 
-                keyword_extractor = KeywordExtractor(
+                keyword_extractor = LightweightKeywordExtractor(
                     verbose=True, model_size=spacy_model
                 )
             except Exception as e:
@@ -387,9 +387,9 @@ class ElixirIndexer:
         keyword_extractor = None
         if extract_keywords:
             try:
-                from cicada.keyword_extractor import KeywordExtractor
+                from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
 
-                keyword_extractor = KeywordExtractor(
+                keyword_extractor = LightweightKeywordExtractor(
                     verbose=True, model_size=spacy_model
                 )
             except Exception as e:

@@ -1,15 +1,38 @@
 """
 Keyword Extraction using spaCy
 Advanced NLP-based keyword extraction for programming documentation
+
+DEPRECATED: This module is being replaced by lightweight_keyword_extractor.py
+which provides faster performance using lemminflect instead of spaCy.
+
+The spaCy-based extractor has been kept for backward compatibility and for
+cases where advanced NLP features are needed. For most use cases, prefer
+LightweightKeywordExtractor from cicada.lightweight_keyword_extractor.
+
+Performance comparison:
+- LightweightKeywordExtractor: ~0.1s startup time
+- KeywordExtractor (spaCy): ~2s startup time
+
+See: cicada.lightweight_keyword_extractor.LightweightKeywordExtractor
 """
 
-import spacy
 from collections import Counter
 import re
 import sys
 import subprocess
 
 from cicada.utils import split_camel_snake_case
+
+# Lazy import spacy only when needed
+spacy = None
+
+
+def _ensure_spacy_imported():
+    """Import spacy only when needed."""
+    global spacy
+    if spacy is None:
+        import spacy as spacy_module
+        spacy = spacy_module
 
 
 class KeywordExtractor:
@@ -52,6 +75,9 @@ class KeywordExtractor:
         """
         if self.nlp is not None:
             return  # Already loaded
+
+        # Ensure spacy is imported
+        _ensure_spacy_imported()
 
         if self.verbose:
             print(f"Loading spaCy model ({self.model_size})...", file=sys.stderr)

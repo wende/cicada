@@ -413,10 +413,12 @@ class TestElixirIndexerKeywordExtraction:
 
         # Patch at the module level before creating indexer
         import sys
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor, "KeywordExtractor", MockKeywordExtractor
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
+            MockKeywordExtractor,
         )
 
         indexer = ElixirIndexer()
@@ -464,10 +466,12 @@ end
                 raise Exception("Keyword extraction failed")
 
         # Patch at module level
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor, "KeywordExtractor", MockKeywordExtractor
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
+            MockKeywordExtractor,
         )
 
         indexer = ElixirIndexer(verbose=True)
@@ -795,10 +799,12 @@ class TestElixirIndexerMainCLI:
             def extract_keywords_simple(self, text, top_n=10):
                 return ["test", "keyword"]
 
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor, "KeywordExtractor", MockKeywordExtractor
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
+            MockKeywordExtractor,
         )
 
         test_file = tmp_path / "test.ex"
@@ -959,10 +965,12 @@ class TestElixirIndexerAdditionalEdgeCases:
             def __init__(self, verbose=False, model_size="small"):
                 raise RuntimeError("Failed to load spaCy model")
 
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor, "KeywordExtractor", BrokenKeywordExtractor
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
+            BrokenKeywordExtractor,
         )
 
         indexer = ElixirIndexer()
@@ -1037,11 +1045,11 @@ end
                     raise Exception("Module keyword extraction failed")
                 return ["keyword"]
 
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor,
-            "KeywordExtractor",
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
             PartiallyBrokenKeywordExtractor,
         )
 
@@ -1117,11 +1125,11 @@ end
                     raise Exception("Function keyword extraction failed")
                 return ["keyword"]
 
-        import cicada.keyword_extractor
+        import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
-            cicada.keyword_extractor,
-            "KeywordExtractor",
+            cicada.lightweight_keyword_extractor,
+            "LightweightKeywordExtractor",
             PartiallyBrokenKeywordExtractor,
         )
 
