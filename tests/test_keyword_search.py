@@ -143,13 +143,10 @@ class TestKeywordExtractor:
     def test_keyword_extractor_missing_model(self, monkeypatch, verbose):
         """Test that KeywordExtractor raises error when model missing"""
         import spacy
-        import spacy.util
 
         def mock_load(name):
             raise OSError("Model not found")
 
-        # Mock spacy.util.is_package to return False (model not installed)
-        monkeypatch.setattr(spacy.util, "is_package", lambda name: False)
         # Mock both spacy.load and _download_model to simulate failed download
         monkeypatch.setattr(spacy, "load", mock_load)
         monkeypatch.setattr(KeywordExtractor, "_download_model", lambda self: False)
@@ -221,7 +218,6 @@ class TestKeywordExtractor:
     def test_download_succeeds_but_load_fails(self, monkeypatch):
         """Test when download succeeds but model still can't load"""
         import spacy
-        import spacy.util
         import subprocess
 
         def mock_load(name):
@@ -233,25 +229,29 @@ class TestKeywordExtractor:
                 cmd, 0, stdout="Installed successfully", stderr=""
             )
 
-        # Mock is_package to return False initially (model not installed)
-        monkeypatch.setattr(spacy.util, "is_package", lambda name: False)
         monkeypatch.setattr(spacy, "load", mock_load)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        with pytest.raises(RuntimeError, match="Failed to load spaCy model"):
+        with pytest.raises(
+            RuntimeError, match="Failed to load spaCy model.*after download"
+        ):
             KeywordExtractor(verbose=True, model_size="medium")
 
     def test_download_with_verbose_output(self, monkeypatch):
         """Test download with verbose output enabled"""
         import spacy
-        import spacy.util
         import subprocess
         from unittest.mock import MagicMock
 
+        call_count = [0]
         mock_nlp = MagicMock()
 
         def mock_load(name):
-            # After download, load succeeds
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call fails (model not found)
+                raise OSError("Model not found")
+            # Second call succeeds (after download)
             return mock_nlp
 
         def mock_run(cmd, **_kwargs):
@@ -260,8 +260,6 @@ class TestKeywordExtractor:
                 cmd, 0, stdout="Successfully installed en-core-web-md", stderr=""
             )
 
-        # Mock is_package to return False (model not installed initially)
-        monkeypatch.setattr(spacy.util, "is_package", lambda name: False)
         monkeypatch.setattr(spacy, "load", mock_load)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
