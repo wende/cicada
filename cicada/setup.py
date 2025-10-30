@@ -191,9 +191,6 @@ def index_repository(repo_path: Path) -> None:
     Raises:
         Exception: If indexing fails
     """
-    print(f"Indexing repository at {repo_path}...")
-    print("(Keyword extraction enabled with small spaCy model)")
-
     try:
         index_path = get_index_path(repo_path)
         indexer = ElixirIndexer(verbose=True)

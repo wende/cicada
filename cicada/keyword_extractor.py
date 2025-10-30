@@ -4,6 +4,7 @@ Advanced NLP-based keyword extraction for programming documentation
 """
 
 import spacy
+import spacy.util
 from collections import Counter
 import re
 import sys
@@ -44,14 +45,8 @@ class KeywordExtractor:
         self.model_size = model_size
         self.model_name = self.SPACY_MODELS[model_size]
 
-        if self.verbose:
-            print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
-
-        try:
-            self.nlp = spacy.load(self.model_name)
-            if self.verbose:
-                print("✓ Model loaded successfully", file=sys.stderr)
-        except OSError:
+        # Check if model is installed before attempting to load
+        if not spacy.util.is_package(self.model_name):
             # Model not found, try to download it
             if self.verbose:
                 print(
@@ -65,16 +60,20 @@ class KeywordExtractor:
                     f"Please install it manually with: python -m spacy download {self.model_name}"
                 )
 
-            # Try loading again after download
-            try:
-                self.nlp = spacy.load(self.model_name)
-                if self.verbose:
-                    print("✓ Model loaded successfully", file=sys.stderr)
-            except OSError as e:
-                raise RuntimeError(
-                    f"Failed to load spaCy model '{self.model_name}' after download. "
-                    f"Please try installing it manually: python -m spacy download {self.model_name}"
-                ) from e
+        # Load the model (now we know it exists)
+        if self.verbose:
+            print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
+
+        try:
+            self.nlp = spacy.load(self.model_name)
+            if self.verbose:
+                print("✓ Model loaded successfully", file=sys.stderr)
+        except OSError as e:
+            # This should rarely happen now since we checked existence first
+            raise RuntimeError(
+                f"Failed to load spaCy model '{self.model_name}'. "
+                f"Please try installing it manually: python -m spacy download {self.model_name}"
+            ) from e
 
     def _download_model(self) -> bool:
         """
