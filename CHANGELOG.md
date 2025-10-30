@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- GitHub Actions workflow for automated PyPI publishing ([#26](https://github.com/wende/cicada/pull/26))
+- MIT License file for PyPI compliance ([#26](https://github.com/wende/cicada/pull/26))
+- Enhanced pyproject.toml with complete package metadata for PyPI ([#26](https://github.com/wende/cicada/pull/26))
+
 ## [0.1.2] - 2025-01-XX
 
 ### Added
