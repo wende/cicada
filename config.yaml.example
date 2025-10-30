@@ -1,5 +1,0 @@
-repository:
-  path: /path/to/your/elixir/project
-
-storage:
-  index_path: ./.cicada/index.json

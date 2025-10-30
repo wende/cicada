@@ -6,15 +6,16 @@ help:
 	@echo "  make install       - Full install (deps + cicada tool to ~/.local/bin)"
 	@echo "  make install-deps  - Install dependencies only (no tool installation)"
 	@echo "  make setup-fixtures - Setup test fixtures"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-verbose  - Run tests with verbose output"
-	@echo "  make test-watch    - Run tests in watch mode (requires pytest-watch)"
-	@echo "  make cover         - Run tests with coverage report (min 80%)"
-	@echo "  make format        - Format code with black"
-	@echo "  make lint          - Run ruff linter, pyrefly type checker and vulture dead code detector"
+	@echo "  make extract-keywords - Extract keywords for test fixtures"
+	@echo "  make test          - Run all tests (auto-installs dependencies)"
+	@echo "  make test-verbose  - Run tests with verbose output (auto-installs dependencies)"
+	@echo "  make test-watch    - Run tests in watch mode (auto-installs dependencies)"
+	@echo "  make cover         - Run tests with coverage report (auto-installs dependencies)"
+	@echo "  make format        - Format code with black (auto-installs dependencies)"
+	@echo "  make lint          - Run ruff linter, pyrefly type checker and vulture dead code detector (auto-installs dependencies)"
 	@echo "  make lint-fix      - Auto-fix issues with ruff"
-	@echo "  make pre-commit    - Run all pre-commit checks"
-	@echo "  make ci-test       - Run tests in CI environment"
+	@echo "  make pre-commit    - Run all pre-commit checks (auto-installs dependencies)"
+	@echo "  make ci-test       - Run tests in CI environment (auto-installs dependencies)"
 	@echo "  make clean         - Remove generated files"
 	@echo "  make reset         - Full reset (cache, models, .cicada dirs)"
 
@@ -39,44 +40,50 @@ setup-fixtures:
 # Extract keywords for test fixtures
 extract-keywords:
 	@echo "Extracting keywords for test fixtures..."
-	@if command -v uv >/dev/null 2>&1; then \
-		uv run cicada index --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		uv run cicada index --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
+	@if [ -d "tests/fixtures/elixir_project" ]; then \
+		FIXTURE_DIR="tests/fixtures/elixir_project"; \
+	elif [ -d "tests/fixtures/test_project" ]; then \
+		FIXTURE_DIR="tests/fixtures/test_project"; \
 	else \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json tests/fixtures/test_project; \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/elixir_project/.cicada/index.json tests/fixtures/elixir_project; \
+		echo "Error: No test fixture found"; \
+		exit 1; \
+	fi; \
+	if command -v uv >/dev/null 2>&1; then \
+		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
+	else \
+		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
 	fi
 	@echo "✓ Keywords extracted for test fixtures"
 
 # Run tests
-test: setup-fixtures
+test: install setup-fixtures extract-keywords
 	@uv run pytest -n auto
 
 # Run tests with verbose output
-test-verbose: setup-fixtures
+test-verbose: install setup-fixtures extract-keywords
 	@uv run pytest -n auto -v
 
 # Run tests in watch mode
-test-watch: setup-fixtures
+test-watch: install setup-fixtures extract-keywords
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: setup-fixtures
+cover: install setup-fixtures extract-keywords
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
-format:
+format: install
 	@uv run black cicada tests
 
 # Auto-fix issues with ruff
-lint-fix:
+lint-fix: install
 	@echo "Running ruff with auto-fix..."
 	@uv run ruff check cicada --fix
 	@echo "✓ Auto-fixable issues resolved"
 
 # Check code formatting with ruff linter, pyrefly type checker and vulture dead code detector
-lint:
+lint: install
 	@FAILED=0; \
 	echo "Running ruff linter..."; \
 	uv run ruff check cicada || FAILED=1; \
@@ -89,7 +96,7 @@ lint:
 	exit $$FAILED
 
 # Run all pre-commit checks
-pre-commit:
+pre-commit: install
 	@echo "Running pre-commit checks..."
 	@echo "Running black formatter..."
 	@uv run black .
@@ -99,7 +106,7 @@ pre-commit:
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: setup-fixtures
+ci-test: install setup-fixtures extract-keywords
 	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
