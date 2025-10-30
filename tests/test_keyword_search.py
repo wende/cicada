@@ -16,8 +16,12 @@ class TestKeywordExtractor:
     """Tests for KeywordExtractor class"""
 
     def test_keyword_extractor_initialization(self):
-        """Test that KeywordExtractor initializes properly"""
+        """Test that KeywordExtractor initializes with lazy loading"""
         extractor = KeywordExtractor(verbose=False)
+        # Model should not be loaded until first use (lazy loading)
+        assert extractor.nlp is None
+        # After extracting keywords, model should be loaded
+        extractor.extract_keywords_simple("test text")
         assert extractor.nlp is not None
 
     def test_invalid_model_size(self):
@@ -141,7 +145,7 @@ class TestKeywordExtractor:
 
     @pytest.mark.parametrize("verbose", [False, True])
     def test_keyword_extractor_missing_model(self, monkeypatch, verbose):
-        """Test that KeywordExtractor raises error when model missing"""
+        """Test that KeywordExtractor raises error when model missing and used"""
         import importlib
 
         def mock_import(name):
@@ -151,8 +155,13 @@ class TestKeywordExtractor:
         monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(KeywordExtractor, "_download_model", lambda self: False)
 
+        # Extractor creates successfully (lazy loading)
+        extractor = KeywordExtractor(verbose=verbose)
+        assert extractor.nlp is None
+
+        # Error should occur when trying to use it (use extract_keywords not _simple)
         with pytest.raises(RuntimeError, match="Failed to download spaCy model"):
-            KeywordExtractor(verbose=verbose)
+            extractor.extract_keywords("test text")
 
     def test_download_model_unknown_model(self, monkeypatch):
         """Test _download_model with unknown model name"""
@@ -232,13 +241,17 @@ class TestKeywordExtractor:
         monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
+        # Extractor creates successfully (lazy loading)
+        extractor = KeywordExtractor(verbose=True, model_size="medium")
+
+        # Error should occur when trying to use it (use extract_keywords not _simple)
         with pytest.raises(
             RuntimeError, match="Failed to load spaCy model.*after download"
         ):
-            KeywordExtractor(verbose=True, model_size="medium")
+            extractor.extract_keywords("test text")
 
     def test_download_with_verbose_output(self, monkeypatch):
-        """Test download with verbose output enabled"""
+        """Test download with verbose output enabled on first use"""
         import importlib
         import subprocess
         from unittest.mock import MagicMock
@@ -265,8 +278,12 @@ class TestKeywordExtractor:
         monkeypatch.setattr(importlib, "import_module", mock_import)
         monkeypatch.setattr(subprocess, "run", mock_run)
 
-        # Should succeed with verbose output
+        # Extractor creates successfully (lazy loading)
         extractor = KeywordExtractor(verbose=True, model_size="small")
+        assert extractor.nlp is None
+
+        # Model loads on first use
+        extractor.extract_keywords_simple("test text")
         assert extractor.nlp is mock_nlp
 
     def test_extract_keywords_simple_basic(self):

@@ -24,7 +24,7 @@ class KeywordExtractor:
 
     def __init__(self, verbose: bool = False, model_size: str = "small"):
         """
-        Initialize spaCy model.
+        Initialize keyword extractor with lazy model loading.
 
         Args:
             verbose: If True, print status messages during initialization
@@ -43,10 +43,18 @@ class KeywordExtractor:
 
         self.model_size = model_size
         self.model_name = self.SPACY_MODELS[model_size]
+        self.nlp = None  # Lazy-loaded on first use
 
-        # Try to import model as Python package - fails instantly if not installed
+    def _ensure_model_loaded(self):
+        """
+        Ensure the spaCy model is loaded, downloading if necessary.
+        Only called when model is actually needed (lazy loading).
+        """
+        if self.nlp is not None:
+            return  # Already loaded
+
         if self.verbose:
-            print(f"Loading spaCy model ({model_size})...", file=sys.stderr)
+            print(f"Loading spaCy model ({self.model_size})...", file=sys.stderr)
 
         try:
             # Import the model directly as a Python package (fast failure if not installed)
@@ -191,6 +199,7 @@ class KeywordExtractor:
             return []
 
         try:
+            self._ensure_model_loaded()
             results = self.extract_keywords(text, top_n=top_n)
             # Extract just the keyword strings from top_keywords tuples
             return [keyword for keyword, _ in results["top_keywords"]]
@@ -240,6 +249,9 @@ class KeywordExtractor:
                     "sentences": 0,
                 },
             }
+        # Ensure model is loaded (lazy loading on first use)
+        self._ensure_model_loaded()
+
         # Process with spaCy
         doc = self.nlp(text)
 
