@@ -77,28 +77,45 @@ class CicadaServer:
         if config_dir:
             return str(Path(config_dir) / "config.yaml")
 
-        # Check if CICADA_REPO_PATH is set and use new storage structure
+        # Determine repository path from environment or current directory
         repo_path = os.environ.get("CICADA_REPO_PATH")
-        if repo_path:
-            try:
-                # Try to use the new storage structure
-                config_path = get_config_path(repo_path)
-                if config_path.exists():
-                    return str(config_path)
-            except Exception as e:
-                print(
-                    f"Warning: Could not load from new storage structure: {e}",
-                    file=sys.stderr,
+
+        # Check if WORKSPACE_FOLDER_PATHS is available (Cursor-specific)
+        if not repo_path:
+            workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
+            if workspace_paths:
+                # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
+                # Take the first one if multiple
+                # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
+                repo_path = (
+                    workspace_paths.split(os.pathsep)[0]
+                    if os.pathsep in workspace_paths
+                    else workspace_paths
                 )
 
-        # Fall back to old structure for backward compatibility
-        if repo_path:
-            old_path = Path(repo_path) / ".cicada" / "config.yaml"
-            if old_path.exists():
-                return str(old_path)
+        # Fall back to current working directory
+        if not repo_path:
+            repo_path = str(Path.cwd().resolve())
 
-        # Default to .cicada/config.yaml in current directory
-        return ".cicada/config.yaml"
+        # Try new storage structure first
+        try:
+            config_path = get_config_path(repo_path)
+            if config_path.exists():
+                return str(config_path)
+        except Exception as e:
+            print(
+                f"Warning: Could not load from new storage structure: {e}",
+                file=sys.stderr,
+            )
+
+        # Fall back to old structure for backward compatibility
+        old_path = Path(repo_path) / ".cicada" / "config.yaml"
+        if old_path.exists():
+            return str(old_path)
+
+        # If neither exists, return the new storage path
+        # (will trigger helpful error message in _load_config)
+        return str(get_config_path(repo_path))
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
