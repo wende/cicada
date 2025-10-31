@@ -16,6 +16,8 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
+
 [Installation](#installation) •
 [Quick Start](#quick-start) •
 [Configuration](#configuration) •

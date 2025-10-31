@@ -32,6 +32,7 @@ def _ensure_spacy_imported():
     global spacy
     if spacy is None:
         import spacy as spacy_module
+
         spacy = spacy_module
 
 
