@@ -137,7 +137,11 @@ class TestKeywordExtractor:
     def test_invalid_model_size(self):
         """Test that model_size parameter is ignored (for API compatibility)"""
         # Lightweight extractor accepts any model_size for compatibility but ignores it
-        extractor = KeywordExtractor(verbose=False, model_size="invalid")
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            extractor = KeywordExtractor(verbose=False, model_size="invalid")
         assert extractor.model_size == "invalid"  # Stored but not validated
 
     def test_split_camel_case(self):
@@ -378,7 +382,11 @@ class TestKeywordExtractor:
 
     def test_medium_model_on_elixir_doc(self):
         """Test medium spaCy model on Elixir documentation"""
-        extractor = KeywordExtractor(verbose=True, model_size="medium")
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            extractor = KeywordExtractor(verbose=True, model_size="medium")
 
         # Small Elixir documentation text
         text = """
