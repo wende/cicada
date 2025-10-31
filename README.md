@@ -75,7 +75,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 # Step 1: Install once
-uv tool install git+https://github.com/wende/cicada.git@v0.1.2
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Step 2: Setup in each project (one command per project)
 cd /path/to/your/elixir/project
@@ -107,13 +107,13 @@ Want to test Cicada first? Use `uvx` for a quick trial:
 cd /path/to/your/elixir/project
 
 # For Claude Code
-uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada claude
+uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
 
 # For Cursor
-uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada cursor
+uvx --from git+https://github.com/wende/cicada.git@latest cicada cursor
 
 # For VS Code
-uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada vs
+uvx --from git+https://github.com/wende/cicada.git@latest cicada vs
 ```
 
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
@@ -193,7 +193,7 @@ After code changes, re-run the setup command:
 
 ```bash
 # Re-index for Claude Code
-uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada claude
+uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
 
 # Or if permanently installed
 cicada claude
@@ -213,7 +213,7 @@ Index pull requests for PR-related features:
 cicada-index-pr .
 
 # Or with uvx
-uvx --from git+https://github.com/wende/cicada.git@v0.1.2 cicada-index-pr .
+uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
 ```
 
 ### Legacy Installation

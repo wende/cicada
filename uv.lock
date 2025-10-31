@@ -94,7 +94,7 @@ wheels = [
 
 [[package]]
 name = "cicada"
-version = "0.1.2"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "gitpython" },
