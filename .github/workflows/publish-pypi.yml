@@ -75,7 +75,7 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: test-publish
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_only != 'true')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_only != true)
     runs-on: ubuntu-latest
     permissions:
       contents: read
