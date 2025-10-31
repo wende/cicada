@@ -32,7 +32,7 @@ Gather the following information:
 - **Name:** Cicada
 - **Tagline:** "Elixir codebase intelligence for AI assistants"
 - **Category:** Developer Tools
-- **Installation Command:** `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+- **Installation Command:** `uv tool install git+https://github.com/wende/cicada.git@latest`
 - **Setup Command:** `cicada .`
 - **GitHub URL:** https://github.com/wende/cicada
 - **Description:** (see below)
@@ -60,7 +60,7 @@ Cicada is an MCP server that provides intelligent code search and analysis for E
 ## Quick Start
 ```bash
 # Install
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Setup your project
 cicada /path/to/elixir/project
@@ -87,7 +87,7 @@ Works with any Elixir/Phoenix project!
    - Slug: cicada
    - Description: (paste from above)
    - GitHub URL: https://github.com/wende/cicada
-   - Installation command: `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+   - Installation command: `uv tool install git+https://github.com/wende/cicada.git@latest`
    - Setup command: `cicada .`
    - Category: Developer Tools
    - Tags: elixir, mcp, code-search
@@ -120,7 +120,7 @@ Once listed, users can install Cicada by:
 ### Option 2: Manual Installation
 ```bash
 # 1. Install Cicada
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # 2. Setup your Elixir project
 cd /path/to/elixir/project
@@ -243,7 +243,7 @@ To update your Cursor Directory listing:
 
    ### Via Command Line
    ```bash
-   uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+   uv tool install git+https://github.com/wende/cicada.git@latest
    ```
 
 3. **Create demo video**
@@ -318,7 +318,7 @@ Powerful MCP server for Elixir developers using Cursor AI. Search modules, find 
 
 **Installation:**
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 cicada /path/to/project
 ```
 

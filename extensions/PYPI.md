@@ -20,7 +20,7 @@
 5. **Trust Signal**: PyPI listing adds credibility
 
 ### Alternative: GitHub Releases
-Currently using: `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+Currently using: `uv tool install git+https://github.com/wende/cicada.git@latest`
 
 **Pros of Git:**
 - No PyPI account needed
@@ -466,7 +466,7 @@ Once published to PyPI:
 1. ✅ **Update installation docs** everywhere
    ```markdown
    # Old
-   uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+   uv tool install git+https://github.com/wende/cicada.git@latest
 
    # New (primary)
    pip install cicada

@@ -217,7 +217,7 @@ export function deactivate() {}
 async function installCicada(): Promise<void> {
     const terminal = vscode.window.createTerminal('Cicada Installation');
     terminal.show();
-    terminal.sendText('uv tool install git+https://github.com/wende/cicada.git@v0.2.0');
+    terminal.sendText('uv tool install git+https://github.com/wende/cicada.git@latest');
 
     vscode.window.showInformationMessage(
         'Installing Cicada... Please restart VSCode when complete.'

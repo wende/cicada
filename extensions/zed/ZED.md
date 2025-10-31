@@ -187,7 +187,7 @@ impl CicadaExtension {
         // Could use uv, pip, or download binary directly
 
         // For now, return error telling user to install manually
-        Err("Please install cicada: uv tool install git+https://github.com/wende/cicada.git@v0.2.0".into())
+        Err("Please install cicada: uv tool install git+https://github.com/wende/cicada.git@latest".into())
     }
 }
 
@@ -241,7 +241,7 @@ Adds Cicada MCP server integration for intelligent Elixir code search and analys
 ## Installation
 Users need to install Cicada first:
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 Then setup their Elixir project:
@@ -275,7 +275,7 @@ Provides Elixir code intelligence via the Model Context Protocol (MCP).
 
 ### 1. Install Cicada CLI
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 ### 2. Install Zed Extension

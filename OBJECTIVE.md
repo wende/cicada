@@ -372,7 +372,7 @@ keywords:
 ## User Experience Verification
 
 ### Scenario 1: Editor Integration (MCP Auto-Setup)
-1. User installs: `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+1. User installs: `uv tool install git+https://github.com/wende/cicada.git@latest`
 2. User adds MCP server to editor config (`.mcp.json`)
 3. User opens editor (Claude Code, Cursor, etc.)
 4. User asks: "Show me the User module" (first MCP call)
@@ -385,7 +385,7 @@ keywords:
 - [ ] Subsequent queries are instant
 
 ### Scenario 2: CLI Power User (Full Setup)
-1. User installs: `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+1. User installs: `uv tool install git+https://github.com/wende/cicada.git@latest`
 2. User runs: `cicada /path/to/elixir/project` (or `cicada index`)
 3. Waits 2-5 minutes with progress feedback (first time)
 4. Opens editor and uses MCP tools

@@ -104,7 +104,7 @@
 
 ```bash
 # Step 1: Install
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Step 2: Setup project
 cicada /path/to/elixir/project
@@ -246,7 +246,7 @@ cicada /path/to/elixir/project
   - Name: "Cicada"
   - Description: "Elixir codebase intelligence for AI assistants"
   - Category: "Developer Tools"
-  - Install command: `uv tool install git+https://github.com/wende/cicada.git@v0.2.0`
+  - Install command: `uv tool install git+https://github.com/wende/cicada.git@latest`
   - Setup: `cicada .`
   - GitHub: https://github.com/wende/cicada
 - [ ] Upload logo (if ready)
