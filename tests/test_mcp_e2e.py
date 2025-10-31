@@ -172,6 +172,12 @@ def e2e_server(sample_elixir_repo, tmp_path):
     index_path = tmp_path / "index.json"
     index_result = indexer.index_repository(str(sample_elixir_repo), str(index_path))
 
+    # Validate indexing succeeded
+    assert index_result is not None, "Failed to index repository"
+    assert (
+        index_result.get("metadata", {}).get("total_modules", 0) > 0
+    ), "No modules were indexed"
+
     # Create config
     config = {
         "repository": {"path": str(sample_elixir_repo)},
@@ -415,6 +421,11 @@ class TestConcurrentRequests:
             assert len(result) == 1
             assert isinstance(result[0], TextContent)
 
+        # Verify each result is unique and contains expected module
+        assert "SampleApp.User" in results[0][0].text
+        assert "UserController" in results[1][0].text
+        assert "Auth" in results[2][0].text
+
     @pytest.mark.asyncio
     async def test_concurrent_mixed_tool_calls(self, e2e_server):
         """Test concurrent calls to different tools."""
@@ -439,6 +450,16 @@ class TestConcurrentRequests:
         assert len(results) == 3
         for result in results:
             assert len(result) == 1
+
+        # Verify each tool returned correct data
+        assert "SampleApp.User" in results[0][0].text, "Module search should find User"
+        assert (
+            "create_user" in results[1][0].text
+        ), "Function search should find create_user"
+        assert (
+            "usage" in results[2][0].text.lower()
+            or "used" in results[2][0].text.lower()
+        ), "Module usage should report usage information"
 
 
 class TestErrorHandling:
@@ -517,8 +538,11 @@ class TestKeywordSearch:
 
         assert len(result) == 1
         text = result[0].text
-        # Should either return results or message about missing keywords
-        assert text  # Non-empty response
+        # Should return meaningful response about missing keywords or search results
+        assert text, "Response should not be empty"
+        assert (
+            len(text) > 20
+        ), "Response too short to be meaningful (should explain missing keywords or provide results)"
 
     @pytest.mark.asyncio
     async def test_search_by_keywords_invalid_input(self, e2e_server):
@@ -606,7 +630,11 @@ class TestModuleResolution:
         )
 
         assert len(result) == 1
-        # Should either resolve or return appropriate error
+        text = result[0].text
+        # Should either successfully resolve to module or return clear error message
+        assert (
+            "SampleApp.User" in text or "not found" in text.lower()
+        ), "Should either resolve module or explain failure"
 
 
 class TestRobustness:
