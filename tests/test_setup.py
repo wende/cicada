@@ -79,8 +79,25 @@ class TestGetMcpConfigForEditor:
         assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
 
     def test_with_cicada_server_installed(self, mock_repo, mock_storage_dir):
-        """Should use cicada-server command when available"""
-        with patch("shutil.which", return_value="cicada-server"):
+        """Should use cicada-mcp command when available (with cicada-server as fallback)"""
+        # Test with cicada-mcp available
+        with patch(
+            "shutil.which",
+            side_effect=lambda tool: "cicada-mcp" if tool == "cicada-mcp" else None,
+        ):
+            _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
+
+        server_config = config["mcpServers"]["cicada"]
+        assert server_config["command"] == "cicada-mcp"
+        assert "args" not in server_config or server_config.get("args") == []
+
+        # Test backwards compatibility with only cicada-server available
+        with patch(
+            "shutil.which",
+            side_effect=lambda tool: (
+                "cicada-server" if tool == "cicada-server" else None
+            ),
+        ):
             _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
 
         server_config = config["mcpServers"]["cicada"]
@@ -153,12 +170,15 @@ class TestGetMcpConfigForEditor:
         }
         config_path.write_text(json.dumps(existing_config))
 
-        with patch("shutil.which", return_value="cicada-server"):
+        with patch(
+            "shutil.which",
+            side_effect=lambda tool: "cicada-mcp" if tool == "cicada-mcp" else None,
+        ):
             _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
 
         # Should replace old cicada config
         server_config = config["mcpServers"]["cicada"]
-        assert server_config["command"] == "cicada-server"
+        assert server_config["command"] == "cicada-mcp"
         assert "CICADA_REPO_PATH" in server_config["env"]
 
 

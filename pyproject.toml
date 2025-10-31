@@ -59,7 +59,8 @@ Changelog = "https://github.com/wende/cicada/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/wende/cicada#readme"
 
 [project.scripts]
-cicada-server = "cicada.mcp_server:main"
+cicada-mcp = "cicada.mcp_server:main"
+cicada-server = "cicada.mcp_server:main"  # Backwards compatibility
 cicada = "cicada.setup:main"
 cicada-install = "cicada.install:main"
 cicada-clean = "cicada.clean:main"
