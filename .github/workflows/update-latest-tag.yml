@@ -1,0 +1,47 @@
+name: Update Latest Tag
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v0.1.0, v1.2.3, etc.
+
+permissions:
+  contents: write
+
+jobs:
+  update-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update latest tag
+        run: |
+          # Get the current tag that triggered this workflow
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          echo "Current tag: $CURRENT_TAG"
+
+          # Delete the old 'latest' tag locally and remotely if it exists
+          if git rev-parse latest >/dev/null 2>&1; then
+            echo "Deleting old 'latest' tag..."
+            git tag -d latest
+            git push origin :refs/tags/latest || echo "Remote 'latest' tag doesn't exist, skipping remote deletion"
+          else
+            echo "No existing 'latest' tag found"
+          fi
+
+          # Create new 'latest' tag pointing to current tag
+          echo "Creating new 'latest' tag pointing to $CURRENT_TAG..."
+          git tag latest $CURRENT_TAG
+
+          # Push the new 'latest' tag
+          git push origin latest
+
+          echo "Successfully updated 'latest' tag to point to $CURRENT_TAG"
