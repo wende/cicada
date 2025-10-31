@@ -93,7 +93,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cicada"
+name = "cicada-mcp"
 version = "0.1.4"
 source = { editable = "." }
 dependencies = [
