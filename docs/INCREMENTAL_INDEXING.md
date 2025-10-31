@@ -62,17 +62,17 @@ cicada index --extract-keywords --full
 
 ### Switching Keyword Extraction Methods
 
-When switching between keyword extraction methods (spaCy vs BERT), you should use `--full` to ensure consistent keywords across all files:
+When switching between keyword extraction methods (lemminflect vs BERT), you should use `--full` to ensure consistent keywords across all files:
 
 ```bash
-# Initially indexed with spaCy (default)
-cicada-index --extract-keywords
+# Initially indexed with lemminflect (default)
+cicada index --nlp
 
 # Switching to BERT - use --full for consistency
-cicada-index --extract-keywords --rag --model-tier fast --full
+cicada index --rag --fast --full
 
-# Switching back to spaCy - use --full again
-cicada-index --extract-keywords --model-tier regular --full
+# Switching back to lemminflect with different model - use --full again
+cicada index --nlp --max --full
 ```
 
 **Why use `--full`?**

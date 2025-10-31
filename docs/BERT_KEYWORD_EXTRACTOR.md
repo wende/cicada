@@ -69,17 +69,17 @@ if keyword_method == "bert":
 ```bash
 # Config file approach
 echo "keywords:\n  method: bert\n  bert_tier: fast" > .cicada/config.yml
-cicada-index --extract-keywords
+cicada index --rag --fast
 
 # CLI approach
-cicada-index --extract-keywords --keyword-method bert --bert-model fast
+cicada index --rag --fast
 ```
 
-## Differences from spaCy
+## Differences from Lemminflect
 
-| Feature | spaCy | KeyBERT |
-|---------|-------|---------|
-| Method | POS tagging + NER | Semantic embeddings |
+| Feature | Lemminflect | KeyBERT |
+|---------|-------------|---------|
+| Method | POS tagging + lemmatization | Semantic embeddings |
 | Strengths | Linguistic structure | Semantic similarity |
 | Keywords | Multi-word phrases | Single words only |
 | `nouns`, `verbs`, etc. | ✅ Populated | ❌ Empty arrays |

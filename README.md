@@ -67,7 +67,7 @@ AI-powered semantic search is now production-ready with advanced NLP capabilitie
 
 ```bash
 # Index with enhanced AI keyword extraction
-cicada-index --extract-keywords --rag --model-tier fast
+cicada index --nlp --fast
 
 # Search by concept, not just exact names
 # AI will find: create_user, user_creation, new_user_account, etc.
@@ -84,11 +84,11 @@ Say goodbye to slow reindexing! v0.2.0 introduces intelligent change detection t
 
 ```bash
 # First run: full index + hash computation (~12s for 200 files)
-cicada-index --extract-keywords
+cicada index --nlp
 
 # Subsequent runs: lightning fast incremental updates
 # Changed 5 files? Only 2.1s instead of 48.7s!
-cicada-index --extract-keywords
+cicada index --nlp
 ```
 
 **Performance Benchmark** (200-file Phoenix app, 5 files changed):
@@ -108,7 +108,7 @@ cicada-index --extract-keywords
 ### Migration from v0.1.x
 
 ✅ **Zero Breaking Changes** - v0.2.0 is fully backward compatible
-✅ **Automatic Upgrade** - Just install and run `cicada-index` as usual
+✅ **Automatic Upgrade** - Just install and run `cicada index` as usual
 ✅ **Graceful Fallback** - Missing hashes? Performs full index once automatically
 
 ```bash
@@ -116,10 +116,10 @@ cicada-index --extract-keywords
 uv tool install git+https://github.com/wende/cicada.git@latest --force
 
 # Run indexer - automatically enables incremental mode
-cicada-index --extract-keywords
+cicada index --nlp
 
 # Need to switch keyword extraction methods? Use --full for consistency
-cicada-index --extract-keywords --rag --model-tier fast --full
+cicada index --rag --fast --full
 ```
 
 **[Read the complete incremental indexing guide →](docs/INCREMENTAL_INDEXING.md)**
@@ -169,10 +169,9 @@ cicada claude  # or: cicada cursor, cicada vs
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-server` - MCP server (auto-started by editor)
-- `cicada-index` - Re-index code with custom options and BERT models
-- `cicada-index-pr` - Index pull requests for PR attribution
-- `cicada-find-dead-code` - Find potentially unused functions
-- `cicada-install` - Legacy setup (creates `.cicada/` in repo)
+- `cicada index` - Re-index code with custom options (--nlp or --rag)
+- `cicada index-pr` - Index pull requests for PR attribution
+- `cicada find-dead-code` - Find potentially unused functions
 
 ### Try Before Installing
 
@@ -193,8 +192,8 @@ uvx --from git+https://github.com/wende/cicada.git@latest cicada vs
 
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
 - ✅ Faster MCP server startup (no temporary environment creation)
-- ✅ Access to all CLI commands (`cicada-index`, `cicada-index-pr`)
-- ✅ Fine-tuned keyword extraction with BERT models
+- ✅ Access to all CLI commands (`cicada index`, `cicada index-pr`)
+- ✅ Fine-tuned keyword extraction with lemminflect or BERT models
 - ✅ PR indexing features
 - ✅ Custom re-indexing options
 
@@ -293,22 +292,13 @@ Index pull requests for PR-related features:
 
 ```bash
 # After permanent installation
-cicada-index-pr .
+cicada index-pr .
 
 # Or with uvx
-uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
+uvx --from git+https://github.com/wende/cicada.git@latest cicada index-pr .
 
 # Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
-```
-
-### Legacy Installation
-
-If you prefer the old setup (stores files in `.cicada/` directory in your repo):
-
-```bash
-# Only available after permanent installation
-cicada-install
+cicada index-pr . --clean
 ```
 
 **See also:** [PR Indexing Documentation](docs/PR_INDEXING.md)

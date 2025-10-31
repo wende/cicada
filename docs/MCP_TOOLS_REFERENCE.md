@@ -106,7 +106,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Comment resolution status
 - Markdown-formatted output
 
-**Requirements:** GitHub CLI (`gh`) and PR index from `cicada-index-pr`
+**Requirements:** GitHub CLI (`gh`) and PR index from `cicada index-pr`
 
 ---
 
@@ -170,7 +170,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Concept-driven discovery
 - Markdown output format
 
-**Requirements:** Index built with keyword extraction: `cicada-index --extract-keywords`
+**Requirements:** Index built with keyword extraction: `cicada index --nlp` or `cicada index --rag`
 
 **Best for:**
 - Finding code by topic or concept

@@ -106,8 +106,8 @@ Claude Code will automatically detect and load the MCP server from `.mcp.json`.
 **Benefits of permanent installation:**
 - Faster MCP server startup
 - Access to advanced indexing options
-- PR indexing with `cicada-index-pr`
-- Better keyword extraction with larger spaCy models
+- PR indexing with `cicada index-pr`
+- Better keyword extraction with lemminflect or BERT models
 
 ---
 
@@ -125,7 +125,7 @@ uv tool install git+https://github.com/wende/cicada.git@v0.1.4
 
 ```bash
 cd /path/to/elixir/project
-cicada-index . --output ~/.cicada/projects/<project>/index.json --extract-keywords
+cicada index . --output ~/.cicada/projects/<project>/index.json --nlp
 ```
 
 #### Step 3: Create `.mcp.json` Manually
@@ -216,7 +216,7 @@ cat .mcp.json
 **Solution:** Re-index the project
 
 ```bash
-cicada-index . --extract-keywords
+cicada index . --nlp
 ```
 
 ---

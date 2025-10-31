@@ -49,9 +49,9 @@ extract-keywords:
 		exit 1; \
 	fi; \
 	if command -v uv >/dev/null 2>&1; then \
-		uv run cicada-index --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
+		uv run cicada index --nlp --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
 	else \
-		python -m cicada.indexer --extract-keywords --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
+		python -m cicada.cli index --nlp --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
 	fi
 	@echo "✓ Keywords extracted for test fixtures"
 
