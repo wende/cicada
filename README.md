@@ -125,6 +125,33 @@ uvx --from git+https://github.com/wende/cicada.git@latest cicada vs
 
 Once you're convinced, install permanently with `uv tool install` above!
 
+### Quick Setup for Cursor and Claude Code
+
+**For Cursor:**
+
+Click the install button at the top of this README or visit:
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
+
+**For Claude Code:**
+
+```bash
+# Option 1: Using claude mcp add command
+claude mcp add cicada -- uvx --from git+https://github.com/wende/cicada.git@latest cicada-server ./path/to/your/codebase
+
+# Option 2: Using setup script
+uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
+```
+
+**Then for both editors,** run these commands in your codebase to generate keyword lookup and GitHub PR lookup databases:
+
+```bash
+# Generate keyword lookup database
+uvx --from git+https://github.com/wende/cicada.git@latest cicada-index .
+
+# Generate GitHub PR lookup database
+uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
+```
+
 ---
 
 ## Quick Start
