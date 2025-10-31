@@ -51,6 +51,9 @@ coverage_acceptance.json
 # mypy
 .mypy_cache/
 
+# macOS
+.DS_Store
+
 # Cicada data and generated files
 data/
 .cicada/

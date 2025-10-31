@@ -78,34 +78,57 @@ class CicadaServer:
         if config_dir:
             return str(Path(config_dir) / "config.yaml")
 
-        # Check if CICADA_REPO_PATH is set and use new storage structure
+        # Determine repository path from environment or current directory
         repo_path = os.environ.get("CICADA_REPO_PATH")
-        if repo_path:
-            try:
-                # Try to use the new storage structure
-                config_path = get_config_path(repo_path)
-                if config_path.exists():
-                    return str(config_path)
-            except Exception as e:
-                print(
-                    f"Warning: Could not load from new storage structure: {e}",
-                    file=sys.stderr,
+
+        # Check if WORKSPACE_FOLDER_PATHS is available (Cursor-specific)
+        if not repo_path:
+            workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
+            if workspace_paths:
+                # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
+                # Take the first one if multiple
+                # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
+                repo_path = (
+                    workspace_paths.split(os.pathsep)[0]
+                    if os.pathsep in workspace_paths
+                    else workspace_paths
                 )
 
-        # Fall back to old structure for backward compatibility
-        if repo_path:
-            old_path = Path(repo_path) / ".cicada" / "config.yaml"
-            if old_path.exists():
-                return str(old_path)
+        # Fall back to current working directory
+        if not repo_path:
+            repo_path = str(Path.cwd().resolve())
 
-        # Default to .cicada/config.yaml in current directory
-        return ".cicada/config.yaml"
+        # Try new storage structure first
+        try:
+            config_path = get_config_path(repo_path)
+            if config_path.exists():
+                return str(config_path)
+        except Exception as e:
+            print(
+                f"Warning: Could not load from new storage structure: {e}",
+                file=sys.stderr,
+            )
+
+        # Fall back to old structure for backward compatibility
+        old_path = Path(repo_path) / ".cicada" / "config.yaml"
+        if old_path.exists():
+            return str(old_path)
+
+        # If neither exists, return the new storage path
+        # (will trigger helpful error message in _load_config)
+        return str(get_config_path(repo_path))
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
         config_file = Path(config_path)
         if not config_file.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+            raise FileNotFoundError(
+                f"Config file not found: {config_path}\n\n"
+                f"Please run setup first:\n"
+                f"  cicada cursor  # For Cursor\n"
+                f"  cicada claude  # For Claude Code\n"
+                f"  cicada vs      # For VS Code"
+            )
 
         with open(config_file) as f:
             data = yaml.safe_load(f)
@@ -113,20 +136,39 @@ class CicadaServer:
 
     def _load_index(self) -> dict[str, Any]:
         """Load the index from JSON file."""
+        import json
+
         index_path = Path(self.config["storage"]["index_path"])
 
         try:
             result = load_index(index_path, raise_on_error=True)
             if result is None:
                 raise FileNotFoundError(
-                    f"Index file not found: {index_path}\n"
-                    f"Run 'python indexer.py <path>' to create an index first."
+                    f"Index file not found: {index_path}\n\n"
+                    f"Please run setup first:\n"
+                    f"  cicada cursor  # For Cursor\n"
+                    f"  cicada claude  # For Claude Code\n"
+                    f"  cicada vs      # For VS Code"
                 )
             return result
+        except json.JSONDecodeError as e:
+            # Index file is corrupted - provide helpful message
+            repo_path = self.config.get("repository", {}).get("path", ".")
+            raise RuntimeError(
+                f"Index file is corrupted: {index_path}\n"
+                f"Error: {e}\n\n"
+                f"To rebuild the index, run:\n"
+                f"  cd {repo_path}\n"
+                f"  cicada-clean -f  # Safer cleanup\n"
+                f"  cicada cursor  # or: cicada claude, cicada vs\n"
+            ) from e
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"Index file not found: {index_path}\n"
-                f"Run 'python indexer.py <path>' to create an index first."
+                f"Index file not found: {index_path}\n\n"
+                f"Please run setup first:\n"
+                f"  cicada cursor  # For Cursor\n"
+                f"  cicada claude  # For Claude Code\n"
+                f"  cicada vs      # For VS Code"
             ) from None
 
     @property
@@ -1331,7 +1373,13 @@ async def async_main():
     """Async main entry point."""
     try:
         # Check if setup is needed before starting server
-        _auto_setup_if_needed()
+        # Redirect stdout to stderr during setup to avoid polluting MCP protocol
+        original_stdout = sys.stdout
+        try:
+            sys.stdout = sys.stderr
+            _auto_setup_if_needed()
+        finally:
+            sys.stdout = original_stdout
 
         server = CicadaServer()
         await server.run()
@@ -1356,6 +1404,20 @@ def _auto_setup_if_needed():
 
     # Determine repository path from environment or current directory
     repo_path_str = os.environ.get("CICADA_REPO_PATH")
+
+    # Check if WORKSPACE_FOLDER_PATHS is available (Cursor-specific)
+    if not repo_path_str:
+        workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
+        if workspace_paths:
+            # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
+            # Take the first one if multiple
+            # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
+            repo_path_str = (
+                workspace_paths.split(os.pathsep)[0]
+                if os.pathsep in workspace_paths
+                else workspace_paths
+            )
+
     repo_path = Path(repo_path_str).resolve() if repo_path_str else Path.cwd().resolve()
 
     # Check if config and index already exist
@@ -1409,6 +1471,18 @@ def _auto_setup_if_needed():
 def main():
     """Synchronous entry point for use with setuptools console_scripts."""
     import asyncio
+    import sys
+
+    # Accept optional positional argument for repo path
+    # Usage: cicada-server [repo_path]
+    if len(sys.argv) > 1:
+        repo_path = sys.argv[1]
+        # Convert to absolute path
+        from pathlib import Path
+
+        abs_path = Path(repo_path).resolve()
+        # Set environment variable to override default
+        os.environ["CICADA_REPO_PATH"] = str(abs_path)
 
     asyncio.run(async_main())
 

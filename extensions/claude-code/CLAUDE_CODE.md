@@ -21,42 +21,14 @@ Claude Code is Anthropic's official CLI tool that provides a conversational inte
 
 ---
 
-## Installation Guide
+## Installation
 
-### For End Users
+For installation instructions, see **[INSTALL.md](INSTALL.md)**.
 
-#### Step 1: Install Cicada
-```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
-```
-
-#### Step 2: Setup Your Project
+Quick start:
 ```bash
 cd /path/to/elixir/project
-cicada .
-```
-
-This creates:
-- `.cicada/` directory with index
-- `.cicada/config.yaml` with settings
-- `.mcp.json` with MCP server configuration
-
-#### Step 3: Start Claude Code
-```bash
-# In your project directory
-claude-code
-
-# Or specify project explicitly
-claude-code --project /path/to/elixir/project
-```
-
-Claude Code will automatically detect and load the MCP server from `.mcp.json`.
-
-#### Step 4: Test Integration
-```
-> Show me the User module
-> Where is create_user/2 called?
-> Who wrote this line of code?
+uvx cicada claude
 ```
 
 ---
@@ -303,8 +275,8 @@ cicada index
 Generate index as part of onboarding:
 ```bash
 # In CI script
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
-cicada .
+uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+cicada claude
 # Commit .mcp.json to repo
 ```
 
@@ -314,7 +286,7 @@ FROM elixir:1.15
 
 # Install uv and cicada
 RUN pip install uv
-RUN uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+RUN uv tool install git+https://github.com/wende/cicada.git@v0.1.4
 
 # Add to PATH
 ENV PATH="/root/.local/bin:$PATH"
@@ -322,7 +294,7 @@ ENV PATH="/root/.local/bin:$PATH"
 # Setup project
 WORKDIR /app
 COPY . .
-RUN cicada .
+RUN cicada claude
 ```
 
 ---
@@ -338,15 +310,22 @@ Add this to your project README:
 
 This project uses Cicada for enhanced AI code intelligence.
 
-### Setup
+### Quick Setup
+```bash
+uvx cicada claude
+```
+
+This one command will index your project and configure Claude Code automatically.
+
+### Manual Installation (Alternative)
 1. Install Cicada:
    ```bash
-   uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+   uv tool install git+https://github.com/wende/cicada.git@v0.1.4
    ```
 
-2. Index the project:
+2. Setup the project:
    ```bash
-   cicada .
+   cicada claude
    ```
 
 3. Start Claude Code:
@@ -362,17 +341,6 @@ Ask Claude Code:
 
 See [Cicada documentation](https://github.com/wende/cicada) for more features.
 ```
-
----
-
-## Comparison with Other Editors
-
-| Feature | Claude Code | Cursor | VSCode | Zed |
-|---------|-------------|--------|--------|-----|
-| MCP Support | Built-in | Built-in | Extension needed | Built-in |
-| Setup | Auto (.mcp.json) | Auto (.mcp.json) | Manual settings | Manual settings |
-| Ease of Use | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Discoverability | Low (manual install) | High (directory) | High (marketplace) | Medium (extensions) |
 
 ---
 

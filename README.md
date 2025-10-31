@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/cicada.png" alt="CICADA Logo" width="400"/>
+<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="400"/>
 
 # CICADA
 
@@ -17,6 +17,8 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 > 🎉 **Version 0.2.0 Released!** Enhanced AI-powered keyword search with **15-25x faster** incremental indexing. [What's New →](#whats-new-in-v020)
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
 
 [Installation](#installation) •
 [Quick Start](#quick-start) •
@@ -39,8 +41,8 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
       <td align="center"><b>With CICADA</b></td>
     </tr>
     <tr>
-      <td><img src="public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
-      <td><img src="public/cicada-demo-extended-clean-trimmed copy.gif" alt="Demo with CICADA" width="450"/></td>
+      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
+      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada-demo-extended-clean-trimmed%20copy.gif" alt="Demo with CICADA" width="450"/></td>
     </tr>
     <tr>
       <td align="center">3,127 tokens • 52.84s</td>
@@ -111,7 +113,7 @@ cicada-index --extract-keywords
 
 ```bash
 # Update to v0.2.0
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0 --force
+uv tool install git+https://github.com/wende/cicada.git@latest --force
 
 # Run indexer - automatically enables incremental mode
 cicada-index --extract-keywords
@@ -147,7 +149,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 # Latest stable release (recommended)
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Step 2: Setup in each project (one command per project)
 cd /path/to/your/elixir/project
@@ -180,13 +182,13 @@ Want to test Cicada first? Use `uvx` for a quick trial:
 cd /path/to/your/elixir/project
 
 # For Claude Code
-uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada claude
+uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
 
 # For Cursor
-uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada cursor
+uvx --from git+https://github.com/wende/cicada.git@latest cicada cursor
 
 # For VS Code
-uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada vs
+uvx --from git+https://github.com/wende/cicada.git@latest cicada vs
 ```
 
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
@@ -274,7 +276,7 @@ After code changes, re-run the setup command:
 
 ```bash
 # Re-index for Claude Code
-uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada claude
+uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
 
 # Or if permanently installed
 cicada claude
@@ -294,7 +296,7 @@ Index pull requests for PR-related features:
 cicada-index-pr .
 
 # Or with uvx
-uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada-index-pr .
+uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
 
 # Clean rebuild (re-index everything from scratch)
 cicada-index-pr . --clean
