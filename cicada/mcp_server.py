@@ -141,7 +141,7 @@ class CicadaServer:
                 f"Error: {e}\n\n"
                 f"To rebuild the index, run:\n"
                 f"  cd {repo_path}\n"
-                f"  rm -rf {index_path.parent}\n"
+                f"  cicada-clean -f  # Safer cleanup\n"
                 f"  cicada cursor  # or: cicada claude, cicada vs\n"
             )
         except FileNotFoundError:
@@ -1459,9 +1459,10 @@ def _auto_setup_if_needed():
         if workspace_paths:
             # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
             # Take the first one if multiple
+            # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
             repo_path_str = (
-                workspace_paths.split(":")[0]
-                if ":" in workspace_paths
+                workspace_paths.split(os.pathsep)[0]
+                if os.pathsep in workspace_paths
                 else workspace_paths
             )
 
