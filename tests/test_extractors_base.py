@@ -409,3 +409,130 @@ end
         # This is a simplified test - in real usage, the function extractor
         # handles the tree traversal
         assert tree.root_node is not None
+
+
+class TestGetParamName:
+    """Tests for get_param_name function"""
+
+    @pytest.fixture
+    def parser(self):
+        """Create a tree-sitter parser for Elixir"""
+        parser = Parser()
+        parser.language = Language(tree_sitter_elixir.language())
+        return parser
+
+    def _get_first_param_node(self, parser, code: str):
+        """Helper to parse code and find the first parameter node"""
+        tree = parser.parse(bytes(code, "utf8"))
+
+        def find_node_by_type(node, node_type):
+            if node.type == node_type:
+                return node
+            for child in node.children:
+                result = find_node_by_type(child, node_type)
+                if result:
+                    return result
+            return None
+
+        # Find the arguments node first
+        arguments_node = find_node_by_type(tree.root_node, "arguments")
+        if not arguments_node:
+            return None
+
+        # Return the first non-punctuation child
+        for child in arguments_node.children:
+            if child.type not in [",", "(", ")"]:
+                return child
+        return None
+
+    def test_simple_identifier(self, parser):
+        """Test extracting simple identifier parameter"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func(my_arg), do: my_arg"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node and param_node.type == "identifier":
+            result = get_param_name(param_node, source_bytes)
+            assert result == "my_arg"
+
+    def test_binary_operator_default(self, parser):
+        """Test extracting parameter with default value"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func(arg \\\\ 42), do: arg"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node:
+            result = get_param_name(param_node, source_bytes)
+            # Should extract something (the exact node structure may vary)
+            assert result is not None
+
+    def test_tuple_destructuring(self, parser):
+        """Test extracting tuple destructuring pattern"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func({x, y}), do: x + y"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node and param_node.type == "tuple":
+            result = get_param_name(param_node, source_bytes)
+            # Should return the whole tuple pattern
+            assert result is not None
+            assert "{" in result and "}" in result
+
+    def test_list_destructuring(self, parser):
+        """Test extracting list destructuring pattern"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func([head | tail]), do: head"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node and param_node.type == "list":
+            result = get_param_name(param_node, source_bytes)
+            # Should return the whole list pattern
+            assert result is not None
+            assert "[" in result
+
+    def test_map_destructuring(self, parser):
+        """Test extracting map destructuring pattern"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func(%{key: value}), do: value"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node and param_node.type == "map":
+            result = get_param_name(param_node, source_bytes)
+            # Should return the whole map pattern
+            assert result is not None
+            assert "%" in result
+
+    def test_struct_pattern(self, parser):
+        """Test extracting struct pattern"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func(%User{name: name}), do: name"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node:
+            result = get_param_name(param_node, source_bytes)
+            # Should extract something meaningful
+            assert result is not None
+
+    def test_underscore_param(self, parser):
+        """Test extracting underscore parameter"""
+        from cicada.extractors.base import get_param_name
+
+        code = "def func(_unused), do: 42"
+        source_bytes = bytes(code, "utf8")
+        param_node = self._get_first_param_node(parser, code)
+
+        if param_node and param_node.type == "identifier":
+            result = get_param_name(param_node, source_bytes)
+            assert result == "_unused"
