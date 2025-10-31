@@ -105,7 +105,7 @@ yo code
         {
           "id": "cicada",
           "name": "Cicada",
-          "command": "cicada-server"
+          "command": "cicada-mcp"
         }
       ]
     },

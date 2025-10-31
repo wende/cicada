@@ -149,7 +149,7 @@ Issues = "https://github.com/wende/cicada/issues"
 Changelog = "https://github.com/wende/cicada/blob/main/CHANGELOG.md"
 
 [project.scripts]
-cicada-server = "cicada.mcp_server:main"
+cicada-mcp = "cicada.mcp_server:main"
 cicada = "cicada.cli:main"
 ```
 

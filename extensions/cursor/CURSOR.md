@@ -14,7 +14,7 @@
 
 Before submitting to Cursor Directory:
 
-- [ ] Working MCP server (cicada-server)
+- [ ] Working MCP server (cicada-mcp)
 - [ ] GitHub repository with clear README
 - [ ] Installation command tested and working
 - [ ] Logo/icon (recommended, 512x512 PNG)
@@ -138,7 +138,7 @@ Cicada creates `.mcp.json` automatically in your project root:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/absolute/path/to/project"
       }
@@ -147,13 +147,13 @@ Cicada creates `.mcp.json` automatically in your project root:
 }
 ```
 
-**Important:** Ensure `~/.local/bin` is in your PATH for the `cicada-server` command to work.
+**Important:** Ensure `~/.local/bin` is in your PATH for the `cicada-mcp` command to work.
 
 ---
 
 ## Troubleshooting Common Issues
 
-### Issue 1: "cicada-server: command not found"
+### Issue 1: "cicada-mcp: command not found"
 
 **Cause:** `~/.local/bin` not in PATH
 

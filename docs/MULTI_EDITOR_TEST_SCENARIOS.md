@@ -138,7 +138,7 @@ Scenario 3: Re-run Safety
       "command": "other-server"
     },
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {...}
     }
   }
@@ -161,7 +161,7 @@ Scenario 3: Re-run Safety
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {...}
     }
   }

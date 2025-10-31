@@ -91,7 +91,7 @@ authors = ["Wende <your@email.com>"]
 repository = "https://github.com/wende/cicada"
 
 [context_servers.cicada]
-command = { type = "Stdio", program = "cicada-server" }
+command = { type = "Stdio", program = "cicada-mcp" }
 ```
 
 ### Step 4: Create src/lib.rs
@@ -112,11 +112,11 @@ impl zed::Extension for CicadaExtension {
         _context_server_id: &LanguageServerId,
         _worktree: &zed::Worktree,
     ) -> Result<Command> {
-        // Simple approach: assume cicada-server is in PATH
+        // Simple approach: assume cicada-mcp is in PATH
         // User must install cicada manually
 
         Ok(Command {
-            command: "cicada-server".to_string(),
+            command: "cicada-mcp".to_string(),
             args: vec![],
             env: Default::default(),
         })
@@ -149,8 +149,8 @@ impl zed::Extension for CicadaExtension {
         _context_server_id: &LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<Command> {
-        // Check if cicada-server is in PATH
-        if let Ok(path) = which::which("cicada-server") {
+        // Check if cicada-mcp is in PATH
+        if let Ok(path) = which::which("cicada-mcp") {
             return Ok(Command {
                 command: path.to_string_lossy().to_string(),
                 args: vec![],
@@ -304,7 +304,7 @@ Ask Zed Assistant:
 ## Troubleshooting
 
 **MCP server won't start:**
-- Ensure `cicada-server` is in PATH: `which cicada-server`
+- Ensure `cicada-mcp` is in PATH: `which cicada-mcp`
 - Add `~/.local/bin` to PATH if needed
 - Verify installation: `cicada --version`
 
@@ -380,7 +380,7 @@ Instead of a Zed extension, users can configure MCP manually:
 {
   "context_servers": {
     "cicada": {
-      "command": "cicada-server"
+      "command": "cicada-mcp"
     }
   }
 }

@@ -91,7 +91,7 @@ In your project root, create `.mcp.json`:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/absolute/path/to/your/project"
       }
@@ -166,7 +166,7 @@ file_extensions:
 
 ## Troubleshooting
 
-### Issue 1: "cicada-server: command not found"
+### Issue 1: "cicada-mcp: command not found"
 
 **Cause:** `~/.local/bin` is not in your PATH
 

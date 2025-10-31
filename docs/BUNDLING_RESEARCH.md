@@ -38,7 +38,7 @@ CICADA currently uses `uv tool install`, which provides:
 **Core Application:**
 - Python 3.10+ (~392KB of source code)
 - 5 entry points:
-  - `cicada-server` (MCP server)
+  - `cicada-mcp` (MCP server)
   - `cicada` (project setup)
   - `cicada-index` (Elixir indexer)
   - `cicada-index-pr` (PR indexer)

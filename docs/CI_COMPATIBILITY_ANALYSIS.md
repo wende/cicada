@@ -163,7 +163,7 @@ The new tests follow the same pattern as existing tests:
 ```python
 # Existing test (test_setup.py)
 def test_claude_config_structure(self, mock_repo, mock_storage_dir):
-    with patch("shutil.which", return_value="cicada-server"):
+    with patch("shutil.which", return_value="cicada-mcp"):
         config_path, config = get_mcp_config_for_editor(...)
 ```
 

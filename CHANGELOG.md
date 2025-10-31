@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `cicada-clean` command to remove repository configuration and clean up MCP settings ([#24](https://github.com/wende/cicada/pull/24))
 - Automated MCP tool call benchmarking system for performance analysis ([#23](https://github.com/wende/cicada/pull/23))
-- Command logging for cicada-server MCP operations ([#22](https://github.com/wende/cicada/pull/22))
-- Auto-setup functionality to cicada-server for zero-config MCP usage ([#20](https://github.com/wende/cicada/pull/20))
+- Command logging for cicada-mcp MCP operations ([#22](https://github.com/wende/cicada/pull/22))
+- Auto-setup functionality to cicada-mcp for zero-config MCP usage ([#20](https://github.com/wende/cicada/pull/20))
 - Simplified single-command setup workflow (`cicada claude`, `cicada cursor`, `cicada vs`) ([#20](https://github.com/wende/cicada/pull/20))
 - Centralized storage structure in `~/.cicada/projects/<repo_hash>/` ([#20](https://github.com/wende/cicada/pull/20))
 - Incremental indexing with hash-based change detection for faster re-indexing ([#16](https://github.com/wende/cicada/pull/16))
@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `find_dead_code` - Identify unused functions
 - CLI tools:
   - `cicada` - Project initialization
-  - `cicada-server` - MCP server
+  - `cicada-mcp` - MCP server
   - `cicada-index` - Code indexing
   - `cicada-index-pr` - PR indexing
   - `cicada-find-dead-code` - Dead code analysis

@@ -42,7 +42,7 @@ If Claude Code supports the `mcp add` command, you can add Cicada directly:
 
 ```bash
 # If you have cicada installed permanently
-claude mcp add cicada --command cicada-server --env CICADA_REPO_PATH=/path/to/project
+claude mcp add cicada --command cicada-mcp --env CICADA_REPO_PATH=/path/to/project
 
 # Or using uvx (one-time run)
 claude mcp add cicada --command uvx --args "cicada,claude" --cwd /path/to/project
@@ -136,7 +136,7 @@ Create `.mcp.json` in your project root:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/absolute/path/to/project",
         "CICADA_CONFIG_DIR": "/absolute/path/to/.cicada/projects/<hash>"
@@ -170,7 +170,7 @@ You should see Cicada responding with module information, function call sites, a
 
 ## Troubleshooting
 
-### Issue: "cicada-server: command not found"
+### Issue: "cicada-mcp: command not found"
 
 **Solution:** Add `~/.local/bin` to PATH
 
@@ -193,10 +193,10 @@ cicada claude
 
 ### Issue: MCP Server Won't Start
 
-**Check cicada-server is accessible:**
+**Check cicada-mcp is accessible:**
 ```bash
-which cicada-server
-# Should output: /home/user/.local/bin/cicada-server
+which cicada-mcp
+# Should output: /home/user/.local/bin/cicada-mcp
 ```
 
 **Check index exists:**

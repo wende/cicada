@@ -43,7 +43,7 @@ Cicada automatically creates this file during setup:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/absolute/path/to/project"
       }
@@ -60,7 +60,7 @@ If you need to configure manually or use a different setup:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "args": [],
       "env": {
         "CICADA_REPO_PATH": "/absolute/path/to/project"
@@ -71,15 +71,15 @@ If you need to configure manually or use a different setup:
 ```
 
 **Command Options:**
-- **Option 1 (Recommended):** `cicada-server` (if in PATH)
-- **Option 2:** `/absolute/path/to/.local/bin/cicada-server`
+- **Option 1 (Recommended):** `cicada-mcp` (if in PATH)
+- **Option 2:** `/absolute/path/to/.local/bin/cicada-mcp`
 - **Option 3:** `python /path/to/cicada/cicada/mcp_server.py`
 
 ---
 
 ## Troubleshooting
 
-### Issue 1: "cicada-server: command not found"
+### Issue 1: "cicada-mcp: command not found"
 
 **Solution:** Add `~/.local/bin` to PATH
 
@@ -102,10 +102,10 @@ cicada .
 
 ### Issue 3: MCP Server Won't Start
 
-**Check cicada-server is accessible:**
+**Check cicada-mcp is accessible:**
 ```bash
-which cicada-server
-# Should output: /home/user/.local/bin/cicada-server
+which cicada-mcp
+# Should output: /home/user/.local/bin/cicada-mcp
 ```
 
 **Check index exists:**
@@ -203,7 +203,7 @@ You can add Cicada alongside other MCP servers:
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/path/to/project"
       }
@@ -229,7 +229,7 @@ Cicada respects these environment variables:
 
 After setup, verify everything works:
 
-- [ ] `which cicada-server` returns a path
+- [ ] `which cicada-mcp` returns a path
 - [ ] `.cicada/config.yaml` exists
 - [ ] `.cicada/index.json` exists
 - [ ] `.mcp.json` exists and is valid JSON
@@ -358,7 +358,7 @@ See [Cicada documentation](https://github.com/wende/cicada) for more features.
 For Claude Code-specific issues:
 - Check Claude Code documentation
 - Verify .mcp.json format
-- Ensure cicada-server is in PATH
+- Ensure cicada-mcp is in PATH
 
 For Cicada issues:
 - Open GitHub issue with `[claude-code]` prefix
