@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/cicada.png" alt="CICADA Logo" width="400"/>
+<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="400"/>
 
 # CICADA
 
@@ -39,8 +39,8 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
       <td align="center"><b>With CICADA</b></td>
     </tr>
     <tr>
-      <td><img src="public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
-      <td><img src="public/cicada-demo-extended-clean-trimmed copy.gif" alt="Demo with CICADA" width="450"/></td>
+      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
+      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada-demo-extended-clean-trimmed%20copy.gif" alt="Demo with CICADA" width="450"/></td>
     </tr>
     <tr>
       <td align="center">3,127 tokens • 52.84s</td>
