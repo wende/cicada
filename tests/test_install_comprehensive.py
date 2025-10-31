@@ -387,20 +387,34 @@ class TestDetectInstallationMethod:
 
     def test_detect_uv_tools_permanent(self):
         """Test detection of uv tool install."""
-        with patch(
-            "sys.argv", ["/Users/user/.local/share/uv/tools/cicada/bin/cicada-setup"]
+        with (
+            patch(
+                "sys.argv",
+                ["/Users/user/.local/share/uv/tools/cicada/bin/cicada-setup"],
+            ),
+            patch(
+                "shutil.which",
+                side_effect=lambda tool: (
+                    "/usr/local/bin/" + tool if tool == "cicada-mcp" else None
+                ),
+            ),
         ):
             command, args, cwd, _description = detect_installation_method()
 
-            assert command == "cicada-server"
+            assert command == "cicada-mcp"
             assert args == []
             assert cwd is None
 
     def test_detect_cicada_server_in_path(self):
-        """Test when cicada-server is in PATH."""
+        """Test when only cicada-server is in PATH (backwards compatibility)."""
         with (
             patch("sys.argv", ["/some/path/script.py"]),
-            patch("shutil.which", return_value="/usr/local/bin/cicada-server"),
+            patch(
+                "shutil.which",
+                side_effect=lambda tool: (
+                    "/usr/local/bin/cicada-server" if tool == "cicada-server" else None
+                ),
+            ),
         ):
 
             command, args, cwd, description = detect_installation_method()

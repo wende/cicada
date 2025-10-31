@@ -59,7 +59,7 @@ For the best performance and access to all features:
 #### Step 1: Install Cicada
 
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 #### Step 2: Add to PATH (if needed)
@@ -118,7 +118,7 @@ For advanced users who want full control:
 #### Step 1: Install Cicada
 
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 #### Step 2: Index Your Project

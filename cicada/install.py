@@ -251,7 +251,15 @@ def detect_installation_method():
         ".local/share/uv/tools" in script_path_str
         or ".local/bin/cicada-" in script_path_str
     ):
-        # Installed via uv tool install
+        # Installed via uv tool install - check for cicada-mcp first
+        if shutil.which("cicada-mcp"):
+            return (
+                "cicada-mcp",
+                [],
+                None,
+                "uv tool install (ensure ~/.local/bin is in PATH)",
+            )
+        # Fall back to cicada-server for backwards compatibility
         return (
             "cicada-server",
             [],
@@ -259,7 +267,11 @@ def detect_installation_method():
             "uv tool install (ensure ~/.local/bin is in PATH)",
         )
 
-    # Check if cicada-server is in PATH (from uv tool install)
+    # Check if cicada-mcp is in PATH first (from uv tool install)
+    if shutil.which("cicada-mcp"):
+        return ("cicada-mcp", [], None, "uv tool install (permanent, fast)")
+
+    # Fall back to cicada-server for backwards compatibility
     if shutil.which("cicada-server"):
         return ("cicada-server", [], None, "uv tool install (permanent, fast)")
 
@@ -279,8 +291,13 @@ def check_tools_in_path():
     """Check if cicada tools are in PATH."""
     import shutil
 
-    tools = ["cicada-server", "cicada-index"]
+    # Check for cicada-mcp (new) or cicada-server (backwards compat)
+    has_mcp_server = shutil.which("cicada-mcp") or shutil.which("cicada-server")
+    tools = ["cicada-index"]
     visible_tools = [tool for tool in tools if shutil.which(tool)]
+    if has_mcp_server:
+        visible_tools.insert(0, "cicada-mcp/cicada-server")
+        tools.insert(0, "cicada-mcp/cicada-server")
 
     if len(visible_tools) == len(tools):
         return "all_visible"
@@ -351,8 +368,8 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     print(f"✓ MCP configuration updated at {mcp_config_path}")
 
     # Show what was configured
-    if command == "cicada-server":
-        print("✅ Using 'cicada-server' command (fast, no paths needed)")
+    if command in ("cicada-mcp", "cicada-server"):
+        print(f"✅ Using '{command}' command (fast, no paths needed)")
     else:
         print(f"ℹ️  Using Python: {command}")
 

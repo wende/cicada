@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicada-mcp"
-version = "0.1.4"
+version = "0.1.5"
 description = "An Elixir module search MCP server"
 readme = "README.md"
 license = "MIT"
@@ -59,7 +59,8 @@ Changelog = "https://github.com/wende/cicada/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/wende/cicada#readme"
 
 [project.scripts]
-cicada-server = "cicada.mcp_server:main"
+cicada-mcp = "cicada.mcp_server:main"
+cicada-server = "cicada.mcp_server:main"  # Backwards compatibility
 cicada = "cicada.setup:main"
 cicada-install = "cicada.install:main"
 cicada-clean = "cicada.clean:main"
@@ -84,6 +85,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore:Importing 'parser.split_arg_string' is deprecated.*:DeprecationWarning",
+    "ignore:coroutine 'async_main' was never awaited:RuntimeWarning",
 ]
 
 [tool.coverage.run]

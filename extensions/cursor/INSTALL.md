@@ -33,7 +33,7 @@ This guide provides step-by-step instructions for installing Cicada MCP server i
 #### Step 1: Install Cicada
 
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 #### Step 2: Add to PATH (if needed)
@@ -80,7 +80,7 @@ If you need to manually configure the MCP server:
 #### Step 1: Install Cicada (same as above)
 
 ```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 ```
 
 #### Step 2: Create `.mcp.json` manually
@@ -242,7 +242,7 @@ To update to the latest version:
 uv tool uninstall cicada
 
 # Install latest version
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Re-index your projects
 cd /path/to/your/project

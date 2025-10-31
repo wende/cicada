@@ -275,7 +275,7 @@ cicada index
 Generate index as part of onboarding:
 ```bash
 # In CI script
-uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+uv tool install git+https://github.com/wende/cicada.git@latest
 cicada claude
 # Commit .mcp.json to repo
 ```
@@ -286,7 +286,7 @@ FROM elixir:1.15
 
 # Install uv and cicada
 RUN pip install uv
-RUN uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+RUN uv tool install git+https://github.com/wende/cicada.git@latest
 
 # Add to PATH
 ENV PATH="/root/.local/bin:$PATH"
@@ -320,7 +320,7 @@ This one command will index your project and configure Claude Code automatically
 ### Manual Installation (Alternative)
 1. Install Cicada:
    ```bash
-   uv tool install git+https://github.com/wende/cicada.git@v0.1.4
+   uv tool install git+https://github.com/wende/cicada.git@latest
    ```
 
 2. Setup the project:

@@ -5,18 +5,20 @@ name: Publish to PyPI
 # - TEST_PYPI_API_TOKEN: API token for TestPyPI (https://test.pypi.org/manage/account/token/)
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      test_pypi:
-        description: 'Publish to TestPyPI instead of PyPI'
+      test_only:
+        description: 'Only publish to TestPyPI (skip real PyPI)'
         required: false
         type: boolean
         default: false
 
 jobs:
-  build-and-publish:
+  test-publish:
+    name: Test on TestPyPI
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,7 +60,6 @@ jobs:
         run: uv build
 
       - name: Publish to TestPyPI
-        if: github.event.inputs.test_pypi == 'true'
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
@@ -66,16 +67,45 @@ jobs:
             --publish-url https://test.pypi.org/legacy/ \
             --token $UV_PUBLISH_TOKEN
 
+      - name: Verify TestPyPI installation
+        run: |
+          sleep 30
+          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ cicada-mcp || echo "TestPyPI verification skipped (may fail due to dependencies)"
+
+  publish:
+    name: Publish to PyPI
+    needs: test-publish
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_only != true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build package
+        run: uv build
+
       - name: Publish to PyPI
-        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_pypi != 'true')
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           uv publish --token $UV_PUBLISH_TOKEN
 
-      - name: Verify package installation
-        if: github.event_name == 'release'
+      - name: Verify PyPI installation
         run: |
-          sleep 60  # Wait for PyPI to index the package
+          sleep 60
           pip install cicada-mcp
           python -c "import cicada; print(f'Cicada version: {cicada.__version__}')"
