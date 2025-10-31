@@ -2,10 +2,11 @@
 """
 Cicada Simplified Setup Script.
 
-One-command setup: uvx cicada [claude|cursor|vs]
+One-command setup: uvx --from cicada-mcp cicada [claude|cursor|vs]
 - Indexes the repository with keyword extraction
 - Stores all files in temp directory (~/.cicada/projects/<hash>/)
 - Creates only MCP config file in user's repo
+- Generates MCP config that uses 'uvx cicada-mcp' (works with or without permanent install)
 """
 
 import argparse
@@ -99,26 +100,11 @@ def get_mcp_config_for_editor(
     Returns:
         Tuple of (config_file_path, config_content)
     """
-    # Detect installation method
-    import shutil
-
-    # Check for cicada-mcp first (new name), fall back to cicada-server (backwards compat)
-    has_cicada_mcp = shutil.which("cicada-mcp") is not None
-    has_cicada_server = shutil.which("cicada-server") is not None
-
-    if has_cicada_mcp:
-        command = "cicada-mcp"
-        args = []
-        cwd = None
-    elif has_cicada_server:
-        command = "cicada-server"
-        args = []
-        cwd = None
-    else:
-        python_bin = sys.executable
-        command = str(python_bin)
-        args = ["-m", "cicada.mcp_server"]
-        cwd = None
+    # Always use uvx for maximum compatibility
+    # Works whether cicada-mcp is permanently installed or not
+    command = "uvx"
+    args = ["cicada-mcp"]
+    cwd = None
 
     # Editor-specific specifications
     editor_specs = {
@@ -286,17 +272,14 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
 
     # Check if running via uvx and suggest permanent installation
     import shutil
-    from cicada import __version__
 
     # Check for either cicada-mcp or cicada-server (backwards compat)
     if not (shutil.which("cicada-mcp") or shutil.which("cicada-server")):
         print("💡 Tip: For best experience, install Cicada permanently:")
-        print(
-            f"   uv tool install git+https://github.com/wende/cicada.git@v{__version__}"
-        )
+        print("   uv tool install cicada-mcp")
         print()
         print("   Benefits:")
-        print("   • Faster MCP server startup")
+        print("   • Faster MCP server startup (no uvx overhead)")
         print("   • Access to cicada-index with medium/large spaCy models")
         print("   • PR indexing with cicada-index-pr")
         print()
@@ -306,7 +289,7 @@ def main():
     """Main entry point for the simplified setup script."""
     parser = argparse.ArgumentParser(
         description="Cicada One-Command Setup",
-        epilog="Example: uvx cicada claude",
+        epilog="Example: uvx --from cicada-mcp cicada claude",
     )
     parser.add_argument(
         "editor",
