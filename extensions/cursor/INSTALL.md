@@ -17,14 +17,14 @@ This guide provides step-by-step instructions for installing Cicada MCP server i
 ### Method 1: Quick Install via Deep Link (Recommended)
 
 🔗 **One-Click Installation:**
-cursor://anysphere.cursor-deeplink/mcp/install?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
+
+**Or Install Via Cursor
+[Website](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)**
 
 
-**Or Via Cursor Website**
-
-https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9
-
-> **Note:** Click the link above to automatically configure Cicada in Cursor. This will install the tool and set up the MCP server for you.
+> **Note:** Click either option above to automatically configure Cicada in Cursor. This will install the tool and set up the MCP server for you.
 
 ---
 
