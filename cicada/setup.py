@@ -97,9 +97,15 @@ def get_mcp_config_for_editor(
     # Detect installation method
     import shutil
 
+    # Check for cicada-mcp first (new name), fall back to cicada-server (backwards compat)
+    has_cicada_mcp = shutil.which("cicada-mcp") is not None
     has_cicada_server = shutil.which("cicada-server") is not None
 
-    if has_cicada_server:
+    if has_cicada_mcp:
+        command = "cicada-mcp"
+        args = []
+        cwd = None
+    elif has_cicada_server:
         command = "cicada-server"
         args = []
         cwd = None
@@ -371,7 +377,8 @@ def setup(
 
     from cicada import __version__
 
-    if not shutil.which("cicada-server"):
+    # Check for either cicada-mcp or cicada-server (backwards compat)
+    if not (shutil.which("cicada-mcp") or shutil.which("cicada-server")):
         print("💡 Tip: For best experience, install Cicada permanently:")
         print(f"   uv tool install git+https://github.com/wende/cicada.git@v{__version__}")
         print()

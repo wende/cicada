@@ -168,7 +168,7 @@ cicada claude  # or: cicada cursor, cicada vs
 
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
-- `cicada-server` - MCP server (auto-started by editor)
+- `cicada-mcp` - MCP server (auto-started by editor)
 - `cicada index` - Re-index code with custom options (--nlp or --rag)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
@@ -210,7 +210,7 @@ Click the install button at the top of this README or visit:
 
 ```bash
 # Option 1: Using claude mcp add command
-claude mcp add cicada -- uvx --from git+https://github.com/wende/cicada.git@latest cicada-server ./path/to/your/codebase
+claude mcp add cicada -- uvx --from git+https://github.com/wende/cicada.git@latest cicada-mcp ./path/to/your/codebase
 
 # Option 2: Using setup script
 uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
@@ -278,7 +278,7 @@ your-project/
 {
   "mcpServers": {
     "cicada": {
-      "command": "cicada-server",
+      "command": "cicada-mcp",
       "env": {
         "CICADA_REPO_PATH": "/path/to/project",
         "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"

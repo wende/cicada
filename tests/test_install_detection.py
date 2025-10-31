@@ -44,13 +44,37 @@ def test_uv_tool_install_detection():
     ]
 
     for uv_path in uv_paths:
-        with patch("sys.argv", [uv_path]):
+        # Test with cicada-mcp available (new default)
+        with (
+            patch("sys.argv", [uv_path]),
+            patch(
+                "shutil.which",
+                side_effect=lambda tool: (
+                    "/usr/local/bin/cicada-mcp" if tool == "cicada-mcp" else None
+                ),
+            ),
+        ):
             command, args, cwd, description = detect_installation_method()
 
-            # Should use cicada-server for permanent installs
-            assert (
-                command == "cicada-server"
-            ), f"uv tool install path {uv_path} not detected correctly"
+            # Should use cicada-mcp for new installs
+            assert command == "cicada-mcp", f"uv tool install path {uv_path} not detected correctly"
+            assert args == [], "Should have no args for cicada-mcp"
+            assert cwd is None, "Should have no cwd for cicada-mcp"
+
+        # Test backwards compatibility with only cicada-server available
+        with (
+            patch("sys.argv", [uv_path]),
+            patch(
+                "shutil.which",
+                side_effect=lambda tool: (
+                    "/usr/local/bin/cicada-server" if tool == "cicada-server" else None
+                ),
+            ),
+        ):
+            command, args, cwd, description = detect_installation_method()
+
+            # Should fall back to cicada-server for backwards compat
+            assert command == "cicada-server", f"Backwards compat failed for {uv_path}"
             assert args == [], "Should have no args for cicada-server"
             assert cwd is None, "Should have no cwd for cicada-server"
 

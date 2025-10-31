@@ -118,7 +118,7 @@ Reorganized commands:
 ```toml
 [project.scripts]
 cicada = "cicada.setup:main"              # New: single-command setup
-cicada-server = "cicada.mcp_server:main"   # MCP server
+cicada-mcp = "cicada.mcp_server:main"   # MCP server
 cicada-index = "cicada.cli:index_command"  # Manual re-indexing
 cicada-index-pr = "cicada.cli:index_pr_command"  # PR indexing
 cicada-install = "cicada.cli:install_command"  # Legacy setup
