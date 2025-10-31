@@ -15,14 +15,79 @@ class LightweightKeywordExtractor:
     """Extract keywords from text using lightweight lemmatization."""
 
     STOPWORDS = {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "are", "was", "were", "be",
-        "been", "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "should", "could", "this", "that", "these", "those", "it",
-        "its", "they", "them", "their", "what", "which", "who", "when",
-        "where", "why", "how", "all", "each", "every", "both", "few", "more",
-        "most", "other", "some", "such", "no", "nor", "not", "only", "own",
-        "same", "so", "than", "too", "very", "can", "just", "up", "out",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "should",
+        "could",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "they",
+        "them",
+        "their",
+        "what",
+        "which",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "can",
+        "just",
+        "up",
+        "out",
     }
 
     # Pre-compiled regex patterns for code identifier extraction
@@ -56,7 +121,7 @@ class LightweightKeywordExtractor:
                 "The 'model_size' parameter is deprecated and ignored in LightweightKeywordExtractor. "
                 "The lightweight extractor does not use size-based models.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
     def _load_lemminflect(self):
@@ -65,6 +130,7 @@ class LightweightKeywordExtractor:
             return
         try:
             import lemminflect
+
             self._lemminflect = lemminflect
             self._lemminflect_loaded = True
             if self.verbose:

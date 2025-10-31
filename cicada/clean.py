@@ -168,11 +168,80 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     print()
 
 
+def clean_all_projects(force: bool = False) -> None:
+    """
+    Remove all Cicada storage directories for all projects.
+
+    Args:
+        force: Skip confirmation prompt if True
+    """
+    from pathlib import Path
+
+    storage_base = Path.home() / ".cicada" / "projects"
+
+    if not storage_base.exists():
+        print("✓ No Cicada storage found (~/.cicada/projects/ does not exist).")
+        return
+
+    # Count project directories
+    project_dirs = [d for d in storage_base.iterdir() if d.is_dir()]
+
+    if not project_dirs:
+        print("✓ No Cicada projects found in ~/.cicada/projects/")
+        return
+
+    print("=" * 60)
+    print("Cicada Clean All Projects")
+    print("=" * 60)
+    print()
+    print(f"Found {len(project_dirs)} project(s) in: {storage_base}")
+    print()
+
+    # Show project directories
+    print("The following storage directories will be removed:")
+    print()
+    for proj_dir in sorted(project_dirs):
+        print(f"  • {proj_dir.name}/")
+    print()
+
+    # Confirmation prompt
+    if not force:
+        response = input(
+            f"Are you sure you want to remove ALL {len(project_dirs)} project(s)? [y/N]: "
+        )
+        if response.lower() not in ["y", "yes"]:
+            print("Aborted.")
+            return
+
+    print()
+    print("Removing all Cicada storage directories...")
+    print()
+
+    # Remove all project directories
+    removed_count = 0
+    for proj_dir in project_dirs:
+        try:
+            shutil.rmtree(proj_dir)
+            print(f"✓ Removed {proj_dir.name}/")
+            removed_count += 1
+        except (OSError, PermissionError) as e:
+            print(f"✗ Failed to remove {proj_dir.name}/: {e}")
+
+    print()
+    print("=" * 60)
+    print(f"✓ Cleanup Complete! ({removed_count}/{len(project_dirs)} projects removed)")
+    print("=" * 60)
+    print()
+
+
 def main():
     """Main entry point for the clean command."""
     parser = argparse.ArgumentParser(
         description="Remove all Cicada configuration and indexes for a repository",
-        epilog="Example: cicada-clean -f",
+        epilog="Examples:\n"
+        "  cicada-clean -f              # Clean current repository\n"
+        "  cicada-clean --all -f        # Remove ALL project storage\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "repo",
@@ -186,8 +255,22 @@ def main():
         action="store_true",
         help="Skip confirmation prompt",
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
+    )
 
     args = parser.parse_args()
+
+    # Handle --all flag
+    if args.all:
+        try:
+            clean_all_projects(force=args.force)
+        except Exception as e:
+            print(f"\nError: Cleanup failed: {e}")
+            sys.exit(1)
+        return
 
     # Determine repo path
     repo_path = Path(args.repo) if args.repo else Path.cwd()

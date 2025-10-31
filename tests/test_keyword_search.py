@@ -57,9 +57,9 @@ class TestLightweightKeywordExtractor:
         for word, expected_lemma in adjective_cases.items():
             lemma = extractor._lemmatize(word)
             # Note: lemminflect may not change all adjectives, but it should try
-            assert isinstance(lemma, str) and len(lemma) > 0, (
-                f"Lemmatization of '{word}' should return a non-empty string"
-            )
+            assert (
+                isinstance(lemma, str) and len(lemma) > 0
+            ), f"Lemmatization of '{word}' should return a non-empty string"
 
     def test_lemmatization_error_handling(self):
         """Test that _lemmatize handles errors gracefully"""
@@ -74,12 +74,12 @@ class TestLightweightKeywordExtractor:
                 lemma = extractor._lemmatize(word)
                 # Should return a string without crashing
                 # Lemminflect may process edge cases differently, the key is no exceptions
-                assert isinstance(lemma, str), (
-                    f"Edge case '{word}' should return a string, got '{type(lemma)}'"
-                )
-                assert len(lemma) > 0, (
-                    f"Edge case '{word}' should return non-empty string"
-                )
+                assert isinstance(
+                    lemma, str
+                ), f"Edge case '{word}' should return a string, got '{type(lemma)}'"
+                assert (
+                    len(lemma) > 0
+                ), f"Edge case '{word}' should return non-empty string"
 
     def test_model_size_deprecation_warning(self):
         """Test that model_size parameter triggers deprecation warning"""
@@ -94,9 +94,9 @@ class TestLightweightKeywordExtractor:
 
         # Verify they are compiled regex objects
         for pattern in LightweightKeywordExtractor.CODE_PATTERNS:
-            assert hasattr(pattern, "findall"), (
-                "CODE_PATTERNS should contain compiled regex objects"
-            )
+            assert hasattr(
+                pattern, "findall"
+            ), "CODE_PATTERNS should contain compiled regex objects"
 
     def test_tf_score_calculation_includes_weighted_keywords(self):
         """Test that TF scores are calculated based on all keywords including weighted ones"""
@@ -117,9 +117,9 @@ class TestLightweightKeywordExtractor:
 
         # TF scores should be fractions (between 0 and 1)
         for word, score in tf_scores.items():
-            assert 0 < score <= 1, (
-                f"TF score for '{word}' should be between 0 and 1, got {score}"
-            )
+            assert (
+                0 < score <= 1
+            ), f"TF score for '{word}' should be between 0 and 1, got {score}"
 
 
 class TestKeywordExtractor:
