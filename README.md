@@ -16,7 +16,7 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
 [Installation](#installation) •
 [Quick Start](#quick-start) •
@@ -75,7 +75,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 # Step 1: Install once
-uv tool install git+https://github.com/wende/cicada.git@latest
+uv tool install cicada-mcp
 
 # Step 2: Setup in each project (one command per project)
 cd /path/to/your/elixir/project
@@ -107,13 +107,13 @@ Want to test Cicada first? Use `uvx` for a quick trial:
 cd /path/to/your/elixir/project
 
 # For Claude Code
-uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
+uvx --from cicada-mcp cicada claude
 
 # For Cursor
-uvx --from git+https://github.com/wende/cicada.git@latest cicada cursor
+uvx --from cicada-mcp cicada cursor
 
 # For VS Code
-uvx --from git+https://github.com/wende/cicada.git@latest cicada vs
+uvx --from cicada-mcp cicada vs
 ```
 
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
@@ -130,26 +130,26 @@ Once you're convinced, install permanently with `uv tool install` above!
 **For Cursor:**
 
 Click the install button at the top of this README or visit:
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBnaXQraHR0cHM6Ly9naXRodWIuY29tL3dlbmRlL2NpY2FkYS5naXRAbGF0ZXN0IGNpY2FkYS1zZXJ2ZXIgLiJ9)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
 **For Claude Code:**
 
 ```bash
 # Option 1: Using claude mcp add command
-claude mcp add cicada -- uvx --from git+https://github.com/wende/cicada.git@latest cicada-mcp ./path/to/your/codebase
+claude mcp add cicada -- uvx cicada-mcp ./path/to/your/codebase
 
 # Option 2: Using setup script
-uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
+uvx --from cicada-mcp cicada claude
 ```
 
 **Then for both editors,** run these commands in your codebase to generate keyword lookup and GitHub PR lookup databases:
 
 ```bash
 # Generate keyword lookup database
-uvx --from git+https://github.com/wende/cicada.git@latest cicada-index .
+uvx --from cicada-mcp cicada-index .
 
 # Generate GitHub PR lookup database
-uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
+uvx --from cicada-mcp cicada-index-pr .
 ```
 
 ---
@@ -220,7 +220,7 @@ After code changes, re-run the setup command:
 
 ```bash
 # Re-index for Claude Code
-uvx --from git+https://github.com/wende/cicada.git@latest cicada claude
+uvx --from cicada-mcp cicada claude
 
 # Or if permanently installed
 cicada claude
@@ -240,7 +240,7 @@ Index pull requests for PR-related features:
 cicada-index-pr .
 
 # Or with uvx
-uvx --from git+https://github.com/wende/cicada.git@latest cicada-index-pr .
+uvx --from cicada-mcp cicada-index-pr .
 ```
 
 ### Legacy Installation

@@ -12,20 +12,18 @@ When creating a new release:
    git push origin v0.X.Y
    ```
 
-2. **Update README.md version references:**
-   - Search for all instances of `@v0.1.1` in README.md
-   - Replace with the new version tag `@v0.X.Y`
-   - Locations to update:
-     - Quick Install section (stable release command)
-     - Try Before Installing section (stable release command)
-     - Migration tip section
-
-3. **Update pyproject.toml version:**
+2. **Update pyproject.toml version:**
    - Update the `version = "0.1.1"` field to match the new release
+
+3. **Build and publish to PyPI:**
+   ```bash
+   uv build
+   uv publish
+   ```
 
 4. **Test the installation:**
    ```bash
-   uv tool install git+https://github.com/wende/cicada.git@v0.X.Y
+   uv tool install cicada-mcp
    ```
 
 ## Project Context
@@ -86,7 +84,7 @@ This project uses **uv** as the primary Python package manager and build tool. W
 - **Add new dependencies:** `uv add <package-name>`
 - **Run commands:** `uv run <command>` (e.g., `uv run python -m pytest`)
 - **Install the project:** `uv pip install -e .` for development installation
-- **Tool installation:** `uv tool install git+https://github.com/wende/cicada.git@v0.X.Y`
+- **Tool installation:** `uv tool install cicada-mcp`
 
 The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
 
