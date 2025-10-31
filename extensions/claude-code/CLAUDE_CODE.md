@@ -21,123 +21,15 @@ Claude Code is Anthropic's official CLI tool that provides a conversational inte
 
 ---
 
-## Installation Guide
+## Installation
 
-### Quick Start (Recommended)
+For installation instructions, see **[INSTALL.md](INSTALL.md)**.
 
-The fastest way to get started with Cicada in Claude Code is using the one-command setup:
-
+Quick start:
 ```bash
 cd /path/to/elixir/project
 uvx cicada claude
 ```
-
-This single command will:
-- Index your Elixir repository with keyword extraction
-- Store index files in `~/.cicada/projects/<hash>/` (outside your repo)
-- Create `.mcp.json` in your project root
-- Automatically configure the optimal command for your system
-
-**After setup completes:**
-1. Start Claude Code in your project directory
-2. Cicada tools are automatically available
-3. Try asking: "Show me the User module"
-
-### Alternative Installation Methods
-
-#### Method 1: Using `claude mcp add` (Native)
-
-If Claude Code supports the `mcp add` command, you can add Cicada directly:
-
-```bash
-# If you have cicada installed permanently
-claude mcp add cicada --command cicada-server --env CICADA_REPO_PATH=/path/to/project
-
-# Or using uvx (one-time run)
-claude mcp add cicada --command uvx --args "cicada,claude" --cwd /path/to/project
-```
-
-**Note:** This method requires cicada to be installed first or uses uvx for on-demand execution.
-
-#### Method 2: Permanent Installation
-
-For the best performance and access to all features:
-
-```bash
-# Step 1: Install Cicada permanently
-uv tool install git+https://github.com/wende/cicada.git@v0.1.4
-
-# Step 2: Setup your project
-cd /path/to/elixir/project
-cicada claude
-
-# Step 3: Start Claude Code
-claude-code
-```
-
-**Benefits of permanent installation:**
-- Faster MCP server startup
-- Access to advanced indexing options
-- PR indexing with `cicada-index-pr`
-- Better keyword extraction with larger spaCy models
-
-#### Method 3: Manual Configuration
-
-For advanced users who want full control:
-
-1. Install Cicada:
-```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.1.4
-```
-
-2. Index your project:
-```bash
-cd /path/to/elixir/project
-cicada-index . --output ~/.cicada/projects/<project>/index.json --extract-keywords
-```
-
-3. Create `.mcp.json` manually:
-```json
-{
-  "mcpServers": {
-    "cicada": {
-      "command": "cicada-server",
-      "env": {
-        "CICADA_REPO_PATH": "/absolute/path/to/project",
-        "CICADA_CONFIG_DIR": "/absolute/path/to/.cicada/projects/<hash>"
-      }
-    }
-  }
-}
-```
-
-4. Start Claude Code:
-```bash
-claude-code
-```
-
-### Test Your Installation
-
-After setup, verify everything works:
-
-```
-> Show me the User module
-> Where is create_user/2 called?
-> Who wrote this line of code?
-```
-
-### Which Installation Method Should I Use?
-
-| Method | Best For | Speed | Features | Setup Time |
-|--------|----------|-------|----------|------------|
-| **Quick Start** (`uvx cicada claude`) | First-time users, trying out Cicada | Fast (one-time download) | Basic (small spaCy model) | ⚡ Instant |
-| **`claude mcp add`** | Claude Code power users | Fast | Basic to Full | ⚡⚡ Quick |
-| **Permanent Install** | Regular Cicada users, production | Fastest | Full (all models, PR indexing) | ⚡⚡⚡ Manual |
-| **Manual Config** | Advanced users, custom setups | Fastest | Full (customizable) | ⏱️ Detailed |
-
-**Recommendation:**
-- **Start with Quick Start** to try Cicada
-- **Upgrade to Permanent Install** if you use it daily
 
 ---
 
@@ -449,17 +341,6 @@ Ask Claude Code:
 
 See [Cicada documentation](https://github.com/wende/cicada) for more features.
 ```
-
----
-
-## Comparison with Other Editors
-
-| Feature | Claude Code | Cursor | VSCode | Zed |
-|---------|-------------|--------|--------|-----|
-| MCP Support | Built-in | Built-in | Extension needed | Built-in |
-| Setup | `uvx cicada claude` | `uvx cicada cursor` | Extension + setup | Manual settings |
-| Ease of Use | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Discoverability | Medium (one command) | High (directory) | High (marketplace) | Medium (extensions) |
 
 ---
 
