@@ -77,5 +77,5 @@ jobs:
         if: github.event_name == 'release'
         run: |
           sleep 60  # Wait for PyPI to index the package
-          pip install cicada
+          pip install cicada-mcp
           python -c "import cicada; print(f'Cicada version: {cicada.__version__}')"
