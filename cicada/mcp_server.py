@@ -1496,43 +1496,27 @@ def _auto_setup_if_needed():
         # Already set up, nothing to do
         return
 
-    # Setup needed - create storage and index
-    print("=" * 60, file=sys.stderr)
-    print("Cicada: First-time setup detected", file=sys.stderr)
-    print("=" * 60, file=sys.stderr)
-    print(file=sys.stderr)
-
+    # Setup needed - create storage and index (silent mode)
     # Validate it's an Elixir project
     if not (repo_path / "mix.exs").exists():
         print(
-            f"Error: {repo_path} does not appear to be an Elixir project",
+            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
             file=sys.stderr,
         )
-        print("(mix.exs not found)", file=sys.stderr)
         sys.exit(1)
 
     try:
         # Create storage directory
         storage_dir = create_storage_dir(repo_path)
-        print(f"Repository: {repo_path}", file=sys.stderr)
-        print(f"Storage: {storage_dir}", file=sys.stderr)
-        print(file=sys.stderr)
 
-        # Index repository
-        index_repository(repo_path)
-        print(file=sys.stderr)
+        # Index repository (silent mode)
+        index_repository(repo_path, verbose=False)
 
-        # Create config.yaml
-        create_config_yaml(repo_path, storage_dir)
-        print(file=sys.stderr)
-
-        print("=" * 60, file=sys.stderr)
-        print("✓ Setup Complete! Starting server...", file=sys.stderr)
-        print("=" * 60, file=sys.stderr)
-        print(file=sys.stderr)
+        # Create config.yaml (silent mode)
+        create_config_yaml(repo_path, storage_dir, verbose=False)
 
     except Exception as e:
-        print(f"Error during auto-setup: {e}", file=sys.stderr)
+        print(f"Cicada auto-setup error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

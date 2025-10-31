@@ -163,13 +163,16 @@ def get_mcp_config_for_editor(
     return config_path, config
 
 
-def create_config_yaml(repo_path: Path, storage_dir: Path) -> None:
+def create_config_yaml(
+    repo_path: Path, storage_dir: Path, verbose: bool = True
+) -> None:
     """
     Create config.yaml in storage directory.
 
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
+        verbose: Whether to print progress messages (default: True)
     """
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
@@ -184,22 +187,24 @@ storage:
     with open(config_path, "w") as f:
         f.write(config_content)
 
-    print(f"✓ Config file created at {config_path}")
+    if verbose:
+        print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path) -> None:
+def index_repository(repo_path: Path, verbose: bool = True) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        verbose: Whether to print progress messages (default: True)
 
     Raises:
         Exception: If indexing fails
     """
     try:
         index_path = get_index_path(repo_path)
-        indexer = ElixirIndexer(verbose=True)
+        indexer = ElixirIndexer(verbose=verbose)
 
         # Index with keyword extraction enabled by default
         # Note: Using 'small' model for compatibility with uvx
@@ -211,10 +216,12 @@ def index_repository(repo_path: Path) -> None:
             spacy_model="small",
         )
 
-        print(f"✓ Repository indexed at {index_path}")
+        if verbose:
+            print(f"✓ Repository indexed at {index_path}")
     except Exception as e:
-        print(f"Error: Failed to index repository: {e}")
-        print("Please check that the repository contains valid Elixir files.")
+        if verbose:
+            print(f"Error: Failed to index repository: {e}")
+            print("Please check that the repository contains valid Elixir files.")
         raise
 
 
