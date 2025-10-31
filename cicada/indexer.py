@@ -130,7 +130,8 @@ class ElixirIndexer:
         if not repo_path_obj.exists():
             raise ValueError(f"Repository path does not exist: {repo_path_obj}")
 
-        print(f"Indexing repository: {repo_path_obj}")
+        if self.verbose:
+            print(f"Indexing repository: {repo_path_obj}")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -148,26 +149,28 @@ class ElixirIndexer:
                     # Initialize KeyBERT extractor
                     from cicada.keybert_extractor import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=True)
+                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=self.verbose)
                 else:
                     # Initialize lemminflect extractor (default)
                     from cicada.lightweight_keyword_extractor import (
                         LightweightKeywordExtractor,
                     )
 
-                    keyword_extractor = LightweightKeywordExtractor(verbose=True)
+                    keyword_extractor = LightweightKeywordExtractor(verbose=self.verbose)
             except Exception as e:
-                print(f"Warning: Could not initialize keyword extractor: {e}")
-                print("Continuing without keyword extraction...")
+                if self.verbose:
+                    print(f"Warning: Could not initialize keyword extractor: {e}")
+                    print("Continuing without keyword extraction...")
                 extract_keywords = False
 
         # Find all Elixir files
         elixir_files = self._find_elixir_files(repo_path_obj)
         total_files = len(elixir_files)
 
-        print(f"Found {total_files} Elixir files")
-        if extract_keywords:
-            print("Keyword extraction enabled")
+        if self.verbose:
+            print(f"Found {total_files} Elixir files")
+            if extract_keywords:
+                print("Keyword extraction enabled")
 
         # Parse all files
         all_modules = {}
@@ -254,7 +257,7 @@ class ElixirIndexer:
                 files_processed += 1
 
                 # Progress reporting
-                if files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
+                if self.verbose and files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
                     print(f"  Processed {files_processed}/{total_files} files...")
 
                 # Check for interruption after each file
@@ -262,7 +265,8 @@ class ElixirIndexer:
                     break
 
             except Exception as e:
-                print(f"  Skipping {file_path}: {e}")
+                if self.verbose:
+                    print(f"  Skipping {file_path}: {e}")
                 # Check for interruption even after error
                 if self._check_and_report_interruption(files_processed, total_files):
                     break
@@ -289,13 +293,14 @@ class ElixirIndexer:
         if is_first_run:
             from cicada.utils.path_utils import ensure_gitignore_has_cicada
 
-            if ensure_gitignore_has_cicada(repo_path_obj):
+            if ensure_gitignore_has_cicada(repo_path_obj) and self.verbose:
                 print("✓ Added .cicada/ to .gitignore")
 
         save_index(index, output_path_obj, create_dirs=True)
 
         # Compute and save hashes for all PROCESSED files for future incremental updates
-        print("Computing file hashes for incremental updates...")
+        if self.verbose:
+            print("Computing file hashes for incremental updates...")
         # Only hash files that were actually processed
         processed_files = [
             str(f.relative_to(repo_path_obj)) for f in elixir_files[:files_processed]
@@ -304,27 +309,31 @@ class ElixirIndexer:
         save_file_hashes(str(output_path_obj.parent), file_hashes)
 
         # Report completion status
-        if self._interrupted:
-            print("\n✓ Partial index saved!")
-            print(
-                f"  Processed: {files_processed}/{total_files} files ({files_processed/total_files*100:.1f}%)"
-            )
-            print(f"  Modules: {len(all_modules)}")
-            print(f"  Functions: {total_functions}")
-            print(
-                f"\n💡 Run the command again to continue indexing remaining {total_files - files_processed} file(s)"
-            )
-        else:
-            print("\nIndexing complete!")
-            print(f"  Modules: {len(all_modules)}")
-            print(f"  Functions: {total_functions}")
+        if self.verbose:
+            if self._interrupted:
+                print("\n✓ Partial index saved!")
+                print(
+                    f"  Processed: {files_processed}/{total_files} files ({files_processed/total_files*100:.1f}%)"
+                )
+                print(f"  Modules: {len(all_modules)}")
+                print(f"  Functions: {total_functions}")
+                print(
+                    f"\n💡 Run the command again to continue indexing remaining {total_files - files_processed} file(s)"
+                )
+            else:
+                print("\nIndexing complete!")
+                print(f"  Modules: {len(all_modules)}")
+                print(f"  Functions: {total_functions}")
 
-        # Report keyword extraction failures if any
-        if extract_keywords and keyword_extraction_failures > 0:
-            print(
-                f"\n⚠️  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
-            )
-            print("   Some documentation may not be indexed for keyword search.")
+            # Report keyword extraction failures if any
+            if extract_keywords and keyword_extraction_failures > 0:
+                print(
+                    f"\n⚠️  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
+                )
+                print("   Some documentation may not be indexed for keyword search.")
+
+            print(f"\nIndex saved to: {output_path_obj}")
+            print(f"Hashes saved to: {output_path_obj.parent}/hashes.json")
 
         return index
 
@@ -374,7 +383,8 @@ class ElixirIndexer:
             print("No existing index or hashes found. Performing full index...")
             return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
 
-        print(f"Performing incremental index of: {repo_path_obj}")
+        if self.verbose:
+            print(f"Performing incremental index of: {repo_path_obj}")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -387,7 +397,8 @@ class ElixirIndexer:
         relative_files = [str(f.relative_to(repo_path_obj)) for f in elixir_files]
 
         # Detect file changes
-        print("Detecting file changes...")
+        if self.verbose:
+            print("Detecting file changes...")
         new_files, modified_files, deleted_files = detect_file_changes(
             relative_files, existing_hashes, str(repo_path_obj)
         )
@@ -400,10 +411,11 @@ class ElixirIndexer:
             print("No changes detected. Index is up to date.")
             return existing_index
 
-        print("Changes detected:")
-        print(f"  New files: {len(new_files)}")
-        print(f"  Modified files: {len(modified_files)}")
-        print(f"  Deleted files: {len(deleted_files)}")
+        if self.verbose:
+            print("Changes detected:")
+            print(f"  New files: {len(new_files)}")
+            print(f"  Modified files: {len(modified_files)}")
+            print(f"  Deleted files: {len(deleted_files)}")
 
         if files_to_process:
             print(f"\nProcessing {len(files_to_process)} changed file(s)...")
@@ -419,14 +431,14 @@ class ElixirIndexer:
                     # Initialize KeyBERT extractor
                     from cicada.keybert_extractor import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=True)
+                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=self.verbose)
                 else:
                     # Initialize lemminflect extractor (default)
                     from cicada.lightweight_keyword_extractor import (
                         LightweightKeywordExtractor,
                     )
 
-                    keyword_extractor = LightweightKeywordExtractor(verbose=True)
+                    keyword_extractor = LightweightKeywordExtractor(verbose=self.verbose)
             except Exception as e:
                 print(f"Warning: Could not initialize keyword extractor: {e}")
                 print("Continuing without keyword extraction...")
@@ -525,11 +537,13 @@ class ElixirIndexer:
         }
 
         # Merge with existing index
-        print("\nMerging with existing index...")
+        if self.verbose:
+            print("\nMerging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
 
         # Update hashes for all current files
-        print("Updating file hashes...")
+        if self.verbose:
+            print("Updating file hashes...")
         updated_hashes = dict(existing_hashes)
 
         # Compute hashes only for files that were actually processed

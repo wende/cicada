@@ -422,7 +422,7 @@ class TestElixirIndexerKeywordExtraction:
             MockKeywordExtractor,
         )
 
-        indexer = ElixirIndexer()
+        indexer = ElixirIndexer(verbose=True)
 
         # Create a test file with documentation
         test_file = tmp_path / "test.ex"
@@ -560,7 +560,7 @@ class TestElixirIndexerProgressReporting:
 
     def test_progress_reporting_multiple_files(self, tmp_path, capsys):
         """Test that progress is reported every 10 files"""
-        indexer = ElixirIndexer()
+        indexer = ElixirIndexer(verbose=True)
 
         # Create 15 test files
         for i in range(15):
@@ -676,7 +676,7 @@ class TestElixirIndexerGitignoreIntegration:
 
     def test_first_run_creates_gitignore_entry(self, tmp_path, capsys):
         """Test that first run adds .cicada/ to .gitignore"""
-        indexer = ElixirIndexer()
+        indexer = ElixirIndexer(verbose=True)
 
         # Create a .gitignore file
         gitignore = tmp_path / ".gitignore"
@@ -729,7 +729,7 @@ class TestElixirIndexerSignalHandling:
 
     def test_interrupted_indexing_saves_partial_progress(self, tmp_path, monkeypatch, capsys):
         """Test that interrupted indexing saves partial progress"""
-        indexer = ElixirIndexer()
+        indexer = ElixirIndexer(verbose=True)
 
         # Create multiple test files
         for i in range(5):
@@ -957,7 +957,7 @@ class TestElixirIndexerAdditionalEdgeCases:
             BrokenKeywordExtractor,
         )
 
-        indexer = ElixirIndexer()
+        indexer = ElixirIndexer(verbose=True)
 
         test_file = tmp_path / "test.ex"
         test_file.write_text(
