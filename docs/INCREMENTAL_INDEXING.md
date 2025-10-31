@@ -1,16 +1,16 @@
 # Incremental Indexing - Fast Reindexing with File Hashing
 
-The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with spaCy NLP.
+The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with lemminflect or BERT.
 
 ## How It Works
 
 1. **First Run (Full Index)**:
    - Indexes all Elixir files in your repository
    - Extracts modules, functions, documentation, dependencies
-   - Optionally extracts keywords using spaCy NLP
+   - Optionally extracts keywords using lemminflect or BERT
    - Computes MD5 hash for each processed file
-   - Saves index to `.cicada/index.json`
-   - Saves file hashes to `.cicada/hashes.json`
+   - Saves index to `~/.cicada/projects/<repo_hash>/index.json`
+   - Saves file hashes to `~/.cicada/projects/<repo_hash>/hashes.json`
 
 2. **Subsequent Runs (Incremental)**:
    - Loads existing index and hashes
@@ -103,8 +103,8 @@ Incremental indexing complete!
   Files processed: 5
   Files deleted: 1
 
-Index saved to: .cicada/index.json
-Hashes saved to: .cicada/hashes.json
+Index saved to: ~/.cicada/projects/<repo_hash>/index.json
+Hashes saved to: ~/.cicada/projects/<repo_hash>/hashes.json
 ```
 
 **Incremental indexing with no changes:**
@@ -160,7 +160,7 @@ The incremental indexing system will:
 
 ## Hash Storage Structure
 
-The hash file (`.cicada/hashes.json`) contains:
+The hash file (`~/.cicada/projects/<repo_hash>/hashes.json`) contains:
 
 ```json
 {
@@ -301,8 +301,8 @@ _handle_interrupt() called
 | **Speedup** | **23.2x** | **95.7% time saved** |
 
 **Why bigger speedup with keywords?**
-- Keyword extraction using spaCy NLP is CPU-intensive
-- Loading spaCy models takes ~1-2 seconds
+- Keyword extraction using lemminflect or BERT is CPU-intensive
+- Loading BERT models takes ~1-2 seconds
 - NLP processing adds ~0.2s per file with documentation
 - Incremental indexing amortizes model load time
 - Only processes changed files → huge savings
@@ -386,8 +386,11 @@ cicada index --extract-keywords --full
 **Solution:**
 ```bash
 # Delete hash file and reindex
-rm .cicada/hashes.json
+rm ~/.cicada/projects/<repo_hash>/hashes.json
 cicada index
+
+# Or use cicada clean to remove all storage
+cicada clean
 ```
 
 ### Issue: Incremental indexing too slow
@@ -410,7 +413,7 @@ cicada index
 **Solution:**
 - If many files changed: This is expected behavior
 - If hash file missing: First run will be slow (rebuilding hashes)
-- If corruption suspected: Delete `.cicada/` and start fresh
+- If corruption suspected: Use `cicada clean` to remove all storage and start fresh
 
 ### Issue: "No changes detected" but I know I changed files
 
@@ -421,17 +424,15 @@ cicada index
 # Compute hash manually
 md5 lib/my_app/user.ex
 
-# Compare with stored hash
-cat .cicada/hashes.json | grep "user.ex"
+# Compare with stored hash in ~/.cicada/projects/<repo_hash>/hashes.json
+cat ~/.cicada/projects/<repo_hash>/hashes.json | grep "user.ex"
 ```
 
 **Solution:**
 If file truly changed but hash matches (unlikely):
 ```bash
-# Force reindex of specific files by deleting their hashes
-# Edit .cicada/hashes.json manually or:
-rm .cicada/hashes.json
-cicada index
+# Force full reindex
+cicada index --full
 ```
 
 ## Best Practices
@@ -473,16 +474,19 @@ Create `.git/hooks/pre-commit`:
 cicada index --extract-keywords
 ```
 
-### 4. Gitignore Configuration
+### 4. Storage Location
 
-Always exclude index files from git:
+All index files and hashes are stored in a centralized location outside your repository:
 
-```gitignore
-# .gitignore
-.cicada/
+```
+~/.cicada/projects/<repo_hash>/
+  ├── index.json        # Code index
+  ├── hashes.json       # File hashes for incremental indexing
+  ├── config.yaml       # Keyword extraction configuration
+  └── pr_index.json     # Pull request index (if using PR features)
 ```
 
-CICADA automatically adds this on first run.
+Only the MCP configuration file (`.mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json`) is added to your repository.
 
 ### 5. Periodic Full Reindexing
 
@@ -495,7 +499,7 @@ cicada index --extract-keywords --full
 
 This ensures:
 - No accumulated drift from interrupted runs
-- Fresh keyword extraction with latest spaCy models
+- Fresh keyword extraction with latest models
 - Cleanup of any orphaned entries
 
 ## Advanced Usage
@@ -597,9 +601,9 @@ MD5 collision probability is negligible for this use case:
 
 ## FAQ
 
-**Q: Does incremental indexing work with `--extract-keywords`?**
+**Q: Does incremental indexing work with `--nlp` or `--rag`?**
 
-A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using `--extract-keywords`.
+A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using keyword extraction.
 
 **Q: What happens if I interrupt during keyword extraction?**
 
@@ -607,7 +611,7 @@ A: Current file finishes extracting keywords, then progress is saved. Next run c
 
 **Q: Can I use incremental indexing in CI/CD?**
 
-A: Yes, but CI usually runs in clean environments without persisted `.cicada/` directories. First run will always be full. Consider caching `.cicada/` between runs if your CI supports it.
+A: Yes, but CI usually runs in clean environments without persisted `~/.cicada/` directories. First run will always be full. Consider caching `~/.cicada/projects/` between runs if your CI supports it.
 
 **Q: Does it detect renamed files?**
 
@@ -623,7 +627,7 @@ A: Yes, it's just JSON. Useful for forcing reindex of specific files by deleting
 
 **Q: Does it work with multiple repositories?**
 
-A: Yes, each repository has its own `.cicada/` directory with independent hashes. No cross-contamination.
+A: Yes, each repository has its own `~/.cicada/projects/<repo_hash>/` directory with independent hashes. No cross-contamination.
 
 **Q: What if I change the hashing algorithm in future versions?**
 

@@ -198,6 +198,48 @@ class TestCreateConfigYaml:
                 assert "path:" in content
                 assert "storage:" in content
                 assert "index_path:" in content
+                assert "keyword_extraction:" in content
+                assert "method: lemminflect" in content  # Default
+                assert "tier: regular" in content  # Default
+
+    def test_config_yaml_with_bert_method(self, mock_paths):
+        """Config YAML should save KeyBERT method when specified"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(
+                    repo_path, storage_dir, keyword_method="bert", keyword_tier="fast"
+                )
+
+                content = config_path.read_text()
+                assert "keyword_extraction:" in content
+                assert "method: bert" in content
+                assert "tier: fast" in content
+
+    def test_config_yaml_with_bert_max_tier(self, mock_paths):
+        """Config YAML should save KeyBERT max tier when specified"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(
+                    repo_path, storage_dir, keyword_method="bert", keyword_tier="max"
+                )
+
+                content = config_path.read_text()
+                assert "method: bert" in content
+                assert "tier: max" in content
 
 
 class TestIndexRepository:
@@ -231,11 +273,12 @@ class TestIndexRepository:
                 # Verify indexer was created with verbose=True
                 mock_indexer_class.assert_called_once_with(verbose=True)
 
-                # Verify index_repository was called with correct params
-                mock_indexer.index_repository.assert_called_once_with(
+                # Verify incremental_index_repository was called with correct params
+                mock_indexer.incremental_index_repository.assert_called_once_with(
                     repo_path=str(mock_repo),
                     output_path=str(index_path),
                     extract_keywords=True,
+                    force_full=False,
                 )
 
     def test_handles_indexing_errors(self, mock_repo):
@@ -243,7 +286,7 @@ class TestIndexRepository:
         with patch("cicada.setup.ElixirIndexer") as mock_indexer_class:
             with patch("cicada.setup.get_index_path"):
                 mock_indexer = MagicMock()
-                mock_indexer.index_repository.side_effect = Exception("Indexing failed")
+                mock_indexer.incremental_index_repository.side_effect = Exception("Indexing failed")
                 mock_indexer_class.return_value = mock_indexer
 
                 # Should raise the exception (not caught in current implementation)

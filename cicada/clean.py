@@ -233,19 +233,20 @@ def clean_all_projects(force: bool = False) -> None:
 
 
 def main():
-    """Main entry point for the clean command."""
+    """
+    Main entry point for the clean command.
+
+    Note: This function is kept for backward compatibility but the unified CLI
+    in cli.py should be used instead (cicada clean).
+    """
     parser = argparse.ArgumentParser(
-        description="Remove all Cicada configuration and indexes for a repository",
+        description="Remove all Cicada configuration and indexes for current repository",
         epilog="Examples:\n"
-        "  cicada-clean -f              # Clean current repository\n"
-        "  cicada-clean --all -f        # Remove ALL project storage\n",
+        "  cicada clean                 # Clean current repository\n"
+        "  cicada clean -f              # Clean current repository (skip confirmation)\n"
+        "  cicada clean --all           # Remove ALL project storage\n"
+        "  cicada clean --all -f        # Remove ALL project storage (skip confirmation)\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "repo",
-        nargs="?",
-        default=None,
-        help="Path to the repository (default: current directory)",
     )
     parser.add_argument(
         "-f",
@@ -270,18 +271,8 @@ def main():
             sys.exit(1)
         return
 
-    # Determine repo path
-    repo_path = Path(args.repo) if args.repo else Path.cwd()
-
-    # Validate path exists
-    if not repo_path.exists():
-        print(f"Error: Path does not exist: {repo_path}")
-        sys.exit(1)
-
-    # Validate path is a directory
-    if not repo_path.is_dir():
-        print(f"Error: Path is not a directory: {repo_path}")
-        sys.exit(1)
+    # Clean current directory
+    repo_path = Path.cwd()
 
     # Run cleanup
     try:

@@ -302,7 +302,7 @@ class TestMainFunction:
     """Tests for main CLI entry point"""
 
     def test_main_uses_current_directory_by_default(self, tmp_path):
-        """Main should use current directory if no path provided"""
+        """Main should use current directory"""
 
         # Create a real temporary directory to use as cwd
         cwd = tmp_path / "cwd"
@@ -319,79 +319,54 @@ class TestMainFunction:
                     assert args[0][0] == cwd
                     assert args[1]["force"] is True
 
-    def test_main_accepts_repo_argument(self, tmp_path):
-        """Main should accept repository path as argument"""
-
-        repo_path = tmp_path / "test_repo"
-        repo_path.mkdir()
-
-        with patch("sys.argv", ["cicada-clean", str(repo_path), "-f"]):
-            with patch("cicada.clean.clean_repository") as mock_clean:
-                main()
-
-                mock_clean.assert_called_once()
-                args = mock_clean.call_args
-                assert args[0][0] == repo_path
-
     def test_main_force_flag(self, tmp_path):
         """Main should handle -f/--force flag"""
 
-        repo_path = tmp_path / "test_repo"
-        repo_path.mkdir()
+        cwd = tmp_path / "test_repo"
+        cwd.mkdir()
 
         # Test short flag
-        with patch("sys.argv", ["cicada-clean", str(repo_path), "-f"]):
+        with patch("sys.argv", ["cicada-clean", "-f"]):
             with patch("cicada.clean.clean_repository") as mock_clean:
-                main()
-                assert mock_clean.call_args[1]["force"] is True
+                with patch("pathlib.Path.cwd") as mock_cwd:
+                    mock_cwd.return_value = cwd
+                    main()
+                    assert mock_clean.call_args[1]["force"] is True
 
         # Test long flag
-        with patch("sys.argv", ["cicada-clean", str(repo_path), "--force"]):
+        with patch("sys.argv", ["cicada-clean", "--force"]):
             with patch("cicada.clean.clean_repository") as mock_clean:
-                main()
-                assert mock_clean.call_args[1]["force"] is True
+                with patch("pathlib.Path.cwd") as mock_cwd:
+                    mock_cwd.return_value = cwd
+                    main()
+                    assert mock_clean.call_args[1]["force"] is True
 
     def test_main_without_force_flag(self, tmp_path):
         """Main should pass force=False when flag not provided"""
 
-        repo_path = tmp_path / "test_repo"
-        repo_path.mkdir()
+        cwd = tmp_path / "test_repo"
+        cwd.mkdir()
 
-        with patch("sys.argv", ["cicada-clean", str(repo_path)]):
+        with patch("sys.argv", ["cicada-clean"]):
             with patch("cicada.clean.clean_repository") as mock_clean:
-                with patch("builtins.input", return_value="n"):
-                    main()
-                    assert mock_clean.call_args[1]["force"] is False
-
-    def test_main_validates_path_exists(self):
-        """Main should validate that path exists"""
-
-        with patch("sys.argv", ["cicada-clean", "/nonexistent/path", "-f"]):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            assert exc_info.value.code == 1
-
-    def test_main_validates_path_is_directory(self, tmp_path):
-        """Main should validate that path is a directory"""
-
-        file_path = tmp_path / "file.txt"
-        file_path.write_text("test")
-
-        with patch("sys.argv", ["cicada-clean", str(file_path), "-f"]):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            assert exc_info.value.code == 1
+                with patch("pathlib.Path.cwd") as mock_cwd:
+                    mock_cwd.return_value = cwd
+                    with patch("builtins.input", return_value="n"):
+                        main()
+                        assert mock_clean.call_args[1]["force"] is False
 
     def test_main_handles_exceptions(self, tmp_path):
         """Main should handle exceptions and exit with error code"""
 
-        repo_path = tmp_path / "test_repo"
-        repo_path.mkdir()
+        cwd = tmp_path / "test_repo"
+        cwd.mkdir()
 
-        with patch("sys.argv", ["cicada-clean", str(repo_path), "-f"]):
+        with patch("sys.argv", ["cicada-clean", "-f"]):
             with patch("cicada.clean.clean_repository") as mock_clean:
-                mock_clean.side_effect = Exception("Test error")
+                with patch("pathlib.Path.cwd") as mock_cwd:
+                    mock_cwd.return_value = cwd
+                    mock_clean.side_effect = Exception("Test error")
 
-                with pytest.raises(SystemExit) as exc_info:
-                    main()
-                assert exc_info.value.code == 1
+                    with pytest.raises(SystemExit) as exc_info:
+                        main()
+                    assert exc_info.value.code == 1

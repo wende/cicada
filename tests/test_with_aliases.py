@@ -17,13 +17,15 @@ from cicada.mcp_server import CicadaServer
 @pytest.mark.asyncio
 async def test_aliased_calls():
     """Test the aliased call resolution."""
-    # Create server with test index
-    server = CicadaServer(config_path="config.yaml")
+    # Create server with test fixtures config
+    config_path = Path(__file__).parent / "fixtures" / ".cicada" / "config.yaml"
+    server = CicadaServer(config_path=str(config_path))
 
     # Override index to use test index
     import json
 
-    with open("data/test_index.json") as f:
+    test_index_path = Path(__file__).parent.parent / "data" / "test_index.json"
+    with open(test_index_path) as f:
         server.index = json.load(f)
 
     print("Testing aliased call resolution...\n")

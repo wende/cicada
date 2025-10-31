@@ -24,6 +24,42 @@ from cicada.utils.hash_utils import (
     load_file_hashes,
     save_file_hashes,
 )
+from cicada.utils.storage import get_config_path
+
+
+def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
+    """
+    Read keyword extraction configuration from config.yaml.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        tuple[str, str]: (method, tier) where method is 'lemminflect' or 'bert',
+                        and tier is 'fast', 'regular', or 'max'.
+                        Returns ('lemminflect', 'regular') as default if config not found.
+    """
+    try:
+        import yaml
+
+        config_path = get_config_path(repo_path)
+        if not config_path.exists():
+            # Default to lemminflect if config doesn't exist
+            return ("lemminflect", "regular")
+
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+
+        if config and "keyword_extraction" in config:
+            method = config["keyword_extraction"].get("method", "lemminflect")
+            tier = config["keyword_extraction"].get("tier", "regular")
+            return (method, tier)
+
+        # Default to lemminflect if keyword_extraction section not found
+        return ("lemminflect", "regular")
+    except Exception:
+        # If anything goes wrong, default to lemminflect
+        return ("lemminflect", "regular")
 
 
 class ElixirIndexer:
@@ -105,11 +141,21 @@ class ElixirIndexer:
         keyword_extractor = None
         if extract_keywords:
             try:
-                from cicada.lightweight_keyword_extractor import (
-                    LightweightKeywordExtractor,
-                )
+                # Read keyword extraction config from config.yaml
+                method, tier = read_keyword_extraction_config(repo_path_obj)
 
-                keyword_extractor = LightweightKeywordExtractor(verbose=True)
+                if method == "bert":
+                    # Initialize KeyBERT extractor
+                    from cicada.keybert_extractor import KeyBERTExtractor
+
+                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=True)
+                else:
+                    # Initialize lemminflect extractor (default)
+                    from cicada.lightweight_keyword_extractor import (
+                        LightweightKeywordExtractor,
+                    )
+
+                    keyword_extractor = LightweightKeywordExtractor(verbose=True)
             except Exception as e:
                 print(f"Warning: Could not initialize keyword extractor: {e}")
                 print("Continuing without keyword extraction...")
@@ -280,9 +326,6 @@ class ElixirIndexer:
             )
             print("   Some documentation may not be indexed for keyword search.")
 
-        print(f"\nIndex saved to: {output_path_obj}")
-        print(f"Hashes saved to: {output_path_obj.parent}/hashes.json")
-
         return index
 
     def incremental_index_repository(
@@ -369,11 +412,21 @@ class ElixirIndexer:
         keyword_extractor = None
         if extract_keywords:
             try:
-                from cicada.lightweight_keyword_extractor import (
-                    LightweightKeywordExtractor,
-                )
+                # Read keyword extraction config from config.yaml
+                method, tier = read_keyword_extraction_config(repo_path_obj)
 
-                keyword_extractor = LightweightKeywordExtractor(verbose=True)
+                if method == "bert":
+                    # Initialize KeyBERT extractor
+                    from cicada.keybert_extractor import KeyBERTExtractor
+
+                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=True)
+                else:
+                    # Initialize lemminflect extractor (default)
+                    from cicada.lightweight_keyword_extractor import (
+                        LightweightKeywordExtractor,
+                    )
+
+                    keyword_extractor = LightweightKeywordExtractor(verbose=True)
             except Exception as e:
                 print(f"Warning: Could not initialize keyword extractor: {e}")
                 print("Continuing without keyword extraction...")
@@ -515,9 +568,6 @@ class ElixirIndexer:
             print(
                 f"\n⚠️  Warning: Keyword extraction failed for {keyword_extraction_failures} module(s) or function(s)"
             )
-
-        print(f"\nIndex saved to: {output_path_obj}")
-        print(f"Hashes saved to: {cicada_dir}/hashes.json")
 
         return merged_index
 

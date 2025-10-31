@@ -159,7 +159,7 @@ class CicadaServer:
                 f"Error: {e}\n\n"
                 f"To rebuild the index, run:\n"
                 f"  cd {repo_path}\n"
-                f"  cicada-clean -f  # Safer cleanup\n"
+                f"  cicada clean -f  # Safer cleanup\n"
                 f"  cicada cursor  # or: cicada claude, cicada vs\n"
             ) from e
         except FileNotFoundError:
