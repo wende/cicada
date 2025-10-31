@@ -17,7 +17,6 @@ Test Categories:
 import json
 import pytest
 import yaml
-from pathlib import Path
 from cicada.mcp_server import CicadaServer
 from mcp.types import TextContent
 
@@ -159,7 +158,7 @@ end
 """
     )
 
-    return repo
+    yield repo
 
 
 @pytest.fixture
@@ -733,6 +732,12 @@ end
 
         indexer = ElixirIndexer(verbose=False)
         index_result = indexer.index_repository(str(repo), str(index_path))
+
+        # Validate indexing succeeded
+        assert index_result is not None, "Failed to index repository"
+        assert (
+            index_result.get("metadata", {}).get("total_modules", 0) > 0
+        ), "No modules were indexed"
 
         config = {
             "repository": {"path": str(repo)},
