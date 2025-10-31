@@ -35,9 +35,7 @@ class TestGetMcpConfigForEditor:
     def test_claude_config_structure(self, mock_repo, mock_storage_dir):
         """Claude config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "claude", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".mcp.json"
         assert "mcpServers" in config
@@ -52,9 +50,7 @@ class TestGetMcpConfigForEditor:
     def test_cursor_config_structure(self, mock_repo, mock_storage_dir):
         """Cursor config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "cursor", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("cursor", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".cursor" / "mcp.json"
         assert "mcpServers" in config
@@ -67,9 +63,7 @@ class TestGetMcpConfigForEditor:
     def test_vs_config_structure(self, mock_repo, mock_storage_dir):
         """VS Code config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "vs", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("vs", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".vscode" / "settings.json"
         assert "mcp.servers" in config  # Different key for VS Code
@@ -91,9 +85,7 @@ class TestGetMcpConfigForEditor:
         """Should use python -m command when cicada-server not available"""
         with patch("shutil.which", return_value=None):
             with patch("sys.executable", "/usr/bin/python3"):
-                _, config = get_mcp_config_for_editor(
-                    "claude", mock_repo, mock_storage_dir
-                )
+                _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
 
         server_config = config["mcpServers"]["cicada"]
         assert server_config["command"] == "/usr/bin/python3"
@@ -104,9 +96,7 @@ class TestGetMcpConfigForEditor:
         # Create existing config for Claude
         config_path = mock_repo / ".mcp.json"
         existing_config = {
-            "mcpServers": {
-                "other-server": {"command": "other-command", "args": ["--flag"]}
-            }
+            "mcpServers": {"other-server": {"command": "other-command", "args": ["--flag"]}}
         }
         config_path.write_text(json.dumps(existing_config))
 
@@ -148,9 +138,7 @@ class TestGetMcpConfigForEditor:
     def test_updates_existing_cicada_config(self, mock_repo, mock_storage_dir):
         """Should update existing cicada configuration"""
         config_path = mock_repo / ".mcp.json"
-        existing_config = {
-            "mcpServers": {"cicada": {"command": "old-command", "env": {}}}
-        }
+        existing_config = {"mcpServers": {"cicada": {"command": "old-command", "env": {}}}}
         config_path.write_text(json.dumps(existing_config))
 
         with patch("shutil.which", return_value="cicada-server"):
@@ -248,7 +236,6 @@ class TestIndexRepository:
                     repo_path=str(mock_repo),
                     output_path=str(index_path),
                     extract_keywords=True,
-                    spacy_model="small",
                 )
 
     def test_handles_indexing_errors(self, mock_repo):
@@ -337,9 +324,7 @@ class TestSetupFunction:
             with patch("cicada.setup.create_storage_dir"):
                 with patch("cicada.setup.index_repository"):
                     with patch("cicada.setup.create_config_yaml"):
-                        with patch(
-                            "cicada.setup.get_mcp_config_for_editor"
-                        ) as mock_mcp:
+                        with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
                             config_path = mock_repo / f".{editor}.json"
                             mock_mcp.return_value = (config_path, {})
 

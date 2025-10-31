@@ -4,8 +4,10 @@ End-to-end integration tests for Cicada.
 
 import os
 from pathlib import Path
+
 import pytest
 import yaml
+
 from cicada.indexer import ElixirIndexer
 from cicada.mcp_server import CicadaServer
 

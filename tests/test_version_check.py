@@ -3,13 +3,15 @@ Tests for cicada/version_check.py
 """
 
 import subprocess
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 from cicada.version_check import (
+    check_for_updates,
+    compare_versions,
     get_current_version,
     get_latest_github_tag,
-    compare_versions,
-    check_for_updates,
 )
 
 

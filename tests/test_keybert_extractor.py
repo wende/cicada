@@ -5,9 +5,10 @@ Tests the KeyBERTExtractor class for semantic keyword extraction
 using transformer-based embeddings.
 """
 
-import re
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+
 from cicada.keybert_extractor import KeyBERTExtractor
 
 

@@ -4,6 +4,7 @@ Author: Cursor(Auto)
 """
 
 import pytest
+
 from cicada.dead_code_analyzer import DeadCodeAnalyzer
 
 

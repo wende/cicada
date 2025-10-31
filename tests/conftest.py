@@ -4,8 +4,9 @@ Pytest configuration and fixtures for all tests.
 
 import json
 import os
-import yaml
+
 import pytest
+import yaml
 
 
 @pytest.fixture(scope="session", autouse=True)

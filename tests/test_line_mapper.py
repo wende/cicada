@@ -7,14 +7,15 @@ Tests all methods and error paths with proper mocking to achieve high coverage
 while maintaining loose coupling to implementation details.
 """
 
-import pytest
 import subprocess
 
+import pytest
+
 from cicada.pr_indexer.line_mapper import LineMapper
-from tests.mocks.subprocess_mocks import MockSubprocessRunner, MockCompletedProcess
 from tests.mocks.git_responses import (
     create_git_show_response,
 )
+from tests.mocks.subprocess_mocks import MockCompletedProcess, MockSubprocessRunner
 
 
 class TestLineMapperInit:

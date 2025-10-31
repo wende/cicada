@@ -7,21 +7,22 @@ Tests all methods and error paths with proper mocking to achieve high coverage
 while maintaining loose coupling to implementation details.
 """
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from cicada.pr_indexer.github_api_client import GitHubAPIClient
-from tests.mocks.subprocess_mocks import MockSubprocessRunner, MockCompletedProcess
 from tests.mocks.github_responses import (
-    create_pr_list_response,
-    create_graphql_response,
-    create_rest_pr_response,
     create_empty_response,
-    create_single_pr_data,
+    create_graphql_response,
+    create_malformed_json_response,
+    create_pr_list_response,
     create_pr_with_complex_comments,
     create_pr_with_no_metadata,
-    create_malformed_json_response,
+    create_rest_pr_response,
+    create_single_pr_data,
 )
+from tests.mocks.subprocess_mocks import MockCompletedProcess, MockSubprocessRunner
 
 
 class TestGitHubAPIClientInit:

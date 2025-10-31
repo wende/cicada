@@ -30,7 +30,7 @@ def _text_based_setup() -> tuple[str, str]:
     print()
     print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
     print()
-    print("1. spaCy - Grammar-based keyword extraction (fast, proven)")
+    print("1. Lemminflect - Grammar-based keyword extraction (fast, proven)")
     print("2. KeyBERT - Semantic keyword extraction (AI embeddings)")
     print()
 
@@ -40,7 +40,7 @@ def _text_based_setup() -> tuple[str, str]:
             if not method_choice:
                 method_choice = "1"
             if method_choice in ("1", "2"):
-                method = "spacy" if method_choice == "1" else "bert"
+                method = "lemminflect" if method_choice == "1" else "bert"
                 break
             print("Invalid choice. Please enter 1 or 2.")
         except (KeyboardInterrupt, EOFError):
@@ -49,9 +49,9 @@ def _text_based_setup() -> tuple[str, str]:
             sys.exit(1)
 
     print()
-    if method == "spacy":
-        print(f"{BOLD}  What is spaCy?{RESET}")
-        print(f"   spaCy finds keywords using grammar rules + word importance{RESET}")
+    if method == "lemminflect":
+        print(f"{BOLD}  What is Lemminflect?{RESET}")
+        print(f"   Lemminflect finds keywords using grammar rules + word importance{RESET}")
         print()
         print("1. Fast (12MB, ~0.5s) - Recommended for most projects")
         print("2. Regular (40MB, ~0.8s) - Balanced accuracy and speed [recommended]")
@@ -100,7 +100,7 @@ def show_first_time_setup() -> tuple[str, str]:
 
     Returns:
         tuple[str, str]: The selected extraction method and model tier
-                        e.g., ('spacy', 'regular') or ('bert', 'fast')
+                        e.g., ('lemminflect', 'regular') or ('bert', 'fast')
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
@@ -120,7 +120,7 @@ def show_first_time_setup() -> tuple[str, str]:
     print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
 
     method_items = [
-        "spaCy - Grammar-based keyword extraction (fast, proven)",
+        "Lemminflect - Grammar-based keyword extraction (fast, proven)",
         "KeyBERT - Semantic keyword extraction (AI embeddings)",
     ]
 
@@ -154,13 +154,13 @@ def show_first_time_setup() -> tuple[str, str]:
         print("Setup cancelled. Exiting...")
         sys.exit(1)
 
-    method = "spacy" if method_index == 0 else "bert"
+    method = "lemminflect" if method_index == 0 else "bert"
 
     # Step 2: Choose model tier
     print()
-    if method == "spacy":
-        print(f"{BOLD}  What is spaCy?{RESET}")
-        print(f"   spaCy finds keywords using grammar rules + word importance{RESET}")
+    if method == "lemminflect":
+        print(f"{BOLD}  What is Lemminflect?{RESET}")
+        print(f"   Lemminflect finds keywords using grammar rules + word importance{RESET}")
         print(f'   Example: "We use Kubernetes for container orchestration"{RESET}')
         print(f'   Output: "Kubernetes", "container", "orchestration"{RESET}')
         print()

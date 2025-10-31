@@ -5,6 +5,7 @@ Test script for test_files_only parameter in search_function MCP tool.
 import asyncio
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add parent directory to path

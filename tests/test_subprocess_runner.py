@@ -2,14 +2,16 @@
 Tests for cicada/utils/subprocess_runner.py
 """
 
-import pytest
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+
 from cicada.utils.subprocess_runner import (
     SubprocessRunner,
-    run_git_command,
     run_gh_command,
+    run_git_command,
 )
 
 

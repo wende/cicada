@@ -6,10 +6,10 @@ Tests server initialization, tool validation, and basic operations.
 """
 
 import json
-import sys
+
 import pytest
 import yaml
-from pathlib import Path
+
 from cicada.mcp_server import CicadaServer
 
 

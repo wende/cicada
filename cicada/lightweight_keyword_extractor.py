@@ -3,10 +3,10 @@ Lightweight Keyword Extraction using lemminflect
 Fast keyword extraction for programming documentation
 """
 
-from collections import Counter
 import re
 import sys
 import warnings
+from collections import Counter
 
 from cicada.utils import split_camel_snake_case
 
@@ -15,14 +15,79 @@ class LightweightKeywordExtractor:
     """Extract keywords from text using lightweight lemmatization."""
 
     STOPWORDS = {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "are", "was", "were", "be",
-        "been", "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "should", "could", "this", "that", "these", "those", "it",
-        "its", "they", "them", "their", "what", "which", "who", "when",
-        "where", "why", "how", "all", "each", "every", "both", "few", "more",
-        "most", "other", "some", "such", "no", "nor", "not", "only", "own",
-        "same", "so", "than", "too", "very", "can", "just", "up", "out",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "should",
+        "could",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "they",
+        "them",
+        "their",
+        "what",
+        "which",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "can",
+        "just",
+        "up",
+        "out",
     }
 
     # Pre-compiled regex patterns for code identifier extraction
@@ -56,7 +121,7 @@ class LightweightKeywordExtractor:
                 "The 'model_size' parameter is deprecated and ignored in LightweightKeywordExtractor. "
                 "The lightweight extractor does not use size-based models.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
     def _load_lemminflect(self):
@@ -65,6 +130,7 @@ class LightweightKeywordExtractor:
             return
         try:
             import lemminflect
+
             self._lemminflect = lemminflect
             self._lemminflect_loaded = True
             if self.verbose:
@@ -123,9 +189,7 @@ class LightweightKeywordExtractor:
         for identifier in identifiers:
             split_text = split_camel_snake_case(identifier)
             words = [
-                word.lower()
-                for word in split_text.split()
-                if len(word) > 1 and word.isalpha()
+                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
             ]
             split_words.extend(words)
         return identifiers, list(set(split_words))
@@ -198,9 +262,7 @@ class LightweightKeywordExtractor:
                 lemmatized_words.append(lemma)
 
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
-        all_keywords = (
-            lemmatized_words + (code_identifiers_lower * 10) + (code_split_words * 3)
-        )
+        all_keywords = lemmatized_words + (code_identifiers_lower * 10) + (code_split_words * 3)
         keyword_freq = Counter(all_keywords)
         top_keywords = keyword_freq.most_common(top_n)
 
@@ -208,9 +270,7 @@ class LightweightKeywordExtractor:
         # This ensures weighted keywords are included in the calculation
         total_words = len(all_keywords)
         if total_words > 0:
-            tf_scores = {
-                word: (freq / total_words) for word, freq in keyword_freq.items()
-            }
+            tf_scores = {word: (freq / total_words) for word, freq in keyword_freq.items()}
         else:
             tf_scores = {}
 
@@ -225,8 +285,6 @@ class LightweightKeywordExtractor:
             "lemmatized_words": list(set(lemmatized_words))[:20],
             "code_identifiers": code_identifiers,
             "code_split_words": code_split_words,
-            "tf_scores": dict(
-                sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]
-            ),
+            "tf_scores": dict(sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]),
             "stats": stats,
         }

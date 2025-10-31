@@ -59,7 +59,7 @@ def install_cicada(target_dir, github_url=None):
         if mcp_server_module.__file__ is None:
             raise ImportError("Could not determine module path")
         package_path = Path(mcp_server_module.__file__).parent.parent
-        print(f"✓ Using installed cicada package")
+        print("✓ Using installed cicada package")
         return package_path, True  # Already installed
     except ImportError:
         pass
@@ -107,7 +107,7 @@ def install_dependencies_uv(cicada_dir):
 
     # Use uv to sync dependencies
     # uv will automatically create a venv and install everything
-    _ = run_command(f"uv sync", cwd=cicada_dir)
+    _ = run_command("uv sync", cwd=cicada_dir)
 
     # Find the python binary uv created
     venv_path = cicada_dir / ".venv"
@@ -171,9 +171,7 @@ def install_dependencies(cicada_dir, use_uv=None):
         return install_dependencies_pip(cicada_dir)
 
 
-def index_repository(
-    cicada_dir, python_bin, repo_path, fetch_pr_info=False, spacy_model="small"
-):
+def index_repository(cicada_dir, python_bin, repo_path, fetch_pr_info=False):
     """Index the Elixir repository."""
     print(f"Indexing repository at {repo_path}...")
 
@@ -199,9 +197,6 @@ def index_repository(
 
     if fetch_pr_info:
         cmd += " --pr-info"
-
-    # Add spacy model option
-    cmd += f" --spacy-model {spacy_model}"
 
     _ = run_command(cmd)
 
@@ -247,10 +242,7 @@ def detect_installation_method():
         )
 
     # Check if running from a uv tools directory (permanent install)
-    if (
-        ".local/share/uv/tools" in script_path_str
-        or ".local/bin/cicada-" in script_path_str
-    ):
+    if ".local/share/uv/tools" in script_path_str or ".local/bin/cicada-" in script_path_str:
         # Installed via uv tool install
         return (
             "cicada-server",
@@ -300,10 +292,10 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
     # Load existing config if present, otherwise create new one
     if mcp_config_path.exists():
         try:
-            with open(mcp_config_path, "r") as f:
+            with open(mcp_config_path) as f:
                 config = json.load(f)
-            print(f"✓ Found existing .mcp.json, will merge configuration")
-        except (json.JSONDecodeError, IOError) as e:
+            print("✓ Found existing .mcp.json, will merge configuration")
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not read existing .mcp.json ({e}), creating new one")
             config = {}
     else:
@@ -322,10 +314,10 @@ def create_mcp_config(repo_path, _cicada_dir, _python_bin):
         print(f"✓ Installation: {description}")
     elif tools_status == "partial":
         print(f"⚠️  Installation: {description}")
-        print(f"   Some tools not found in PATH - add ~/.local/bin to PATH")
+        print("   Some tools not found in PATH - add ~/.local/bin to PATH")
     else:
         print(f"⚠️  Installation: {description}")
-        print(f"   Tools not found in PATH - add ~/.local/bin to PATH")
+        print("   Tools not found in PATH - add ~/.local/bin to PATH")
 
     # Build MCP server configuration
     from typing import Any
@@ -390,19 +382,19 @@ def create_gitattributes(repo_path):
     # Read existing .gitattributes if present
     existing_lines = []
     if gitattributes_path.exists():
-        with open(gitattributes_path, "r") as f:
+        with open(gitattributes_path) as f:
             existing_lines = [line.rstrip() for line in f.readlines()]
 
     # Check if elixir patterns already exist
     has_elixir = any(pattern in existing_lines for pattern in elixir_patterns)
 
     if has_elixir:
-        print(f"✓ .gitattributes already has Elixir patterns")
+        print("✓ .gitattributes already has Elixir patterns")
         return gitattributes_path
 
     # Add elixir patterns
     with open(gitattributes_path, "a") as f:
-        if existing_lines and not existing_lines[-1] == "":
+        if existing_lines and existing_lines[-1] != "":
             _ = f.write("\n")  # Add newline if file doesn't end with one
 
         _ = f.write("# Elixir function tracking for git log -L\n")
@@ -416,6 +408,7 @@ def create_gitattributes(repo_path):
 def update_claude_md(repo_path):
     """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
     import re
+
     from cicada.mcp_tools import get_tool_definitions
 
     repo_path = Path(repo_path).resolve()
@@ -427,14 +420,17 @@ def update_claude_md(repo_path):
 
     # Auto-generate tool list from mcp_tools.py
     tools = get_tool_definitions()
-    tool_list = []
-    grep_antipatterns = []
+    tool_list: list[str] = []
+    grep_antipatterns: list[str] = []
 
     for tool in tools:
         # Extract first sentence from description (up to first period or newline)
-        desc = tool.description.split("\n")[0].strip()
-        if "." in desc:
-            desc = desc.split(".")[0] + "."
+        if tool.description:
+            desc = tool.description.split("\n")[0].strip()
+            if "." in desc:
+                desc = desc.split(".")[0] + "."
+        else:
+            desc = tool.name
         tool_list.append(f"  - {desc} `mcp__cicada__{tool.name}`")
 
         # Get anti-pattern from tool metadata
@@ -466,7 +462,7 @@ def update_claude_md(repo_path):
 
     try:
         # Read existing content
-        with open(claude_md_path, "r") as f:
+        with open(claude_md_path) as f:
             content = f.read()
 
         # Pattern to find existing <cicada>...</cicada> tags
@@ -478,11 +474,11 @@ def update_claude_md(repo_path):
             new_content = cicada_pattern.sub(instruction_content, content)
             with open(claude_md_path, "w") as f:
                 _ = f.write(new_content)
-            print(f"✓ Replaced existing <cicada> instructions in CLAUDE.md")
+            print("✓ Replaced existing <cicada> instructions in CLAUDE.md")
         elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
             # Content already mentions cicada, don't add duplication
             # This handles cases where users manually added cicada instructions
-            print(f"✓ CLAUDE.md already mentions cicada, skipping update")
+            print("✓ CLAUDE.md already mentions cicada, skipping update")
         else:
             # Append the instruction
             with open(claude_md_path, "a") as f:
@@ -493,7 +489,7 @@ def update_claude_md(repo_path):
                 _ = f.write("\n")
                 _ = f.write(instruction_content)
 
-            print(f"✓ Added cicada-mcp usage instructions to CLAUDE.md")
+            print("✓ Added cicada-mcp usage instructions to CLAUDE.md")
     except Exception:
         # Fail silently on any errors
         pass
@@ -517,13 +513,13 @@ def is_gitignored(repo_path, file_pattern):
         return False
 
     try:
-        with open(gitignore_path, "r") as f:
+        with open(gitignore_path) as f:
             content = f.read()
         # Simple check - look for the pattern in the file
         # This handles .cicada/, .cicada, /.cicada/, etc.
         base_pattern = file_pattern.rstrip("/").lstrip("/")
         return base_pattern in content
-    except (IOError, OSError):
+    except OSError:
         return False
 
 
@@ -536,15 +532,15 @@ def print_setup_summary(repo_path, _index_path):
         index_path: Path to the created index file
     """
     # ANSI color codes
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    RESET = "\033[0m"
+    yellow = "\033[93m"
+    red = "\033[91m"
+    green = "\033[92m"
+    reset = "\033[0m"
 
     repo_path = Path(repo_path).resolve()
 
     print()
-    print(f"{YELLOW}Files created/modified:{RESET}")
+    print(f"{yellow}Files created/modified:{reset}")
     print()
 
     # List of files to check
@@ -560,11 +556,9 @@ def print_setup_summary(repo_path, _index_path):
 
         if file_path.exists():
             status = (
-                f"{GREEN}✓ gitignored{RESET}"
-                if is_ignored
-                else f"{RED}✗ not gitignored{RESET}"
+                f"{green}✓ gitignored{reset}" if is_ignored else f"{red}✗ not gitignored{reset}"
             )
-            print(f"  {YELLOW}{file_pattern:20}{RESET} {description:35} {status}")
+            print(f"  {yellow}{file_pattern:20}{reset} {description:35} {status}")
 
     print()
 
@@ -577,16 +571,12 @@ def print_setup_summary(repo_path, _index_path):
 
     # Show warnings if files are not gitignored
     if needs_gitignore:
-        print(f"{RED}⚠️  Warning: The following should be in .gitignore:{RESET}")
+        print(f"{red}⚠️  Warning: The following should be in .gitignore:{reset}")
         for item in needs_gitignore:
-            reason = (
-                "build artifacts and cache"
-                if item == ".cicada/"
-                else "local configuration"
-            )
-            print(f"{RED}   • {item:12} ({reason}){RESET}")
+            reason = "build artifacts and cache" if item == ".cicada/" else "local configuration"
+            print(f"{red}   • {item:12} ({reason}){reset}")
         print()
-        print(f"{YELLOW}Add them to .gitignore with this command:{RESET}")
+        print(f"{yellow}Add them to .gitignore with this command:{reset}")
         items_with_newlines = "\\n".join(needs_gitignore)
         print(f"  printf '\\n{items_with_newlines}\\n' >> .gitignore")
         print()
@@ -632,14 +622,6 @@ def main():
         action="store_true",
         help="Force use of pip for dependency installation (traditional)",
     )
-    _ = parser.add_argument(
-        "--spacy-model",
-        choices=["small", "medium", "large"],
-        default="small",
-        help="Size of spaCy model to use for keyword extraction (default: small). "
-        "Medium and large models provide better accuracy but are slower.",
-    )
-
     args = parser.parse_args()
 
     print("=" * 60)
@@ -688,9 +670,7 @@ def main():
         print(f"✓ Skipping dependency installation, using {python_bin}")
 
     # Index repository
-    index_path = index_repository(
-        cicada_dir, python_bin, args.repo, args.pr_info, args.spacy_model
-    )
+    index_path = index_repository(cicada_dir, python_bin, args.repo, args.pr_info)
 
     # Create config.yaml
     create_config_yaml(cicada_dir, args.repo, index_path)

@@ -4,9 +4,9 @@ Comprehensive tests for interactive setup menu
 Tests the first-time setup experience for cicada
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-import sys
 
 
 class TestInteractiveSetup:
@@ -14,28 +14,28 @@ class TestInteractiveSetup:
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_spacy_fast_selection(self, mock_menu_class, mock_ascii):
-        """Test selecting spaCy with fast model"""
+    def test_lemminflect_fast_selection(self, mock_menu_class, mock_ascii):
+        """Test selecting Lemminflect with fast model"""
         from cicada.interactive_setup import show_first_time_setup
 
         # Mock ASCII art
         mock_ascii.return_value = "ASCII ART"
 
-        # Mock menu selections: spaCy (index 0), then fast (index 0)
+        # Mock menu selections: Lemminflect (index 0), then fast (index 0)
         mock_menu_instance = MagicMock()
         mock_menu_instance.show.side_effect = [0, 0]  # method=0, tier=0
         mock_menu_class.return_value = mock_menu_instance
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "fast"
         mock_ascii.assert_called_once()
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_spacy_regular_selection(self, mock_menu_class, mock_ascii):
-        """Test selecting spaCy with regular model"""
+    def test_lemminflect_regular_selection(self, mock_menu_class, mock_ascii):
+        """Test selecting Lemminflect with regular model"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -46,13 +46,13 @@ class TestInteractiveSetup:
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "regular"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_spacy_max_selection(self, mock_menu_class, mock_ascii):
-        """Test selecting spaCy with max model"""
+    def test_lemminflect_max_selection(self, mock_menu_class, mock_ascii):
+        """Test selecting Lemminflect with max model"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -63,7 +63,7 @@ class TestInteractiveSetup:
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "max"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
@@ -178,7 +178,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        # First call returns 0 (spaCy), second returns None (cancel)
+        # First call returns 0 (Lemminflect), second returns None (cancel)
         mock_menu_instance.show.side_effect = [0, None]
         mock_menu_class.return_value = mock_menu_instance
 
@@ -227,28 +227,28 @@ class TestInteractiveSetup:
         first_call_args = mock_menu_class.call_args_list[0]
         method_items = first_call_args[0][0]
         assert len(method_items) == 2
-        assert "spaCy" in method_items[0]
+        assert "Lemminflect" in method_items[0]
         assert "KeyBERT" in method_items[1]
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_spacy_tier_items_displayed(self, mock_menu_class, mock_ascii):
-        """Test that spaCy-specific tier items are shown"""
+    def test_lemminflect_tier_items_displayed(self, mock_menu_class, mock_ascii):
+        """Test that Lemminflect-specific tier items are shown"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # Select spaCy
+        mock_menu_instance.show.side_effect = [0, 0]  # Select Lemminflect
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
-        # Check second call (tier selection for spaCy)
+        # Check second call (tier selection for Lemminflect)
         second_call_args = mock_menu_class.call_args_list[1]
         tier_items = second_call_args[0][0]
         assert len(tier_items) == 3
-        # spaCy tiers should mention MB sizes and speeds
+        # Lemminflect tiers should mention MB sizes and speeds
         assert "12MB" in tier_items[0]
         assert "40MB" in tier_items[1]
         assert "560MB" in tier_items[2]
@@ -324,32 +324,32 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1]  # spaCy, regular
+        mock_menu_instance.show.side_effect = [0, 1]  # Lemminflect, regular
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
         captured = capsys.readouterr()
         assert "Selected:" in captured.out
-        assert "SPACY" in captured.out
+        assert "LEMMINFLECT" in captured.out
         assert "Regular" in captured.out
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_spacy_explanation_shown(self, mock_menu_class, mock_ascii, capsys):
-        """Test that spaCy explanation is shown when spaCy is selected"""
+    def test_lemminflect_explanation_shown(self, mock_menu_class, mock_ascii, capsys):
+        """Test that Lemminflect explanation is shown when Lemminflect is selected"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # Select spaCy
+        mock_menu_instance.show.side_effect = [0, 0]  # Select Lemminflect
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
         captured = capsys.readouterr()
-        assert "What is spaCy?" in captured.out
+        assert "What is Lemminflect?" in captured.out
         assert "grammar rules" in captured.out
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
@@ -409,7 +409,7 @@ class TestInteractiveSetup:
         ]
 
         for tier_index, expected_tier in test_cases:
-            mock_menu_instance.show.side_effect = [0, tier_index]  # spaCy + tier
+            mock_menu_instance.show.side_effect = [0, tier_index]  # Lemminflect + tier
             method, tier = show_first_time_setup()
             assert tier == expected_tier, f"Expected {expected_tier} for index {tier_index}"
 
@@ -428,7 +428,7 @@ class TestInteractiveSetup:
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "regular"
 
 
@@ -436,52 +436,52 @@ class TestTextBasedSetup:
     """Tests for _text_based_setup fallback function"""
 
     @patch("builtins.input")
-    def test_text_spacy_fast_default_values(self, mock_input):
+    def test_text_lemminflect_fast_default_values(self, mock_input):
         """Test text-based setup with default values (empty input)"""
         from cicada.interactive_setup import _text_based_setup
 
-        # User presses enter for defaults: method=1 (spaCy), tier=2 (regular)
+        # User presses enter for defaults: method=1 (Lemminflect), tier=2 (regular)
         mock_input.side_effect = ["", ""]
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "regular"
 
     @patch("builtins.input")
-    def test_text_spacy_fast(self, mock_input):
-        """Test text-based setup selecting spaCy fast"""
+    def test_text_lemminflect_fast(self, mock_input):
+        """Test text-based setup selecting Lemminflect fast"""
         from cicada.interactive_setup import _text_based_setup
 
         mock_input.side_effect = ["1", "1"]
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "fast"
 
     @patch("builtins.input")
-    def test_text_spacy_regular(self, mock_input):
-        """Test text-based setup selecting spaCy regular"""
+    def test_text_lemminflect_regular(self, mock_input):
+        """Test text-based setup selecting Lemminflect regular"""
         from cicada.interactive_setup import _text_based_setup
 
         mock_input.side_effect = ["1", "2"]
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "regular"
 
     @patch("builtins.input")
-    def test_text_spacy_max(self, mock_input):
-        """Test text-based setup selecting spaCy max"""
+    def test_text_lemminflect_max(self, mock_input):
+        """Test text-based setup selecting Lemminflect max"""
         from cicada.interactive_setup import _text_based_setup
 
         mock_input.side_effect = ["1", "3"]
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "max"
 
     @patch("builtins.input")
@@ -530,7 +530,7 @@ class TestTextBasedSetup:
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "regular"
 
         captured = capsys.readouterr()
@@ -546,7 +546,7 @@ class TestTextBasedSetup:
 
         method, tier = _text_based_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "fast"
 
         captured = capsys.readouterr()
@@ -603,8 +603,8 @@ class TestTextBasedSetup:
         assert exc_info.value.code == 1
 
     @patch("builtins.input")
-    def test_text_shows_spacy_explanation(self, mock_input, capsys):
-        """Test that text-based setup shows spaCy explanation"""
+    def test_text_shows_lemminflect_explanation(self, mock_input, capsys):
+        """Test that text-based setup shows Lemminflect explanation"""
         from cicada.interactive_setup import _text_based_setup
 
         mock_input.side_effect = ["1", "1"]
@@ -612,7 +612,7 @@ class TestTextBasedSetup:
         _text_based_setup()
 
         captured = capsys.readouterr()
-        assert "What is spaCy?" in captured.out
+        assert "What is Lemminflect?" in captured.out
         assert "grammar rules" in captured.out
 
     @patch("builtins.input")
@@ -652,7 +652,7 @@ class TestTextBasedSetup:
 
         captured = capsys.readouterr()
         assert "Selected:" in captured.out
-        assert "SPACY" in captured.out
+        assert "LEMMINFLECT" in captured.out
         assert "Regular" in captured.out
 
 
@@ -669,7 +669,7 @@ class TestFallbackScenarios:
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "fast"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
@@ -707,7 +707,7 @@ class TestFallbackScenarios:
 
         method, tier = show_first_time_setup()
 
-        assert method == "spacy"
+        assert method == "lemminflect"
         assert tier == "max"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")

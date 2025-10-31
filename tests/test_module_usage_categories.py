@@ -9,8 +9,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cicada.parser import ElixirParser
 from cicada.formatter import ModuleFormatter
+from cicada.parser import ElixirParser
 
 
 def test_parser_extracts_all_categories():

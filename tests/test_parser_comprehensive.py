@@ -2,7 +2,6 @@
 Comprehensive tests for cicada/parser.py
 """
 
-import pytest
 from cicada.parser import ElixirParser
 
 
@@ -57,8 +56,8 @@ end
         )
 
         # Mock sys.argv
-        import sys
         import runpy
+        import sys
 
         monkeypatch.setattr(sys, "argv", ["parser.py", str(test_file)])
 
@@ -78,8 +77,8 @@ end
 
     def test_main_block_no_arguments(self, monkeypatch, capsys):
         """Test running parser as main without arguments"""
-        import sys
         import runpy
+        import sys
 
         monkeypatch.setattr(sys, "argv", ["parser.py"])
 
@@ -99,8 +98,8 @@ end
 
     def test_main_block_with_invalid_file(self, monkeypatch, capsys):
         """Test running parser as main with file that fails to parse"""
-        import sys
         import runpy
+        import sys
 
         monkeypatch.setattr(sys, "argv", ["parser.py", "/nonexistent/file.ex"])
 

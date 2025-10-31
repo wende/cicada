@@ -3,10 +3,11 @@ Comprehensive tests for cicada/clean.py
 """
 
 import json
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-from cicada.clean import remove_mcp_config_entry, clean_repository, main
+
+from cicada.clean import clean_repository, main, remove_mcp_config_entry
 
 
 class TestRemoveMcpConfigEntry:
@@ -31,7 +32,7 @@ class TestRemoveMcpConfigEntry:
         assert result is True
 
         # Verify cicada was removed but other server remains
-        with open(temp_config, "r") as f:
+        with open(temp_config) as f:
             config = json.load(f)
 
         assert "cicada" not in config["mcpServers"]
@@ -59,7 +60,7 @@ class TestRemoveMcpConfigEntry:
         result = remove_mcp_config_entry(config_path)
         assert result is True
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             updated = json.load(f)
 
         assert "cicada" not in updated["mcpServers"]
@@ -81,7 +82,7 @@ class TestRemoveMcpConfigEntry:
         result = remove_mcp_config_entry(config_path)
         assert result is True
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             updated = json.load(f)
 
         assert "cicada" not in updated["mcp.servers"]
@@ -133,7 +134,7 @@ class TestRemoveMcpConfigEntry:
 
         remove_mcp_config_entry(config_path)
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             updated = json.load(f)
 
         assert "otherSettings" in updated
@@ -196,7 +197,7 @@ class TestCleanRepository:
         assert not (repo_path / ".cicada").exists()
 
         # MCP configs should have cicada entry removed
-        with open(repo_path / ".mcp.json", "r") as f:
+        with open(repo_path / ".mcp.json") as f:
             config = json.load(f)
             assert "cicada" not in config.get("mcpServers", {})
 
@@ -302,7 +303,6 @@ class TestMainFunction:
 
     def test_main_uses_current_directory_by_default(self, tmp_path):
         """Main should use current directory if no path provided"""
-        from cicada.clean import main
 
         # Create a real temporary directory to use as cwd
         cwd = tmp_path / "cwd"
@@ -321,7 +321,6 @@ class TestMainFunction:
 
     def test_main_accepts_repo_argument(self, tmp_path):
         """Main should accept repository path as argument"""
-        from cicada.clean import main
 
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
@@ -336,7 +335,6 @@ class TestMainFunction:
 
     def test_main_force_flag(self, tmp_path):
         """Main should handle -f/--force flag"""
-        from cicada.clean import main
 
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
@@ -355,7 +353,6 @@ class TestMainFunction:
 
     def test_main_without_force_flag(self, tmp_path):
         """Main should pass force=False when flag not provided"""
-        from cicada.clean import main
 
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
@@ -368,7 +365,6 @@ class TestMainFunction:
 
     def test_main_validates_path_exists(self):
         """Main should validate that path exists"""
-        from cicada.clean import main
 
         with patch("sys.argv", ["cicada-clean", "/nonexistent/path", "-f"]):
             with pytest.raises(SystemExit) as exc_info:
@@ -377,7 +373,6 @@ class TestMainFunction:
 
     def test_main_validates_path_is_directory(self, tmp_path):
         """Main should validate that path is a directory"""
-        from cicada.clean import main
 
         file_path = tmp_path / "file.txt"
         file_path.write_text("test")
@@ -389,7 +384,6 @@ class TestMainFunction:
 
     def test_main_handles_exceptions(self, tmp_path):
         """Main should handle exceptions and exit with error code"""
-        from cicada.clean import main
 
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()

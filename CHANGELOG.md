@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Double Ctrl-C for force quit when needed
 
 - **Model Configuration Tracking**: Automatic detection and warning for model changes during incremental indexing
-  - Tracks keyword extraction method (spaCy vs KeyBERT) and model tier in index metadata
+  - Tracks keyword extraction method (lemminflect vs KeyBERT) and model tier in index metadata
   - Detects configuration changes and prompts user before proceeding
   - Interactive menu to choose: reindex with new model or keep existing index
   - Prevents inconsistent indexes with mixed model configurations
@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Subsequent runs: Process only changed files
   - Use `--full` flag to force complete reindexing
 - Keyword extraction now preserves method consistency across full/incremental runs
-  - When switching between spaCy and BERT, use `--full` flag for consistent results
+  - When switching between lemminflect and BERT, use `--full` flag for consistent results
 
 ### Performance
 

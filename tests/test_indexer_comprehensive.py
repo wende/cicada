@@ -3,6 +3,7 @@ Comprehensive tests for cicada/indexer.py
 """
 
 import pytest
+
 from cicada.indexer import ElixirIndexer
 
 
@@ -51,9 +52,10 @@ class TestElixirIndexerMainFunction:
 
     def test_main_with_default_args(self, tmp_path, monkeypatch):
         """Test main() with default arguments"""
-        from cicada.indexer import main
-        import sys
         import os
+        import sys
+
+        from cicada.indexer import main
 
         # Create a test repository
         test_file = tmp_path / "test.ex"
@@ -93,8 +95,9 @@ end
 
     def test_main_with_custom_output_path(self, tmp_path, monkeypatch):
         """Test main() with custom output path"""
-        from cicada.indexer import main
         import sys
+
+        from cicada.indexer import main
 
         test_file = tmp_path / "test.ex"
         test_file.write_text(
@@ -126,8 +129,9 @@ end
 
     def test_main_with_current_directory(self, tmp_path, monkeypatch):
         """Test main() with current directory (no args)"""
-        from cicada.indexer import main
         import sys
+
+        from cicada.indexer import main
 
         # Create test file in tmp_path
         test_file = tmp_path / "test.ex"
@@ -170,9 +174,7 @@ end
 class TestElixirIndexerIncrementalIndexing:
     """Tests for incremental indexing functionality"""
 
-    def test_incremental_no_existing_index_falls_back_to_full(
-        self, tmp_path, monkeypatch
-    ):
+    def test_incremental_no_existing_index_falls_back_to_full(self, tmp_path, monkeypatch):
         """Test that incremental indexing falls back to full when no index exists"""
         indexer = ElixirIndexer()
 
@@ -412,7 +414,6 @@ class TestElixirIndexerKeywordExtraction:
                 return ["keyword1", "keyword2", "keyword3"]
 
         # Patch at the module level before creating indexer
-        import sys
         import cicada.lightweight_keyword_extractor
 
         monkeypatch.setattr(
@@ -441,9 +442,7 @@ end
         )
 
         # Index with keyword extraction
-        index = indexer.index_repository(
-            str(tmp_path), extract_keywords=True, spacy_model="small"
-        )
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
 
         # Should have extracted keywords
         assert "TestModule" in index["modules"]
@@ -494,9 +493,7 @@ end
         )
 
         # Index with keyword extraction (should handle failures gracefully)
-        index = indexer.index_repository(
-            str(tmp_path), extract_keywords=True, spacy_model="small"
-        )
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -511,9 +508,7 @@ end
             or "Keyword extraction failed" in captured.out
         )
 
-    def test_index_keyword_extractor_import_failure(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_index_keyword_extractor_import_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when KeywordExtractor import fails"""
 
         indexer = ElixirIndexer()
@@ -538,7 +533,6 @@ end
             repo_path,
             output_path=".cicada/index.json",
             extract_keywords=False,
-            spacy_model="small",
         ):
             # If extract_keywords is True, simulate import failure
             if extract_keywords:
@@ -546,18 +540,12 @@ end
                 print("Warning: Could not initialize keyword extractor: ImportError")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
-            return original_code(
-                self, repo_path, output_path, extract_keywords, spacy_model
-            )
+            return original_code(self, repo_path, output_path, extract_keywords)
 
-        monkeypatch.setattr(
-            cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo
-        )
+        monkeypatch.setattr(cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo)
 
         # Index with keyword extraction (should handle import failure)
-        index = indexer.index_repository(
-            str(tmp_path), extract_keywords=True, spacy_model="small"
-        )
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -739,9 +727,7 @@ class TestElixirIndexerSignalHandling:
         # Should set interrupted flag
         assert indexer._interrupted is True
 
-    def test_interrupted_indexing_saves_partial_progress(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_interrupted_indexing_saves_partial_progress(self, tmp_path, monkeypatch, capsys):
         """Test that interrupted indexing saves partial progress"""
         indexer = ElixirIndexer()
 
@@ -787,9 +773,10 @@ class TestElixirIndexerMainCLI:
 
     def test_main_with_extract_keywords_flag(self, tmp_path, monkeypatch):
         """Test main() with --extract-keywords flag"""
-        from cicada.indexer import main
-        import sys
         import os
+        import sys
+
+        from cicada.indexer import main
 
         # Mock KeywordExtractor
         class MockKeywordExtractor:
@@ -828,7 +815,7 @@ end
             monkeypatch.setattr(
                 sys,
                 "argv",
-                ["indexer.py", ".", "--extract-keywords", "--spacy-model", "small"],
+                ["indexer.py", ".", "--extract-keywords"],
             )
 
             # Mock check_for_updates
@@ -855,8 +842,9 @@ end
 
     def test_main_with_full_flag(self, tmp_path, monkeypatch):
         """Test main() with --full flag"""
-        from cicada.indexer import main
         import sys
+
+        from cicada.indexer import main
 
         test_file = tmp_path / "test.ex"
         test_file.write_text(
@@ -906,9 +894,7 @@ class TestElixirIndexerIncrementalWithKeywords:
 
         import cicada.indexer
 
-        monkeypatch.setattr(
-            cicada.indexer, "KeywordExtractor", MockKeywordExtractor, raising=False
-        )
+        monkeypatch.setattr(cicada.indexer, "KeywordExtractor", MockKeywordExtractor, raising=False)
 
         indexer = ElixirIndexer()
 
@@ -944,7 +930,7 @@ end
 
         # Do incremental index with keyword extraction
         index = indexer.incremental_index_repository(
-            str(tmp_path), str(output_path), extract_keywords=True, spacy_model="small"
+            str(tmp_path), str(output_path), extract_keywords=True
         )
 
         # Should have both modules
@@ -955,15 +941,13 @@ end
 class TestElixirIndexerAdditionalEdgeCases:
     """Additional edge case tests to improve coverage"""
 
-    def test_keyword_extractor_initialization_exception(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_keyword_extractor_initialization_exception(self, tmp_path, monkeypatch, capsys):
         """Test handling of exception during KeywordExtractor initialization"""
 
         # Mock KeywordExtractor to raise exception on init
         class BrokenKeywordExtractor:
             def __init__(self, verbose=False, model_size="small"):
-                raise RuntimeError("Failed to load spaCy model")
+                raise RuntimeError("Failed to load keyword extractor")
 
         import cicada.lightweight_keyword_extractor
 
@@ -988,9 +972,7 @@ end
         )
 
         # Should handle initialization failure gracefully
-        index = indexer.index_repository(
-            str(tmp_path), extract_keywords=True, spacy_model="small"
-        )
+        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
 
         # Should still have indexed the module without keywords
         assert "TestModule" in index["modules"]
@@ -1028,9 +1010,7 @@ end
         captured = capsys.readouterr()
         assert "Interrupted after processing" in captured.out
 
-    def test_incremental_keyword_extraction_module_failure(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_incremental_keyword_extraction_module_failure(self, tmp_path, monkeypatch, capsys):
         """Test incremental indexing with keyword extraction failure on module doc"""
         call_count = [0]
 
@@ -1108,9 +1088,7 @@ end
         captured = capsys.readouterr()
         # The verbose flag should print warnings
 
-    def test_incremental_keyword_extraction_function_failure(
-        self, tmp_path, monkeypatch
-    ):
+    def test_incremental_keyword_extraction_function_failure(self, tmp_path, monkeypatch):
         """Test incremental indexing with keyword extraction failure on function doc"""
         call_count = [0]
 
@@ -1178,9 +1156,7 @@ end
         assert "TestModule" in index["modules"]
         assert "TestModule2" in index["modules"]
 
-    def test_incremental_interrupted_during_processing(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_incremental_interrupted_during_processing(self, tmp_path, monkeypatch, capsys):
         """Test incremental indexing interrupted during file processing"""
         indexer = ElixirIndexer()
 
@@ -1218,9 +1194,7 @@ end
         assert "Interrupted after processing" in captured.out
         assert "Partial index saved" in captured.out
 
-    def test_incremental_parse_error_with_interrupt(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_incremental_parse_error_with_interrupt(self, tmp_path, monkeypatch, capsys):
         """Test incremental indexing with parse error followed by interrupt"""
         indexer = ElixirIndexer()
 

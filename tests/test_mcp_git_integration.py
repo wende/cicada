@@ -5,8 +5,10 @@ Integration tests for MCP server git history functionality.
 import asyncio
 import json
 import os
+
 import pytest
 import yaml
+
 from cicada.mcp_server import CicadaServer
 
 

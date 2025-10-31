@@ -2,10 +2,12 @@
 Unit tests for the git_helper module.
 """
 
-import pytest
 from pathlib import Path
-from cicada.git_helper import GitHelper
+
 import git
+import pytest
+
+from cicada.git_helper import GitHelper
 
 
 def test_git_helper_initialization():

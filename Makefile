@@ -129,11 +129,7 @@ reset: clean
 	@echo "Performing full cicada reset..."
 	@echo "1. Clearing uv cache..."
 	@uv cache clean 2>&1 || true
-	@echo "2. Uninstalling spaCy models from tool environment..."
-	@uv tool run --from cicada python -m pip uninstall -y \
-		en-core-web-sm en-core-web-md en-core-web-lg 2>&1 || \
-		echo "   Could not uninstall models (cicada tool may not be installed)"
-	@echo "3. Removing .cicada directories..."
+	@echo "2. Removing .cicada directories..."
 	@rm -rf .cicada
 	@rm -rf tests/fixtures/.cicada
 	@rm -rf tests/fixtures/test_project/.cicada

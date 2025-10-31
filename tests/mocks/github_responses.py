@@ -8,7 +8,7 @@ for different test scenarios while maintaining realistic data structures.
 """
 
 import json
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 
 def create_pr_list_response(count: int = 5, state: str = "all", start_number: int = 1) -> str:
@@ -31,7 +31,7 @@ def create_pr_list_response(count: int = 5, state: str = "all", start_number: in
 
 
 def create_graphql_response(
-    prs: Optional[List[Dict[str, Any]]] = None,
+    prs: list[dict[str, Any]] | None = None,
     include_comments: bool = True,
     include_files: bool = True,
     include_commits: bool = True,
@@ -131,7 +131,7 @@ def create_rest_pr_response(
 
 def create_review_comments_response(
     count: int = 3, file_path: str = "test.py", resolved: bool = False
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Create mock review comment data.
 
@@ -171,7 +171,7 @@ def create_single_pr_data(
     comment_count: int = 2,
     file_count: int = 3,
     commit_count: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create data for a single PR.
 
@@ -198,7 +198,7 @@ def create_single_pr_data(
     }
 
 
-def create_review_threads_data(comment_count: int = 2) -> List[Dict[str, Any]]:
+def create_review_threads_data(comment_count: int = 2) -> list[dict[str, Any]]:
     """
     Create mock review thread data.
 

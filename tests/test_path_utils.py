@@ -2,15 +2,17 @@
 Comprehensive tests for cicada/utils/path_utils.py
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from cicada.utils.path_utils import (
+    ensure_gitignore_has_cicada,
+    ensure_relative_to_repo,
+    find_repo_root,
+    match_file_path,
     normalize_file_path,
     resolve_to_repo_root,
-    match_file_path,
-    find_repo_root,
-    ensure_relative_to_repo,
-    ensure_gitignore_has_cicada,
 )
 
 

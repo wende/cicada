@@ -5,6 +5,7 @@ Test script for search_function MCP tool.
 import asyncio
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add parent directory to path
@@ -22,7 +23,7 @@ async def test_search_function():
     # Override index to use test index
     import json
 
-    with open("data/test_index.json", "r") as f:
+    with open("data/test_index.json") as f:
         server.index = json.load(f)
 
     print("Testing search_function tool...\n")

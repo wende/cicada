@@ -29,7 +29,7 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
         return False
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
 
         # Determine the config key based on editor type
@@ -50,7 +50,7 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
 
             return True
 
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"Warning: Could not process {config_path}: {e}")
 
     return False
@@ -74,7 +74,7 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     print()
 
     # Collect items to remove
-    items_to_remove = []
+    items_to_remove: list[tuple[str, Path] | tuple[str, Path, bool]] = []
 
     # 1. Storage directory (~/.cicada/projects/<repo_hash>/)
     storage_dir = get_storage_dir(repo_path)
@@ -97,18 +97,14 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
         if config_path.exists():
             # Check if cicada entry exists
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = json.load(f)
 
-                config_key = (
-                    "mcpServers" if ".vscode" not in str(config_path) else "mcp.servers"
-                )
+                config_key = "mcpServers" if ".vscode" not in str(config_path) else "mcp.servers"
 
                 if config_key in config and "cicada" in config[config_key]:
-                    items_to_remove.append(
-                        (desc, config_path, True)
-                    )  # True = is MCP config
-            except (json.JSONDecodeError, IOError):
+                    items_to_remove.append((desc, config_path, True))  # True = is MCP config
+            except (OSError, json.JSONDecodeError):
                 pass
 
     # Show what will be removed
@@ -140,13 +136,15 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     # Remove items
     removed_count = 0
     for item in items_to_remove:
-        if len(item) == 3 and item[2]:  # MCP config entry
-            desc, config_path, _ = item
+        if len(item) == 3:  # MCP config entry
+            desc: str = item[0]
+            config_path: Path = item[1]
             if remove_mcp_config_entry(config_path):
                 print(f"✓ Removed 'cicada' entry from {desc}")
                 removed_count += 1
         else:
-            desc, path = item
+            desc: str = item[0]
+            path: Path = item[1]
             try:
                 if path.is_dir():
                     shutil.rmtree(path)

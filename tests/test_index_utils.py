@@ -3,14 +3,16 @@ Comprehensive tests for cicada/utils/index_utils.py
 """
 
 import json
+
 import pytest
+
 from cicada.utils.index_utils import (
+    get_index_stats,
     load_index,
-    save_index,
-    validate_index_structure,
     merge_indexes,
     merge_indexes_incremental,
-    get_index_stats,
+    save_index,
+    validate_index_structure,
 )
 
 
@@ -115,7 +117,7 @@ class TestLoadIndex:
 
         def mock_open(*args, **kwargs):
             if str(index_path) in str(args[0]):
-                raise IOError("Mocked IO error")
+                raise OSError("Mocked IO error")
             return original_open(*args, **kwargs)
 
         monkeypatch.setattr("builtins.open", mock_open)
@@ -135,7 +137,7 @@ class TestLoadIndex:
 
         def mock_open(*args, **kwargs):
             if str(index_path) in str(args[0]):
-                raise IOError("Mocked IO error")
+                raise OSError("Mocked IO error")
             return original_open(*args, **kwargs)
 
         monkeypatch.setattr("builtins.open", mock_open)

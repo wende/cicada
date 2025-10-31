@@ -13,7 +13,6 @@ import pytest
 
 from cicada.mcp_server import CicadaServer
 
-
 # Fixtures
 
 

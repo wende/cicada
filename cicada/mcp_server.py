@@ -7,6 +7,7 @@ Provides an MCP tool to search for Elixir modules and their functions.
 Author: Cursor(Auto)
 """
 
+import contextlib
 import os
 import sys
 import time
@@ -16,14 +17,14 @@ from typing import Any, cast
 import yaml
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
-from cicada.formatter import ModuleFormatter
-from cicada.pr_finder import PRFinder
-from cicada.git_helper import GitHelper
-from cicada.utils import load_index, get_config_path, get_pr_index_path
-from cicada.mcp_tools import get_tool_definitions
 from cicada.command_logger import get_logger
+from cicada.formatter import ModuleFormatter
+from cicada.git_helper import GitHelper
+from cicada.mcp_tools import get_tool_definitions
+from cicada.pr_finder import PRFinder
+from cicada.utils import get_config_path, get_pr_index_path, load_index
 
 
 class CicadaServer:
@@ -106,7 +107,7 @@ class CicadaServer:
         if not config_file.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             data = yaml.safe_load(f)
             return data if isinstance(data, dict) else {}
 
@@ -126,7 +127,7 @@ class CicadaServer:
             raise FileNotFoundError(
                 f"Index file not found: {index_path}\n"
                 f"Run 'python indexer.py <path>' to create an index first."
-            )
+            ) from None
 
     @property
     def pr_index(self) -> dict[str, Any] | None:
@@ -139,9 +140,7 @@ class CicadaServer:
             try:
                 pr_index_path = get_pr_index_path(repo_path)
                 if pr_index_path.exists():
-                    self._pr_index = load_index(
-                        pr_index_path, verbose=True, raise_on_error=False
-                    )
+                    self._pr_index = load_index(pr_index_path, verbose=True, raise_on_error=False)
                     return self._pr_index
             except Exception as e:
                 print(
@@ -151,9 +150,7 @@ class CicadaServer:
 
             # Fall back to old structure for backward compatibility
             pr_index_path = repo_path / ".cicada" / "pr_index.json"
-            self._pr_index = load_index(
-                pr_index_path, verbose=True, raise_on_error=False
-            )
+            self._pr_index = load_index(pr_index_path, verbose=True, raise_on_error=False)
         return self._pr_index
 
     def _load_pr_index(self) -> dict[str, Any] | None:
@@ -197,9 +194,7 @@ class CicadaServer:
         """List available MCP tools."""
         return get_tool_definitions()
 
-    async def call_tool_with_logging(
-        self, name: str, arguments: dict
-    ) -> list[TextContent]:
+    async def call_tool_with_logging(self, name: str, arguments: dict) -> list[TextContent]:
         """Wrapper for call_tool that logs execution details."""
         from datetime import datetime
 
@@ -254,9 +249,7 @@ class CicadaServer:
                 module_name = resolved_module
 
             assert module_name is not None, "module_name must be provided"
-            return await self._search_module(
-                module_name, output_format, private_functions
-            )
+            return await self._search_module(module_name, output_format, private_functions)
         elif name == "search_function":
             function_name = arguments.get("function_name")
             output_format = arguments.get("format", "markdown")
@@ -312,10 +305,9 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_msg)]
 
             # Validate line range parameters
-            if precise_tracking or show_evolution:
-                if not start_line or not end_line:
-                    error_msg = "Both 'start_line' and 'end_line' are required for precise_tracking or show_evolution"
-                    return [TextContent(type="text", text=error_msg)]
+            if (precise_tracking or show_evolution) and (not start_line or not end_line):
+                error_msg = "Both 'start_line' and 'end_line' are required for precise_tracking or show_evolution"
+                return [TextContent(type="text", text=error_msg)]
 
             return await self._get_file_history(
                 file_path,
@@ -405,9 +397,7 @@ class CicadaServer:
             data = self.index["modules"][module_name]
 
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(
-                    module_name, data, private_functions
-                )
+                result = ModuleFormatter.format_module_json(module_name, data, private_functions)
             else:
                 result = ModuleFormatter.format_module_markdown(
                     module_name, data, private_functions
@@ -421,9 +411,7 @@ class CicadaServer:
         if output_format == "json":
             error_result = ModuleFormatter.format_error_json(module_name, total_modules)
         else:
-            error_result = ModuleFormatter.format_error_markdown(
-                module_name, total_modules
-            )
+            error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
 
         return [TextContent(type="text", text=error_result)]
 
@@ -455,10 +443,8 @@ class CicadaServer:
         if "/" in target_name:
             parts = target_name.split("/")
             target_name = parts[0]
-            try:
+            with contextlib.suppress(ValueError, IndexError):
                 target_arity = int(parts[1])
-            except (ValueError, IndexError):
-                pass
 
         # Search across all modules for function definitions
         results = []
@@ -469,51 +455,46 @@ class CicadaServer:
 
             for func in module_data["functions"]:
                 # Match by name and optionally arity
-                if func["name"] == target_name:
-                    if target_arity is None or func["arity"] == target_arity:
-                        # Find call sites for this function
-                        call_sites = self._find_call_sites(
-                            target_module=module_name,
-                            target_function=target_name,
-                            target_arity=func["arity"],
-                        )
+                if func["name"] == target_name and (
+                    target_arity is None or func["arity"] == target_arity
+                ):
+                    # Find call sites for this function
+                    call_sites = self._find_call_sites(
+                        target_module=module_name,
+                        target_function=target_name,
+                        target_arity=func["arity"],
+                    )
 
-                        # Filter for test files only if requested
-                        if test_files_only:
-                            call_sites = self._filter_test_call_sites(call_sites)
+                    # Filter for test files only if requested
+                    if test_files_only:
+                        call_sites = self._filter_test_call_sites(call_sites)
 
-                        # Optionally include usage examples (actual code lines)
-                        call_sites_with_examples = []
-                        if include_usage_examples and call_sites:
-                            # Consolidate call sites by calling module (one example per module)
-                            consolidated_sites = self._consolidate_call_sites_by_module(
-                                call_sites
-                            )
-                            # Limit the number of examples
-                            call_sites_with_examples = consolidated_sites[:max_examples]
-                            # Extract code lines for each call site
-                            self._add_code_examples(call_sites_with_examples)
+                    # Optionally include usage examples (actual code lines)
+                    call_sites_with_examples = []
+                    if include_usage_examples and call_sites:
+                        # Consolidate call sites by calling module (one example per module)
+                        consolidated_sites = self._consolidate_call_sites_by_module(call_sites)
+                        # Limit the number of examples
+                        call_sites_with_examples = consolidated_sites[:max_examples]
+                        # Extract code lines for each call site
+                        self._add_code_examples(call_sites_with_examples)
 
-                        results.append(
-                            {
-                                "module": module_name,
-                                "moduledoc": module_data.get("moduledoc"),
-                                "function": func,
-                                "file": module_data["file"],
-                                "call_sites": call_sites,
-                                "call_sites_with_examples": call_sites_with_examples,
-                            }
-                        )
+                    results.append(
+                        {
+                            "module": module_name,
+                            "moduledoc": module_data.get("moduledoc"),
+                            "function": func,
+                            "file": module_data["file"],
+                            "call_sites": call_sites,
+                            "call_sites_with_examples": call_sites_with_examples,
+                        }
+                    )
 
         # Format results
         if output_format == "json":
-            result = ModuleFormatter.format_function_results_json(
-                function_name, results
-            )
+            result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
-            result = ModuleFormatter.format_function_results_markdown(
-                function_name, results
-            )
+            result = ModuleFormatter.format_function_results_markdown(function_name, results)
 
         return [TextContent(type="text", text=result)]
 
@@ -624,9 +605,7 @@ class CicadaServer:
                                 "arity": call["arity"],
                                 "lines": [],
                                 "alias_used": (
-                                    call_module
-                                    if call_module != resolved_module
-                                    else None
+                                    call_module if call_module != resolved_module else None
                                 ),
                             }
 
@@ -644,13 +623,9 @@ class CicadaServer:
 
         # Format results
         if output_format == "json":
-            result = ModuleFormatter.format_module_usage_json(
-                module_name, usage_results
-            )
+            result = ModuleFormatter.format_module_usage_json(module_name, usage_results)
         else:
-            result = ModuleFormatter.format_module_usage_markdown(
-                module_name, usage_results
-            )
+            result = ModuleFormatter.format_module_usage_markdown(module_name, usage_results)
 
         return [TextContent(type="text", text=result)]
 
@@ -682,14 +657,14 @@ class CicadaServer:
 
             try:
                 # Read all lines from the file
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     lines = f.readlines()
 
                 # Extract complete function call
                 code_lines = self._extract_complete_call(lines, line_number)
                 if code_lines:
                     site["code_line"] = code_lines
-            except (FileNotFoundError, IOError, IndexError):
+            except (OSError, FileNotFoundError, IndexError):
                 # If we can't read the file/line, just skip adding the code example
                 pass
 
@@ -742,9 +717,7 @@ class CicadaServer:
 
         return "\n".join(extracted_lines) if extracted_lines else None
 
-    def _find_call_sites(
-        self, target_module: str, target_function: str, target_arity: int
-    ) -> list:
+    def _find_call_sites(self, target_module: str, target_function: str, target_arity: int) -> list:
         """
         Find all locations where a function is called.
 
@@ -786,16 +759,11 @@ class CicadaServer:
                     if caller_module == target_module:
                         # Filter out calls that are part of the function definition
                         # (@spec, @doc appear 1-5 lines before the def)
-                        if (
-                            function_def_line
-                            and abs(call["line"] - function_def_line) <= 5
-                        ):
+                        if function_def_line and abs(call["line"] - function_def_line) <= 5:
                             continue
 
                         # Find the calling function
-                        calling_function = self._find_function_at_line(
-                            caller_module, call["line"]
-                        )
+                        calling_function = self._find_function_at_line(caller_module, call["line"])
 
                         call_sites.append(
                             {
@@ -813,9 +781,7 @@ class CicadaServer:
                     # Check if this resolves to our target module
                     if resolved_module == target_module:
                         # Find the calling function
-                        calling_function = self._find_function_at_line(
-                            caller_module, call["line"]
-                        )
+                        calling_function = self._find_function_at_line(caller_module, call["line"])
 
                         call_sites.append(
                             {
@@ -825,9 +791,7 @@ class CicadaServer:
                                 "line": call["line"],
                                 "call_type": "qualified",
                                 "alias_used": (
-                                    call_module
-                                    if call_module != resolved_module
-                                    else None
+                                    call_module if call_module != resolved_module else None
                                 ),
                             }
                         )
@@ -856,14 +820,13 @@ class CicadaServer:
         for func in functions:
             func_line = func["line"]
             # The function must be defined before or at the line
-            if func_line <= line:
-                # Keep the closest one
-                if best_match is None or func_line > best_match["line"]:
-                    best_match = {
-                        "name": func["name"],
-                        "arity": func["arity"],
-                        "line": func_line,
-                    }
+            # Keep the closest one
+            if func_line <= line and (best_match is None or func_line > best_match["line"]):
+                best_match = {
+                    "name": func["name"],
+                    "arity": func["arity"],
+                    "line": func_line,
+                }
 
         return best_match
 
@@ -928,7 +891,7 @@ class CicadaServer:
             if not index_path.exists():
                 error_msg = (
                     "PR index not found. Please run:\n"
-                    "  cicada-index-pr\n\n"
+                    "  cicada index-pr\n\n"
                     "This will create the PR index at .cicada/pr_index.json"
                 )
                 return [TextContent(type="text", text=error_msg)]
@@ -952,15 +915,13 @@ class CicadaServer:
                     use_index=False,
                     verbose=False,
                 )
-                network_result = pr_finder_network.find_pr_for_line(
-                    file_path, line_number
-                )
+                network_result = pr_finder_network.find_pr_for_line(file_path, line_number)
 
                 if network_result.get("pr") is not None:
                     # PR exists but not in index - suggest update
                     error_msg = (
                         "PR index is incomplete. Please run:\n"
-                        "  cicada-index-pr\n\n"
+                        "  cicada index-pr\n\n"
                         "This will update the index with recent PRs (incremental by default)."
                     )
                     return [TextContent(type="text", text=error_msg)]
@@ -1010,9 +971,7 @@ class CicadaServer:
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
         """
         if not self.git_helper:
-            error_msg = (
-                "Git history is not available (repository may not be a git repo)"
-            )
+            error_msg = "Git history is not available (repository may not be a git repo)"
             return [TextContent(type="text", text=error_msg)]
 
         try:
@@ -1075,9 +1034,7 @@ class CicadaServer:
                     "*Using function tracking (git log -L :funcname:file) - tracks function even as it moves*\n"
                 )
             elif tracking_method == "line":
-                lines.append(
-                    "*Using line-based tracking (git log -L start,end:file)*\n"
-                )
+                lines.append("*Using line-based tracking (git log -L start,end:file)*\n")
 
             # Add evolution metadata if available
             if evolution:
@@ -1097,9 +1054,7 @@ class CicadaServer:
 
                 if evolution.get("modification_frequency"):
                     freq = evolution["modification_frequency"]
-                    lines.append(
-                        f"- **Modification Frequency:** {freq:.2f} commits/month"
-                    )
+                    lines.append(f"- **Modification Frequency:** {freq:.2f} commits/month")
 
                 lines.append("")  # Empty line
 
@@ -1108,16 +1063,12 @@ class CicadaServer:
             for i, commit in enumerate(commits, 1):
                 lines.append(f"## {i}. {commit['summary']}")
                 lines.append(f"- **Commit:** `{commit['sha']}`")
-                lines.append(
-                    f"- **Author:** {commit['author']} ({commit['author_email']})"
-                )
+                lines.append(f"- **Author:** {commit['author']} ({commit['author_email']})")
                 lines.append(f"- **Date:** {commit['date']}")
 
                 # Add relevance indicator for function searches
                 if "relevance" in commit:
-                    relevance_emoji = (
-                        "🎯" if commit["relevance"] == "mentioned" else "📝"
-                    )
+                    relevance_emoji = "🎯" if commit["relevance"] == "mentioned" else "📝"
                     relevance_text = (
                         "Function mentioned"
                         if commit["relevance"] == "mentioned"
@@ -1157,9 +1108,7 @@ class CicadaServer:
             return [TextContent(type="text", text=error_msg)]
 
         try:
-            blame_groups = self.git_helper.get_function_history(
-                file_path, start_line, end_line
-            )
+            blame_groups = self.git_helper.get_function_history(file_path, start_line, end_line)
 
             if not blame_groups:
                 result = f"No blame information found for {file_path} lines {start_line}-{end_line}"
@@ -1178,9 +1127,7 @@ class CicadaServer:
                 )
                 lines.append(f"## Group {i}: {group['author']} ({line_range})")
 
-                lines.append(
-                    f"- **Author:** {group['author']} ({group['author_email']})"
-                )
+                lines.append(f"- **Author:** {group['author']} ({group['author_email']})")
                 lines.append(f"- **Commit:** `{group['sha']}`")
                 lines.append(f"- **Date:** {group['date'][:10]}")
                 lines.append(f"- **Lines:** {group['line_count']}\n")
@@ -1213,7 +1160,7 @@ class CicadaServer:
         if not self.pr_index:
             error_msg = (
                 "PR index not available. Please run:\n"
-                "  python cicada/pr_indexer.py\n\n"
+                "  cicada index-pr\n\n"
                 "This will create the PR index at .cicada/pr_index.json"
             )
             return [TextContent(type="text", text=error_msg)]
@@ -1226,9 +1173,7 @@ class CicadaServer:
             try:
                 file_path_obj = file_path_obj.relative_to(repo_path)
             except ValueError:
-                error_msg = (
-                    f"File path {file_path} is not within repository {repo_path}"
-                )
+                error_msg = f"File path {file_path} is not within repository {repo_path}"
                 return [TextContent(type="text", text=error_msg)]
 
         file_path_str = str(file_path_obj)
@@ -1268,9 +1213,7 @@ class CicadaServer:
                 if len(desc_lines) > 10:
                     trimmed_desc = "\n".join(desc_lines[:10])
                     lines.append(f"{trimmed_desc}")
-                    lines.append(
-                        f"\n*... (trimmed, {len(desc_lines) - 10} more lines)*\n"
-                    )
+                    lines.append(f"\n*... (trimmed, {len(desc_lines) - 10} more lines)*\n")
                 else:
                     lines.append(f"{description}\n")
 
@@ -1342,15 +1285,11 @@ class CicadaServer:
         # Format results
         from cicada.formatter import ModuleFormatter
 
-        formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
-            keywords, results
-        )
+        formatted_result = ModuleFormatter.format_keyword_search_results_markdown(keywords, results)
 
         return [TextContent(type="text", text=formatted_result)]
 
-    async def _find_dead_code(
-        self, min_confidence: str, output_format: str
-    ) -> list[TextContent]:
+    async def _find_dead_code(self, min_confidence: str, output_format: str) -> list[TextContent]:
         """
         Find potentially unused public functions.
 
@@ -1364,8 +1303,8 @@ class CicadaServer:
         from cicada.dead_code_analyzer import DeadCodeAnalyzer
         from cicada.find_dead_code import (
             filter_by_confidence,
-            format_markdown,
             format_json,
+            format_markdown,
         )
 
         # Run analysis
@@ -1376,10 +1315,7 @@ class CicadaServer:
         results = filter_by_confidence(results, min_confidence)
 
         # Format output
-        if output_format == "json":
-            output = format_json(results)
-        else:
-            output = format_markdown(results)
+        output = format_json(results) if output_format == "json" else format_markdown(results)
 
         return [TextContent(type="text", text=output)]
 
@@ -1411,20 +1347,16 @@ def _auto_setup_if_needed():
     This enables zero-config MCP usage - just point the MCP config to cicada-server
     and it will index the repository on first run.
     """
+    from cicada.setup import create_config_yaml, index_repository
     from cicada.utils import (
+        create_storage_dir,
         get_config_path,
         get_index_path,
-        create_storage_dir,
-        get_storage_dir,
     )
-    from cicada.setup import index_repository, create_config_yaml
 
     # Determine repository path from environment or current directory
     repo_path_str = os.environ.get("CICADA_REPO_PATH")
-    if repo_path_str:
-        repo_path = Path(repo_path_str).resolve()
-    else:
-        repo_path = Path.cwd().resolve()
+    repo_path = Path(repo_path_str).resolve() if repo_path_str else Path.cwd().resolve()
 
     # Check if config and index already exist
     config_path = get_config_path(repo_path)

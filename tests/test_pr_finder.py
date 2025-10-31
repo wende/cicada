@@ -3,6 +3,7 @@ Tests for PR Finder module.
 """
 
 import pytest
+
 from cicada.pr_finder import PRFinder
 
 

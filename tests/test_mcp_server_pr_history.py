@@ -6,10 +6,11 @@ Tests PR finding, blame tracking, commit history, and git integration.
 """
 
 import json
+from unittest.mock import Mock, patch
+
 import pytest
 import yaml
-from pathlib import Path
-from unittest.mock import Mock, patch
+
 from cicada.mcp_server import CicadaServer
 
 

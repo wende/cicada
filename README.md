@@ -192,7 +192,7 @@ uvx --from git+https://github.com/wende/cicada.git@v0.2.0 cicada vs
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
 - ✅ Faster MCP server startup (no temporary environment creation)
 - ✅ Access to all CLI commands (`cicada-index`, `cicada-index-pr`)
-- ✅ Fine-tuned keyword extraction with medium/large spaCy models
+- ✅ Fine-tuned keyword extraction with BERT models
 - ✅ PR indexing features
 - ✅ Custom re-indexing options
 

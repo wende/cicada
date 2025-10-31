@@ -3,8 +3,7 @@ Tests for signal handling in indexer.
 """
 
 import signal
-import threading
-from pathlib import Path
+
 from cicada.indexer import ElixirIndexer
 
 

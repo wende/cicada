@@ -3,8 +3,8 @@ Comprehensive tests for cicada/extractors/base.py
 """
 
 import pytest
-from tree_sitter import Parser, Language
 import tree_sitter_elixir
+from tree_sitter import Language, Parser
 
 
 class TestExtractStringFromArguments:
@@ -395,7 +395,6 @@ end
 
     def test_get_param_names_from_def(self, parser):
         """Test getting parameter names from actual def"""
-        from cicada.extractors.base import get_param_name
 
         code = """
 defmodule Math do

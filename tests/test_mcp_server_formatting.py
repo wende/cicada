@@ -6,10 +6,12 @@ Tests output formatting for blame information and PR history.
 """
 
 import json
-import pytest
-import yaml
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+import yaml
+
 from cicada.mcp_server import CicadaServer
 
 

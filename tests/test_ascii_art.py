@@ -4,15 +4,17 @@ Comprehensive tests for cicada/ascii_art.py
 Tests ASCII art generation and banner formatting
 """
 
-import pytest
 import re
+
+import pytest
+
 from cicada.ascii_art import (
-    generate_gradient_ascii_art,
-    get_welcome_banner,
     CICADA_ASCII_ART,
     CYAN,
-    YELLOW,
     RESET,
+    YELLOW,
+    generate_gradient_ascii_art,
+    get_welcome_banner,
 )
 
 
@@ -212,7 +214,7 @@ class TestCicadaAsciiArtConstant:
     def test_constant_matches_function_output(self):
         """Test that constant matches generate_gradient_ascii_art() output"""
         generated = generate_gradient_ascii_art()
-        assert CICADA_ASCII_ART == generated
+        assert generated == CICADA_ASCII_ART
 
 
 class TestColorConstants:

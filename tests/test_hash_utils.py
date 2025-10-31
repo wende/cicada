@@ -3,14 +3,15 @@ Comprehensive tests for cicada/utils/hash_utils.py
 """
 
 import json
+
 import pytest
-from pathlib import Path
+
 from cicada.utils.hash_utils import (
     compute_file_hash,
+    compute_hashes_for_files,
+    detect_file_changes,
     load_file_hashes,
     save_file_hashes,
-    detect_file_changes,
-    compute_hashes_for_files,
 )
 
 

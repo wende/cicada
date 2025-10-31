@@ -7,10 +7,10 @@ Provides sample file content at different commits to test line mapping
 algorithms and file evolution tracking.
 """
 
-from typing import Dict, List, Any
+from typing import Any
 
 
-def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
+def get_file_evolution_scenarios() -> dict[str, dict[str, list[str]]]:
     """
     Get file evolution scenarios for testing line mapping.
 
@@ -188,7 +188,7 @@ def get_file_evolution_scenarios() -> Dict[str, Dict[str, List[str]]]:
     }
 
 
-def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
+def get_line_mapping_test_cases() -> list[dict[str, Any]]:
     """
     Get specific test cases for line mapping algorithm.
 
@@ -263,7 +263,7 @@ def get_line_mapping_test_cases() -> List[Dict[str, Any]]:
     ]
 
 
-def get_file_content_samples() -> Dict[str, List[str]]:
+def get_file_content_samples() -> dict[str, list[str]]:
     """
     Get sample file contents for various testing scenarios.
 
@@ -328,7 +328,7 @@ def get_file_content_samples() -> Dict[str, List[str]]:
     }
 
 
-def get_git_show_scenarios() -> Dict[str, Dict[str, str]]:
+def get_git_show_scenarios() -> dict[str, dict[str, str]]:
     """
     Get scenarios for testing git show command responses.
 
@@ -351,7 +351,7 @@ def get_git_show_scenarios() -> Dict[str, Dict[str, str]]:
     }
 
 
-def get_ls_files_scenarios() -> Dict[str, str]:
+def get_ls_files_scenarios() -> dict[str, str]:
     """
     Get scenarios for testing git ls-files command responses.
 

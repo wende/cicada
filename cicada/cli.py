@@ -54,7 +54,7 @@ def main():
     index_parser.add_argument(
         "--nlp",
         action="store_true",
-        help="Use NLP keyword extraction (spaCy-based)",
+        help="Use NLP keyword extraction (lemminflect-based)",
     )
     index_parser.add_argument(
         "--rag",
@@ -198,26 +198,13 @@ def handle_index(args):
     # Check if no extraction flags provided - trigger interactive setup
     if not args.nlp and not args.rag:
         print("No keyword extraction method specified. Starting interactive setup...\n")
-        keyword_method, model_tier = show_first_time_setup()
-    else:
-        # Determine model tier from flags
-        if args.fast:
-            model_tier = "fast"
-        elif args.max:
-            model_tier = "max"
-        else:
-            model_tier = "regular"
-
-        # Determine keyword method
-        keyword_method = "bert" if args.rag else "spacy"
+        _ = show_first_time_setup()
 
     indexer = ElixirIndexer()
     indexer.index_repository(
         args.repo,
         args.output,
         extract_keywords=True,
-        keyword_method=keyword_method,
-        model_tier=model_tier,
     )
 
 

@@ -12,17 +12,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from cicada.indexer import ElixirIndexer
 from cicada.utils import (
     create_storage_dir,
-    get_index_path,
     get_config_path,
-    get_hashes_path,
-    get_storage_dir,
+    get_index_path,
 )
-
 
 EditorType = Literal["claude", "cursor", "vs"]
 
@@ -41,21 +38,19 @@ def _load_existing_config(config_path: Path) -> dict:
         return {}
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        print(
-            f"Warning: Existing config at {config_path} is malformed, creating new one: {e}"
-        )
+        print(f"Warning: Existing config at {config_path} is malformed, creating new one: {e}")
         return {}
-    except IOError as e:
+    except OSError as e:
         print(f"Warning: Could not read config file {config_path}: {e}")
         return {}
 
 
 def _build_server_config(
     command: str, args: list, cwd: str | None, repo_path: Path, storage_dir: Path
-) -> dict:
+) -> dict[str, Any]:
     """
     Build the MCP server configuration.
 
@@ -69,7 +64,7 @@ def _build_server_config(
     Returns:
         Server configuration dict
     """
-    server_config = {"command": command}
+    server_config: dict[str, Any] = {"command": command}
 
     if args:
         server_config["args"] = args
@@ -137,7 +132,7 @@ def get_mcp_config_for_editor(
         raise ValueError(f"Unsupported editor: {editor}")
 
     spec = editor_specs[editor]
-    config_path = spec["config_path"]
+    config_path = cast(Path, spec["config_path"])
 
     # Create parent directory if needed
     if spec["needs_dir"]:
@@ -196,13 +191,10 @@ def index_repository(repo_path: Path) -> None:
         indexer = ElixirIndexer(verbose=True)
 
         # Index with keyword extraction enabled by default
-        # Note: Using 'small' model for compatibility with uvx
-        # For better accuracy, install permanently and use cicada-index with --spacy-model medium/large
         indexer.index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
             extract_keywords=True,
-            spacy_model="small",
         )
 
         print(f"✓ Repository indexed at {index_path}")
@@ -245,9 +237,7 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
     print()
 
     # Create MCP config for the editor
-    config_path, config_content = get_mcp_config_for_editor(
-        editor, repo_path, storage_dir
-    )
+    config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
 
     # Write config file
     with open(config_path, "w") as f:
@@ -273,17 +263,16 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
 
     # Check if running via uvx and suggest permanent installation
     import shutil
+
     from cicada import __version__
 
     if not shutil.which("cicada-server"):
         print("💡 Tip: For best experience, install Cicada permanently:")
-        print(
-            f"   uv tool install git+https://github.com/wende/cicada.git@v{__version__}"
-        )
+        print(f"   uv tool install git+https://github.com/wende/cicada.git@v{__version__}")
         print()
         print("   Benefits:")
         print("   • Faster MCP server startup")
-        print("   • Access to cicada-index with medium/large spaCy models")
+        print("   • Access to cicada-index with enhanced keyword extraction")
         print("   • PR indexing with cicada-index-pr")
         print()
 
