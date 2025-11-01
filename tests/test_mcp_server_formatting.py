@@ -144,7 +144,10 @@ class TestGetFilePRHistoryFormatting:
                 }
             },
         }
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        from cicada.utils import get_pr_index_path
+
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)

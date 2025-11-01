@@ -226,16 +226,19 @@ def show_first_time_setup() -> tuple[str, str]:
     return ("bert", tier)
 
 
-def show_full_interactive_setup() -> None:
+def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     """
     Display full interactive setup including editor selection and keyword extraction.
 
-    This is the main entry point when running `cicada` with no arguments.
+    This is the main entry point when running `cicada` with no arguments or a path.
+
+    Args:
+        repo_path: Path to the Elixir repository. Defaults to current directory.
     """
     from cicada.setup import setup
 
     # Check if we're in an Elixir project
-    repo_path = Path.cwd()
+    repo_path = Path.cwd() if repo_path is None else Path(repo_path).resolve()
     if not (repo_path / "mix.exs").exists():
         print(f"{PRIMARY}Error: {repo_path} does not appear to be an Elixir project{RESET}")
         print(f"{GREY}(mix.exs not found){RESET}")

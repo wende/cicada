@@ -13,6 +13,7 @@ Provides a single `cicada` command with multiple subcommands:
 """
 
 import argparse
+import io
 import sys
 
 
@@ -148,12 +149,12 @@ def main():
     claude_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     claude_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
     # ========================================================================
@@ -177,12 +178,12 @@ def main():
     cursor_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     cursor_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
     # ========================================================================
@@ -206,12 +207,12 @@ def main():
     vs_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     vs_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
     # ========================================================================
@@ -241,12 +242,12 @@ def main():
     index_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     index_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
     index_parser.add_argument(
         "--test",
@@ -267,11 +268,6 @@ def main():
         nargs="?",
         default=".",
         help="Path to git repository (default: current directory)",
-    )
-    index_pr_parser.add_argument(
-        "--output",
-        default=".cicada/pr_index.json",
-        help="Output path for the index file (default: .cicada/pr_index.json)",
     )
     index_pr_parser.add_argument(
         "--clean",
@@ -298,11 +294,6 @@ Examples:
   cicada find-dead-code --min-confidence low # Show all candidates
   cicada find-dead-code --format json        # Output as JSON
         """,
-    )
-    dead_code_parser.add_argument(
-        "--index",
-        default=".cicada/index.json",
-        help="Path to index file (default: .cicada/index.json)",
     )
     dead_code_parser.add_argument(
         "--format",
@@ -359,11 +350,23 @@ Examples:
 
     # Parse arguments - handle case where first arg might be a path, not a subcommand
     path_or_command = None
+    parse_error_output = None
     try:
-        args, remaining_args = parser.parse_known_args()
-        # If no subcommand was specified and there are remaining args, treat first arg as path
-        if args.command is None and remaining_args:
-            path_or_command = remaining_args[0]
+        # Capture stderr during parsing to suppress argparse errors for paths
+        stderr_capture = io.StringIO()
+        original_stderr = sys.stderr
+        sys.stderr = stderr_capture
+
+        try:
+            args, remaining_args = parser.parse_known_args()
+            # If no subcommand was specified and there are remaining args, treat first arg as path
+            if args.command is None and remaining_args:
+                path_or_command = remaining_args[0]
+        finally:
+            # Restore stderr
+            parse_error_output = stderr_capture.getvalue()
+            sys.stderr = original_stderr
+
     except SystemExit:
         # ArgumentError was raised - check if it's because of an invalid subcommand choice
         # If so, the first argument might be a path
@@ -372,13 +375,18 @@ Examples:
             # Check if it looks like a path (starts with . or /)
             if potential_path.startswith((".", "/")):
                 # Treat it as a path for handle_install
+                # Don't print the argparse error since we're handling this as a path
                 path_or_command = potential_path
                 # Create a minimal args object
                 args = argparse.Namespace(command=None, path_or_command=path_or_command)
             else:
-                # Re-raise the error if it's not a path
+                # Re-raise the error and show the argparse error output
+                if parse_error_output:
+                    sys.stderr.write(parse_error_output)
                 raise
         else:
+            if parse_error_output:
+                sys.stderr.write(parse_error_output)
             raise
 
     # Detect if path_or_command is a path (starts with . or /)
@@ -440,18 +448,28 @@ Examples:
 
 def handle_install(args):
     """Handle the default install/setup behavior (no subcommand)."""
+    from pathlib import Path
+
     from cicada.interactive_setup import show_full_interactive_setup
 
-    # If no path provided, show interactive setup
-    if not args.path_or_command:
-        show_full_interactive_setup()
-        return
+    # Determine the repository path
+    repo_path = None
+    if args.path_or_command:
+        # Path provided - resolve it relative to cwd
+        if args.path_or_command.startswith((".", "/")):
+            # Relative or absolute path
+            repo_path = str(Path(args.path_or_command).resolve())
+        else:
+            # Non-path argument (shouldn't happen, but handle for backwards compatibility)
+            print("Error: Direct path indexing is no longer supported.", file=sys.stderr)
+            print("\nPlease use one of the setup commands instead:", file=sys.stderr)
+            print("  cicada claude  # For Claude Code", file=sys.stderr)
+            print("  cicada cursor  # For Cursor", file=sys.stderr)
+            print("  cicada vs      # For VS Code", file=sys.stderr)
+            sys.exit(1)
 
-    # Legacy path argument - use old install.py
-    from cicada.install import main as install_main
-
-    sys.argv = ["cicada", args.path_or_command]
-    install_main()
+    # Show interactive setup for the specified path (or cwd if no path)
+    show_full_interactive_setup(repo_path)
 
 
 def handle_install_command(args):
@@ -475,9 +493,9 @@ def handle_editor_setup(args, editor: str):
 
     from cicada.setup import EditorType, setup
 
-    # Validate that --fast or --max requires --nlp or --rag
-    if (args.fast or args.max) and not (args.nlp or args.rag):
-        print("Error: --fast or --max requires either --nlp or --rag", file=sys.stderr)
+    # Validate that --fast or --max requires --rag
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
         sys.exit(1)
 
     # Both --nlp and --rag cannot be specified
@@ -564,9 +582,9 @@ def handle_index(args):
 
     # Handle --test mode (interactive keyword extraction testing)
     if args.test:
-        # Validate that --fast or --max requires --nlp or --rag
-        if (args.fast or args.max) and not (args.nlp or args.rag):
-            print("Error: --fast or --max requires either --nlp or --rag", file=sys.stderr)
+        # Validate that --fast or --max requires --rag
+        if (args.fast or args.max) and not args.rag:
+            print("Error: --fast or --max requires --rag", file=sys.stderr)
             sys.exit(1)
 
         # Both --nlp and --rag cannot be specified
@@ -597,9 +615,9 @@ def handle_index(args):
         run_keywords_interactive(method=method, tier=tier)
         return
 
-    # Validate that --fast or --max requires --nlp or --rag
-    if (args.fast or args.max) and not (args.nlp or args.rag):
-        print("Error: --fast or --max requires either --nlp or --rag", file=sys.stderr)
+    # Validate that --fast or --max requires --rag
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
         sys.exit(1)
 
     # Both --nlp and --rag cannot be specified
@@ -708,15 +726,19 @@ def handle_index(args):
 def handle_index_pr(args):
     """Handle the index-pr subcommand."""
     from cicada.pr_indexer import PRIndexer
+    from cicada.utils import get_pr_index_path
     from cicada.version_check import check_for_updates
 
     # Check for updates (non-blocking, fails silently)
     check_for_updates()
 
     try:
+        # Always use centralized storage
+        output_path = str(get_pr_index_path(args.repo))
+
         indexer = PRIndexer(repo_path=args.repo)
         # Incremental by default, unless --clean is specified
-        indexer.index_repository(output_path=args.output, incremental=not args.clean)
+        indexer.index_repository(output_path=output_path, incremental=not args.clean)
 
         print("\n✅ Indexing complete! You can now use the MCP tools for PR history lookups.")
 
@@ -732,14 +754,13 @@ def handle_index_pr(args):
 
 def handle_find_dead_code(args):
     """Handle the find-dead-code subcommand."""
-    from pathlib import Path
-
     from cicada.dead_code_analyzer import DeadCodeAnalyzer
     from cicada.find_dead_code import filter_by_confidence, format_json, format_markdown
-    from cicada.utils import load_index
+    from cicada.utils import get_index_path, load_index
 
-    # Load index
-    index_path = Path(args.index)
+    # Always use centralized storage
+    index_path = get_index_path(".")
+
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
         print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
