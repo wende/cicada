@@ -69,6 +69,10 @@ class ElixirIndexer:
     # Progress reporting interval - report every N files processed
     PROGRESS_REPORT_INTERVAL = 10
 
+    # Keyword expansion parameters
+    DEFAULT_EXPANSION_TOP_N = 3
+    DEFAULT_EXPANSION_THRESHOLD = 0.7
+
     def __init__(self, verbose: bool = False):
         """Initialize the indexer with a parser."""
         self.parser = ElixirParser()
@@ -214,7 +218,9 @@ class ElixirIndexer:
                                 # Step 2: Expand keywords
                                 if keyword_expander and extracted_keywords:
                                     module_keywords = keyword_expander.expand_keywords(
-                                        extracted_keywords, top_n=3, threshold=0.7
+                                        extracted_keywords,
+                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD
                                     )
                                 else:
                                     module_keywords = extracted_keywords
@@ -244,7 +250,9 @@ class ElixirIndexer:
                                         # Step 2: Expand keywords
                                         if keyword_expander and extracted_keywords:
                                             func_keywords = keyword_expander.expand_keywords(
-                                                extracted_keywords, top_n=3, threshold=0.7
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD
                                             )
                                         else:
                                             func_keywords = extracted_keywords
@@ -527,7 +535,9 @@ class ElixirIndexer:
                                 # Step 2: Expand keywords
                                 if keyword_expander and extracted_keywords:
                                     module_keywords = keyword_expander.expand_keywords(
-                                        extracted_keywords, top_n=3, threshold=0.7
+                                        extracted_keywords,
+                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD
                                     )
                                 else:
                                     module_keywords = extracted_keywords
@@ -550,7 +560,9 @@ class ElixirIndexer:
                                         # Step 2: Expand keywords
                                         if keyword_expander and extracted_keywords:
                                             func_keywords = keyword_expander.expand_keywords(
-                                                extracted_keywords, top_n=3, threshold=0.7
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD
                                             )
                                         else:
                                             func_keywords = extracted_keywords
