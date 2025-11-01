@@ -4,6 +4,7 @@ Pytest configuration and fixtures for all tests.
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 import yaml
@@ -120,3 +121,23 @@ def setup_test_environment():
     # Cleanup happens after all tests complete
     # Note: Individual tests may create their own index/config files,
     # but we don't clean up the main ones as they're needed by multiple tests
+
+
+@pytest.fixture(autouse=True)
+def mock_home_dir(tmp_path, monkeypatch):
+    """
+    Automatically mock Path.home() for all tests to use a temporary directory.
+
+    This prevents tests from creating directories in the real ~/.cicada/projects/
+    directory, which was causing thousands of test directories to accumulate.
+
+    The fixture is autouse=True, so it applies to all tests automatically.
+    """
+    # Create a mock home directory in the temporary path
+    mock_home = tmp_path / "mock_home"
+    mock_home.mkdir()
+
+    # Mock Path.home() to return our temporary directory
+    monkeypatch.setattr(Path, "home", lambda: mock_home)
+
+    return mock_home
