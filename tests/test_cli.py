@@ -134,6 +134,17 @@ class TestMain:
             args = mock_handler.call_args[0][0]
             assert args.repo == "/absolute/path"
 
+    def test_main_with_parent_directory_calls_install(self):
+        """Should route to install command when path is '..'"""
+        with (
+            patch.object(sys, "argv", ["cicada", ".."]),
+            patch("cicada.mcp_entry.handle_install") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args = mock_handler.call_args[0][0]
+            assert args.repo == ".."
+
 
 class TestHandleEditorSetup:
     """Tests for handle_editor_setup function"""

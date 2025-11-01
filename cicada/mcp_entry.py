@@ -510,7 +510,7 @@ def handle_install(args):
     if editor is None and keyword_method is None:
         from cicada.interactive_setup import show_full_interactive_setup
 
-        show_full_interactive_setup()
+        show_full_interactive_setup(repo_path)
         return
 
     # If only model flags provided (no editor), prompt for editor
