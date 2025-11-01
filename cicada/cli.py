@@ -33,6 +33,13 @@ def main():
             "find-dead-code",
             "clean",
         ]
+        # Handle --version flag early
+        if first_arg in ("--version", "-v"):
+            from cicada.version_check import get_version_string
+
+            print(f"cicada {get_version_string()}")
+            sys.exit(0)
+
         # If first arg is not a known command and not a help flag, treat as path for install
         if first_arg not in known_commands and not first_arg.startswith("-"):
             # Insert 'install' as the subcommand
@@ -42,6 +49,14 @@ def main():
         prog="cicada",
         description="Cicada - AI-powered Elixir code analysis and search",
         epilog="Run 'cicada <command> --help' for more information on a command.",
+    )
+    # Add version argument to main parser
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version="%(prog)s version from subcommand",  # Placeholder - we handle this above
+        help="Show version and commit hash",
     )
 
     # Create subparsers for commands

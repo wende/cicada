@@ -6,25 +6,44 @@ This file contains project-specific instructions for AI assistants working on th
 
 When creating a new release:
 
-1. **Create and push the git tag:**
+1. **Update pyproject.toml version:**
+   - Update the `version = "0.1.1"` field to match the new release
+
+2. **Commit version changes:**
+   ```bash
+   git add pyproject.toml
+   git commit -m "Bump version to 0.X.Y"
+   ```
+   Note: The pre-commit hook will automatically update `cicada/_version_hash.py` with the current git commit hash
+
+3. **Create and push the git tag:**
    ```bash
    git tag v0.X.Y
    git push origin v0.X.Y
+   git push origin main
    ```
 
-2. **Update pyproject.toml version:**
-   - Update the `version = "0.1.1"` field to match the new release
-
-3. **Build and publish to PyPI:**
+4. **Build and publish to PyPI:**
    ```bash
    uv build
    uv publish
    ```
 
-4. **Test the installation:**
+5. **Test the installation:**
    ```bash
    uv tool install cicada-mcp
+   cicada --version  # Should show version and commit hash
    ```
+
+## Version Management
+
+- Version number is stored in `pyproject.toml`
+- Git tag and commit hash are stored in `cicada/_version_hash.py` (auto-updated by pre-commit hook)
+- `cicada --version` or `cicada -v` displays version, tag, and commit hash
+- Version format: `cicada 0.2.0 (v0.2.0-rc0/5ea1134)` - tag/hash format allows tracking RC releases
+- For PyPI installs: shows the version, tag, and hash from when the package was built
+- For development installs: falls back to `git describe --tags` and `git rev-parse HEAD` if needed
+- Pre-commit hook automatically fetches latest tags via `git fetch --tags` to ensure accurate version info
 
 ## Project Context
 

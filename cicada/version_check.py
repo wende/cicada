@@ -5,6 +5,90 @@ Checks if a newer version of cicada is available on GitHub.
 """
 
 import subprocess
+from pathlib import Path
+
+
+def get_git_tag() -> str | None:
+    """
+    Get the most recent git tag reachable from current commit.
+
+    First tries to read from build-time generated _version_hash.py (for PyPI installs),
+    then falls back to git command (for development installs).
+
+    Returns:
+        Git tag (e.g., "v0.2.0-rc1"), or None if no tags found
+    """
+    # Try reading from build-time generated file first (for PyPI installs)
+    try:
+        from cicada._version_hash import GIT_TAG
+
+        if GIT_TAG and GIT_TAG != "unknown":
+            return GIT_TAG
+    except (ImportError, AttributeError):
+        pass
+
+    # Fall back to git command (for development installs)
+    try:
+        package_root = Path(__file__).parent.parent
+        for cwd in [package_root, Path.cwd()]:
+            result = subprocess.run(
+                ["git", "describe", "--tags", "--abbrev=0"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                cwd=cwd,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+
+        return None
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
+
+
+def get_git_commit_hash(short: bool = True) -> str | None:
+    """
+    Get the current git commit hash.
+
+    First tries to read from build-time generated _version_hash.py (for PyPI installs),
+    then falls back to git command (for development installs).
+
+    Args:
+        short: If True, return short hash (7 chars), else full hash
+
+    Returns:
+        Git commit hash, or None if not available
+    """
+    # Try reading from build-time generated file first (for PyPI installs)
+    try:
+        from cicada._version_hash import GIT_HASH
+
+        if GIT_HASH and GIT_HASH != "unknown":
+            return GIT_HASH
+    except ImportError:
+        pass
+
+    # Fall back to git command (for development installs)
+    try:
+        package_root = Path(__file__).parent.parent
+        for cwd in [package_root, Path.cwd()]:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short" if short else "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                cwd=cwd,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+
+        return None
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
 
 
 def get_current_version() -> str:
@@ -83,6 +167,33 @@ def compare_versions(current: str, latest: str) -> bool:
     except (ValueError, AttributeError):
         # If we can't parse versions, assume they're the same
         return False
+
+
+def get_version_string() -> str:
+    """
+    Get a formatted version string including git tag and commit hash if available.
+
+    Returns:
+        Version string in format:
+        - "0.2.0" (no git info)
+        - "0.2.0 (v0.2.0-rc1/abc1234)" (with tag and hash)
+        - "0.2.0 (abc1234)" (hash only, no tag)
+    """
+    version = get_current_version()
+    git_tag = get_git_tag()
+    commit_hash = get_git_commit_hash(short=True)
+
+    # Build git info string
+    git_info_parts = []
+    if git_tag:
+        git_info_parts.append(git_tag)
+    if commit_hash:
+        git_info_parts.append(commit_hash)
+
+    if git_info_parts:
+        git_info = "/".join(git_info_parts)
+        return f"{version} ({git_info})"
+    return version
 
 
 def check_for_updates() -> None:
