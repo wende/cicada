@@ -18,6 +18,22 @@ help:
 	@echo "  make ci-test       - Run tests in CI environment (auto-installs dependencies)"
 	@echo "  make clean         - Remove generated files"
 	@echo "  make reset         - Full reset (cache, models, .cicada dirs)"
+	@echo "  make dev           - Clean rebuild and install (avoids cache issues)"
+	@echo "  make help          - Display this help message"
+
+dev:
+	@echo "Installing cicada tool in development mode (clean rebuild)..."
+	@echo "1. Cleaning dist directory..."
+	@rm -rf dist/
+	@echo "2. Building package..."
+	@uv build
+	@echo "3. Uninstalling old version..."
+	@uv tool uninstall cicada-mcp 2>/dev/null || true
+	@echo "4. Installing from fresh build..."
+	@uv tool install --reinstall dist/cicada_mcp-*-py3-none-any.whl
+	@echo "✓ cicada installed from fresh build"
+	@echo "  Commands: cicada, cicada-mcp, cicada-server"
+	@echo "  Installed from: $(PWD)/dist/"
 
 # Install dependencies only
 install-deps:

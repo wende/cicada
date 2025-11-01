@@ -37,6 +37,106 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # ========================================================================
+    # INSTALL subcommand - Interactive setup
+    # ========================================================================
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Interactive setup for Cicada",
+        description="Interactive setup with editor and model selection",
+    )
+    install_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=None,
+        help="Path to Elixir repository (default: current directory)",
+    )
+    install_parser.add_argument(
+        "--claude",
+        action="store_true",
+        help="Skip editor selection, use Claude Code",
+    )
+    install_parser.add_argument(
+        "--cursor",
+        action="store_true",
+        help="Skip editor selection, use Cursor",
+    )
+    install_parser.add_argument(
+        "--vs",
+        action="store_true",
+        help="Skip editor selection, use VS Code",
+    )
+    install_parser.add_argument(
+        "--nlp",
+        action="store_true",
+        help="Skip model selection, use Lemminflect",
+    )
+    install_parser.add_argument(
+        "--rag",
+        action="store_true",
+        help="Skip model selection, use BERT (default tier)",
+    )
+    install_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Use BERT fast tier (requires --rag)",
+    )
+    install_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Use BERT max tier (requires --rag)",
+    )
+
+    # ========================================================================
+    # SERVER subcommand - Silent MCP server
+    # ========================================================================
+    server_parser = subparsers.add_parser(
+        "server",
+        help="Start MCP server (silent mode with defaults)",
+        description="Start MCP server with auto-setup using defaults",
+    )
+    server_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=None,
+        help="Path to Elixir repository (default: current directory)",
+    )
+    server_parser.add_argument(
+        "--claude",
+        action="store_true",
+        help="Create Claude Code config before starting server",
+    )
+    server_parser.add_argument(
+        "--cursor",
+        action="store_true",
+        help="Create Cursor config before starting server",
+    )
+    server_parser.add_argument(
+        "--vs",
+        action="store_true",
+        help="Create VS Code config before starting server",
+    )
+    server_parser.add_argument(
+        "--nlp",
+        action="store_true",
+        help="Force Lemminflect (if reindexing needed)",
+    )
+    server_parser.add_argument(
+        "--rag",
+        action="store_true",
+        help="Force BERT (if reindexing needed)",
+    )
+    server_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Force BERT fast tier (requires --rag)",
+    )
+    server_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Force BERT max tier (requires --rag)",
+    )
+
+    # ========================================================================
     # CLAUDE subcommand (editor setup)
     # ========================================================================
     claude_parser = subparsers.add_parser(
@@ -261,6 +361,8 @@ Examples:
     # This handles backward compatibility where someone might run "cicada index"
     # without using proper subparsers
     if args.command is None and args.path_or_command in [
+        "install",
+        "server",
         "claude",
         "cursor",
         "vs",
@@ -274,7 +376,11 @@ Examples:
         return
 
     # Route to appropriate handler
-    if args.command == "claude":
+    if args.command == "install":
+        handle_install_command(args)
+    elif args.command == "server":
+        handle_server_command(args)
+    elif args.command == "claude":
         handle_editor_setup(args, "claude")
     elif args.command == "cursor":
         handle_editor_setup(args, "cursor")
@@ -294,7 +400,7 @@ Examples:
 
 
 def handle_install(args):
-    """Handle the install/setup command."""
+    """Handle the default install/setup behavior (no subcommand)."""
     from cicada.interactive_setup import show_full_interactive_setup
 
     # If no path provided, show interactive setup
@@ -307,6 +413,20 @@ def handle_install(args):
 
     sys.argv = ["cicada", args.path_or_command]
     install_main()
+
+
+def handle_install_command(args):
+    """Handle the explicit install subcommand."""
+    from cicada.commands.install import handle_install
+
+    handle_install(args)
+
+
+def handle_server_command(args):
+    """Handle the server subcommand (silent MCP server with optional configs)."""
+    from cicada.commands.server import handle_server
+
+    handle_server(args)
 
 
 def handle_editor_setup(args, editor: str):

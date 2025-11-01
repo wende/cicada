@@ -219,6 +219,36 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
         raise
 
 
+def setup_multiple_editors(
+    editors: list[EditorType],
+    repo_path: Path,
+    storage_dir: Path,
+    verbose: bool = False,
+) -> None:
+    """
+    Create MCP configs for multiple editors at once (for server mode).
+
+    Args:
+        editors: List of editor types to configure
+        repo_path: Path to the repository
+        storage_dir: Path to the storage directory
+        verbose: If True, print progress messages
+    """
+    for editor in editors:
+        try:
+            config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
+
+            # Write config file
+            with open(config_path, "w") as f:
+                json.dump(config_content, f, indent=2)
+
+            if verbose:
+                print(f"✓ Created {editor.upper()} config at {config_path}")
+        except Exception as e:
+            if verbose:
+                print(f"⚠ Error creating {editor.upper()} config: {e}")
+
+
 def setup(
     editor: EditorType,
     repo_path: Path | None = None,
