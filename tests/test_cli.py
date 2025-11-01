@@ -15,7 +15,7 @@ from cicada.cli import (
     handle_find_dead_code,
     handle_index,
     handle_index_pr,
-    handle_install,
+    handle_install_command,
     main,
 )
 
@@ -92,114 +92,47 @@ class TestMain:
             main()
             mock_handler.assert_called_once()
 
-    def test_main_no_args_calls_install(self):
-        """Should route to handle_install when no args"""
+    def test_main_no_args_shows_help(self):
+        """Should show help when no args provided"""
         with (
             patch.object(sys, "argv", ["cicada"]),
-            patch("cicada.cli.handle_install") as mock_handler,
+            pytest.raises(SystemExit) as exc_info,
         ):
             main()
-            mock_handler.assert_called_once()
+        assert exc_info.value.code == 1
 
     def test_main_with_dot_path_calls_install(self):
-        """Should route to handle_install when path is '.'"""
+        """Should route to install command when path is '.'"""
         with (
             patch.object(sys, "argv", ["cicada", "."]),
-            patch("cicada.cli.handle_install") as mock_handler,
+            patch("cicada.mcp_entry.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
             args = mock_handler.call_args[0][0]
-            assert args.path_or_command == "."
+            assert args.repo == "."
 
     def test_main_with_relative_path_calls_install(self):
-        """Should route to handle_install when path starts with './'"""
+        """Should route to install command when path starts with './'"""
         with (
             patch.object(sys, "argv", ["cicada", "./some/path"]),
-            patch("cicada.cli.handle_install") as mock_handler,
+            patch("cicada.mcp_entry.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
             args = mock_handler.call_args[0][0]
-            assert args.path_or_command == "./some/path"
+            assert args.repo == "./some/path"
 
     def test_main_with_absolute_path_calls_install(self):
-        """Should route to handle_install when path starts with '/'"""
+        """Should route to install command when path starts with '/'"""
         with (
             patch.object(sys, "argv", ["cicada", "/absolute/path"]),
-            patch("cicada.cli.handle_install") as mock_handler,
+            patch("cicada.mcp_entry.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
             args = mock_handler.call_args[0][0]
-            assert args.path_or_command == "/absolute/path"
-
-
-class TestHandleInstall:
-    """Tests for handle_install function"""
-
-    def test_no_path_shows_interactive_setup(self):
-        """Should show interactive setup when no path provided"""
-        args = MagicMock(path_or_command=None)
-
-        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
-            handle_install(args)
-            mock_setup.assert_called_once_with(None)
-
-    def test_dot_path_shows_interactive_setup(self):
-        """Should show interactive setup when '.' provided"""
-        args = MagicMock(path_or_command=".")
-
-        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
-            handle_install(args)
-            # Should resolve '.' to cwd
-            assert mock_setup.call_count == 1
-            called_path = mock_setup.call_args[0][0]
-            assert called_path is not None
-            assert Path(called_path).exists()
-
-    def test_double_dot_path_shows_interactive_setup(self):
-        """Should show interactive setup when '..' provided"""
-        args = MagicMock(path_or_command="..")
-
-        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
-            handle_install(args)
-            # Should resolve '..' to parent directory
-            assert mock_setup.call_count == 1
-            called_path = mock_setup.call_args[0][0]
-            assert called_path is not None
-            assert Path(called_path).exists()
-
-    def test_relative_path_shows_interactive_setup(self):
-        """Should show interactive setup when relative path like './..' provided"""
-        args = MagicMock(path_or_command="./..")
-
-        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
-            handle_install(args)
-            # Should resolve './..' to parent directory
-            assert mock_setup.call_count == 1
-            called_path = mock_setup.call_args[0][0]
-            assert called_path is not None
-            assert Path(called_path).exists()
-
-    def test_absolute_path_shows_interactive_setup(self):
-        """Should show interactive setup when absolute path provided"""
-        args = MagicMock(path_or_command="/some/path")
-
-        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
-            handle_install(args)
-            # Should pass the absolute path
-            mock_setup.assert_called_once_with("/some/path")
-
-    def test_with_non_path_shows_error_message(self):
-        """Should show error message when non-path argument provided"""
-        args = MagicMock(path_or_command="something_random")
-
-        with pytest.raises(SystemExit) as exc_info:
-            handle_install(args)
-
-        # Should exit with error code 1
-        assert exc_info.value.code == 1
+            assert args.repo == "/absolute/path"
 
 
 class TestHandleEditorSetup:
