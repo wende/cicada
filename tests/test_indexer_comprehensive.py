@@ -449,9 +449,9 @@ end
         assert "keywords" in index["modules"]["TestModule"]
         assert "keyword1" in index["modules"]["TestModule"]["keywords"]
 
-        # Should print keyword extraction enabled message
+        # Should print keyword extraction method and tier
         captured = capsys.readouterr()
-        assert "Keyword extraction enabled" in captured.out
+        assert "Keyword extraction:" in captured.out
 
     def test_index_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when keyword extraction fails"""
@@ -770,75 +770,6 @@ end
 
 class TestElixirIndexerMainCLI:
     """Additional tests for main() CLI function"""
-
-    def test_main_with_extract_keywords_flag(self, tmp_path, monkeypatch):
-        """Test main() with --extract-keywords flag"""
-        import os
-        import sys
-
-        from cicada.indexer import main
-
-        # Mock KeywordExtractor
-        class MockKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                pass
-
-            def extract_keywords_simple(self, text, top_n=10):
-                return ["test", "keyword"]
-
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            MockKeywordExtractor,
-        )
-
-        test_file = tmp_path / "test.ex"
-        test_file.write_text(
-            '''
-defmodule TestModule do
-  @moduledoc """
-  Test documentation
-  """
-  def test_func(x), do: x
-end
-'''
-        )
-
-        # Change to tmp_path directory for relative path resolution
-        original_cwd = os.getcwd()
-        os.chdir(tmp_path)
-
-        try:
-            # Mock sys.argv with --extract-keywords flag (use current dir)
-            monkeypatch.setattr(
-                sys,
-                "argv",
-                ["indexer.py", ".", "--extract-keywords"],
-            )
-
-            # Mock check_for_updates
-            def mock_check(*_args, **_kwargs):
-                pass
-
-            import cicada.version_check
-
-            monkeypatch.setattr(cicada.version_check, "check_for_updates", mock_check)
-
-            main()
-
-            # Check that index was created
-            output_path = tmp_path / ".cicada" / "index.json"
-            assert output_path.exists()
-
-            # Verify the module was indexed
-            from cicada.utils import load_index
-
-            index = load_index(output_path)
-            assert "TestModule" in index["modules"]
-        finally:
-            os.chdir(original_cwd)
 
     def test_main_with_full_flag(self, tmp_path, monkeypatch):
         """Test main() with --full flag"""

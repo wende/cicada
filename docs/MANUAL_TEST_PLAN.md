@@ -3,15 +3,13 @@
 Quick test plan before merging to main.
 
 ## Setup & Install
-- [ ] `cicada` - Setup in current directory, verify `.mcp.json` created
+- [ ] `cicada` - Interactive setup
 - [ ] `cicada .` - Explicit current directory path
 - [ ] `cicada /path/to/other/project` - Setup in different directory
-- [ ] `cicada --skip-install` - Skip dependency installation
 
 ## Index - Basic
 - [ ] `cicada index` - Interactive setup (no flags), choose nlp/rag, choose tier
-- [ ] `cicada index .` - Default output path
-- [ ] `cicada index --output custom.json` - Custom output path
+- [ ] `cicada index .` - Uses centralized storage path
 
 ## Index - NLP Mode
 - [ ] `cicada index --nlp` - NLP with regular tier (default)

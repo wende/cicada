@@ -256,7 +256,7 @@ For projects with 1000+ files:
 ### Keyword Search (Optional)
 Enable semantic search when ready:
 ```bash
-cicada index --extract-keywords --fast
+cicada index --rag --fast  # BERT-based semantic search
 ```
 
 ---

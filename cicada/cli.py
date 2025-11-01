@@ -24,15 +24,6 @@ def main():
         epilog="Run 'cicada <command> --help' for more information on a command.",
     )
 
-    # Add optional positional argument for backward compatibility
-    # If no subcommand is given, treat as install path
-    parser.add_argument(
-        "path_or_command",
-        nargs="?",
-        default=None,
-        help="Repository path for setup, or subcommand (claude, cursor, vs, index, index-pr, find-dead-code, clean)",
-    )
-
     # Create subparsers for commands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -238,11 +229,6 @@ def main():
         help="Path to the Elixir repository to index (default: current directory)",
     )
     index_parser.add_argument(
-        "--output",
-        default=".cicada/index.json",
-        help="Output path for the index file (default: .cicada/index.json)",
-    )
-    index_parser.add_argument(
         "--nlp",
         action="store_true",
         help="Use NLP keyword extraction (lemminflect-based)",
@@ -261,6 +247,11 @@ def main():
         "--max",
         action="store_true",
         help="Use maximum quality tier model (requires --nlp or --rag)",
+    )
+    index_parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Start interactive keyword extraction test mode",
     )
 
     # ========================================================================
@@ -336,8 +327,10 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  cicada clean                   # Clean current repository (with confirmation)
-  cicada clean -f                # Clean current repository (skip confirmation)
+  cicada clean                   # Remove everything (interactive with confirmation)
+  cicada clean -f                # Remove everything (skip confirmation)
+  cicada clean --index           # Remove main index (index.json, hashes.json)
+  cicada clean --pr-index        # Remove PR index (pr_index.json)
   cicada clean --all             # Remove ALL project storage
   cicada clean --all -f          # Remove ALL project storage (skip confirmation)
         """,
@@ -346,7 +339,17 @@ Examples:
         "-f",
         "--force",
         action="store_true",
-        help="Skip confirmation prompt",
+        help="Skip confirmation prompt (for full clean or --all)",
+    )
+    clean_parser.add_argument(
+        "--index",
+        action="store_true",
+        help="Remove only main index files (index.json, hashes.json)",
+    )
+    clean_parser.add_argument(
+        "--pr-index",
+        action="store_true",
+        help="Remove only PR index file (pr_index.json)",
     )
     clean_parser.add_argument(
         "--all",
@@ -354,26 +357,62 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
-    # Parse arguments
-    args = parser.parse_args()
+    # Parse arguments - handle case where first arg might be a path, not a subcommand
+    path_or_command = None
+    try:
+        args, remaining_args = parser.parse_known_args()
+        # If no subcommand was specified and there are remaining args, treat first arg as path
+        if args.command is None and remaining_args:
+            path_or_command = remaining_args[0]
+    except SystemExit:
+        # ArgumentError was raised - check if it's because of an invalid subcommand choice
+        # If so, the first argument might be a path
+        if len(sys.argv) > 1:
+            potential_path = sys.argv[1]
+            # Check if it looks like a path (starts with . or /)
+            if potential_path.startswith((".", "/")):
+                # Treat it as a path for handle_install
+                path_or_command = potential_path
+                # Create a minimal args object
+                args = argparse.Namespace(command=None, path_or_command=path_or_command)
+            else:
+                # Re-raise the error if it's not a path
+                raise
+        else:
+            raise
+
+    # Detect if path_or_command is a path (starts with . or /)
+    is_path = False
+    if path_or_command:
+        is_path = path_or_command.startswith((".", "/"))
 
     # Handle the case where path_or_command might be a subcommand
     # This handles backward compatibility where someone might run "cicada index"
     # without using proper subparsers
-    if args.command is None and args.path_or_command in [
-        "install",
-        "server",
-        "claude",
-        "cursor",
-        "vs",
-        "index",
-        "index-pr",
-        "find-dead-code",
-        "clean",
-    ]:
+    # Only check for subcommands if it's NOT a path
+    if (
+        args.command is None
+        and not is_path
+        and path_or_command
+        in [
+            "install",
+            "server",
+            "claude",
+            "cursor",
+            "vs",
+            "index",
+            "index-pr",
+            "find-dead-code",
+            "clean",
+        ]
+    ):
         # User typed "cicada index" etc. - show help for that subcommand
-        parser.parse_args([args.path_or_command, "--help"])
+        parser.parse_args([path_or_command, "--help"])
         return
+
+    # Add path_or_command to args for backward compatibility if not already set
+    if not hasattr(args, "path_or_command"):
+        args.path_or_command = path_or_command
 
     # Route to appropriate handler
     if args.command == "install":
@@ -517,12 +556,46 @@ def handle_index(args):
     from pathlib import Path
 
     from cicada.indexer import ElixirIndexer
-    from cicada.interactive_setup import show_first_time_setup
     from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
 
     # Check for updates (non-blocking, fails silently)
     check_for_updates()
+
+    # Handle --test mode (interactive keyword extraction testing)
+    if args.test:
+        # Validate that --fast or --max requires --nlp or --rag
+        if (args.fast or args.max) and not (args.nlp or args.rag):
+            print("Error: --fast or --max requires either --nlp or --rag", file=sys.stderr)
+            sys.exit(1)
+
+        # Both --nlp and --rag cannot be specified
+        if args.nlp and args.rag:
+            print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+            sys.exit(1)
+
+        # Determine method and tier
+        if args.nlp:
+            method = "lemminflect"
+            tier = "regular"
+        elif args.rag:
+            method = "bert"
+            if args.fast:
+                tier = "fast"
+            elif args.max:
+                tier = "max"
+            else:
+                tier = "regular"
+        else:
+            # Default to lemminflect if no method specified
+            method = "lemminflect"
+            tier = "regular"
+
+        # Start interactive test mode
+        from cicada.keyword_test import run_keywords_interactive
+
+        run_keywords_interactive(method=method, tier=tier)
+        return
 
     # Validate that --fast or --max requires --nlp or --rag
     if (args.fast or args.max) and not (args.nlp or args.rag):
@@ -578,31 +651,52 @@ def handle_index(args):
                     existing_method = existing_config.get("keyword_extraction", {}).get(
                         "method", "lemminflect"
                     )
-                    if existing_method != keyword_method:
+                    existing_tier = existing_config.get("keyword_extraction", {}).get(
+                        "tier", "regular"
+                    )
+
+                    # Check if either method or tier has changed
+                    method_changed = existing_method != keyword_method
+                    tier_changed = existing_tier != keyword_tier
+
+                    if method_changed or tier_changed:
+                        # Build error message based on what changed
+                        if method_changed and tier_changed:
+                            change_desc = f"extraction method from {existing_method} to {keyword_method} and tier from {existing_tier} to {keyword_tier}"
+                        elif method_changed:
+                            change_desc = (
+                                f"extraction method from {existing_method} to {keyword_method}"
+                            )
+                        else:
+                            change_desc = f"tier from {existing_tier} to {keyword_tier}"
+
                         print(
-                            f"⚠️  Warning: Changing keyword extraction method from {existing_method} to {keyword_method}"
+                            f"Error: Cannot change {change_desc}",
+                            file=sys.stderr,
                         )
-                        print("   This will trigger a full reindex of the entire codebase.")
-                        print()
-                        force_full = True  # Force full reindex when changing method
+                        print(
+                            "\nTo reindex with different settings, first run:",
+                            file=sys.stderr,
+                        )
+                        print("  cicada clean", file=sys.stderr)
+                        print("\nThen run your index command again.", file=sys.stderr)
+                        sys.exit(1)
             except Exception:
                 pass  # If we can't read config, just proceed
 
         create_config_yaml(repo_path_obj, storage_dir, keyword_method, keyword_tier)
         config_exists = True  # Config now exists
     elif not config_exists:
-        # No flags provided AND no config exists - trigger interactive setup
-        print("No keyword extraction method specified. Starting interactive setup...\n")
-        keyword_method, keyword_tier = show_first_time_setup()
-
-        # Save the interactive setup preferences to config.yaml
-        from cicada.setup import create_config_yaml
-
-        create_config_yaml(repo_path_obj, storage_dir, keyword_method, keyword_tier)
-        config_exists = True  # Config now exists
+        # No flags provided AND no config exists - print help and exit
+        print("Error: No keyword extraction method specified.", file=sys.stderr)
+        print("\nYou must specify either --nlp or --rag for keyword extraction:", file=sys.stderr)
+        print("  --nlp       Use NLP keyword extraction (lemminflect-based)", file=sys.stderr)
+        print("  --rag       Use RAG-optimized keyword extraction (BERT-based)", file=sys.stderr)
+        print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
+        sys.exit(2)
 
     # If config exists (or was just created), indexer will read it automatically
-    indexer = ElixirIndexer()
+    indexer = ElixirIndexer(verbose=True)
     indexer.incremental_index_repository(
         str(repo_path_obj),
         str(index_path),  # Use centralized storage path
@@ -676,7 +770,12 @@ def handle_clean(args):
     """Handle the clean subcommand."""
     from pathlib import Path
 
-    from cicada.clean import clean_all_projects, clean_repository
+    from cicada.clean import (
+        clean_all_projects,
+        clean_index_only,
+        clean_pr_index_only,
+        clean_repository,
+    )
 
     # Handle --all flag
     if args.all:
@@ -687,12 +786,25 @@ def handle_clean(args):
             sys.exit(1)
         return
 
+    # Check for conflicting flags
+    flag_count = sum([args.index, args.pr_index])
+    if flag_count > 1:
+        print("Error: Cannot specify multiple clean options.", file=sys.stderr)
+        print("Choose only one: --index, --pr-index, or -f/--force", file=sys.stderr)
+        sys.exit(1)
+
     # Clean current directory
     repo_path = Path.cwd()
 
-    # Run cleanup
+    # Run cleanup based on flags
     try:
-        clean_repository(repo_path, force=args.force)
+        if args.index:
+            clean_index_only(repo_path)
+        elif args.pr_index:
+            clean_pr_index_only(repo_path)
+        else:
+            # No specific flag - do full clean (with or without confirmation based on --force)
+            clean_repository(repo_path, force=args.force)
     except Exception as e:
         print(f"\nError: Cleanup failed: {e}", file=sys.stderr)
         sys.exit(1)

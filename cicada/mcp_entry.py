@@ -352,8 +352,10 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  cicada-mcp clean                   # Clean current repository (with confirmation)
-  cicada-mcp clean -f                # Clean current repository (skip confirmation)
+  cicada-mcp clean                   # Remove everything (interactive with confirmation)
+  cicada-mcp clean -f                # Remove everything (skip confirmation)
+  cicada-mcp clean --index           # Remove main index (index.json, hashes.json)
+  cicada-mcp clean --pr-index        # Remove PR index (pr_index.json)
   cicada-mcp clean --all             # Remove ALL project storage
   cicada-mcp clean --all -f          # Remove ALL project storage (skip confirmation)
         """,
@@ -362,7 +364,17 @@ Examples:
         "-f",
         "--force",
         action="store_true",
-        help="Skip confirmation prompt",
+        help="Skip confirmation prompt (for full clean or --all)",
+    )
+    clean_parser.add_argument(
+        "--index",
+        action="store_true",
+        help="Remove only main index files (index.json, hashes.json)",
+    )
+    clean_parser.add_argument(
+        "--pr-index",
+        action="store_true",
+        help="Remove only PR index file (pr_index.json)",
     )
     clean_parser.add_argument(
         "--all",

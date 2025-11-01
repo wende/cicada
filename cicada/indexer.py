@@ -132,6 +132,10 @@ class ElixirIndexer:
 
         if self.verbose:
             print(f"Indexing repository: {repo_path_obj}")
+            if extract_keywords:
+                # Read and display keyword extraction config
+                method, tier = read_keyword_extraction_config(repo_path_obj)
+                print(f"Keyword extraction: {method.upper()} ({tier})")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -169,8 +173,6 @@ class ElixirIndexer:
 
         if self.verbose:
             print(f"Found {total_files} Elixir files")
-            if extract_keywords:
-                print("Keyword extraction enabled")
 
         # Parse all files
         all_modules = {}
@@ -384,7 +386,10 @@ class ElixirIndexer:
             return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
 
         if self.verbose:
+            # Read and display keyword extraction config
+            method, tier = read_keyword_extraction_config(repo_path_obj)
             print(f"Performing incremental index of: {repo_path_obj}")
+            print(f"Keyword extraction: {method.upper()} ({tier})")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -624,11 +629,6 @@ def main():
         help="Output path for the index file (default: .cicada/index.json)",
     )
     parser.add_argument(
-        "--extract-keywords",
-        action="store_true",
-        help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
-    )
-    parser.add_argument(
         "--full",
         action="store_true",
         help="Force full reindex, ignoring existing hashes (default: incremental)",
@@ -642,7 +642,7 @@ def main():
     indexer.incremental_index_repository(
         args.repo,
         args.output,
-        extract_keywords=args.extract_keywords,
+        extract_keywords=True,
         force_full=args.full,
     )
 

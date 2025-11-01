@@ -11,7 +11,12 @@ import shutil
 import sys
 from pathlib import Path
 
-from cicada.utils import get_storage_dir
+from cicada.utils import (
+    get_hashes_path,
+    get_index_path,
+    get_pr_index_path,
+    get_storage_dir,
+)
 
 
 def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bool:
@@ -54,6 +59,104 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
         print(f"Warning: Could not process {config_path}: {e}")
 
     return False
+
+
+def clean_index_only(repo_path: Path) -> None:
+    """
+    Remove only the main index files (index.json and hashes.json).
+
+    Args:
+        repo_path: Path to the repository
+    """
+    repo_path = repo_path.resolve()
+
+    print("=" * 60)
+    print("Cicada Clean - Main Index")
+    print("=" * 60)
+    print()
+    print(f"Repository: {repo_path}")
+    print()
+
+    # Collect index files to remove
+    items_to_remove: list[tuple[str, Path]] = []
+
+    index_path = get_index_path(repo_path)
+    hashes_path = get_hashes_path(repo_path)
+
+    if index_path.exists():
+        items_to_remove.append(("Main index", index_path))
+    if hashes_path.exists():
+        items_to_remove.append(("File hashes", hashes_path))
+
+    # Show what will be removed
+    if not items_to_remove:
+        print("✓ No main index files found.")
+        print()
+        return
+
+    print("The following items will be removed:")
+    print()
+    for desc, path in items_to_remove:
+        print(f"  • {desc}: {path}")
+    print()
+
+    # Remove items
+    removed_count = 0
+    for desc, path in items_to_remove:
+        try:
+            path.unlink()
+            print(f"✓ Removed {desc}")
+            removed_count += 1
+        except (OSError, PermissionError) as e:
+            print(f"✗ Failed to remove {desc}: {e}")
+
+    print()
+    print("=" * 60)
+    print(f"✓ Cleanup Complete! ({removed_count} items removed)")
+    print("=" * 60)
+    print()
+
+
+def clean_pr_index_only(repo_path: Path) -> None:
+    """
+    Remove only the PR index file (pr_index.json).
+
+    Args:
+        repo_path: Path to the repository
+    """
+    repo_path = repo_path.resolve()
+
+    print("=" * 60)
+    print("Cicada Clean - PR Index")
+    print("=" * 60)
+    print()
+    print(f"Repository: {repo_path}")
+    print()
+
+    pr_index_path = get_pr_index_path(repo_path)
+
+    if not pr_index_path.exists():
+        print("✓ No PR index file found.")
+        print()
+        return
+
+    print("The following item will be removed:")
+    print()
+    print(f"  • PR index: {pr_index_path}")
+    print()
+
+    # Remove PR index
+    try:
+        pr_index_path.unlink()
+        print("✓ Removed PR index")
+        print()
+        print("=" * 60)
+        print("✓ Cleanup Complete!")
+        print("=" * 60)
+        print()
+    except (OSError, PermissionError) as e:
+        print(f"✗ Failed to remove PR index: {e}")
+        sys.exit(1)
 
 
 def clean_repository(repo_path: Path, force: bool = False) -> None:

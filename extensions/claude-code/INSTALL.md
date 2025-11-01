@@ -125,8 +125,10 @@ uv tool install git+https://github.com/wende/cicada.git@latest
 
 ```bash
 cd /path/to/elixir/project
-cicada index . --output ~/.cicada/projects/<project>/index.json --nlp
+cicada index . --nlp
 ```
+
+Note: Index files are automatically stored in `~/.cicada/projects/<repo_hash>/index.json`.
 
 #### Step 3: Create `.mcp.json` Manually
 

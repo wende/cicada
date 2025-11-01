@@ -47,19 +47,6 @@ cicada index  # Only processes changed files
 cicada index --full
 ```
 
-### With Keyword Extraction
-
-```bash
-# First run with keywords (slow but only once)
-cicada index --extract-keywords
-
-# Subsequent runs with keywords (much faster!)
-cicada index --extract-keywords  # Only extracts from changed files
-
-# Force full keyword reindex
-cicada index --extract-keywords --full
-```
-
 ### Switching Keyword Extraction Methods
 
 When switching between keyword extraction methods (lemminflect vs BERT), you should use `--full` to ensure consistent keywords across all files:
@@ -149,7 +136,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada index --extract-keywords
+cicada index --nlp  # or --rag
 ```
 
 The incremental indexing system will:
@@ -312,7 +299,7 @@ _handle_interrupt() called
 **During active development:**
 ```bash
 # Edit 2-3 files, reindex frequently
-cicada index --extract-keywords  # ~1-2s instead of ~50s
+cicada index --nlp  # ~1-2s instead of ~50s (only reprocesses changed files)
 ```
 
 **After git pull:**
@@ -369,8 +356,11 @@ priv/           # Private resources
 # Force full reindex
 cicada index --full
 
-# With keywords
-cicada index --extract-keywords --full
+# With NLP keyword extraction
+cicada index --nlp --full
+
+# With BERT keyword extraction
+cicada index --rag --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -445,8 +435,8 @@ Add to your development workflow:
 # After pulling changes
 git pull && cicada index
 
-# Before committing (if using keyword search)
-cicada index --extract-keywords && git commit
+# Before committing (reindex changed files)
+cicada index --nlp && git commit
 ```
 
 ### 2. CI/CD Integration
@@ -457,7 +447,7 @@ In your CI pipeline:
 # .github/workflows/ci.yml
 - name: Index codebase
   run: |
-    cicada index --extract-keywords
+    cicada index --nlp
     # Run tests that depend on index
     pytest tests/
 ```
@@ -471,7 +461,7 @@ Create `.git/hooks/pre-commit`:
 ```bash
 #!/bin/bash
 # Reindex changed files before commit
-cicada index --extract-keywords
+cicada index --nlp
 ```
 
 ### 4. Storage Location
@@ -494,12 +484,12 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada index --extract-keywords --full
+cicada index --nlp --full  # or --rag --full
 ```
 
 This ensures:
 - No accumulated drift from interrupted runs
-- Fresh keyword extraction with latest models
+- Fresh keyword extraction with current configuration
 - Cleanup of any orphaned entries
 
 ## Advanced Usage

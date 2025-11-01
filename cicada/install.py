@@ -625,11 +625,6 @@ def main():
         help="Fetch PR information during indexing (requires GitHub CLI and may be slow)",
     )
     _ = parser.add_argument(
-        "--skip-install",
-        action="store_true",
-        help="Skip installing dependencies (use if already installed)",
-    )
-    _ = parser.add_argument(
         "--use-uv",
         action="store_true",
         help="Force use of uv for dependency installation (faster)",
@@ -667,7 +662,7 @@ def main():
         # Package already installed, use current Python
         python_bin = sys.executable
         print(f"✓ Using Python from installed package: {python_bin}")
-    elif not args.skip_install:
+    else:
         # Determine which package manager to use
         use_uv = None
         if args.use_uv:
@@ -677,14 +672,6 @@ def main():
         # Otherwise use_uv=None for auto-detect
 
         python_bin = install_dependencies(cicada_dir, use_uv=use_uv)
-    else:
-        # Try to find existing python binary
-        python_bin = cicada_dir / ".venv" / "bin" / "python"
-        if not python_bin.exists():
-            python_bin = cicada_dir / "venv" / "bin" / "python"
-        if not python_bin.exists():
-            python_bin = sys.executable
-        print(f"✓ Skipping dependency installation, using {python_bin}")
 
     # Index repository
     index_path = index_repository(cicada_dir, python_bin, args.repo, args.pr_info)
