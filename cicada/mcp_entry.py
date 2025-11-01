@@ -3,8 +3,9 @@
 Entry point for cicada-mcp command.
 
 Behavior:
-- With no args + TTY: Interactive setup
-- With no args + non-TTY: Start MCP server (for MCP clients)
+- With no args: Start MCP server
+- With path arg: Start MCP server for that path
+- cicada-mcp install: Interactive setup with editor and model selection
 - With subcommands: Route to appropriate handler (same as cicada CLI)
 
 This provides unified command interface for both cicada and cicada-mcp.
@@ -12,16 +13,6 @@ This provides unified command interface for both cicada and cicada-mcp.
 
 import argparse
 import sys
-
-
-def is_tty() -> bool:
-    """
-    Detect if running in a TTY (terminal) context.
-
-    Returns:
-        True if both stdin and stdout are TTYs (terminal), False otherwise
-    """
-    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def main():
@@ -436,29 +427,14 @@ Examples:
 
         handle_clean(args)
     else:
-        # No subcommand - check TTY for default behavior
-        if is_tty():
-            # Terminal context - show interactive setup
-            handle_default_interactive(args)
-        else:
-            # Non-TTY (MCP client) - start server silently
-            handle_default_server(args)
-
-
-def handle_default_interactive(args):
-    """
-    Handle default behavior when called from terminal with no subcommand.
-    Shows interactive setup (same as cicada with no args).
-    """
-    from cicada.interactive_setup import show_full_interactive_setup
-
-    show_full_interactive_setup()
+        # No subcommand - start server
+        handle_default_server(args)
 
 
 def handle_default_server(args):
     """
-    Handle default behavior when called from MCP client with no subcommand.
-    Starts MCP server silently (backward compatibility).
+    Handle default behavior when called with no subcommand.
+    Starts MCP server silently.
     """
     import asyncio
     import os
@@ -476,17 +452,247 @@ def handle_default_server(args):
 
 
 def handle_install(args):
-    """Handle the install subcommand (interactive setup)."""
-    from cicada.commands.install import handle_install as _handle_install
+    """
+    Handle the install subcommand (interactive setup).
 
-    _handle_install(args)
+    Behavior:
+    - INTERACTIVE: shows prompts and menus
+    - Can skip prompts with flags (--claude, --cursor, --vs, --nlp, --rag)
+    - Creates editor config and indexes repository
+    """
+    from pathlib import Path
+
+    from cicada.interactive_setup import show_first_time_setup
+    from cicada.setup import EditorType, setup
+    from cicada.utils import get_config_path, get_index_path
+
+    # Determine repository path
+    repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
+
+    # Validate it's an Elixir project
+    if not (repo_path / "mix.exs").exists():
+        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
+        print("(mix.exs not found)", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate flag combinations
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
+        sys.exit(1)
+
+    if args.nlp and args.rag:
+        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+        sys.exit(1)
+
+    # Count editor flags
+    editor_flags = [args.claude, args.cursor, args.vs]
+    editor_count = sum(editor_flags)
+
+    if editor_count > 1:
+        print("Error: Can only specify one editor flag for install command", file=sys.stderr)
+        sys.exit(1)
+
+    # Determine editor from flags
+    editor: EditorType | None = None
+    if args.claude:
+        editor = "claude"
+    elif args.cursor:
+        editor = "cursor"
+    elif args.vs:
+        editor = "vs"
+
+    # Determine keyword method and tier from flags
+    keyword_method = None
+    keyword_tier = None
+
+    if args.nlp:
+        keyword_method = "lemminflect"
+        keyword_tier = "regular"
+    elif args.rag:
+        keyword_method = "bert"
+        if args.fast:
+            keyword_tier = "fast"
+        elif args.max:
+            keyword_tier = "max"
+        else:
+            keyword_tier = "regular"
+
+    # Check if index already exists
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+    index_exists = config_path.exists() and index_path.exists()
+
+    # If no flags provided, use full interactive setup
+    if editor is None and keyword_method is None:
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        show_full_interactive_setup()
+        return
+
+    # If only model flags provided (no editor), prompt for editor
+    if editor is None:
+        # Show editor selection menu
+        from simple_term_menu import TerminalMenu
+
+        print("Select editor to configure:")
+        print()
+        editor_options = [
+            "Claude Code (Claude AI assistant)",
+            "Cursor (AI-powered code editor)",
+            "VS Code (Visual Studio Code)",
+        ]
+        editor_menu = TerminalMenu(editor_options, title="Choose your editor:")
+        menu_idx = editor_menu.show()
+
+        if menu_idx is None:
+            print("\nSetup cancelled.")
+            sys.exit(0)
+
+        # Map menu index to editor type (menu_idx is guaranteed to be int here)
+        assert isinstance(menu_idx, int), "menu_idx must be an integer"
+        editor_map: tuple[EditorType, EditorType, EditorType] = ("claude", "cursor", "vs")
+        editor = editor_map[menu_idx]
+
+    # If only editor flag provided (no model), prompt for model (unless index exists)
+    if keyword_method is None and not index_exists:
+        keyword_method, keyword_tier = show_first_time_setup()
+
+    # If index exists but no model flags, use existing settings
+    if keyword_method is None and index_exists:
+        import yaml
+
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                keyword_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "lemminflect"
+                )
+                keyword_tier = existing_config.get("keyword_extraction", {}).get("tier", "regular")
+        except Exception:
+            # If we can't read config, use defaults
+            keyword_method = "lemminflect"
+            keyword_tier = "regular"
+
+    # Run setup
+    try:
+        setup(
+            editor,
+            repo_path,
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            index_exists=index_exists,
+        )
+    except Exception as e:
+        print(f"\nError: Setup failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_server(args):
-    """Handle the server subcommand (silent MCP server with optional configs)."""
-    from cicada.commands.server import handle_server as _handle_server
+    """
+    Handle the server subcommand (silent MCP server with optional configs).
 
-    _handle_server(args)
+    Behavior:
+    - SILENT: no prompts, no interactive menus
+    - Auto-setup if needed (uses default model: lemminflect)
+    - Creates editor configs if flags provided (--claude, --cursor, --vs)
+    - Starts MCP server on stdio
+    """
+    import asyncio
+    import os
+    from pathlib import Path
+
+    from cicada.setup import (
+        EditorType,
+        create_config_yaml,
+        index_repository,
+        setup_multiple_editors,
+    )
+    from cicada.utils import create_storage_dir, get_config_path, get_index_path
+
+    # Determine repository path
+    repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
+
+    # Validate it's an Elixir project
+    if not (repo_path / "mix.exs").exists():
+        print(
+            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Validate flag combinations
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
+        sys.exit(1)
+
+    if args.nlp and args.rag:
+        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+        sys.exit(1)
+
+    # Create storage directory
+    storage_dir = create_storage_dir(repo_path)
+
+    # Determine keyword extraction method and tier
+    keyword_method = None
+    keyword_tier = None
+
+    if args.nlp:
+        keyword_method = "lemminflect"
+        keyword_tier = "regular"
+    elif args.rag:
+        keyword_method = "bert"
+        if args.fast:
+            keyword_tier = "fast"
+        elif args.max:
+            keyword_tier = "max"
+        else:
+            keyword_tier = "regular"
+
+    # Check if setup is needed
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+    needs_setup = not (config_path.exists() and index_path.exists())
+
+    if needs_setup:
+        # Silent setup with defaults
+        # If no method specified, default to lemminflect (fastest, no downloads)
+        if keyword_method is None:
+            keyword_method = "lemminflect"
+            keyword_tier = "regular"
+
+        # Create config.yaml (silent)
+        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+
+        # Index repository (silent)
+        try:
+            index_repository(repo_path, force_full=False, verbose=False)
+        except Exception as e:
+            print(f"Error during indexing: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Create editor configs if flags provided
+    editors_to_configure: list[EditorType] = []
+    if args.claude:
+        editors_to_configure.append("claude")
+    if args.cursor:
+        editors_to_configure.append("cursor")
+    if args.vs:
+        editors_to_configure.append("vs")
+
+    if editors_to_configure:
+        try:
+            setup_multiple_editors(editors_to_configure, repo_path, storage_dir, verbose=False)
+        except Exception as e:
+            print(f"Error creating editor configs: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Set environment variable for MCP server
+    os.environ["CICADA_REPO_PATH"] = str(repo_path)
+
+    # Start MCP server (silent)
+    from cicada.mcp_server import async_main
+
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":

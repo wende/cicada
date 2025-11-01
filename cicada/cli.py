@@ -417,14 +417,14 @@ def handle_install(args):
 
 def handle_install_command(args):
     """Handle the explicit install subcommand."""
-    from cicada.commands.install import handle_install
+    from cicada.mcp_entry import handle_install
 
     handle_install(args)
 
 
 def handle_server_command(args):
     """Handle the server subcommand (silent MCP server with optional configs)."""
-    from cicada.commands.server import handle_server
+    from cicada.mcp_entry import handle_server
 
     handle_server(args)
 
