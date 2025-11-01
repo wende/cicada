@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+test-*
+
+# Development
+.editorconfig
+.pre-commit-config.yaml
+Makefile
+
+# Cicada specific
+.cicada/
+.mcp.json
+.cursor/
+
+# Misc
+*.log
+.DS_Store
