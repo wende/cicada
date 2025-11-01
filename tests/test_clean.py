@@ -246,18 +246,25 @@ class TestCleanRepository:
             clean_repository(repo_path, force=True)
 
     def test_handles_permission_errors(self, mock_repo, capsys):
-        """Should handle permission errors gracefully"""
+        """Should exit with error code when permission errors occur"""
         repo_path, storage_dir = mock_repo
 
         # Make storage directory unremovable
         storage_dir.chmod(0o000)
 
         try:
-            with patch("cicada.clean.get_storage_dir", return_value=storage_dir):
+            with (
+                patch("cicada.clean.get_storage_dir", return_value=storage_dir),
+                pytest.raises(SystemExit) as exc_info,
+            ):
                 clean_repository(repo_path, force=True)
+
+            # Should exit with error code 1
+            assert exc_info.value.code == 1
 
             captured = capsys.readouterr()
             assert "Failed" in captured.out
+            assert "⚠ Cleanup completed with errors" in captured.out
         finally:
             # Restore permissions for cleanup
             storage_dir.chmod(0o755)

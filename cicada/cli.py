@@ -13,12 +13,31 @@ Provides a single `cicada` command with multiple subcommands:
 """
 
 import argparse
-import io
 import sys
 
 
 def main():
     """Main entry point for the unified cicada CLI."""
+    # Pre-process arguments for backward compatibility
+    # If first arg is not a known subcommand and looks like a path, inject "install"
+    if len(sys.argv) > 1:
+        first_arg = sys.argv[1]
+        known_commands = [
+            "install",
+            "server",
+            "claude",
+            "cursor",
+            "vs",
+            "index",
+            "index-pr",
+            "find-dead-code",
+            "clean",
+        ]
+        # If first arg is not a known command and not a help flag, treat as path for install
+        if first_arg not in known_commands and not first_arg.startswith("-"):
+            # Insert 'install' as the subcommand
+            sys.argv.insert(1, "install")
+
     parser = argparse.ArgumentParser(
         prog="cicada",
         description="Cicada - AI-powered Elixir code analysis and search",
@@ -348,79 +367,8 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
-    # Parse arguments - handle case where first arg might be a path, not a subcommand
-    path_or_command = None
-    parse_error_output = None
-    try:
-        # Capture stderr during parsing to suppress argparse errors for paths
-        stderr_capture = io.StringIO()
-        original_stderr = sys.stderr
-        sys.stderr = stderr_capture
-
-        try:
-            args, remaining_args = parser.parse_known_args()
-            # If no subcommand was specified and there are remaining args, treat first arg as path
-            if args.command is None and remaining_args:
-                path_or_command = remaining_args[0]
-        finally:
-            # Restore stderr
-            parse_error_output = stderr_capture.getvalue()
-            sys.stderr = original_stderr
-
-    except SystemExit:
-        # ArgumentError was raised - check if it's because of an invalid subcommand choice
-        # If so, the first argument might be a path
-        if len(sys.argv) > 1:
-            potential_path = sys.argv[1]
-            # Check if it looks like a path (starts with . or /)
-            if potential_path.startswith((".", "/")):
-                # Treat it as a path for handle_install
-                # Don't print the argparse error since we're handling this as a path
-                path_or_command = potential_path
-                # Create a minimal args object
-                args = argparse.Namespace(command=None, path_or_command=path_or_command)
-            else:
-                # Re-raise the error and show the argparse error output
-                if parse_error_output:
-                    sys.stderr.write(parse_error_output)
-                raise
-        else:
-            if parse_error_output:
-                sys.stderr.write(parse_error_output)
-            raise
-
-    # Detect if path_or_command is a path (starts with . or /)
-    is_path = False
-    if path_or_command:
-        is_path = path_or_command.startswith((".", "/"))
-
-    # Handle the case where path_or_command might be a subcommand
-    # This handles backward compatibility where someone might run "cicada index"
-    # without using proper subparsers
-    # Only check for subcommands if it's NOT a path
-    if (
-        args.command is None
-        and not is_path
-        and path_or_command
-        in [
-            "install",
-            "server",
-            "claude",
-            "cursor",
-            "vs",
-            "index",
-            "index-pr",
-            "find-dead-code",
-            "clean",
-        ]
-    ):
-        # User typed "cicada index" etc. - show help for that subcommand
-        parser.parse_args([path_or_command, "--help"])
-        return
-
-    # Add path_or_command to args for backward compatibility if not already set
-    if not hasattr(args, "path_or_command"):
-        args.path_or_command = path_or_command
+    # Parse arguments - now simplified with pre-processing above
+    args = parser.parse_args()
 
     # Route to appropriate handler
     if args.command == "install":
@@ -441,35 +389,10 @@ Examples:
         handle_find_dead_code(args)
     elif args.command == "clean":
         handle_clean(args)
-    else:
-        # No subcommand - default to install behavior
-        handle_install(args)
-
-
-def handle_install(args):
-    """Handle the default install/setup behavior (no subcommand)."""
-    from pathlib import Path
-
-    from cicada.interactive_setup import show_full_interactive_setup
-
-    # Determine the repository path
-    repo_path = None
-    if args.path_or_command:
-        # Path provided - resolve it relative to cwd
-        if args.path_or_command.startswith((".", "/")):
-            # Relative or absolute path
-            repo_path = str(Path(args.path_or_command).resolve())
-        else:
-            # Non-path argument (shouldn't happen, but handle for backwards compatibility)
-            print("Error: Direct path indexing is no longer supported.", file=sys.stderr)
-            print("\nPlease use one of the setup commands instead:", file=sys.stderr)
-            print("  cicada claude  # For Claude Code", file=sys.stderr)
-            print("  cicada cursor  # For Cursor", file=sys.stderr)
-            print("  cicada vs      # For VS Code", file=sys.stderr)
-            sys.exit(1)
-
-    # Show interactive setup for the specified path (or cwd if no path)
-    show_full_interactive_setup(repo_path)
+    elif args.command is None:
+        # No subcommand and no path - show help
+        parser.print_help()
+        sys.exit(1)
 
 
 def handle_install_command(args):
@@ -639,7 +562,6 @@ def handle_index(args):
     # Determine keyword extraction method and tier
     keyword_method = None
     keyword_tier = None
-    force_full = False
 
     # If flags provided, update config with new settings
     if args.nlp or args.rag:
@@ -719,7 +641,7 @@ def handle_index(args):
         str(repo_path_obj),
         str(index_path),  # Use centralized storage path
         extract_keywords=True,  # Always extract keywords if we have a config
-        force_full=force_full,
+        force_full=False,
     )
 
 
