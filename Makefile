@@ -95,6 +95,16 @@ lint: install
 # Run all pre-commit checks
 pre-commit: install
 	@echo "Running pre-commit checks..."
+	@echo "Fetching latest tags..."
+	@git fetch --tags --quiet 2>/dev/null || true
+	@echo "Updating version hash..."
+	@GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	GIT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown"); \
+	echo "\"\"\"Auto-generated file containing build-time git tag and hash.\"\"\"" > cicada/_version_hash.py; \
+	echo "" >> cicada/_version_hash.py; \
+	echo "GIT_TAG = \"$$GIT_TAG\"" >> cicada/_version_hash.py; \
+	echo "GIT_HASH = \"$$GIT_HASH\"" >> cicada/_version_hash.py; \
+	git add cicada/_version_hash.py
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
