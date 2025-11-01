@@ -96,9 +96,9 @@ class ModuleData:
     public_functions: int | None = None
     private_functions: int | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {
+        result: dict[str, Any] = {
             "file": self.file,
             "line": self.line,
             "functions": self.functions,
@@ -261,14 +261,12 @@ class UniversalIndexSchema:
 
             # Check required module fields
             required_module_fields = ["file", "line", "functions"]
-            for field in required_module_fields:
-                if field not in module_data:
-                    errors.append(f"Module '{module_name}' missing required field: '{field}'")
+            for field_name in required_module_fields:
+                if field_name not in module_data:
+                    errors.append(f"Module '{module_name}' missing required field: '{field_name}'")
 
             # Validate functions list
-            if "functions" in module_data and not isinstance(
-                module_data["functions"], list
-            ):
+            if "functions" in module_data and not isinstance(module_data["functions"], list):
                 errors.append(f"Module '{module_name}' functions must be a list")
 
         return (len(errors) == 0, errors)

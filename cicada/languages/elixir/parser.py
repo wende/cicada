@@ -42,7 +42,7 @@ class ElixirParser(BaseParser):
         """Return the language identifier for this parser."""
         return "elixir"
 
-    def get_tree_sitter_language(self):
+    def get_tree_sitter_language(self) -> "Language":  # type: ignore[name-defined]
         """Return the tree-sitter Language instance for Elixir."""
         return self.language
 

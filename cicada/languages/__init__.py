@@ -12,7 +12,6 @@ class LanguageNotSupportedError(Exception):
     """Raised when a requested language is not supported."""
 
 
-
 class LanguageRegistry:
     """
     Factory for creating language-specific parsers and indexers.

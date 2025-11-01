@@ -1,6 +1,5 @@
 """Tests for configuration file validation."""
 
-
 import pytest
 import yaml
 

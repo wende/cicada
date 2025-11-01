@@ -5,6 +5,7 @@ Defines configuration settings that are specific to each programming language.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -30,9 +31,9 @@ class LanguageConfig:
     # Language-specific parsing options
     parse_options: dict = field(default_factory=dict)  # Extra parsing configuration
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML serialization."""
-        result = {
+        result: dict[str, Any] = {
             "language": self.language,
             "file_extensions": self.file_extensions,
             "excluded_dirs": self.excluded_dirs,

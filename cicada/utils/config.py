@@ -14,7 +14,6 @@ class ConfigValidationError(Exception):
     """Raised when configuration validation fails."""
 
 
-
 class Config:
     """Represents a validated Cicada configuration."""
 
