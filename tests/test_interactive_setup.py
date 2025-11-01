@@ -727,3 +727,731 @@ class TestFallbackScenarios:
             show_first_time_setup()
 
         assert exc_info.value.code == 1
+
+
+class TestTextBasedEditorSelection:
+    """Tests for _text_based_editor_selection function"""
+
+    @patch("builtins.input")
+    def test_claude_selection(self, mock_input):
+        """Test selecting Claude Code"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "1"
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "claude"
+
+    @patch("builtins.input")
+    def test_cursor_selection(self, mock_input):
+        """Test selecting Cursor"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "2"
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "cursor"
+
+    @patch("builtins.input")
+    def test_vs_selection(self, mock_input):
+        """Test selecting VS Code"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "3"
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "vs"
+
+    @patch("builtins.input")
+    def test_default_selection(self, mock_input):
+        """Test default selection (empty input defaults to Claude)"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = ""
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "claude"
+
+    @patch("builtins.input")
+    def test_invalid_then_valid(self, mock_input, capsys):
+        """Test invalid input followed by valid input"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.side_effect = ["4", "invalid", "2"]
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "cursor"
+        captured = capsys.readouterr()
+        assert "Invalid choice" in captured.out
+
+    @patch("builtins.input")
+    def test_keyboard_interrupt(self, mock_input):
+        """Test Ctrl+C exits gracefully"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.side_effect = KeyboardInterrupt()
+
+        with pytest.raises(SystemExit) as exc_info:
+            _text_based_editor_selection()
+
+        assert exc_info.value.code == 1
+
+    @patch("builtins.input")
+    def test_eof_error(self, mock_input):
+        """Test EOF (Ctrl+D) exits gracefully"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.side_effect = EOFError()
+
+        with pytest.raises(SystemExit) as exc_info:
+            _text_based_editor_selection()
+
+        assert exc_info.value.code == 1
+
+    @patch("builtins.input")
+    def test_shows_editor_options(self, mock_input, capsys):
+        """Test that all editor options are displayed"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "1"
+
+        _text_based_editor_selection()
+
+        captured = capsys.readouterr()
+        assert "Claude Code" in captured.out
+        assert "Cursor" in captured.out
+        assert "VS Code" in captured.out
+
+
+class TestShowFullInteractiveSetup:
+    """Tests for show_full_interactive_setup function"""
+
+    @pytest.fixture
+    def mock_elixir_repo(self, tmp_path):
+        """Create a mock Elixir repository"""
+        (tmp_path / "mix.exs").write_text("# Mock mix file")
+        return tmp_path
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_full_setup_claude_lemminflect(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test full interactive setup with Claude and Lemminflect"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # Mock paths to not exist (no existing index)
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Menu selections: editor=0 (Claude), method=0 (Lemminflect)
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_class.return_value = mock_menu_instance
+
+        show_full_interactive_setup(mock_elixir_repo)
+
+        # Verify setup was called with correct parameters
+        mock_setup.assert_called_once()
+        call_args = mock_setup.call_args[0]
+        call_kwargs = mock_setup.call_args[1]
+        assert call_args[0] == "claude"
+        assert call_kwargs["keyword_method"] == "lemminflect"
+        assert call_kwargs["keyword_tier"] == "regular"
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_full_setup_cursor_bert_fast(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test full interactive setup with Cursor and BERT fast"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # Mock paths to not exist
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Menu selections: editor=1 (Cursor), method=1 (BERT), tier=0 (fast)
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [1, 1, 0]
+        mock_menu_class.return_value = mock_menu_instance
+
+        show_full_interactive_setup(mock_elixir_repo)
+
+        mock_setup.assert_called_once()
+        call_args = mock_setup.call_args[0]
+        call_kwargs = mock_setup.call_args[1]
+        assert call_args[0] == "cursor"
+        assert call_kwargs["keyword_method"] == "bert"
+        assert call_kwargs["keyword_tier"] == "fast"
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_full_setup_vs_bert_max(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test full interactive setup with VS Code and BERT max"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # Mock paths to not exist
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Menu selections: editor=2 (VS), method=1 (BERT), tier=2 (max)
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [2, 1, 2]
+        mock_menu_class.return_value = mock_menu_instance
+
+        show_full_interactive_setup(mock_elixir_repo)
+
+        mock_setup.assert_called_once()
+        call_args = mock_setup.call_args[0]
+        call_kwargs = mock_setup.call_args[1]
+        assert call_args[0] == "vs"
+        assert call_kwargs["keyword_method"] == "bert"
+        assert call_kwargs["keyword_tier"] == "max"
+
+    def test_non_elixir_project_exits(self, tmp_path, capsys):
+        """Test that non-Elixir project shows error and exits"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        # No mix.exs file
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(tmp_path)
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "does not appear to be an Elixir project" in captured.out
+        assert "mix.exs not found" in captured.out
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_existing_index_uses_existing_config(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test that existing index causes existing config to be read and used"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # Mock paths to exist
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = True
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = True
+        mock_get_index.return_value = mock_index_path
+
+        # Mock reading the config file
+        with (
+            patch("builtins.open", MagicMock()),
+            patch(
+                "yaml.safe_load",
+                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
+            ),
+        ):
+            # Only editor selection should happen (index 0 = Claude)
+            mock_menu_instance = MagicMock()
+            mock_menu_instance.show.return_value = 0
+            mock_menu_class.return_value = mock_menu_instance
+
+            show_full_interactive_setup(mock_elixir_repo)
+
+            # Should call setup with existing settings
+            mock_setup.assert_called_once()
+            call_kwargs = mock_setup.call_args[1]
+            assert call_kwargs["keyword_method"] == "bert"
+            assert call_kwargs["keyword_tier"] == "fast"
+            assert call_kwargs["index_exists"] is True
+
+            # Should only show editor menu, not method/tier menus
+            assert mock_menu_instance.show.call_count == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    def test_keyboard_interrupt_on_editor_selection(
+        self, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test Ctrl+C during editor selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = KeyboardInterrupt()
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_keyboard_interrupt_on_method_selection(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test Ctrl+C during method selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor selection succeeds, method selection gets Ctrl+C
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, KeyboardInterrupt()]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_keyboard_interrupt_on_tier_selection(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test Ctrl+C during tier selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor + method succeed, tier gets Ctrl+C
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, KeyboardInterrupt()]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_none_selection_on_editor(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test ESC on editor selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.return_value = None
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_none_selection_on_method(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test ESC on method selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor succeeds, method returns None
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, None]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_none_selection_on_tier(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test ESC on tier selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor + method succeed, tier returns None
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, None]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_setup_failure_exits_with_error(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+        capsys,
+    ):
+        """Test that setup failure shows error and exits"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_class.return_value = mock_menu_instance
+
+        mock_setup.side_effect = Exception("Setup failed")
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Setup failed" in captured.out
+
+    @patch("cicada.interactive_setup.has_terminal_menu", False)
+    @patch("builtins.input")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_fallback_to_text_based_editor_selection(
+        self, mock_get_index, mock_get_config, mock_input, mock_elixir_repo
+    ):
+        """Test fallback to text-based editor selection when terminal menu unavailable"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Text-based inputs: editor=2 (Cursor), method=1 (Lemminflect)
+        # When has_terminal_menu=False, it calls show_first_time_setup and returns early
+        mock_input.side_effect = ["2", "1"]
+
+        # Should run without errors and use text-based fallback
+        # Note: When has_terminal_menu=False and there's no existing index,
+        # it calls show_first_time_setup which returns early without calling setup()
+        show_full_interactive_setup(mock_elixir_repo)
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("builtins.input")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_fallback_on_exception_during_editor_menu(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_input,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test fallback when editor menu raises exception"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = Exception("Terminal error")
+        mock_menu_class.return_value = mock_menu_instance
+
+        # Text-based fallback input
+        mock_input.side_effect = ["1"]
+
+        # Should not raise, should fall back to text-based
+        with patch("cicada.setup.setup"), pytest.raises((SystemExit, Exception)):
+            show_full_interactive_setup(mock_elixir_repo)
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("builtins.input")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_fallback_on_exception_during_method_menu(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_input,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test fallback when method menu raises exception"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor succeeds, method menu fails
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, Exception("Terminal error")]
+        mock_menu_class.return_value = mock_menu_instance
+
+        # Text-based fallback for method and tier
+        mock_input.side_effect = ["1"]
+
+        # Should fall back and complete
+        with patch("cicada.setup.setup"):
+            show_full_interactive_setup(mock_elixir_repo)
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("builtins.input")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_fallback_on_exception_during_tier_menu(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_input,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test fallback when tier menu raises exception"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor + method succeed, tier fails
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, Exception("Terminal error")]
+        mock_menu_class.return_value = mock_menu_instance
+
+        # Text-based fallback
+        mock_input.side_effect = ["2", "1"]
+
+        # Should fall back and complete
+        with patch("cicada.setup.setup"):
+            show_full_interactive_setup(mock_elixir_repo)
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_config_read_error_continues_with_model_selection(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test that config read error causes model selection to be shown"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # Mock paths to exist
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = True
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = True
+        mock_get_index.return_value = mock_index_path
+
+        # But reading config fails
+        with patch("builtins.open", side_effect=Exception("Read error")):
+            mock_menu_instance = MagicMock()
+            # Editor, method, tier (all 3 menus shown due to config error)
+            mock_menu_instance.show.side_effect = [0, 0, 0]
+            mock_menu_class.return_value = mock_menu_instance
+
+            show_full_interactive_setup(mock_elixir_repo)
+
+            # Should show all menus due to config read failure
+            assert (
+                mock_menu_instance.show.call_count == 2
+            )  # Editor + method (lemminflect has no tier)
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.setup.setup")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_defaults_to_current_directory(
+        self,
+        mock_get_index,
+        mock_get_config,
+        mock_setup,
+        mock_menu_class,
+        mock_ascii,
+        mock_elixir_repo,
+    ):
+        """Test that None repo_path defaults to current directory"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with patch("pathlib.Path.cwd", return_value=mock_elixir_repo):
+            show_full_interactive_setup(None)
+
+            # Should call setup with the current directory
+            mock_setup.assert_called_once()
+            call_args = mock_setup.call_args[0]
+            assert call_args[1] == mock_elixir_repo
