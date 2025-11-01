@@ -85,30 +85,6 @@ class TestKeyBERTExtractorInitialization:
                 assert extractor.model_name == "BAAI/bge-small-en-v1.5"
                 mock_keybert_class.assert_called_once_with(model="BAAI/bge-small-en-v1.5")
 
-    def test_initialization_max_model(self):
-        """Test initialization with max model tier"""
-        mock_keybert_class = MagicMock()
-        mock_keybert_instance = MagicMock()
-        mock_keybert_class.return_value = mock_keybert_instance
-
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
-            with patch("builtins.__import__") as mock_import:
-
-                def import_side_effect(name, *args, **kwargs):
-                    if name == "keybert":
-                        module = MagicMock()
-                        module.KeyBERT = mock_keybert_class
-                        return module
-                    return MagicMock()
-
-                mock_import.side_effect = import_side_effect
-
-                extractor = KeyBERTExtractor(verbose=False, model_tier="max")
-
-                assert extractor.model_tier == "max"
-                assert extractor.model_name == "paraphrase-mpnet-base-v2"
-                mock_keybert_class.assert_called_once_with(model="paraphrase-mpnet-base-v2")
-
     def test_initialization_verbose_output(self, capsys):
         """Test verbose output during initialization"""
         mock_keybert_class = MagicMock()
@@ -570,7 +546,6 @@ class TestModelTierConfiguration:
         """Test that all model tiers are properly defined"""
         assert "fast" in KeyBERTExtractor.KEYBERT_MODELS
         assert "regular" in KeyBERTExtractor.KEYBERT_MODELS
-        assert "max" in KeyBERTExtractor.KEYBERT_MODELS
 
     def test_fast_model_configuration(self):
         """Test fast model is configured correctly"""
@@ -580,6 +555,163 @@ class TestModelTierConfiguration:
         """Test regular model is configured correctly"""
         assert KeyBERTExtractor.KEYBERT_MODELS["regular"] == "BAAI/bge-small-en-v1.5"  # 133MB model
 
-    def test_max_model_configuration(self):
-        """Test max model is configured correctly"""
-        assert KeyBERTExtractor.KEYBERT_MODELS["max"] == "paraphrase-mpnet-base-v2"  # 420MB model
+
+class TestKeywordExpansion:
+    """Tests for keyword expansion functionality"""
+
+    def test_initialization_with_expansion(self):
+        """Test initialization with expansion model"""
+        mock_keybert_class = MagicMock()
+        mock_keybert_instance = MagicMock()
+        mock_keybert_class.return_value = mock_keybert_instance
+
+        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+            with patch("builtins.__import__") as mock_import:
+
+                def import_side_effect(name, *args, **kwargs):
+                    if name == "keybert":
+                        module = MagicMock()
+                        module.KeyBERT = mock_keybert_class
+                        return module
+                    elif name == "cicada.keyword_expander":
+                        module = MagicMock()
+                        module.KeywordExpander = MagicMock()
+                        return module
+                    return MagicMock()
+
+                mock_import.side_effect = import_side_effect
+
+                with patch("cicada.keybert_extractor.KeywordExpander") as mock_expander_class:
+                    extractor = KeyBERTExtractor(
+                        verbose=False, model_tier="fast", expansion_model="fasttext"
+                    )
+
+                    assert extractor.expansion_model == "fasttext"
+                    mock_expander_class.assert_called_once_with(
+                        model_type="fasttext", verbose=False
+                    )
+
+    def test_initialization_without_expansion(self):
+        """Test initialization without expansion model"""
+        mock_keybert_class = MagicMock()
+        mock_keybert_instance = MagicMock()
+        mock_keybert_class.return_value = mock_keybert_instance
+
+        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+            with patch("builtins.__import__") as mock_import:
+
+                def import_side_effect(name, *args, **kwargs):
+                    if name == "keybert":
+                        module = MagicMock()
+                        module.KeyBERT = mock_keybert_class
+                        return module
+                    return MagicMock()
+
+                mock_import.side_effect = import_side_effect
+
+                extractor = KeyBERTExtractor(verbose=False, model_tier="fast")
+
+                assert extractor.expansion_model is None
+                assert extractor.expander is None
+
+    @patch("cicada.keybert_extractor.KeywordExpander")
+    def test_extract_keywords_with_expansion(self, mock_expander_class):
+        """Test that expansion is applied during keyword extraction"""
+        # Create mock KeyBERT extractor
+        mock_keybert_class = MagicMock()
+        mock_keybert_instance = MagicMock()
+        mock_keybert_class.return_value = mock_keybert_instance
+
+        # Mock KeyBERT extraction results
+        mock_keybert_instance.extract_keywords.return_value = [
+            ("database", 0.9),
+            ("authentication", 0.8),
+            ("cache", 0.7),
+        ]
+
+        # Create mock expander
+        mock_expander = MagicMock()
+        mock_expander.expand_keywords.return_value = {
+            "database": [("postgresql", 0.85), ("mysql", 0.82)],
+            "authentication": [("verify", 0.88), ("authorize", 0.84)],
+            "cache": [("redis", 0.87)],
+        }
+        mock_expander_class.return_value = mock_expander
+
+        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", mock_keybert_class):
+            extractor = KeyBERTExtractor(
+                verbose=False, model_tier="fast", expansion_model="fasttext"
+            )
+
+            result = extractor.extract_keywords("def get_user_data(): pass", top_n=10)
+
+            # Verify expander was called
+            mock_expander.expand_keywords.assert_called_once()
+            call_args = mock_expander.expand_keywords.call_args
+            assert call_args[1]["top_n"] == 3
+            assert call_args[1]["threshold"] == 0.7
+
+            # Verify expanded_keywords field is present
+            assert "expanded_keywords" in result
+            assert result["expanded_keywords"] == {
+                "database": [("postgresql", 0.85), ("mysql", 0.82)],
+                "authentication": [("verify", 0.88), ("authorize", 0.84)],
+                "cache": [("redis", 0.87)],
+            }
+
+            # Verify expanded words appear in top_keywords with reduced score
+            top_keywords_dict = dict(result["top_keywords"])
+            # Expanded keywords should appear with 0.5x multiplier
+            # e.g., "postgresql" with similarity 0.85 should have score 0.425
+            # (but exact score depends on ranking with other keywords)
+            keyword_names = [kw for kw, _ in result["top_keywords"]]
+            assert any(word in keyword_names for word in ["postgresql", "mysql", "redis"])
+
+    def test_extract_keywords_without_expansion(self):
+        """Test that extraction works without expansion"""
+        mock_keybert_class = MagicMock()
+        mock_keybert_instance = MagicMock()
+        mock_keybert_class.return_value = mock_keybert_instance
+
+        mock_keybert_instance.extract_keywords.return_value = [
+            ("database", 0.9),
+            ("authentication", 0.8),
+        ]
+
+        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", mock_keybert_class):
+            extractor = KeyBERTExtractor(verbose=False, model_tier="fast")
+
+            result = extractor.extract_keywords("def get_user_data(): pass", top_n=10)
+
+            # Verify expanded_keywords is empty dict
+            assert "expanded_keywords" in result
+            assert result["expanded_keywords"] == {}
+
+    @patch("cicada.keybert_extractor.KeywordExpander")
+    def test_expansion_error_handling(self, mock_expander_class):
+        """Test that expansion errors are handled gracefully"""
+        mock_keybert_class = MagicMock()
+        mock_keybert_instance = MagicMock()
+        mock_keybert_class.return_value = mock_keybert_instance
+
+        mock_keybert_instance.extract_keywords.return_value = [
+            ("database", 0.9),
+        ]
+
+        # Make expander raise an error
+        mock_expander = MagicMock()
+        mock_expander.expand_keywords.side_effect = Exception("Expansion failed")
+        mock_expander_class.return_value = mock_expander
+
+        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", mock_keybert_class):
+            extractor = KeyBERTExtractor(
+                verbose=False, model_tier="fast", expansion_model="fasttext"
+            )
+
+            # Should not raise, should handle error gracefully
+            result = extractor.extract_keywords("def get_user_data(): pass", top_n=10)
+
+            # Should still return results without expansion
+            assert "expanded_keywords" in result
+            assert result["expanded_keywords"] == {}
+            assert len(result["top_keywords"]) > 0

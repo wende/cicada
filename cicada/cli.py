@@ -435,26 +435,26 @@ def handle_editor_setup(args, editor: str):
         print("(mix.exs not found)", file=sys.stderr)
         sys.exit(1)
 
-    # Determine keyword extraction method and tier from flags
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods from flags
+    extraction_method = None
+    expansion_method = None
 
     if args.nlp:
-        keyword_method = "lemminflect"
-        keyword_tier = "regular"  # Lemminflect only has one tier
+        extraction_method = "regular"
+        expansion_method = "lemmi"
     elif args.rag:
-        keyword_method = "bert"
-        # Determine tier from flags
+        extraction_method = "bert"
+        # Map tier flags to expansion methods
         if args.fast:
-            keyword_tier = "fast"
+            expansion_method = "glove"  # GloVe (128MB)
         elif args.max:
-            keyword_tier = "max"
+            expansion_method = "fasttext"  # FastText (958MB)
         else:
-            keyword_tier = "regular"  # Default for bert
+            expansion_method = "lemmi"  # Default: lemmi only
 
     # If no flags provided, check if index already exists
     index_exists = False
-    if keyword_method is None:
+    if extraction_method is None:
         from cicada.utils.storage import get_config_path, get_index_path
 
         config_path = get_config_path(repo_path)
@@ -467,11 +467,11 @@ def handle_editor_setup(args, editor: str):
             try:
                 with open(config_path) as f:
                     existing_config = yaml.safe_load(f)
-                    keyword_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "lemminflect"
+                    extraction_method = existing_config.get("keyword_extraction", {}).get(
+                        "method", "regular"
                     )
-                    keyword_tier = existing_config.get("keyword_extraction", {}).get(
-                        "tier", "regular"
+                    expansion_method = existing_config.get("keyword_expansion", {}).get(
+                        "method", "lemmi"
                     )
                     index_exists = True
             except Exception:
@@ -483,8 +483,8 @@ def handle_editor_setup(args, editor: str):
         setup(
             cast(EditorType, editor),
             repo_path,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
             index_exists=index_exists,
         )
     except Exception as e:
@@ -559,27 +559,28 @@ def handle_index(args):
     storage_dir = create_storage_dir(repo_path_obj)
     index_path = get_index_path(repo_path_obj)
 
-    # Determine keyword extraction method and tier
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods
+    extraction_method = None
+    expansion_method = None
 
     # If flags provided, update config with new settings
     if args.nlp or args.rag:
         # User explicitly specified extraction method via flags
         from cicada.setup import create_config_yaml
 
-        # Determine method and tier from flags
+        # Determine method and expansion from flags
         if args.nlp:
-            keyword_method = "lemminflect"
-            keyword_tier = "regular"
+            extraction_method = "regular"
+            expansion_method = "lemmi"
         else:  # args.rag
-            keyword_method = "bert"
+            extraction_method = "bert"
+            # Map tier flags to expansion methods
             if args.fast:
-                keyword_tier = "fast"
+                expansion_method = "glove"  # GloVe (128MB)
             elif args.max:
-                keyword_tier = "max"
+                expansion_method = "fasttext"  # FastText (958MB)
             else:
-                keyword_tier = "regular"
+                expansion_method = "lemmi"  # Default: lemmi only
 
         # Warn if changing existing config
         if config_exists:
@@ -588,27 +589,29 @@ def handle_index(args):
             try:
                 with open(config_path) as f:
                     existing_config = yaml.safe_load(f)
-                    existing_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "lemminflect"
+                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                        "method", "regular"
                     )
-                    existing_tier = existing_config.get("keyword_extraction", {}).get(
-                        "tier", "regular"
+                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                        "method", "lemmi"
                     )
 
-                    # Check if either method or tier has changed
-                    method_changed = existing_method != keyword_method
-                    tier_changed = existing_tier != keyword_tier
+                    # Check if either extraction or expansion has changed
+                    extraction_changed = existing_extraction != extraction_method
+                    expansion_changed = existing_expansion != expansion_method
 
-                    if method_changed or tier_changed:
+                    if extraction_changed or expansion_changed:
                         # Build error message based on what changed
-                        if method_changed and tier_changed:
-                            change_desc = f"extraction method from {existing_method} to {keyword_method} and tier from {existing_tier} to {keyword_tier}"
-                        elif method_changed:
+                        if extraction_changed and expansion_changed:
+                            change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
+                        elif extraction_changed:
                             change_desc = (
-                                f"extraction method from {existing_method} to {keyword_method}"
+                                f"extraction from {existing_extraction} to {extraction_method}"
                             )
                         else:
-                            change_desc = f"tier from {existing_tier} to {keyword_tier}"
+                            change_desc = (
+                                f"expansion from {existing_expansion} to {expansion_method}"
+                            )
 
                         print(
                             f"Error: Cannot change {change_desc}",
@@ -624,7 +627,7 @@ def handle_index(args):
             except Exception:
                 pass  # If we can't read config, just proceed
 
-        create_config_yaml(repo_path_obj, storage_dir, keyword_method, keyword_tier)
+        create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
         config_exists = True  # Config now exists
     elif not config_exists:
         # No flags provided AND no config exists - print help and exit

@@ -485,21 +485,22 @@ def handle_install(args):
     elif args.vs:
         editor = "vs"
 
-    # Determine keyword method and tier from flags
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods from flags
+    extraction_method = None
+    expansion_method = None
 
     if args.nlp:
-        keyword_method = "lemminflect"
-        keyword_tier = "regular"
+        extraction_method = "regular"
+        expansion_method = "lemmi"
     elif args.rag:
-        keyword_method = "bert"
+        extraction_method = "bert"
+        # Map tier flags to expansion methods
         if args.fast:
-            keyword_tier = "fast"
+            expansion_method = "glove"  # GloVe (128MB)
         elif args.max:
-            keyword_tier = "max"
+            expansion_method = "fasttext"  # FastText (958MB)
         else:
-            keyword_tier = "regular"
+            expansion_method = "lemmi"  # Default: lemmi only
 
     # Check if index already exists
     config_path = get_config_path(repo_path)
@@ -507,7 +508,7 @@ def handle_install(args):
     index_exists = config_path.exists() and index_path.exists()
 
     # If no flags provided, use full interactive setup
-    if editor is None and keyword_method is None:
+    if editor is None and extraction_method is None:
         from cicada.interactive_setup import show_full_interactive_setup
 
         show_full_interactive_setup(repo_path)
@@ -538,32 +539,34 @@ def handle_install(args):
         editor = editor_map[menu_idx]
 
     # If only editor flag provided (no model), prompt for model (unless index exists)
-    if keyword_method is None and not index_exists:
-        keyword_method, keyword_tier = show_first_time_setup()
+    if extraction_method is None and not index_exists:
+        extraction_method, expansion_method = show_first_time_setup()
 
     # If index exists but no model flags, use existing settings
-    if keyword_method is None and index_exists:
+    if extraction_method is None and index_exists:
         import yaml
 
         try:
             with open(config_path) as f:
                 existing_config = yaml.safe_load(f)
-                keyword_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "lemminflect"
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
                 )
-                keyword_tier = existing_config.get("keyword_extraction", {}).get("tier", "regular")
+                expansion_method = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
         except Exception:
             # If we can't read config, use defaults
-            keyword_method = "lemminflect"
-            keyword_tier = "regular"
+            extraction_method = "regular"
+            expansion_method = "lemmi"
 
     # Run setup
     try:
         setup(
             editor,
             repo_path,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
             index_exists=index_exists,
         )
     except Exception as e:
@@ -616,21 +619,22 @@ def handle_server(args):
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
-    # Determine keyword extraction method and tier
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods
+    extraction_method = None
+    expansion_method = None
 
     if args.nlp:
-        keyword_method = "lemminflect"
-        keyword_tier = "regular"
+        extraction_method = "regular"
+        expansion_method = "lemmi"
     elif args.rag:
-        keyword_method = "bert"
+        extraction_method = "bert"
+        # Map tier flags to expansion methods
         if args.fast:
-            keyword_tier = "fast"
+            expansion_method = "glove"  # GloVe (128MB)
         elif args.max:
-            keyword_tier = "max"
+            expansion_method = "fasttext"  # FastText (958MB)
         else:
-            keyword_tier = "regular"
+            expansion_method = "lemmi"  # Default: lemmi only
 
     # Check if setup is needed
     config_path = get_config_path(repo_path)
@@ -639,13 +643,15 @@ def handle_server(args):
 
     if needs_setup:
         # Silent setup with defaults
-        # If no method specified, default to lemminflect (fastest, no downloads)
-        if keyword_method is None:
-            keyword_method = "lemminflect"
-            keyword_tier = "regular"
+        # If no method specified, default to regular + lemmi (fastest, no downloads)
+        if extraction_method is None:
+            extraction_method = "regular"
+            expansion_method = "lemmi"
 
         # Create config.yaml (silent)
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+        )
 
         # Index repository (silent)
         try:
