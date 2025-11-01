@@ -14,6 +14,15 @@ def extract_function_calls(node, source_code: bytes) -> list:
 
 def _find_function_calls_recursive(node, source_code: bytes, calls: list):
     """Recursively find function calls."""
+    # Skip module attributes (@spec, @doc, @moduledoc, @type, etc.)
+    # These are wrapped in unary_operator nodes with @ token
+    if node.type == "unary_operator":
+        # Check if this is a module attribute (starts with @)
+        for child in node.children:
+            if child.type == "@":
+                # This is a module attribute, skip the entire subtree
+                return
+
     if node.type == "call":
         # Check if this is a function definition (def/defp)
         is_function_def = False

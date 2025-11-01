@@ -284,7 +284,13 @@ def setup(
         should_index = False
         force_full = False
         # Ensure config.yaml is up to date with current settings
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            verbose=False,
+        )
     else:
         # Show full banner for new setup
         print("=" * 60)
@@ -355,7 +361,13 @@ def setup(
                 pass
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            verbose=False,
+        )
 
         # Index repository if needed
         if should_index:

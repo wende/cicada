@@ -624,7 +624,12 @@ def handle_index(args):
             except Exception:
                 pass  # If we can't read config, just proceed
 
-        create_config_yaml(repo_path_obj, storage_dir, keyword_method, keyword_tier)
+        create_config_yaml(
+            repo_path_obj,
+            storage_dir,
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+        )
         config_exists = True  # Config now exists
     elif not config_exists:
         # No flags provided AND no config exists - print help and exit

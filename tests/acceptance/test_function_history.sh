@@ -90,22 +90,34 @@ else
     CONFIG_PATH=".cicada/config.yaml"
 fi
 
-# Build Python command based on mode
+# Build arguments for runner
+RUNNER_ARGS=("file_history" "$FILE_PATH")
+
 if [[ "$LINE_MODE" == "True" ]]; then
-    # Line-based tracking
+    # Line-based tracking (requires both start and end)
     if [[ -z "$START_LINE" || -z "$END_LINE" ]]; then
         echo "Error: Line mode requires --start and --end parameters"
         exit 1
     fi
-
-    python -c "import asyncio; from cicada.mcp_server import CicadaServer; print(asyncio.run(CicadaServer(config_path='$CONFIG_PATH')._get_file_history('$FILE_PATH', start_line=$START_LINE, end_line=$END_LINE, show_evolution=$WITH_EVOLUTION, max_commits=$MAX_COMMITS))[0].text)"
+    RUNNER_ARGS+=("--line-mode" "--start" "$START_LINE" "--end" "$END_LINE")
 else
     # Function-based tracking
+    if [[ -n "$FUNCTION_NAME" ]]; then
+        RUNNER_ARGS+=("--function" "$FUNCTION_NAME")
+    fi
+
     if [[ -n "$START_LINE" && -n "$END_LINE" ]]; then
         # Function tracking with fallback line numbers
-        python -c "import asyncio; from cicada.mcp_server import CicadaServer; print(asyncio.run(CicadaServer(config_path='$CONFIG_PATH')._get_file_history('$FILE_PATH', function_name='$FUNCTION_NAME', start_line=$START_LINE, end_line=$END_LINE, show_evolution=$WITH_EVOLUTION, max_commits=$MAX_COMMITS))[0].text)"
-    else
-        # Function tracking only
-        python -c "import asyncio; from cicada.mcp_server import CicadaServer; print(asyncio.run(CicadaServer(config_path='$CONFIG_PATH')._get_file_history('$FILE_PATH', function_name='$FUNCTION_NAME', show_evolution=$WITH_EVOLUTION, max_commits=$MAX_COMMITS))[0].text)"
+        RUNNER_ARGS+=("--start" "$START_LINE" "--end" "$END_LINE")
     fi
 fi
+
+if [[ "$WITH_EVOLUTION" == "True" ]]; then
+    RUNNER_ARGS+=("--evolution")
+fi
+
+if [[ "$MAX_COMMITS" != "5" ]]; then
+    RUNNER_ARGS+=("--limit" "$MAX_COMMITS")
+fi
+
+uv run python tests/acceptance/runner.py "${RUNNER_ARGS[@]}"
