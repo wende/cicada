@@ -132,46 +132,32 @@ class TestGetStorageDir:
 class TestCreateStorageDir:
     """Tests for create_storage_dir function"""
 
-    def test_creates_directory(self, tmp_path, monkeypatch):
+    def test_creates_directory(self, tmp_path, mock_home_dir):
         """Should create storage directory if it doesn't exist"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
-
-        # Mock home directory to use tmp_path
-        mock_home = tmp_path / "mock_home"
-        mock_home.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: mock_home)
 
         storage_dir = create_storage_dir(repo_path)
 
         assert storage_dir.exists(), "Storage directory should be created"
         assert storage_dir.is_dir(), "Storage should be a directory"
 
-    def test_creates_parent_directories(self, tmp_path, monkeypatch):
+    def test_creates_parent_directories(self, tmp_path, mock_home_dir):
         """Should create all parent directories if needed"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
 
-        # Mock home directory to use tmp_path
-        mock_home = tmp_path / "mock_home"
-        mock_home.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: mock_home)
-
         storage_dir = create_storage_dir(repo_path)
 
         # Check that all parents exist
-        assert (mock_home / ".cicada").exists(), ".cicada should exist"
-        assert (mock_home / ".cicada" / "projects").exists(), "projects should exist"
+        assert (mock_home_dir / ".cicada").exists(), ".cicada should exist"
+        assert (mock_home_dir / ".cicada" / "projects").exists(), "projects should exist"
         assert storage_dir.exists(), "Storage dir should exist"
 
-    def test_idempotent_creation(self, tmp_path, monkeypatch):
+    def test_idempotent_creation(self, tmp_path, mock_home_dir):
         """Creating storage dir multiple times should be safe"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
-
-        mock_home = tmp_path / "mock_home"
-        mock_home.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: mock_home)
 
         storage_dir1 = create_storage_dir(repo_path)
         storage_dir2 = create_storage_dir(repo_path)
@@ -179,14 +165,10 @@ class TestCreateStorageDir:
         assert storage_dir1 == storage_dir2, "Should return same dir"
         assert storage_dir1.exists(), "Directory should still exist"
 
-    def test_returns_path_object(self, tmp_path, monkeypatch):
+    def test_returns_path_object(self, tmp_path, mock_home_dir):
         """Should return a Path object"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
-
-        mock_home = tmp_path / "mock_home"
-        mock_home.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: mock_home)
 
         storage_dir = create_storage_dir(repo_path)
 
@@ -197,14 +179,10 @@ class TestPathGetters:
     """Tests for path getter functions"""
 
     @pytest.fixture
-    def setup_paths(self, tmp_path, monkeypatch):
+    def setup_paths(self, tmp_path, mock_home_dir):
         """Setup mock paths for testing"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
-
-        mock_home = tmp_path / "mock_home"
-        mock_home.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: mock_home)
 
         return repo_path
 

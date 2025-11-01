@@ -242,9 +242,7 @@ No functions matching `{function_name}` were found in the index.
 
         # For single results (e.g., MFA search), use simpler header
         if len(consolidated_results) == 1:
-            lines = [
-                f"{consolidated_results[0]['module']}.{consolidated_results[0]['function']['name']}/{consolidated_results[0]['function']['arity']}"
-            ]
+            lines = ["---"]
         else:
             lines = [
                 f"Functions matching {function_name}",
@@ -265,7 +263,13 @@ No functions matching `{function_name}` were found in the index.
 
             # Skip the section header for single results
             if len(consolidated_results) == 1:
-                lines.extend(["", f"{file_path}:{func['line']}", f"{indent}{sig}"])
+                lines.extend(
+                    [
+                        f"{file_path}:{func['line']}",
+                        f"{module_name}.{func['name']}/{func['arity']}",
+                        f"Type: {sig}",
+                    ]
+                )
             else:
                 lines.extend(
                     [
@@ -281,7 +285,7 @@ No functions matching `{function_name}` were found in the index.
             # Add documentation if present
             if func.get("doc"):
                 if len(consolidated_results) == 1:
-                    lines.extend(["", f"{indent}Documentation:", "", f"{indent}{func['doc']}"])
+                    lines.extend(['Documentation: """', func["doc"], '"""'])
                 else:
                     lines.extend(["", "Documentation:", "", func["doc"]])
 
@@ -488,6 +492,10 @@ No functions matching `{function_name}` were found in the index.
             else:
                 lines.extend([f"{indent}*No call sites found*"])
 
+        # Add closing separator for single results
+        if len(consolidated_results) == 1:
+            lines.append("---")
+
         return "\n".join(lines)
 
     @staticmethod
@@ -687,7 +695,7 @@ No functions matching `{function_name}` were found in the index.
         lines: list[str] = []
 
         for _, result in enumerate(results, 1):
-            _result_type = result["type"]
+            result_type = result["type"]
             name = result["name"]
             file_path = result["file"]
             line = result["line"]
@@ -695,36 +703,21 @@ No functions matching `{function_name}` were found in the index.
             _confidence = result["confidence"]
             matched_keywords = result["matched_keywords"]
 
-            # Result header - clean format like other tools
-            lines.append(name)
+            # Compact format with type indication
+            type_label = "Module" if result_type == "module" else "Function"
+            lines.append(f"{type_label}: {name}")
+            lines.append(f"Score: {score:.4f}")
+            lines.append(f"Path: {file_path}:{line}")
+            lines.append(f"Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}")
 
-            # Location and score - clean format
-            lines.append(
-                f"{file_path}:{line} • Score: {score:.4f} • Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}"
-            )
-
-            # Documentation snippet - clean format with code blocks
+            # First line of documentation only
             doc = result.get("doc")
             if doc:
-                # Trim long docs
                 doc_lines = doc.strip().split("\n")
-                if len(doc_lines) > 3:
-                    preview = "\n".join(doc_lines[:3])
-                    lines.extend(
-                        [
-                            "",
-                            "Documentation:",
-                            "",
-                            "```",
-                            f"{preview}",
-                            "... (trimmed)",
-                            "```",
-                        ]
-                    )
-                else:
-                    lines.extend(["", "Documentation:", "", "```", doc.strip(), "```"])
+                first_line = doc_lines[0] if doc_lines else ""
+                lines.append(f'Doc: "{first_line}"')
 
-            lines.append("")  # Empty line between results
+            lines.append("---")  # Separator between results
 
         return "\n".join(lines)
 
