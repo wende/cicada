@@ -92,4 +92,19 @@ done
 # Set default function if not provided
 FUNCTION="${FUNCTION:-add_numbers/2}"
 
-python -c "import asyncio; from cicada.mcp_server import CicadaServer; print(asyncio.run(CicadaServer(config_path='tests/fixtures/.cicada/config.yaml')._search_function('$FUNCTION', output_format='markdown', include_usage_examples=$WITH_EXAMPLES, max_examples=$MAX_EXAMPLES, test_files_only=$TEST_ONLY))[0].text)"
+# Build arguments for runner
+RUNNER_ARGS=("search_function" "$FUNCTION")
+
+if [ "$WITH_EXAMPLES" = "True" ]; then
+    RUNNER_ARGS+=("--examples")
+fi
+
+if [ "$TEST_ONLY" = "True" ]; then
+    RUNNER_ARGS+=("--tests-only")
+fi
+
+if [ "$MAX_EXAMPLES" != "5" ]; then
+    RUNNER_ARGS+=("--limit" "$MAX_EXAMPLES")
+fi
+
+uv run python tests/acceptance/runner.py "${RUNNER_ARGS[@]}"

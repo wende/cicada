@@ -3,9 +3,14 @@ Keyword Extraction using KeyBERT
 Semantic keyword extraction using transformer-based embeddings
 """
 
+import os
 import re
 import sys
 from typing import Any
+
+# Disable tokenizers parallelism to avoid fork warnings
+# Must be set before importing transformers/keybert
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from cicada.utils import split_camel_snake_case
 

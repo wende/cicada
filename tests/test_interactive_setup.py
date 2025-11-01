@@ -255,7 +255,10 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # Select Regular extraction, then Lemmi expansion
+        mock_menu_instance.show.side_effect = [
+            0,
+            0,
+        ]  # Select Regular extraction, then Lemmi expansion
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -323,7 +326,9 @@ class TestInteractiveSetup:
         for expansion_index, expected_expansion in test_cases:
             mock_menu_instance.show.side_effect = [1, expansion_index]  # BERT + expansion
             extraction_method, expansion_method = show_first_time_setup()
-            assert expansion_method == expected_expansion, f"Expected {expected_expansion} for index {expansion_index}"
+            assert (
+                expansion_method == expected_expansion
+            ), f"Expected {expected_expansion} for index {expansion_index}"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -1349,9 +1354,7 @@ class TestShowFullInteractiveSetup:
             show_full_interactive_setup(mock_elixir_repo)
 
             # Should show all 3 menus due to config read failure
-            assert (
-                mock_menu_instance.show.call_count == 3
-            )  # Editor + extraction + expansion
+            assert mock_menu_instance.show.call_count == 3  # Editor + extraction + expansion
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")

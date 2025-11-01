@@ -1,17 +1,26 @@
 """
 Acceptance tests for Cicada MCP server.
 
-These tests mirror the shell scripts in tests/acceptance/ but are
-integrated with pytest for better coverage tracking and CI integration.
+Tests can use either:
+- Runner module functions (tests/acceptance/runner.py) - provides coverage
+- Direct MCP server calls - legacy pattern
+
+The runner module is also used by shell scripts for manual testing.
 
 Author: Cursor(Auto)
 """
 
-# No unused imports
-
 import pytest
 
 from cicada.mcp_server import CicadaServer
+
+# Import runner functions - these get coverage when tests run
+from tests.acceptance.runner import (
+    get_file_history,
+    search_by_keywords,
+    search_function,
+    search_module,
+)
 
 # Fixtures
 
@@ -24,7 +33,7 @@ def config_path():
 
 @pytest.fixture
 async def server(config_path):
-    """Create a CicadaServer instance for testing."""
+    """Create a CicadaServer instance for testing (legacy fixture)."""
     return CicadaServer(config_path=config_path)
 
 
@@ -32,21 +41,17 @@ async def server(config_path):
 
 
 @pytest.mark.asyncio
-async def test_search_module_basic(server):
+async def test_search_module_basic():
     """Test basic module search functionality."""
-    result = await server._search_module("TestApp", "markdown")
-    assert len(result) > 0
-    text = result[0].text
+    text = await search_module("TestApp", "markdown")
     assert "TestApp" in text
     assert text.strip()  # Should have content
 
 
 @pytest.mark.asyncio
-async def test_search_module_includes_moduledoc(server):
+async def test_search_module_includes_moduledoc():
     """Test that moduledoc is displayed when searching for modules."""
-    result = await server._search_module("TestApp", "markdown")
-    assert len(result) > 0
-    text = result[0].text
+    text = await search_module("TestApp", "markdown")
     # Should contain module documentation
     assert "TestApp" in text
     # Verify it's actually showing documentation content, not just the name
@@ -54,11 +59,9 @@ async def test_search_module_includes_moduledoc(server):
 
 
 @pytest.mark.asyncio
-async def test_search_module_json_format(server):
+async def test_search_module_json_format():
     """Test module search with JSON output format."""
-    result = await server._search_module("AB.Generators", "json")
-    assert len(result) > 0
-    text = result[0].text
+    text = await search_module("AB.Generators", "json")
     assert text.strip()
     # JSON should contain the module name somewhere
     assert "AB.Generators" in text or "Generators" in text
