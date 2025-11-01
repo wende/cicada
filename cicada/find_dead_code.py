@@ -10,10 +10,9 @@ Author: Cursor(Auto)
 import argparse
 import json
 import sys
-from pathlib import Path
 
 from cicada.dead_code_analyzer import DeadCodeAnalyzer
-from cicada.utils import load_index
+from cicada.utils import get_index_path, load_index
 
 
 def format_markdown(results: dict) -> str:
@@ -198,12 +197,6 @@ Examples:
     )
 
     parser.add_argument(
-        "--index",
-        default=".cicada/index.json",
-        help="Path to index file (default: .cicada/index.json)",
-    )
-
-    parser.add_argument(
         "--format",
         choices=["markdown", "json"],
         default="markdown",
@@ -219,8 +212,8 @@ Examples:
 
     args = parser.parse_args()
 
-    # Load index
-    index_path = Path(args.index)
+    # Load index from centralized storage
+    index_path = get_index_path(".")
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
         print("\nRun 'cicada index' first to create the index.", file=sys.stderr)

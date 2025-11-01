@@ -5,6 +5,7 @@ This module provides centralized subprocess execution with consistent
 error handling and logging patterns.
 """
 
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -55,6 +56,10 @@ class SubprocessRunner:
             subprocess.CalledProcessError: If command fails and check=True
             subprocess.TimeoutExpired: If timeout is reached
         """
+        # Convert string commands to list for safety and compatibility
+        if isinstance(cmd, str):
+            cmd = shlex.split(cmd)
+
         try:
             result = subprocess.run(
                 cmd,

@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MIT License file for PyPI compliance ([#26](https://github.com/wende/cicada/pull/26))
 - Enhanced pyproject.toml with complete package metadata for PyPI ([#26](https://github.com/wende/cicada/pull/26))
 
+### Changed
+- **BREAKING: Removed legacy `.cicada/` directory structure** - All indexes and hashes now stored in centralized `~/.cicada/projects/<repo_hash>/` location
+  - Removed `cicada .` and `cicada <path>` direct indexing commands
+  - Use `cicada claude`, `cicada cursor`, or `cicada vs` for setup
+  - MCP server no longer supports old `.cicada/` path fallback
+  - All CLI commands now use centralized storage by default
+
+### Removed
+- Legacy `install.py` module and related installation functions
+- Backward compatibility for old `.cicada/` directory structure in MCP server
+- Default `output_path` parameters in indexing functions (now required to be explicit)
+
 ## [0.2.0] - 2025-10-31
 
 ### Added

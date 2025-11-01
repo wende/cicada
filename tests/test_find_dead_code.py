@@ -468,7 +468,8 @@ def test_main_missing_index_file(tmp_path, capsys):
     index_path = tmp_path / "nonexistent.json"
 
     with (
-        patch("sys.argv", ["cicada-find-dead-code", "--index", str(index_path)]),
+        patch("sys.argv", ["cicada-find-dead-code"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
         pytest.raises(SystemExit) as exc,
     ):
         main()
@@ -485,7 +486,8 @@ def test_main_invalid_index_file(tmp_path, capsys):
     index_path.write_text("{ invalid json }")
 
     with (
-        patch("sys.argv", ["cicada-find-dead-code", "--index", str(index_path)]),
+        patch("sys.argv", ["cicada-find-dead-code"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
         pytest.raises(SystemExit) as exc,
     ):
         main()
@@ -524,7 +526,10 @@ def test_main_with_valid_index_markdown(tmp_path, capsys):
     }
     index_path.write_text(json.dumps(index_data))
 
-    with patch("sys.argv", ["cicada-find-dead-code", "--index", str(index_path)]):
+    with (
+        patch("sys.argv", ["cicada-find-dead-code"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+    ):
         main()
 
     captured = capsys.readouterr()
@@ -560,9 +565,9 @@ def test_main_with_json_format(tmp_path, capsys):
     }
     index_path.write_text(json.dumps(index_data))
 
-    with patch(
-        "sys.argv",
-        ["cicada-find-dead-code", "--index", str(index_path), "--format", "json"],
+    with (
+        patch("sys.argv", ["cicada-find-dead-code", "--format", "json"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -601,15 +606,9 @@ def test_main_with_min_confidence_high(tmp_path, capsys):
     }
     index_path.write_text(json.dumps(index_data))
 
-    with patch(
-        "sys.argv",
-        [
-            "cicada-find-dead-code",
-            "--index",
-            str(index_path),
-            "--min-confidence",
-            "high",
-        ],
+    with (
+        patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "high"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -648,15 +647,9 @@ def test_main_with_min_confidence_medium(tmp_path, capsys):
     }
     index_path.write_text(json.dumps(index_data))
 
-    with patch(
-        "sys.argv",
-        [
-            "cicada-find-dead-code",
-            "--index",
-            str(index_path),
-            "--min-confidence",
-            "medium",
-        ],
+    with (
+        patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "medium"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -704,15 +697,9 @@ def test_main_with_min_confidence_low(tmp_path, capsys):
     }
     index_path.write_text(json.dumps(index_data))
 
-    with patch(
-        "sys.argv",
-        [
-            "cicada-find-dead-code",
-            "--index",
-            str(index_path),
-            "--min-confidence",
-            "low",
-        ],
+    with (
+        patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "low"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -721,19 +708,17 @@ def test_main_with_min_confidence_low(tmp_path, capsys):
     assert "LOW CONFIDENCE" in captured.out
 
 
-def test_main_default_index_path(tmp_path, capsys, monkeypatch):
-    """Test that main uses default .cicada/index.json path."""
-    # Change to tmp directory
-    monkeypatch.chdir(tmp_path)
-
-    # Create .cicada directory and index
-    cicada_dir = tmp_path / ".cicada"
-    cicada_dir.mkdir()
-    index_path = cicada_dir / "index.json"
+def test_main_default_index_path(tmp_path, capsys):
+    """Test that main uses centralized storage path."""
+    # Create index in centralized location
+    index_path = tmp_path / "index.json"
     index_data = {"modules": {}}
     index_path.write_text(json.dumps(index_data))
 
-    with patch("sys.argv", ["cicada-find-dead-code"]):
+    with (
+        patch("sys.argv", ["cicada-find-dead-code"]),
+        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+    ):
         main()
 
     captured = capsys.readouterr()

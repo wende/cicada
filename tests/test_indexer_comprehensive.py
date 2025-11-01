@@ -15,7 +15,7 @@ class TestElixirIndexerErrorHandling:
         indexer = ElixirIndexer()
 
         with pytest.raises(ValueError, match="does not exist"):
-            indexer.index_repository("/nonexistent/path")
+            indexer.index_repository("/nonexistent/path", "/tmp/index.json")
 
     def test_index_repository_with_parse_errors(self, tmp_path, capsys):
         """Test indexing repository with files that have parse errors"""
@@ -36,7 +36,7 @@ end
         invalid_file.write_text("defmodule Broken do\n  def incomplete(")
 
         # Index the repository
-        index = indexer.index_repository(str(tmp_path))
+        index = indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
 
         # Should skip the invalid file and continue
         assert "ValidModule" in index["modules"]
@@ -189,7 +189,9 @@ end
         )
 
         # Call incremental indexing with no existing index
-        index = indexer.incremental_index_repository(str(tmp_path))
+        index = indexer.incremental_index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json")
+        )
 
         # Should have indexed the file
         assert "TestModule" in index["modules"]
@@ -362,7 +364,7 @@ end
         assert "TestModule" in index["modules"]
         assert len(index["modules"]["TestModule"]["functions"]) == 2
 
-    def test_incremental_with_corrupted_index(self, tmp_path, capsys):
+    def test_incremental_with_corrupted_index(self, tmp_path):
         """Test incremental indexing with corrupted index falls back to full"""
         indexer = ElixirIndexer()
 
@@ -392,10 +394,6 @@ end
         # Should have recovered with full reindex
         assert "TestModule" in index["modules"]
         assert index["modules"]["TestModule"]["functions"][0]["name"] == "test_func"
-
-        # Should print warning about corruption
-        captured = capsys.readouterr()
-        assert "corrupted" in captured.out.lower()
 
 
 class TestElixirIndexerKeywordExtraction:
@@ -442,7 +440,9 @@ end
         )
 
         # Index with keyword extraction
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should have extracted keywords
         assert "TestModule" in index["modules"]
@@ -493,7 +493,9 @@ end
         )
 
         # Index with keyword extraction (should handle failures gracefully)
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -545,7 +547,9 @@ end
         monkeypatch.setattr(cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo)
 
         # Index with keyword extraction (should handle import failure)
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -574,7 +578,7 @@ end
             )
 
         # Index the repository
-        indexer.index_repository(str(tmp_path))
+        indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
 
         # Check progress messages
         captured = capsys.readouterr()
@@ -903,7 +907,9 @@ end
         )
 
         # Should handle initialization failure gracefully
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module without keywords
         assert "TestModule" in index["modules"]

@@ -123,9 +123,9 @@ class TestSubprocessRunner:
         "method,command_input,expected_prefix",
         [
             ("run_git_command", ["status"], ["git", "status"]),
-            ("run_git_command", "status", "git status"),
+            ("run_git_command", "status", ["git", "status"]),
             ("run_gh_command", ["pr", "list"], ["gh", "pr", "list"]),
-            ("run_gh_command", "pr list", "gh pr list"),
+            ("run_gh_command", "pr list", ["gh", "pr", "list"]),
         ],
     )
     def test_command_prefixes(self, method, command_input, expected_prefix, monkeypatch):

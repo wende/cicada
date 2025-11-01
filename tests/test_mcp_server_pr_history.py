@@ -20,6 +20,8 @@ class TestFindPRForLine:
     @pytest.fixture
     def test_server_with_pr_index(self, tmp_path):
         """Create a test server with PR index"""
+        from cicada.utils import get_pr_index_path
+
         index = {"modules": {}, "metadata": {"total_modules": 0}}
         index_path = tmp_path / "index.json"
         with open(index_path, "w") as f:
@@ -29,7 +31,8 @@ class TestFindPRForLine:
             "prs": {"123": {"number": 123, "title": "Add feature", "author": "developer"}},
             "commit_to_pr": {"abc123": 123},
         }
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
@@ -183,7 +186,10 @@ class TestGetFilePRHistory:
                 },
             },
         }
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        from cicada.utils import get_pr_index_path
+
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
@@ -421,13 +427,16 @@ class TestFindPRForLineNetworkFallback:
     @pytest.fixture
     def test_server_with_pr_index(self, tmp_path):
         """Create a test server with PR index"""
+        from cicada.utils import get_pr_index_path
+
         index = {"modules": {}, "metadata": {"total_modules": 0}}
         index_path = tmp_path / "index.json"
         with open(index_path, "w") as f:
             json.dump(index, f)
 
         pr_index = {"prs": {}, "commit_to_pr": {}}
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
