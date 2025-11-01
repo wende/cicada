@@ -301,7 +301,7 @@ jobs:
       - name: Setup test environment
         run: |
           cd test_fixture_repo
-          cicada --skip-install
+          cicada
 
       - name: Run benchmark
         run: |
@@ -365,7 +365,7 @@ claude -p "your prompt" --mcp-debug --output-format stream-json
 Ensure cicada is set up in the test repository:
 ```bash
 cd your_test_repo
-cicada --skip-install
+cicada
 ```
 
 ## Future Enhancements

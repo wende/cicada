@@ -15,7 +15,7 @@ class TestElixirIndexerErrorHandling:
         indexer = ElixirIndexer()
 
         with pytest.raises(ValueError, match="does not exist"):
-            indexer.index_repository("/nonexistent/path")
+            indexer.index_repository("/nonexistent/path", "/tmp/index.json")
 
     def test_index_repository_with_parse_errors(self, tmp_path, capsys):
         """Test indexing repository with files that have parse errors"""
@@ -36,7 +36,7 @@ end
         invalid_file.write_text("defmodule Broken do\n  def incomplete(")
 
         # Index the repository
-        index = indexer.index_repository(str(tmp_path))
+        index = indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
 
         # Should skip the invalid file and continue
         assert "ValidModule" in index["modules"]
@@ -189,7 +189,9 @@ end
         )
 
         # Call incremental indexing with no existing index
-        index = indexer.incremental_index_repository(str(tmp_path))
+        index = indexer.incremental_index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json")
+        )
 
         # Should have indexed the file
         assert "TestModule" in index["modules"]
@@ -362,7 +364,7 @@ end
         assert "TestModule" in index["modules"]
         assert len(index["modules"]["TestModule"]["functions"]) == 2
 
-    def test_incremental_with_corrupted_index(self, tmp_path, capsys):
+    def test_incremental_with_corrupted_index(self, tmp_path):
         """Test incremental indexing with corrupted index falls back to full"""
         indexer = ElixirIndexer()
 
@@ -392,10 +394,6 @@ end
         # Should have recovered with full reindex
         assert "TestModule" in index["modules"]
         assert index["modules"]["TestModule"]["functions"][0]["name"] == "test_func"
-
-        # Should print warning about corruption
-        captured = capsys.readouterr()
-        assert "corrupted" in captured.out.lower()
 
 
 class TestElixirIndexerKeywordExtraction:
@@ -442,16 +440,18 @@ end
         )
 
         # Index with keyword extraction
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should have extracted keywords
         assert "TestModule" in index["modules"]
         assert "keywords" in index["modules"]["TestModule"]
         assert "keyword1" in index["modules"]["TestModule"]["keywords"]
 
-        # Should print keyword extraction enabled message
+        # Should print keyword extraction method and tier
         captured = capsys.readouterr()
-        assert "Keyword extraction enabled" in captured.out
+        assert "Keyword extraction:" in captured.out
 
     def test_index_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when keyword extraction fails"""
@@ -493,7 +493,9 @@ end
         )
 
         # Index with keyword extraction (should handle failures gracefully)
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -545,7 +547,9 @@ end
         monkeypatch.setattr(cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo)
 
         # Index with keyword extraction (should handle import failure)
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module
         assert "TestModule" in index["modules"]
@@ -574,7 +578,7 @@ end
             )
 
         # Index the repository
-        indexer.index_repository(str(tmp_path))
+        indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
 
         # Check progress messages
         captured = capsys.readouterr()
@@ -771,75 +775,6 @@ end
 class TestElixirIndexerMainCLI:
     """Additional tests for main() CLI function"""
 
-    def test_main_with_extract_keywords_flag(self, tmp_path, monkeypatch):
-        """Test main() with --extract-keywords flag"""
-        import os
-        import sys
-
-        from cicada.indexer import main
-
-        # Mock KeywordExtractor
-        class MockKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                pass
-
-            def extract_keywords_simple(self, text, top_n=10):
-                return ["test", "keyword"]
-
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            MockKeywordExtractor,
-        )
-
-        test_file = tmp_path / "test.ex"
-        test_file.write_text(
-            '''
-defmodule TestModule do
-  @moduledoc """
-  Test documentation
-  """
-  def test_func(x), do: x
-end
-'''
-        )
-
-        # Change to tmp_path directory for relative path resolution
-        original_cwd = os.getcwd()
-        os.chdir(tmp_path)
-
-        try:
-            # Mock sys.argv with --extract-keywords flag (use current dir)
-            monkeypatch.setattr(
-                sys,
-                "argv",
-                ["indexer.py", ".", "--extract-keywords"],
-            )
-
-            # Mock check_for_updates
-            def mock_check(*_args, **_kwargs):
-                pass
-
-            import cicada.version_check
-
-            monkeypatch.setattr(cicada.version_check, "check_for_updates", mock_check)
-
-            main()
-
-            # Check that index was created
-            output_path = tmp_path / ".cicada" / "index.json"
-            assert output_path.exists()
-
-            # Verify the module was indexed
-            from cicada.utils import load_index
-
-            index = load_index(output_path)
-            assert "TestModule" in index["modules"]
-        finally:
-            os.chdir(original_cwd)
-
     def test_main_with_full_flag(self, tmp_path, monkeypatch):
         """Test main() with --full flag"""
         import sys
@@ -972,7 +907,9 @@ end
         )
 
         # Should handle initialization failure gracefully
-        index = indexer.index_repository(str(tmp_path), extract_keywords=True)
+        index = indexer.index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
+        )
 
         # Should still have indexed the module without keywords
         assert "TestModule" in index["modules"]

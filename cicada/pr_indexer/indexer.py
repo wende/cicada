@@ -217,9 +217,7 @@ class PRIndexer:
 
         return detailed_prs
 
-    def index_repository(
-        self, output_path: str = ".cicada/pr_index.json", incremental: bool = False
-    ):
+    def index_repository(self, output_path: str, incremental: bool = False):
         """
         Index the repository's PRs and save to file.
 

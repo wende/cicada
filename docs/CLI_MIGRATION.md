@@ -59,10 +59,10 @@ cicada-index --spacy-model medium
 **After:**
 ```bash
 cicada index .
-cicada index --output .cicada/index.json
-cicada index --extract-keywords
-cicada index --spacy-model medium
+cicada index --nlp  # or --rag for BERT-based extraction
 ```
+
+Note: `--output` option has been removed. Index files are now stored in `~/.cicada/projects/<repo_hash>/index.json`.
 
 ### Indexing Pull Requests
 
@@ -115,9 +115,6 @@ cicada
 # Setup specific project
 cicada /path/to/project
 
-# Skip dependency installation
-cicada --skip-install
-
 # Force use of uv
 cicada --use-uv
 ```
@@ -125,20 +122,20 @@ cicada --use-uv
 ### Index Subcommand
 
 ```bash
-# Basic usage
-cicada index
+# Basic usage - NLP extraction
+cicada index --nlp
+
+# Basic usage - BERT extraction
+cicada index --rag
 
 # Specify repository path
-cicada index /path/to/repo
+cicada index /path/to/repo --nlp
 
-# Custom output path
-cicada index --output .cicada/custom.json
+# Use BERT with fast tier
+cicada index --rag --fast
 
-# Enable keyword extraction
-cicada index --extract-keywords
-
-# Use larger spaCy model
-cicada index --extract-keywords --spacy-model large
+# Use BERT with max quality tier
+cicada index --rag --max
 
 # Get help
 cicada index --help

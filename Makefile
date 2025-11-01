@@ -6,7 +6,6 @@ help:
 	@echo "  make install       - Full install (deps + cicada tool to ~/.local/bin)"
 	@echo "  make install-deps  - Install dependencies only (no tool installation)"
 	@echo "  make setup-fixtures - Setup test fixtures"
-	@echo "  make extract-keywords - Extract keywords for test fixtures"
 	@echo "  make test          - Run all tests (auto-installs dependencies)"
 	@echo "  make test-verbose  - Run tests with verbose output (auto-installs dependencies)"
 	@echo "  make test-watch    - Run tests in watch mode (auto-installs dependencies)"
@@ -53,38 +52,20 @@ install: install-deps
 setup-fixtures:
 	@bash tests/setup_fixtures.sh
 
-# Extract keywords for test fixtures
-extract-keywords:
-	@echo "Extracting keywords for test fixtures..."
-	@if [ -d "tests/fixtures/elixir_project" ]; then \
-		FIXTURE_DIR="tests/fixtures/elixir_project"; \
-	elif [ -d "tests/fixtures/test_project" ]; then \
-		FIXTURE_DIR="tests/fixtures/test_project"; \
-	else \
-		echo "Error: No test fixture found"; \
-		exit 1; \
-	fi; \
-	if command -v uv >/dev/null 2>&1; then \
-		uv run cicada index --nlp --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
-	else \
-		python -m cicada.cli index --nlp --output tests/fixtures/.cicada/index.json $$FIXTURE_DIR; \
-	fi
-	@echo "✓ Keywords extracted for test fixtures"
-
 # Run tests
-test: install setup-fixtures extract-keywords
+test: install setup-fixtures
 	@uv run pytest -n auto
 
 # Run tests with verbose output
-test-verbose: install setup-fixtures extract-keywords
+test-verbose: install setup-fixtures
 	@uv run pytest -n auto -v
 
 # Run tests in watch mode
-test-watch: install setup-fixtures extract-keywords
+test-watch: install setup-fixtures
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: install setup-fixtures extract-keywords
+cover: install setup-fixtures
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
@@ -122,7 +103,7 @@ pre-commit: install
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: install setup-fixtures extract-keywords
+ci-test: install setup-fixtures
 	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files

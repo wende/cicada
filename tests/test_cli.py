@@ -3,18 +3,20 @@ Comprehensive tests for cicada/cli.py
 """
 
 import json
-import pytest
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from cicada.cli import (
-    main,
-    handle_install,
+    handle_clean,
     handle_editor_setup,
+    handle_find_dead_code,
     handle_index,
     handle_index_pr,
-    handle_find_dead_code,
-    handle_clean,
+    handle_install,
+    main,
 )
 
 
@@ -99,6 +101,39 @@ class TestMain:
             main()
             mock_handler.assert_called_once()
 
+    def test_main_with_dot_path_calls_install(self):
+        """Should route to handle_install when path is '.'"""
+        with (
+            patch.object(sys, "argv", ["cicada", "."]),
+            patch("cicada.cli.handle_install") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args = mock_handler.call_args[0][0]
+            assert args.path_or_command == "."
+
+    def test_main_with_relative_path_calls_install(self):
+        """Should route to handle_install when path starts with './'"""
+        with (
+            patch.object(sys, "argv", ["cicada", "./some/path"]),
+            patch("cicada.cli.handle_install") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args = mock_handler.call_args[0][0]
+            assert args.path_or_command == "./some/path"
+
+    def test_main_with_absolute_path_calls_install(self):
+        """Should route to handle_install when path starts with '/'"""
+        with (
+            patch.object(sys, "argv", ["cicada", "/absolute/path"]),
+            patch("cicada.cli.handle_install") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args = mock_handler.call_args[0][0]
+            assert args.path_or_command == "/absolute/path"
+
 
 class TestHandleInstall:
     """Tests for handle_install function"""
@@ -109,16 +144,62 @@ class TestHandleInstall:
 
         with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
             handle_install(args)
-            mock_setup.assert_called_once()
+            mock_setup.assert_called_once_with(None)
 
-    def test_with_path_uses_legacy_install(self):
-        """Should use legacy install.py when path provided"""
+    def test_dot_path_shows_interactive_setup(self):
+        """Should show interactive setup when '.' provided"""
+        args = MagicMock(path_or_command=".")
+
+        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
+            handle_install(args)
+            # Should resolve '.' to cwd
+            assert mock_setup.call_count == 1
+            called_path = mock_setup.call_args[0][0]
+            assert called_path is not None
+            assert Path(called_path).exists()
+
+    def test_double_dot_path_shows_interactive_setup(self):
+        """Should show interactive setup when '..' provided"""
+        args = MagicMock(path_or_command="..")
+
+        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
+            handle_install(args)
+            # Should resolve '..' to parent directory
+            assert mock_setup.call_count == 1
+            called_path = mock_setup.call_args[0][0]
+            assert called_path is not None
+            assert Path(called_path).exists()
+
+    def test_relative_path_shows_interactive_setup(self):
+        """Should show interactive setup when relative path like './..' provided"""
+        args = MagicMock(path_or_command="./..")
+
+        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
+            handle_install(args)
+            # Should resolve './..' to parent directory
+            assert mock_setup.call_count == 1
+            called_path = mock_setup.call_args[0][0]
+            assert called_path is not None
+            assert Path(called_path).exists()
+
+    def test_absolute_path_shows_interactive_setup(self):
+        """Should show interactive setup when absolute path provided"""
         args = MagicMock(path_or_command="/some/path")
 
-        with patch("cicada.install.main") as mock_install, patch.object(sys, "argv", []):
+        with patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup:
             handle_install(args)
-            mock_install.assert_called_once()
-            assert sys.argv == ["cicada", "/some/path"]
+            # Should pass the absolute path
+            mock_setup.assert_called_once_with("/some/path")
+
+    def test_with_non_path_shows_error_message(self):
+        """Should show error message when non-path argument provided"""
+        args = MagicMock(path_or_command="something_random")
+
+        with pytest.raises(SystemExit) as exc_info:
+            handle_install(args)
+
+        # Should exit with error code 1
+        assert exc_info.value.code == 1
 
 
 class TestHandleEditorSetup:
@@ -131,7 +212,7 @@ class TestHandleEditorSetup:
         return tmp_path
 
     def test_requires_nlp_or_rag_for_fast(self, mock_elixir_repo, capsys):
-        """Should error if --fast used without --nlp or --rag"""
+        """Should error if --fast used without --rag"""
         args = MagicMock(fast=True, max=False, nlp=False, rag=False)
 
         with (
@@ -142,10 +223,10 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "--fast or --max requires either --nlp or --rag" in captured.err
+        assert "--fast or --max requires --rag" in captured.err
 
     def test_requires_nlp_or_rag_for_max(self, mock_elixir_repo, capsys):
-        """Should error if --max used without --nlp or --rag"""
+        """Should error if --max used without --rag"""
         args = MagicMock(fast=False, max=True, nlp=False, rag=False)
 
         with (
@@ -156,7 +237,7 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "--fast or --max requires either --nlp or --rag" in captured.err
+        assert "--fast or --max requires --rag" in captured.err
 
     def test_cannot_specify_both_nlp_and_rag(self, mock_elixir_repo, capsys):
         """Should error if both --nlp and --rag specified"""
@@ -305,7 +386,7 @@ class TestHandleIndex:
         return tmp_path
 
     def test_requires_nlp_or_rag_for_fast(self, capsys):
-        """Should error if --fast used without --nlp or --rag"""
+        """Should error if --fast used without --rag"""
         args = MagicMock(fast=True, max=False, nlp=False, rag=False, repo=".")
 
         with patch("cicada.version_check.check_for_updates"), pytest.raises(SystemExit) as exc_info:
@@ -313,7 +394,7 @@ class TestHandleIndex:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "--fast or --max requires either --nlp or --rag" in captured.err
+        assert "--fast or --max requires --rag" in captured.err
 
     def test_cannot_specify_both_nlp_and_rag(self, capsys):
         """Should error if both --nlp and --rag specified"""
@@ -328,7 +409,9 @@ class TestHandleIndex:
 
     def test_nlp_flag_creates_config(self, mock_repo):
         """--nlp should create config with lemminflect"""
-        args = MagicMock(fast=False, max=False, nlp=True, rag=False, repo=str(mock_repo))
+        args = MagicMock(
+            fast=False, max=False, nlp=True, rag=False, repo=str(mock_repo), test=False
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -354,7 +437,9 @@ class TestHandleIndex:
 
     def test_rag_flag_creates_config_with_bert(self, mock_repo):
         """--rag should create config with bert"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo))
+        args = MagicMock(
+            fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -378,21 +463,18 @@ class TestHandleIndex:
             assert call_args[2] == "bert"
             assert call_args[3] == "regular"
 
-    def test_no_flags_no_config_shows_interactive(self, mock_repo):
-        """Should show interactive setup when no flags and no config"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=False, repo=str(mock_repo))
+    def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
+        """Should show error message when no flags and no config"""
+        args = MagicMock(
+            fast=False, max=False, nlp=False, rag=False, repo=str(mock_repo), test=False
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
             patch("cicada.utils.storage.get_config_path") as mock_get_config,
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
-            patch(
-                "cicada.interactive_setup.show_first_time_setup",
-                return_value=("lemminflect", "regular"),
-            ) as mock_interactive,
-            patch("cicada.setup.create_config_yaml"),
-            patch("cicada.indexer.ElixirIndexer"),
+            pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = False
@@ -400,12 +482,20 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify interactive setup was shown
-            mock_interactive.assert_called_once()
+        # Verify it exits with code 2
+        assert exc_info.value.code == 2
 
-    def test_changing_method_forces_full_reindex(self, mock_repo, capsys):
-        """Changing extraction method should force full reindex"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo))
+        # Verify error message is shown
+        captured = capsys.readouterr()
+        assert "No keyword extraction method specified" in captured.err
+        assert "--nlp" in captured.err
+        assert "--rag" in captured.err
+
+    def test_changing_method_exits_with_error(self, mock_repo, capsys):
+        """Changing extraction method should exit with error and suggest cicada clean"""
+        args = MagicMock(
+            fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -417,8 +507,9 @@ class TestHandleIndex:
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "lemminflect"}},
+                return_value={"keyword_extraction": {"method": "lemminflect", "tier": "regular"}},
             ),
+            pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = True
@@ -429,14 +520,49 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify indexer called with force_full=True
-            mock_indexer.incremental_index_repository.assert_called_once()
-            call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
-            assert call_kwargs["force_full"] is True
+        # Verify it exits with code 1
+        assert exc_info.value.code == 1
 
-            # Verify warning was printed
-            captured = capsys.readouterr()
-            assert "Changing keyword extraction method" in captured.out
+        # Verify error message was printed
+        captured = capsys.readouterr()
+        assert "Cannot change extraction method" in captured.err
+        assert "lemminflect to bert" in captured.err
+        assert "cicada clean" in captured.err
+
+    def test_changing_tier_exits_with_error(self, mock_repo, capsys):
+        """Changing tier should exit with error and suggest cicada clean"""
+        args = MagicMock(fast=False, max=True, nlp=False, rag=True, repo=str(mock_repo), test=False)
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.storage.get_config_path") as mock_get_config,
+            patch("cicada.utils.storage.create_storage_dir"),
+            patch("cicada.utils.storage.get_index_path"),
+            patch("cicada.setup.create_config_yaml"),
+            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("builtins.open", MagicMock()),
+            patch(
+                "yaml.safe_load",
+                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            mock_config_path = MagicMock()
+            mock_config_path.exists.return_value = True
+            mock_get_config.return_value = mock_config_path
+
+            mock_indexer = MagicMock()
+            mock_indexer_class.return_value = mock_indexer
+
+            handle_index(args)
+
+        # Verify it exits with code 1
+        assert exc_info.value.code == 1
+
+        # Verify error message was printed
+        captured = capsys.readouterr()
+        assert "Cannot change tier from fast to max" in captured.err
+        assert "cicada clean" in captured.err
 
 
 class TestHandleIndexPR:
@@ -444,12 +570,14 @@ class TestHandleIndexPR:
 
     def test_calls_pr_indexer(self):
         """Should call PRIndexer with correct arguments"""
-        args = MagicMock(repo=".", output=".cicada/pr_index.json", clean=False)
+        args = MagicMock(repo=".", clean=False)
 
         with (
             patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.get_pr_index_path") as mock_get_path,
             patch("cicada.pr_indexer.PRIndexer") as mock_indexer_class,
         ):
+            mock_get_path.return_value = "/test/path/pr_index.json"
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
 
@@ -457,18 +585,21 @@ class TestHandleIndexPR:
 
             # Verify PRIndexer was created and index_repository called
             mock_indexer_class.assert_called_once_with(repo_path=".")
+            mock_get_path.assert_called_once_with(".")
             mock_indexer.index_repository.assert_called_once_with(
-                output_path=".cicada/pr_index.json", incremental=True
+                output_path="/test/path/pr_index.json", incremental=True
             )
 
     def test_clean_flag_disables_incremental(self):
         """--clean should disable incremental indexing"""
-        args = MagicMock(repo=".", output=".cicada/pr_index.json", clean=True)
+        args = MagicMock(repo=".", clean=True)
 
         with (
             patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.get_pr_index_path") as mock_get_path,
             patch("cicada.pr_indexer.PRIndexer") as mock_indexer_class,
         ):
+            mock_get_path.return_value = "/test/path/pr_index.json"
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
 
@@ -480,13 +611,15 @@ class TestHandleIndexPR:
 
     def test_keyboard_interrupt_exits_gracefully(self, capsys):
         """Should handle KeyboardInterrupt gracefully"""
-        args = MagicMock(repo=".", output=".cicada/pr_index.json", clean=False)
+        args = MagicMock(repo=".", clean=False)
 
         with (
             patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.get_pr_index_path") as mock_get_path,
             patch("cicada.pr_indexer.PRIndexer") as mock_indexer_class,
             pytest.raises(SystemExit) as exc_info,
         ):
+            mock_get_path.return_value = "/test/path/pr_index.json"
             mock_indexer = MagicMock()
             mock_indexer.index_repository.side_effect = KeyboardInterrupt()
             mock_indexer_class.return_value = mock_indexer
@@ -499,13 +632,15 @@ class TestHandleIndexPR:
 
     def test_exception_exits_with_error(self, capsys):
         """Should exit with error on exception"""
-        args = MagicMock(repo=".", output=".cicada/pr_index.json", clean=False)
+        args = MagicMock(repo=".", clean=False)
 
         with (
             patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.get_pr_index_path") as mock_get_path,
             patch("cicada.pr_indexer.PRIndexer") as mock_indexer_class,
             pytest.raises(SystemExit) as exc_info,
         ):
+            mock_get_path.return_value = "/test/path/pr_index.json"
             mock_indexer = MagicMock()
             mock_indexer.index_repository.side_effect = Exception("PR indexing failed")
             mock_indexer_class.return_value = mock_indexer
@@ -529,11 +664,13 @@ class TestHandleFindDeadCode:
 
     def test_requires_index_file(self, tmp_path, capsys):
         """Should error if index file not found"""
-        args = MagicMock(
-            index=str(tmp_path / "missing.json"), format="markdown", min_confidence="high"
-        )
+        args = MagicMock(format="markdown", min_confidence="high")
+        missing_path = tmp_path / "missing.json"
 
-        with pytest.raises(SystemExit) as exc_info:
+        with (
+            patch("cicada.utils.get_index_path", return_value=missing_path),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             handle_find_dead_code(args)
 
         assert exc_info.value.code == 1
@@ -542,9 +679,10 @@ class TestHandleFindDeadCode:
 
     def test_calls_analyzer(self, mock_index_file):
         """Should call DeadCodeAnalyzer and format results"""
-        args = MagicMock(index=str(mock_index_file), format="markdown", min_confidence="high")
+        args = MagicMock(format="markdown", min_confidence="high")
 
         with (
+            patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
             patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
             patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
@@ -568,9 +706,10 @@ class TestHandleFindDeadCode:
 
     def test_json_format(self, mock_index_file):
         """Should use JSON formatter when requested"""
-        args = MagicMock(index=str(mock_index_file), format="json", min_confidence="high")
+        args = MagicMock(format="json", min_confidence="high")
 
         with (
+            patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
             patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
             patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
@@ -595,7 +734,7 @@ class TestHandleClean:
 
     def test_clean_all_flag(self):
         """Should call clean_all_projects when --all specified"""
-        args = MagicMock(all=True, force=False)
+        args = MagicMock(all=True, force=False, index=False, pr_index=False)
 
         with patch("cicada.clean.clean_all_projects") as mock_clean_all:
             handle_clean(args)
@@ -603,7 +742,7 @@ class TestHandleClean:
 
     def test_clean_all_with_force(self):
         """Should pass force flag to clean_all_projects"""
-        args = MagicMock(all=True, force=True)
+        args = MagicMock(all=True, force=True, index=False, pr_index=False)
 
         with patch("cicada.clean.clean_all_projects") as mock_clean_all:
             handle_clean(args)
@@ -611,7 +750,7 @@ class TestHandleClean:
 
     def test_clean_current_repo(self, tmp_path):
         """Should call clean_repository for current directory"""
-        args = MagicMock(all=False, force=False)
+        args = MagicMock(all=False, force=False, index=False, pr_index=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=tmp_path),
@@ -622,7 +761,7 @@ class TestHandleClean:
 
     def test_clean_exception_exits(self, tmp_path, capsys):
         """Should exit with error on exception"""
-        args = MagicMock(all=False, force=False)
+        args = MagicMock(all=False, force=False, index=False, pr_index=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=tmp_path),

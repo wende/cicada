@@ -30,9 +30,17 @@ def main():
         "clean",
     ]
 
-    # Check if first argument is a known subcommand
-    # This determines whether to include the positional path_or_command argument
-    has_subcommand = len(sys.argv) > 1 and sys.argv[1] in known_subcommands
+    # Handle path argument for backward compatibility (cicada-mcp <path>)
+    # If first arg is not a known subcommand and not a flag, treat it as a path
+    server_path = None
+    if (
+        len(sys.argv) > 1
+        and sys.argv[1] not in known_subcommands
+        and not sys.argv[1].startswith("-")
+    ):
+        # Extract the path and remove it from sys.argv so argparse doesn't see it
+        server_path = sys.argv[1]
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
 
     parser = argparse.ArgumentParser(
         prog="cicada-mcp",
@@ -40,17 +48,8 @@ def main():
         epilog="Run 'cicada-mcp <command> --help' for more information on a command.",
     )
 
-    # Only add positional argument if no subcommand is provided (for backward compatibility)
-    if not has_subcommand:
-        parser.add_argument(
-            "path_or_command",
-            nargs="?",
-            default=None,
-            help="Repository path (for backward compatibility) or subcommand",
-        )
-
-    # Create subparsers for commands
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Create subparsers for commands (optional to support default server mode)
+    subparsers = parser.add_subparsers(dest="command", help="Available commands", required=False)
 
     # ========================================================================
     # INSTALL subcommand - Interactive setup
@@ -254,11 +253,6 @@ def main():
         help="Path to the Elixir repository to index (default: current directory)",
     )
     index_parser.add_argument(
-        "--output",
-        default=".cicada/index.json",
-        help="Output path for the index file (default: .cicada/index.json)",
-    )
-    index_parser.add_argument(
         "--nlp",
         action="store_true",
         help="Use NLP keyword extraction (lemminflect-based)",
@@ -294,11 +288,6 @@ def main():
         help="Path to git repository (default: current directory)",
     )
     index_pr_parser.add_argument(
-        "--output",
-        default=".cicada/pr_index.json",
-        help="Output path for the index file (default: .cicada/pr_index.json)",
-    )
-    index_pr_parser.add_argument(
         "--clean",
         action="store_true",
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
@@ -326,8 +315,8 @@ Examples:
     )
     dead_code_parser.add_argument(
         "--index",
-        default=".cicada/index.json",
-        help="Path to index file (default: .cicada/index.json)",
+        default=None,
+        help="Path to index file (default: uses current directory's centralized index)",
     )
     dead_code_parser.add_argument(
         "--format",
@@ -352,8 +341,10 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  cicada-mcp clean                   # Clean current repository (with confirmation)
-  cicada-mcp clean -f                # Clean current repository (skip confirmation)
+  cicada-mcp clean                   # Remove everything (interactive with confirmation)
+  cicada-mcp clean -f                # Remove everything (skip confirmation)
+  cicada-mcp clean --index           # Remove main index (index.json, hashes.json)
+  cicada-mcp clean --pr-index        # Remove PR index (pr_index.json)
   cicada-mcp clean --all             # Remove ALL project storage
   cicada-mcp clean --all -f          # Remove ALL project storage (skip confirmation)
         """,
@@ -362,7 +353,17 @@ Examples:
         "-f",
         "--force",
         action="store_true",
-        help="Skip confirmation prompt",
+        help="Skip confirmation prompt (for full clean or --all)",
+    )
+    clean_parser.add_argument(
+        "--index",
+        action="store_true",
+        help="Remove only main index files (index.json, hashes.json)",
+    )
+    clean_parser.add_argument(
+        "--pr-index",
+        action="store_true",
+        help="Remove only PR index file (pr_index.json)",
     )
     clean_parser.add_argument(
         "--all",
@@ -373,25 +374,8 @@ Examples:
     # Parse arguments
     args = parser.parse_args()
 
-    # Handle the case where path_or_command might be a help flag (only if it exists)
-    # This can happen if user types "cicada-mcp --help" - argparse treats it as positional arg
-    if (
-        args.command is None
-        and hasattr(args, "path_or_command")
-        and args.path_or_command in ["-h", "--help"]
-    ):
-        parser.print_help()
-        return
-
-    # Handle the case where path_or_command might be a subcommand (only if it exists)
-    if (
-        args.command is None
-        and hasattr(args, "path_or_command")
-        and args.path_or_command in known_subcommands
-    ):
-        # User typed "cicada-mcp install" etc. - show help for that subcommand
-        parser.parse_args([args.path_or_command, "--help"])
-        return
+    # Store the server path for default handler
+    args._server_path = server_path
 
     # Route to appropriate handler
     if args.command == "install":
@@ -440,9 +424,9 @@ def handle_default_server(args):
     import os
     from pathlib import Path
 
-    # If path_or_command was provided, use it as repo path (backward compatibility)
-    if hasattr(args, "path_or_command") and args.path_or_command:
-        repo_path = Path(args.path_or_command).resolve()
+    # Check if a path was provided (backward compatibility: cicada-mcp <path>)
+    if hasattr(args, "_server_path") and args._server_path:
+        repo_path = Path(args._server_path).resolve()
         os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
     # Import and run MCP server

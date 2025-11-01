@@ -389,7 +389,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 - Wildcard pattern matching (`create*`, `*_user`)
 - NLP-extracted keywords from docs
 - Relevance scoring
-- Requires: Index built with `--extract-keywords`
+- Requires: Index built with `--nlp` or `--rag`
 
 **`find_dead_code`** - Identify potentially unused functions
 - Three confidence levels (high, medium, low)
@@ -413,7 +413,6 @@ CICADA provides several command-line tools for setup, indexing, and analysis:
 **`cicada`** - Initialize CICADA in your project
 ```bash
 cicada                           # Setup in current directory
-cicada --skip-install           # Skip dependency installation
 cicada /path/to/other/project   # Setup in different directory
 ```
 - Generates `.mcp.json` configuration
@@ -426,8 +425,8 @@ cicada /path/to/other/project   # Setup in different directory
 **`cicada index`** - Index Elixir codebase
 ```bash
 cicada index                         # Index current directory
-cicada index --output .cicada/index.json
-cicada index --extract-keywords      # Include NLP keyword extraction
+cicada index --nlp                   # Use NLP keyword extraction (lemminflect)
+cicada index --rag                   # Use BERT-based keyword extraction
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites

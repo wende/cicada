@@ -98,25 +98,9 @@ class CicadaServer:
         if not repo_path:
             repo_path = str(Path.cwd().resolve())
 
-        # Try new storage structure first
-        try:
-            config_path = get_config_path(repo_path)
-            if config_path.exists():
-                return str(config_path)
-        except Exception as e:
-            print(
-                f"Warning: Could not load from new storage structure: {e}",
-                file=sys.stderr,
-            )
-
-        # Fall back to old structure for backward compatibility
-        old_path = Path(repo_path) / ".cicada" / "config.yaml"
-        if old_path.exists():
-            return str(old_path)
-
-        # If neither exists, return the new storage path
-        # (will trigger helpful error message in _load_config)
-        return str(get_config_path(repo_path))
+        # Use new storage structure only
+        config_path = get_config_path(repo_path)
+        return str(config_path)
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
@@ -178,20 +162,8 @@ class CicadaServer:
             # Get repo path from config
             repo_path = Path(self.config.get("repository", {}).get("path", "."))
 
-            # Try new storage structure first
-            try:
-                pr_index_path = get_pr_index_path(repo_path)
-                if pr_index_path.exists():
-                    self._pr_index = load_index(pr_index_path, verbose=True, raise_on_error=False)
-                    return self._pr_index
-            except Exception as e:
-                print(
-                    f"Warning: Could not load PR index from new storage structure: {e}",
-                    file=sys.stderr,
-                )
-
-            # Fall back to old structure for backward compatibility
-            pr_index_path = repo_path / ".cicada" / "pr_index.json"
+            # Use new storage structure only
+            pr_index_path = get_pr_index_path(repo_path)
             self._pr_index = load_index(pr_index_path, verbose=True, raise_on_error=False)
         return self._pr_index
 
@@ -200,19 +172,8 @@ class CicadaServer:
         # Get repo path from config
         repo_path = Path(self.config.get("repository", {}).get("path", "."))
 
-        # Try new storage structure first
-        try:
-            pr_index_path = get_pr_index_path(repo_path)
-            if pr_index_path.exists():
-                return load_index(pr_index_path, verbose=True, raise_on_error=False)
-        except Exception as e:
-            print(
-                f"Warning: Could not load PR index from new storage structure: {e}",
-                file=sys.stderr,
-            )
-
-        # Fall back to old structure for backward compatibility
-        pr_index_path = repo_path / ".cicada" / "pr_index.json"
+        # Use new storage structure only
+        pr_index_path = get_pr_index_path(repo_path)
         return load_index(pr_index_path, verbose=True, raise_on_error=False)
 
     def _check_keywords_available(self) -> bool:
@@ -927,14 +888,14 @@ class CicadaServer:
         try:
             # Get repo path from config
             repo_path = self.config.get("repository", {}).get("path", ".")
-            index_path = Path(repo_path) / ".cicada" / "pr_index.json"
+            index_path = get_pr_index_path(repo_path)
 
             # Check if index exists
             if not index_path.exists():
                 error_msg = (
                     "PR index not found. Please run:\n"
                     "  cicada index-pr\n\n"
-                    "This will create the PR index at .cicada/pr_index.json"
+                    f"This will create the PR index at {index_path}"
                 )
                 return [TextContent(type="text", text=error_msg)]
 
@@ -942,7 +903,7 @@ class CicadaServer:
             pr_finder = PRFinder(
                 repo_path=repo_path,
                 use_index=True,
-                index_path=".cicada/pr_index.json",
+                index_path=str(index_path),
                 verbose=False,
             )
 
@@ -1311,8 +1272,9 @@ class CicadaServer:
         if not self._has_keywords:
             error_msg = (
                 "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada-index --extract-keywords\n\n"
-                "This will extract keywords from documentation using NLP."
+                "  cicada index --nlp   # NLP-based extraction (lemminflect)\n"
+                "  cicada index --rag   # BERT-based extraction\n\n"
+                "This will extract keywords from documentation for semantic search."
             )
             return [TextContent(type="text", text=error_msg)]
 

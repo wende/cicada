@@ -51,6 +51,7 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "simple-term-menu>=1.6.0",
     "tomli>=2.0.0; python_version < '3.11'",
+    "gensim>=4.4.0",
 ]
 
 [project.urls]

@@ -47,21 +47,7 @@ class KeyBERTExtractor:
         """
         self.verbose = verbose
 
-        # Lazy import KeyBERT (only once per class)
-        if KeyBERTExtractor._KeyBERT is None:
-            try:
-                from keybert import KeyBERT
-
-                KeyBERTExtractor._KeyBERT = KeyBERT
-            except ImportError as e:
-                raise ImportError(
-                    "KeyBERT is not installed. Install it with:\n"
-                    "  uv add keybert\n"
-                    "or\n"
-                    "  pip install keybert"
-                ) from e
-
-        # Validate model tier
+        # Validate model tier first
         if model_tier and model_tier not in self.KEYBERT_MODELS:
             raise ValueError(
                 f"Invalid model tier '{model_tier}'. "
@@ -76,12 +62,28 @@ class KeyBERTExtractor:
         self.model_tier = model_tier
         self.model_name = self.KEYBERT_MODELS[model_tier]
 
+        # Print message BEFORE the slow import
         if self.verbose:
             print(
                 f"Loading KeyBERT model ({model_tier}: {self.model_name})",
                 file=sys.stderr,
             )
             print("This can take up to a couple of minutes.", file=sys.stderr)
+
+        # Lazy import KeyBERT (only once per class)
+        # This import can take significant time on first load
+        if KeyBERTExtractor._KeyBERT is None:
+            try:
+                from keybert import KeyBERT
+
+                KeyBERTExtractor._KeyBERT = KeyBERT
+            except ImportError as e:
+                raise ImportError(
+                    "KeyBERT is not installed. Install it with:\n"
+                    "  uv add keybert\n"
+                    "or\n"
+                    "  pip install keybert"
+                ) from e
 
         # Initialize KeyBERT with the selected model
         # Assume model is pre-downloaded (user will handle caching separately)

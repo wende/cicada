@@ -111,7 +111,7 @@ class ElixirIndexer:
     def index_repository(
         self,
         repo_path: str,
-        output_path: str = ".cicada/index.json",
+        output_path: str,
         extract_keywords: bool = False,
     ):
         """
@@ -132,6 +132,10 @@ class ElixirIndexer:
 
         if self.verbose:
             print(f"Indexing repository: {repo_path_obj}")
+            if extract_keywords:
+                # Read and display keyword extraction config
+                method, tier = read_keyword_extraction_config(repo_path_obj)
+                print(f"Keyword extraction: {method.upper()} ({tier})")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -169,8 +173,6 @@ class ElixirIndexer:
 
         if self.verbose:
             print(f"Found {total_files} Elixir files")
-            if extract_keywords:
-                print("Keyword extraction enabled")
 
         # Parse all files
         all_modules = {}
@@ -306,7 +308,11 @@ class ElixirIndexer:
             str(f.relative_to(repo_path_obj)) for f in elixir_files[:files_processed]
         ]
         file_hashes = compute_hashes_for_files(processed_files, str(repo_path_obj))
-        save_file_hashes(str(output_path_obj.parent), file_hashes)
+        # Save hashes to centralized storage directory
+        from cicada.utils import get_storage_dir
+
+        storage_dir = get_storage_dir(repo_path_obj)
+        save_file_hashes(str(storage_dir), file_hashes)
 
         # Report completion status
         if self.verbose:
@@ -340,7 +346,7 @@ class ElixirIndexer:
     def incremental_index_repository(
         self,
         repo_path: str,
-        output_path: str = ".cicada/index.json",
+        output_path: str,
         extract_keywords: bool = False,
         force_full: bool = False,
     ):
@@ -362,29 +368,39 @@ class ElixirIndexer:
         """
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path)
-        cicada_dir = output_path_obj.parent
+        # Use centralized storage directory for hashes
+        from cicada.utils import get_storage_dir
+
+        storage_dir = get_storage_dir(repo_path_obj)
 
         if not repo_path_obj.exists():
             raise ValueError(f"Repository path does not exist: {repo_path_obj}")
 
         # Load existing index and hashes
         existing_index = load_index(output_path_obj) if not force_full else None
-        existing_hashes = load_file_hashes(str(cicada_dir)) if not force_full else {}
+        existing_hashes = load_file_hashes(str(storage_dir)) if not force_full else {}
 
         # Validate existing index structure if loaded
         if existing_index:
             is_valid, error = validate_index_structure(existing_index)
             if not is_valid:
-                print(f"Warning: Existing index is corrupted ({error}). Performing full reindex...")
+                if self.verbose:
+                    print(
+                        f"Warning: Existing index is corrupted ({error}). Performing full reindex..."
+                    )
                 existing_index = None
 
         # If no existing data, do full index
         if not existing_index or not existing_hashes:
-            print("No existing index or hashes found. Performing full index...")
+            if self.verbose:
+                print("No existing index or hashes found. Performing full index...")
             return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
 
         if self.verbose:
+            # Read and display keyword extraction config
+            method, tier = read_keyword_extraction_config(repo_path_obj)
             print(f"Performing incremental index of: {repo_path_obj}")
+            print(f"Keyword extraction: {method.upper()} ({tier})")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -557,7 +573,7 @@ class ElixirIndexer:
 
         # Save index and hashes
         save_index(merged_index, output_path_obj, create_dirs=True)
-        save_file_hashes(str(cicada_dir), updated_hashes)
+        save_file_hashes(str(storage_dir), updated_hashes)
 
         # Report completion status
         if self._interrupted:
@@ -624,11 +640,6 @@ def main():
         help="Output path for the index file (default: .cicada/index.json)",
     )
     parser.add_argument(
-        "--extract-keywords",
-        action="store_true",
-        help="Extract keywords from documentation using NLP (adds ~1-2s per 100 docs)",
-    )
-    parser.add_argument(
         "--full",
         action="store_true",
         help="Force full reindex, ignoring existing hashes (default: incremental)",
@@ -642,7 +653,7 @@ def main():
     indexer.incremental_index_repository(
         args.repo,
         args.output,
-        extract_keywords=args.extract_keywords,
+        extract_keywords=True,
         force_full=args.full,
     )
 
