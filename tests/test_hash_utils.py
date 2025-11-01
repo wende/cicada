@@ -134,7 +134,7 @@ class TestComputeFileHash:
         file.write_text("content")
 
         # Mock open to raise an IOError
-        with mock.patch("builtins.open", side_effect=IOError("Permission denied")):
+        with mock.patch("builtins.open", side_effect=OSError("Permission denied")):
             with pytest.raises(OSError, match="Error reading file"):
                 compute_file_hash(str(file))
 

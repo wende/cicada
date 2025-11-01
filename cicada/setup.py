@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 from cicada.utils import (
     create_storage_dir,
     get_config_path,
@@ -147,6 +147,7 @@ def get_mcp_config_for_editor(
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
+    language: str = "elixir",
     keyword_method: str | None = None,
     keyword_tier: str | None = None,
     verbose: bool = True,
@@ -157,10 +158,13 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
+        language: Programming language (default: 'elixir')
         keyword_method: Keyword extraction method ('lemminflect' or 'bert'), None for default
         keyword_tier: Model tier ('fast', 'regular', 'max'), None for default
         verbose: If True, print success message. If False, silently create config.
     """
+    from cicada.utils.config import create_default_config, save_config
+
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
@@ -170,19 +174,16 @@ def create_config_yaml(
     if keyword_tier is None:
         keyword_tier = "regular"
 
-    config_content = f"""repository:
-  path: {repo_path}
+    # Create config using the centralized config module
+    config_data = create_default_config(
+        language=language,
+        repo_path=repo_path,
+        index_path=index_path,
+        keyword_method=keyword_method,
+        keyword_tier=keyword_tier,
+    )
 
-storage:
-  index_path: {index_path}
-
-keyword_extraction:
-  method: {keyword_method}
-  tier: {keyword_tier}
-"""
-
-    with open(config_path, "w") as f:
-        f.write(config_content)
+    save_config(config_data, config_path)
 
     if verbose:
         print(f"✓ Config file created at {config_path}")
@@ -284,7 +285,14 @@ def setup(
         should_index = False
         force_full = False
         # Ensure config.yaml is up to date with current settings
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            language="elixir",
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            verbose=False,
+        )
     else:
         # Show full banner for new setup
         print("=" * 60)
@@ -355,7 +363,14 @@ def setup(
                 pass
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            language="elixir",
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            verbose=False,
+        )
 
         # Index repository if needed
         if should_index:

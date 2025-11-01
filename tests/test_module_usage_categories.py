@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cicada.formatter import ModuleFormatter
-from cicada.parser import ElixirParser
+from cicada.languages.elixir.parser import ElixirParser
 
 
 def test_parser_extracts_all_categories():

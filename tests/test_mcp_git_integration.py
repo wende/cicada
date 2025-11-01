@@ -18,6 +18,7 @@ def test_server():
     # Use the shared index created by conftest.py
     # Create a test config
     test_config = {
+        "language": "elixir",
         "repository": {"path": "."},
         "storage": {"index_path": ".cicada/index.json"},
     }
@@ -205,6 +206,7 @@ def test_git_helper_not_available():
 
     # Create a config pointing to a non-git directory
     test_config = {
+        "language": "elixir",
         "repository": {"path": "/tmp"},
         "storage": {"index_path": index_path},
     }
@@ -305,7 +307,11 @@ if __name__ == "__main__":
         json.dump(minimal_index, f)
 
     # Create a test server for standalone execution
-    test_config = {"repository": {"path": "."}, "storage": {"index_path": index_path}}
+    test_config = {
+        "language": "elixir",
+        "repository": {"path": "."},
+        "storage": {"index_path": index_path},
+    }
 
     test_config_path = "test_mcp_git_config.yaml"
     with open(test_config_path, "w") as f:

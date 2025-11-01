@@ -11,7 +11,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from cicada.parser import ElixirParser
+from cicada.languages.elixir.parser import ElixirParser
+from cicada.parsing.base_indexer import BaseIndexer
 from cicada.utils import (
     load_index,
     merge_indexes_incremental,
@@ -62,7 +63,7 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
         return ("lemminflect", "regular")
 
 
-class ElixirIndexer:
+class ElixirIndexer(BaseIndexer):
     """Indexes Elixir repositories to extract module and function information."""
 
     # Progress reporting interval - report every N files processed
@@ -81,6 +82,18 @@ class ElixirIndexer:
             "priv",
         }
         self._interrupted = False
+
+    def get_language_name(self) -> str:
+        """Return the language identifier for this indexer."""
+        return "elixir"
+
+    def get_file_extensions(self) -> list[str]:
+        """Return file extensions to index for Elixir."""
+        return [".ex", ".exs"]
+
+    def get_excluded_dirs(self) -> list[str]:
+        """Return Elixir-specific directories to exclude from indexing."""
+        return list(self.excluded_dirs)
 
     def _handle_interrupt(self, _signum, _frame):
         """Handle interrupt signals (Ctrl-C, SIGTERM) gracefully."""
@@ -110,21 +123,30 @@ class ElixirIndexer:
 
     def index_repository(
         self,
-        repo_path: str,
-        output_path: str,
+        repo_path: str | Path,
+        output_path: str | Path,
+        force: bool = False,
+        verbose: bool = False,
+        config_path: str | Path | None = None,
         extract_keywords: bool = False,
-    ):
+    ) -> dict:
         """
         Index an Elixir repository.
 
         Args:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
+            force: If True, reindex all files regardless of changes
+            verbose: If True, print detailed progress information (overrides instance verbose)
+            config_path: Optional path to config.yaml for custom settings
             extract_keywords: If True, extract keywords from documentation using NLP
 
         Returns:
-            Dictionary containing the index data
+            Dictionary containing the index data with success status
         """
+        # Override instance verbose if explicitly set
+        if verbose:
+            self.verbose = verbose
         repo_path_obj = Path(repo_path).resolve()
 
         if not repo_path_obj.exists():
@@ -282,6 +304,8 @@ class ElixirIndexer:
                 "total_modules": len(all_modules),
                 "total_functions": total_functions,
                 "repo_path": str(repo_path_obj),
+                "language": "elixir",
+                "version": "2.0",
             },
         }
 
@@ -341,6 +365,8 @@ class ElixirIndexer:
             print(f"\nIndex saved to: {output_path_obj}")
             print(f"Hashes saved to: {output_path_obj.parent}/hashes.json")
 
+        # Return index directly for backward compatibility
+        # The index already contains modules and metadata
         return index
 
     def incremental_index_repository(
@@ -394,7 +420,9 @@ class ElixirIndexer:
         if not existing_index or not existing_hashes:
             if self.verbose:
                 print("No existing index or hashes found. Performing full index...")
-            return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
+            return self.index_repository(
+                str(repo_path_obj), str(output_path_obj), extract_keywords=extract_keywords
+            )
 
         if self.verbose:
             # Read and display keyword extraction config
@@ -549,6 +577,8 @@ class ElixirIndexer:
             "metadata": {
                 "indexed_at": datetime.now().isoformat(),
                 "repo_path": str(repo_path_obj),
+                "language": "elixir",
+                "version": "2.0",
             },
         }
 

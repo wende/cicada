@@ -462,18 +462,13 @@ def handle_editor_setup(args, editor: str):
 
         if config_path.exists() and index_path.exists():
             # Index exists - read existing settings and mark index_exists
-            import yaml
+            from cicada.utils.config import load_config
 
             try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    keyword_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "lemminflect"
-                    )
-                    keyword_tier = existing_config.get("keyword_extraction", {}).get(
-                        "tier", "regular"
-                    )
-                    index_exists = True
+                config = load_config(config_path)
+                keyword_method = config.keyword_method
+                keyword_tier = config.keyword_tier
+                index_exists = True
             except Exception:
                 # If we can't read config, proceed with defaults
                 pass
@@ -496,7 +491,7 @@ def handle_index(args):
     """Handle the index subcommand."""
     from pathlib import Path
 
-    from cicada.indexer import ElixirIndexer
+    from cicada.languages.elixir.indexer import ElixirIndexer
     from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
 
@@ -583,48 +578,49 @@ def handle_index(args):
 
         # Warn if changing existing config
         if config_exists:
-            import yaml
+            from cicada.utils.config import load_config
 
             try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    existing_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "lemminflect"
-                    )
-                    existing_tier = existing_config.get("keyword_extraction", {}).get(
-                        "tier", "regular"
-                    )
+                config = load_config(config_path)
+                existing_method = config.keyword_method
+                existing_tier = config.keyword_tier
 
-                    # Check if either method or tier has changed
-                    method_changed = existing_method != keyword_method
-                    tier_changed = existing_tier != keyword_tier
+                # Check if either method or tier has changed
+                method_changed = existing_method != keyword_method
+                tier_changed = existing_tier != keyword_tier
 
-                    if method_changed or tier_changed:
-                        # Build error message based on what changed
-                        if method_changed and tier_changed:
-                            change_desc = f"extraction method from {existing_method} to {keyword_method} and tier from {existing_tier} to {keyword_tier}"
-                        elif method_changed:
-                            change_desc = (
-                                f"extraction method from {existing_method} to {keyword_method}"
-                            )
-                        else:
-                            change_desc = f"tier from {existing_tier} to {keyword_tier}"
-
-                        print(
-                            f"Error: Cannot change {change_desc}",
-                            file=sys.stderr,
+                if method_changed or tier_changed:
+                    # Build error message based on what changed
+                    if method_changed and tier_changed:
+                        change_desc = f"extraction method from {existing_method} to {keyword_method} and tier from {existing_tier} to {keyword_tier}"
+                    elif method_changed:
+                        change_desc = (
+                            f"extraction method from {existing_method} to {keyword_method}"
                         )
-                        print(
-                            "\nTo reindex with different settings, first run:",
-                            file=sys.stderr,
-                        )
-                        print("  cicada clean", file=sys.stderr)
-                        print("\nThen run your index command again.", file=sys.stderr)
-                        sys.exit(1)
+                    else:
+                        change_desc = f"tier from {existing_tier} to {keyword_tier}"
+
+                    print(
+                        f"Error: Cannot change {change_desc}",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "\nTo reindex with different settings, first run:",
+                        file=sys.stderr,
+                    )
+                    print("  cicada clean", file=sys.stderr)
+                    print("\nThen run your index command again.", file=sys.stderr)
+                    sys.exit(1)
             except Exception:
                 pass  # If we can't read config, just proceed
 
-        create_config_yaml(repo_path_obj, storage_dir, keyword_method, keyword_tier)
+        create_config_yaml(
+            repo_path_obj,
+            storage_dir,
+            language="elixir",
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+        )
         config_exists = True  # Config now exists
     elif not config_exists:
         # No flags provided AND no config exists - print help and exit

@@ -1,10 +1,8 @@
 """Tests for cicada-server CLI argument handling."""
 
 import os
-import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
@@ -30,15 +28,14 @@ def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
 
     mock_async_run.side_effect = capture_env
 
-    with patch("sys.argv", test_args):
-        with patch("asyncio.run", mock_async_run):
-            # Import and call main
-            from cicada.mcp_server import main
+    with patch("sys.argv", test_args), patch("asyncio.run", mock_async_run):
+        # Import and call main
+        from cicada.mcp_server import main
 
-            try:
-                main()
-            except Exception:
-                pass  # Ignore errors from mocked async_run
+        try:
+            main()
+        except Exception:
+            pass  # Ignore errors from mocked async_run
 
     # Verify that CICADA_REPO_PATH was set to the absolute path
     assert "CICADA_REPO_PATH" in captured_env
@@ -67,14 +64,13 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
         del os.environ["CICADA_REPO_PATH"]
 
     try:
-        with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
-                from cicada.mcp_server import main
+        with patch("sys.argv", test_args), patch("asyncio.run", mock_async_run):
+            from cicada.mcp_server import main
 
-                try:
-                    main()
-                except Exception:
-                    pass
+            try:
+                main()
+            except Exception:
+                pass
 
         # Verify CICADA_REPO_PATH was not set
         assert captured_env["CICADA_REPO_PATH"] is None
@@ -108,14 +104,13 @@ def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
 
         mock_async_run.side_effect = capture_env
 
-        with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
-                from cicada.mcp_server import main
+        with patch("sys.argv", test_args), patch("asyncio.run", mock_async_run):
+            from cicada.mcp_server import main
 
-                try:
-                    main()
-                except Exception:
-                    pass
+            try:
+                main()
+            except Exception:
+                pass
 
         # Verify the path was converted to absolute
         assert "CICADA_REPO_PATH" in captured_env
@@ -147,14 +142,13 @@ def test_cicada_server_dot_argument(monkeypatch, tmp_path):
 
         mock_async_run.side_effect = capture_env
 
-        with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
-                from cicada.mcp_server import main
+        with patch("sys.argv", test_args), patch("asyncio.run", mock_async_run):
+            from cicada.mcp_server import main
 
-                try:
-                    main()
-                except Exception:
-                    pass
+            try:
+                main()
+            except Exception:
+                pass
 
         # Verify CICADA_REPO_PATH is set to the absolute path of current directory
         assert "CICADA_REPO_PATH" in captured_env
@@ -188,10 +182,9 @@ def test_workspace_folder_paths_env_var(monkeypatch, tmp_path):
     # Make them appear to exist so auto-setup doesn't run
     with patch("pathlib.Path.exists") as mock_exists:
         mock_exists.return_value = True
-        with patch("sys.argv", test_args):
-            with patch("asyncio.run"):
-                # This should use WORKSPACE_FOLDER_PATHS
-                mcp_server._auto_setup_if_needed()
+        with patch("sys.argv", test_args), patch("asyncio.run"):
+            # This should use WORKSPACE_FOLDER_PATHS
+            mcp_server._auto_setup_if_needed()
 
 
 def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
@@ -213,11 +206,10 @@ def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
     # Mock Path.exists to prevent actual setup
     with patch("pathlib.Path.exists") as mock_exists:
         mock_exists.return_value = True
-        with patch("sys.argv", test_args):
-            with patch("asyncio.run"):
-                from cicada import mcp_server
+        with patch("sys.argv", test_args), patch("asyncio.run"):
+            from cicada import mcp_server
 
-                mcp_server._auto_setup_if_needed()
+            mcp_server._auto_setup_if_needed()
 
 
 def test_cicada_repo_path_takes_precedence_over_workspace_folder_paths(monkeypatch, tmp_path):
@@ -236,9 +228,8 @@ def test_cicada_repo_path_takes_precedence_over_workspace_folder_paths(monkeypat
     # Mock Path.exists to prevent actual setup
     with patch("pathlib.Path.exists") as mock_exists:
         mock_exists.return_value = True
-        with patch("sys.argv", ["cicada-server"]):
-            with patch("asyncio.run"):
-                from cicada import mcp_server
+        with patch("sys.argv", ["cicada-server"]), patch("asyncio.run"):
+            from cicada import mcp_server
 
-                # Should use CICADA_REPO_PATH (repo1), not WORKSPACE_FOLDER_PATHS (repo2)
-                mcp_server._auto_setup_if_needed()
+            # Should use CICADA_REPO_PATH (repo1), not WORKSPACE_FOLDER_PATHS (repo2)
+            mcp_server._auto_setup_if_needed()

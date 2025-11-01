@@ -3,7 +3,7 @@ Integration tests for .gitignore auto-update on first run
 """
 
 # No unused imports
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 
 
 class TestGitignoreIntegration:

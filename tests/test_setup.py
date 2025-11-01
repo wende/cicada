@@ -3,12 +3,14 @@ Comprehensive tests for cicada/setup.py
 """
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import MagicMock, mock_open, patch
+
+import pytest
+
 from cicada.setup import (
-    get_mcp_config_for_editor,
     create_config_yaml,
+    get_mcp_config_for_editor,
     index_repository,
     setup,
 )
@@ -405,9 +407,8 @@ class TestMainFunction:
         """Main should only accept valid editor choices"""
         from cicada.setup import main
 
-        with patch("sys.argv", ["cicada", "invalid_editor"]):
-            with pytest.raises(SystemExit):
-                main()
+        with patch("sys.argv", ["cicada", "invalid_editor"]), pytest.raises(SystemExit):
+            main()
 
 
 class TestErrorHandling:
@@ -802,10 +803,11 @@ class TestSetupKeywordParameters:
                         setup("claude", mock_repo, keyword_method="bert", keyword_tier="fast")
 
                         mock_create_config.assert_called()
-                        # Check positional args (repo_path, storage_dir, keyword_method, keyword_tier, verbose)
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] == "bert"  # keyword_method is 3rd positional arg
-                        assert call_args[3] == "fast"  # keyword_tier is 4th positional arg
+                        # Check keyword args (now using named parameters)
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["keyword_method"] == "bert"
+                        assert call_kwargs["keyword_tier"] == "fast"
+                        assert call_kwargs["language"] == "elixir"
 
     def test_defaults_to_lemminflect_when_no_method_specified(self, mock_repo):
         """Should use lemminflect as default when no method specified"""
@@ -822,9 +824,10 @@ class TestSetupKeywordParameters:
 
                         # Should pass None for both (create_config_yaml handles defaults)
                         mock_create_config.assert_called()
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] is None  # keyword_method
-                        assert call_args[3] is None  # keyword_tier
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["keyword_method"] is None
+                        assert call_kwargs["keyword_tier"] is None
+                        assert call_kwargs["language"] == "elixir"
 
 
 class TestSetupSettingsChangeDetection:

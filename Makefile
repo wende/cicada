@@ -5,6 +5,7 @@ help:
 	@echo "Available targets:"
 	@echo "  make install       - Full install (deps + cicada tool to ~/.local/bin)"
 	@echo "  make install-deps  - Install dependencies only (no tool installation)"
+	@echo "  make uninstall     - Uninstall cicada tool"
 	@echo "  make setup-fixtures - Setup test fixtures"
 	@echo "  make test          - Run all tests (auto-installs dependencies)"
 	@echo "  make test-verbose  - Run tests with verbose output (auto-installs dependencies)"
@@ -47,6 +48,12 @@ install: install-deps
 	@uv tool install --editable . --force
 	@echo "✓ cicada installed in editable mode"
 	@echo "  Command 'cicada' now uses code from $(PWD)"
+
+
+uninstall: clean
+	@echo "Uninstalling cicada tool..."
+	@uv tool uninstall cicada-mcp 2>/dev/null || true
+	@echo "✓ cicada uninstalled"
 
 # Setup test fixtures
 setup-fixtures:

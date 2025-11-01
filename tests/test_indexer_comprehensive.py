@@ -4,7 +4,7 @@ Comprehensive tests for cicada/indexer.py
 
 import pytest
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 
 
 class TestElixirIndexerErrorHandling:
@@ -55,7 +55,7 @@ class TestElixirIndexerMainFunction:
         import os
         import sys
 
-        from cicada.indexer import main
+        from cicada.languages.elixir.indexer import main
 
         # Create a test repository
         test_file = tmp_path / "test.ex"
@@ -97,7 +97,7 @@ end
         """Test main() with custom output path"""
         import sys
 
-        from cicada.indexer import main
+        from cicada.languages.elixir.indexer import main
 
         test_file = tmp_path / "test.ex"
         test_file.write_text(
@@ -131,7 +131,7 @@ end
         """Test main() with current directory (no args)"""
         import sys
 
-        from cicada.indexer import main
+        from cicada.languages.elixir.indexer import main
 
         # Create test file in tmp_path
         test_file = tmp_path / "test.ex"
@@ -526,9 +526,9 @@ end
         )
 
         # Mock the KeywordExtractor to not be available during initialization
-        import cicada.indexer
+        import cicada.languages.elixir.indexer
 
-        original_code = cicada.indexer.ElixirIndexer.index_repository
+        original_code = cicada.languages.elixir.indexer.ElixirIndexer.index_repository
 
         def mock_index_repo(
             self,
@@ -544,7 +544,9 @@ end
                 extract_keywords = False
             return original_code(self, repo_path, output_path, extract_keywords)
 
-        monkeypatch.setattr(cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo)
+        monkeypatch.setattr(
+            cicada.languages.elixir.indexer.ElixirIndexer, "index_repository", mock_index_repo
+        )
 
         # Index with keyword extraction (should handle import failure)
         index = indexer.index_repository(
@@ -779,7 +781,7 @@ class TestElixirIndexerMainCLI:
         """Test main() with --full flag"""
         import sys
 
-        from cicada.indexer import main
+        from cicada.languages.elixir.indexer import main
 
         test_file = tmp_path / "test.ex"
         test_file.write_text(
@@ -827,9 +829,11 @@ class TestElixirIndexerIncrementalWithKeywords:
             def extract_keywords_simple(self, text, top_n=10):
                 return ["keyword1", "keyword2"]
 
-        import cicada.indexer
+        import cicada.languages.elixir.indexer
 
-        monkeypatch.setattr(cicada.indexer, "KeywordExtractor", MockKeywordExtractor, raising=False)
+        monkeypatch.setattr(
+            cicada.languages.elixir.indexer, "KeywordExtractor", MockKeywordExtractor, raising=False
+        )
 
         indexer = ElixirIndexer()
 
@@ -1171,8 +1175,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_yaml_parsing_error_returns_default(self, tmp_path, monkeypatch):
         """Test that YAML parsing errors return default config"""
-        from cicada.indexer import read_keyword_extraction_config
-        from cicada.utils.storage import get_config_path
+        from cicada.languages.elixir.indexer import read_keyword_extraction_config
 
         # Create a config file with invalid YAML
         config_path = tmp_path / "config.yaml"
@@ -1180,7 +1183,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
         # Mock get_config_path to return our invalid config
         monkeypatch.setattr(
-            "cicada.indexer.get_config_path",
+            "cicada.languages.elixir.indexer.get_config_path",
             lambda x: config_path,
         )
 
@@ -1191,13 +1194,13 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_general_exception_returns_default(self, tmp_path, monkeypatch):
         """Test that general exceptions return default config"""
-        from cicada.indexer import read_keyword_extraction_config
+        from cicada.languages.elixir.indexer import read_keyword_extraction_config
 
         # Mock get_config_path to raise an exception
         def mock_get_config_path(x):
             raise PermissionError("Permission denied")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", mock_get_config_path)
+        monkeypatch.setattr("cicada.languages.elixir.indexer.get_config_path", mock_get_config_path)
 
         # Should return defaults instead of crashing
         method, tier = read_keyword_extraction_config(tmp_path)
@@ -1210,7 +1213,7 @@ class TestKeywordExtractionEdgeCases:
 
     def test_extractor_initialization_exception_warning(self, tmp_path, monkeypatch, capsys):
         """Test that extractor initialization errors show warning and continue"""
-        from cicada.indexer import ElixirIndexer
+        from cicada.languages.elixir.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -1232,7 +1235,9 @@ end
         config_path.write_text("keyword_extraction:\n  method: bert\n  tier: fast")
 
         # Mock get_config_path
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        )
 
         # Mock KeyBERT extractor to raise exception
         def mock_keybert_init(*args, **kwargs):
@@ -1255,7 +1260,7 @@ end
 
     def test_silent_module_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test that module keyword extraction failures are silently handled"""
-        from cicada.indexer import ElixirIndexer
+        from cicada.languages.elixir.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -1276,7 +1281,9 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        )
 
         # Mock keyword extractor to raise exception
         from unittest.mock import Mock
@@ -1304,7 +1311,7 @@ end
 
     def test_silent_function_keyword_extraction_failure(self, tmp_path, monkeypatch):
         """Test that function keyword extraction failures are silently handled"""
-        from cicada.indexer import ElixirIndexer
+        from cicada.languages.elixir.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -1325,7 +1332,9 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        )
 
         # Mock keyword extractor to raise exception only for function extraction
         from unittest.mock import Mock
@@ -1360,7 +1369,7 @@ end
 
     def test_incremental_extractor_init_failure_continues(self, tmp_path, monkeypatch, capsys):
         """Test that incremental indexing continues if extractor init fails"""
-        from cicada.indexer import ElixirIndexer
+        from cicada.languages.elixir.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -1380,7 +1389,9 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: bert\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        )
 
         # Mock KeyBERT extractor to raise exception
         def mock_keybert_init(*args, **kwargs):

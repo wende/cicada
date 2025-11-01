@@ -15,12 +15,10 @@ Test Categories:
 """
 
 import json
-
 import pytest
 import yaml
-from mcp.types import TextContent
-
 from cicada.mcp_server import CicadaServer
+from mcp.types import TextContent
 
 
 @pytest.fixture
@@ -179,7 +177,6 @@ def e2e_server(sample_elixir_repo, tmp_path):
 
     # Create config
     config = {
-        "language": "elixir",
         "repository": {"path": str(sample_elixir_repo)},
         "storage": {"index_path": str(index_path)},
     }
@@ -736,7 +733,6 @@ end
         ), "No modules were indexed"
 
         config = {
-            "language": "elixir",
             "repository": {"path": str(repo)},
             "storage": {"index_path": str(index_path)},
         }

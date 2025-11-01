@@ -1,8 +1,7 @@
 """Tests for LightweightKeywordExtractor."""
 
-import sys
 import warnings
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

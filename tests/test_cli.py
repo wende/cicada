@@ -4,7 +4,6 @@ Comprehensive tests for cicada/cli.py
 
 import json
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,7 +14,6 @@ from cicada.cli import (
     handle_find_dead_code,
     handle_index,
     handle_index_pr,
-    handle_install_command,
     main,
 )
 
@@ -271,21 +269,26 @@ class TestHandleEditorSetup:
 
     def test_no_flags_with_existing_index(self, mock_elixir_repo, tmp_path):
         """Should read existing config when no flags and index exists"""
+        from cicada.utils.config import Config
+
         args = MagicMock(fast=False, max=False, nlp=False, rag=False)
+
+        # Create a mock config object
+        mock_config = Config(
+            {
+                "language": "elixir",
+                "repository": {"path": str(mock_elixir_repo)},
+                "storage": {"index_path": str(tmp_path / "index.json")},
+                "keyword_extraction": {"method": "bert", "tier": "fast"},
+            }
+        )
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
             patch("cicada.utils.storage.get_config_path") as mock_get_config,
             patch("cicada.utils.storage.get_index_path") as mock_get_index,
             patch("cicada.setup.setup") as mock_setup,
-            patch(
-                "builtins.open",
-                MagicMock(return_value=MagicMock(__enter__=lambda s: s, read=lambda: "")),
-            ),
-            patch(
-                "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
-            ),
+            patch("cicada.utils.config.load_config", return_value=mock_config),
         ):
             # Mock paths to exist
             mock_config_path = MagicMock()
@@ -363,7 +366,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir") as mock_storage,
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer"),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer"),
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = False
@@ -375,9 +378,10 @@ class TestHandleIndex:
 
             # Verify config was created with lemminflect
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "lemminflect"  # keyword_method
-            assert call_args[3] == "regular"  # keyword_tier
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["keyword_method"] == "lemminflect"
+            assert call_kwargs["keyword_tier"] == "regular"
+            assert call_kwargs["language"] == "elixir"
 
     def test_rag_flag_creates_config_with_bert(self, mock_repo):
         """--rag should create config with bert"""
@@ -391,7 +395,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir") as mock_storage,
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer"),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer"),
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = False
@@ -403,9 +407,10 @@ class TestHandleIndex:
 
             # Verify config was created with bert
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"
-            assert call_args[3] == "regular"
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["keyword_method"] == "bert"
+            assert call_kwargs["keyword_tier"] == "regular"
+            assert call_kwargs["language"] == "elixir"
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
@@ -437,8 +442,20 @@ class TestHandleIndex:
 
     def test_changing_method_exits_with_error(self, mock_repo, capsys):
         """Changing extraction method should exit with error and suggest cicada clean"""
+        from cicada.utils.config import Config
+
         args = MagicMock(
             fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
+        )
+
+        # Create a mock config object with existing lemminflect method
+        mock_config = Config(
+            {
+                "language": "elixir",
+                "repository": {"path": str(mock_repo)},
+                "storage": {"index_path": str(mock_repo / "index.json")},
+                "keyword_extraction": {"method": "lemminflect", "tier": "regular"},
+            }
         )
 
         with (
@@ -447,12 +464,8 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml"),
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
-            patch("builtins.open", MagicMock()),
-            patch(
-                "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "lemminflect", "tier": "regular"}},
-            ),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.utils.config.load_config", return_value=mock_config),
             pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()
@@ -475,7 +488,19 @@ class TestHandleIndex:
 
     def test_changing_tier_exits_with_error(self, mock_repo, capsys):
         """Changing tier should exit with error and suggest cicada clean"""
+        from cicada.utils.config import Config
+
         args = MagicMock(fast=False, max=True, nlp=False, rag=True, repo=str(mock_repo), test=False)
+
+        # Create a mock config object with existing fast tier
+        mock_config = Config(
+            {
+                "language": "elixir",
+                "repository": {"path": str(mock_repo)},
+                "storage": {"index_path": str(mock_repo / "index.json")},
+                "keyword_extraction": {"method": "bert", "tier": "fast"},
+            }
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -483,12 +508,8 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml"),
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
-            patch("builtins.open", MagicMock()),
-            patch(
-                "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
-            ),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.utils.config.load_config", return_value=mock_config),
             pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()

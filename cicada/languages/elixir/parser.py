@@ -6,8 +6,12 @@ Parses Elixir source files to extract modules and functions.
 Author: Cursor(Auto)
 """
 
+from pathlib import Path
+
 import tree_sitter_elixir as ts_elixir
 from tree_sitter import Language, Parser
+
+from cicada.parsing.base_parser import BaseParser
 
 from .extractors import (
     extract_aliases,
@@ -26,14 +30,23 @@ from .extractors import (
 )
 
 
-class ElixirParser:
+class ElixirParser(BaseParser):
     """Parser for extracting modules and functions from Elixir files."""
 
     def __init__(self):
         """Initialize the tree-sitter parser with Elixir grammar."""
         self.parser = Parser(Language(ts_elixir.language()))  # type: ignore[no-matching-overload]
+        self.language = Language(ts_elixir.language())
 
-    def parse_file(self, file_path: str) -> list[dict] | None:
+    def get_language_name(self) -> str:
+        """Return the language identifier for this parser."""
+        return "elixir"
+
+    def get_tree_sitter_language(self):
+        """Return the tree-sitter Language instance for Elixir."""
+        return self.language
+
+    def parse_file(self, file_path: str | Path) -> list[dict] | None:
         """
         Parse an Elixir file and extract module and function information.
 
@@ -41,8 +54,12 @@ class ElixirParser:
             file_path: Path to the .ex or .exs file to parse
 
         Returns:
-            Dictionary containing module name and functions list, or None if parsing fails
+            List of dictionaries containing module information, or None if parsing fails
         """
+        # Convert Path to str if needed
+        if isinstance(file_path, Path):
+            file_path = str(file_path)
+
         try:
             with open(file_path, "rb") as f:
                 source_code = f.read()
