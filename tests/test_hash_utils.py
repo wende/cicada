@@ -3,14 +3,15 @@ Comprehensive tests for cicada/utils/hash_utils.py
 """
 
 import json
+
 import pytest
-from pathlib import Path
+
 from cicada.utils.hash_utils import (
     compute_file_hash,
+    compute_hashes_for_files,
+    detect_file_changes,
     load_file_hashes,
     save_file_hashes,
-    detect_file_changes,
-    compute_hashes_for_files,
 )
 
 
@@ -125,6 +126,18 @@ class TestComputeFileHash:
         with pytest.raises(FileNotFoundError):
             compute_file_hash(str(nonexistent))
 
+    def test_compute_hash_read_error(self, tmp_path):
+        """Test handling of read errors"""
+        import unittest.mock as mock
+
+        file = tmp_path / "test.txt"
+        file.write_text("content")
+
+        # Mock open to raise an IOError
+        with mock.patch("builtins.open", side_effect=IOError("Permission denied")):
+            with pytest.raises(OSError, match="Error reading file"):
+                compute_file_hash(str(file))
+
 
 class TestLoadFileHashes:
     """Tests for load_file_hashes function"""
@@ -233,6 +246,22 @@ class TestSaveFileHashes:
             data = json.load(f)
 
         assert data["hashes"] == new_hashes
+
+    def test_save_hashes_write_error(self, tmp_path, capsys):
+        """Test handling of write errors"""
+        import unittest.mock as mock
+
+        cicada_dir = tmp_path / ".cicada"
+        hashes = {"file.ex": "hash"}
+
+        # Mock open to raise an OSError
+        with mock.patch("builtins.open", side_effect=OSError("Permission denied")):
+            # Should not raise, but print warning
+            save_file_hashes(str(cicada_dir), hashes)
+
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
+        assert "Could not save" in captured.out
 
 
 class TestDetectFileChanges:
@@ -387,6 +416,30 @@ class TestDetectFileChanges:
         assert len(new_files) == 1
         assert len(modified_files) == 0
         assert len(deleted_files) == 0
+
+    def test_detect_changes_file_hash_error(self, tmp_path, capsys):
+        """Test handling of file hash errors during change detection"""
+        import unittest.mock as mock
+
+        file1 = tmp_path / "file1.ex"
+        file1.write_text("content 1")
+
+        old_hash1 = compute_file_hash(str(file1))
+        old_hashes = {"file1.ex": old_hash1}
+        current_files = ["file1.ex"]
+
+        # Mock compute_file_hash to raise an error
+        with mock.patch(
+            "cicada.utils.hash_utils.compute_file_hash", side_effect=OSError("Read error")
+        ):
+            new_files, modified_files, deleted_files = detect_file_changes(
+                current_files, old_hashes, str(tmp_path)
+            )
+
+        # File should be treated as deleted due to hash error
+        assert "file1.ex" in deleted_files
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
 
 
 class TestComputeHashesForFiles:

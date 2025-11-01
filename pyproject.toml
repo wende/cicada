@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicada-mcp"
-version = "0.1.7"
+version = "0.2.0"
 description = "An Elixir module search MCP server"
 readme = "README.md"
 license = "MIT"
@@ -46,9 +46,12 @@ dependencies = [
     "tree-sitter>=0.20.0",
     "tree-sitter-elixir>=0.1.0",
     "gitpython>=3.1.0",
+    "keybert>=0.8.0",
     "lemminflect>=0.2.3",
     "rank-bm25>=0.2.2",
+    "simple-term-menu>=1.6.0",
     "tomli>=2.0.0; python_version < '3.11'",
+    "gensim>=4.4.0",
 ]
 
 [project.urls]
@@ -59,23 +62,10 @@ Changelog = "https://github.com/wende/cicada/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/wende/cicada#readme"
 
 [project.scripts]
-cicada-mcp = "cicada.mcp_server:main"
-cicada-server = "cicada.mcp_server:main"  # Backwards compatibility
-cicada = "cicada.setup:main"
-cicada-install = "cicada.install:main"
-cicada-clean = "cicada.clean:main"
-cicada-index = "cicada.indexer:main"
-cicada-index-pr = "cicada.pr_indexer:main"
-cicada-find-dead-code = "cicada.find_dead_code:main"
+cicada-mcp = "cicada.mcp_entry:main"
+cicada-server = "cicada.mcp_entry:main"  # Backwards compatibility
+cicada = "cicada.cli:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
-    "pytest-cov>=6.0.0",
-    "black>=24.0.0",
-    "pyrefly>=0.1.0",
-]
 
 [tool.setuptools.packages.find]
 include = ["cicada*"]
@@ -96,6 +86,10 @@ omit = [
     "*/__pycache__/*",
     "*/venv/*",
     "*/site-packages/*",
+    # Entry points - thin wrappers with low ROI for testing
+    "*/cli.py",
+    "*/mcp_entry.py",
+    "*/install.py",
 ]
 branch = true
 
@@ -118,7 +112,7 @@ skip_covered = false
 directory = "htmlcov"
 
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ['py310', 'py311']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -138,65 +132,59 @@ extend-exclude = '''
 )/
 '''
 
-[tool.basedpyright]
-pythonVersion = "3.10"
-include = ["cicada", "tests"]
-exclude = ["**/node_modules", "**/__pycache__", "**/.*"]
-ignore = []
-strict = []
-reportMissingImports = false
-reportMissingTypeStubs = false
-reportGeneralTypeIssues = false
-reportOptionalMemberAccess = false
-reportOptionalSubscript = false
-reportPrivateImportUsage = false
-reportUnknownArgumentType = false
-reportUnknownMemberType = false
-reportUnknownVariableType = false
-reportUnknownParameterType = false
-reportMissingParameterType = false
-reportUnnecessaryIsInstance = false
-reportUnnecessaryComparison = false
-reportUnnecessaryContains = false
-reportImplicitStringConcatenation = false
-reportUnusedImport = "warning"
-reportUnusedClass = "warning"
-reportUnusedFunction = "warning"
-reportUnusedVariable = "warning"
-reportDuplicateImport = true
-reportWildcardImportFromLibrary = true
-reportAbstractUsage = true
-reportUnsupportedDunderAll = true
-reportUnusedCoroutine = "warning"
-reportUnnecessaryTypeIgnoreComment = true
-reportMatchNotExhaustive = true
-reportUninitializedInstanceVariable = true
-reportCallInDefaultInitializer = true
-reportImplicitOverride = true
-reportIncompatibleMethodOverride = true
-reportIncompatibleVariableOverride = true
-reportInconsistentConstructor = true
-reportOverlappingOverload = true
-reportPossiblyUnboundVariable = true
-reportSelfClsParameterName = true
-reportUnusedCallResult = false
-reportUnusedExpression = true
-reportUnusedParameter = true
-reportAny = false
-reportExplicitAny = false
-reportUnannotatedClassAttribute = false
-reportMissingTypeArgument = false
-reportArgumentType = false
-reportAssignmentType = false
-reportIndexIssue = false
-reportOperatorIssue = false
-reportAttributeAccessIssue = false
-reportUnknownLambdaType = false
-reportDeprecated = false
-reportReturnType = false
-reportPrivateUsage = false
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",     # Pyflakes
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "ISC",   # flake8-implicit-str-concat
+    "PIE",   # flake8-pie
+    "T20",   # flake8-print (only for debugging, can be disabled)
+    "Q",     # flake8-quotes
+    "SIM",   # flake8-simplify
+]
+ignore = [
+    "E501",   # Line too long (handled by black)
+    "T201",   # print() found (we use print for CLI output)
+    "T203",   # pprint() found
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["T201", "T203"]  # Allow print in tests
+
+
 
 [dependency-groups]
 dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "black>=24.0.0",
     "pyrefly>=0.39.1",
+    "vulture>=2.14",
+    "ruff>=0.14.2",
 ]

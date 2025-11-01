@@ -173,9 +173,7 @@ def e2e_server(sample_elixir_repo, tmp_path):
 
     # Validate indexing succeeded
     assert index_result is not None, "Failed to index repository"
-    assert (
-        index_result.get("metadata", {}).get("total_modules", 0) > 0
-    ), "No modules were indexed"
+    assert index_result.get("metadata", {}).get("total_modules", 0) > 0, "No modules were indexed"
 
     # Create config
     config = {
@@ -452,12 +450,9 @@ class TestConcurrentRequests:
 
         # Verify each tool returned correct data
         assert "SampleApp.User" in results[0][0].text, "Module search should find User"
+        assert "create_user" in results[1][0].text, "Function search should find create_user"
         assert (
-            "create_user" in results[1][0].text
-        ), "Function search should find create_user"
-        assert (
-            "usage" in results[2][0].text.lower()
-            or "used" in results[2][0].text.lower()
+            "usage" in results[2][0].text.lower() or "used" in results[2][0].text.lower()
         ), "Module usage should report usage information"
 
 
@@ -546,9 +541,7 @@ class TestKeywordSearch:
     @pytest.mark.asyncio
     async def test_search_by_keywords_invalid_input(self, e2e_server):
         """Test keyword search with invalid input."""
-        result = await e2e_server.call_tool(
-            "search_by_keywords", {"keywords": "not_a_list"}
-        )
+        result = await e2e_server.call_tool("search_by_keywords", {"keywords": "not_a_list"})
 
         assert len(result) == 1
         text = result[0].text
@@ -749,9 +742,7 @@ end
 
         server = CicadaServer(str(config_path))
 
-        result = await server.call_tool(
-            "search_module", {"module_name": "Minimal.Empty"}
-        )
+        result = await server.call_tool("search_module", {"module_name": "Minimal.Empty"})
 
         assert len(result) == 1
         text = result[0].text
@@ -761,9 +752,7 @@ end
     async def test_function_with_arity_zero(self, e2e_server):
         """Test searching for functions with arity 0."""
         # Add a module with arity-0 function
-        result = await e2e_server.call_tool(
-            "search_function", {"function_name": "create_user/0"}
-        )
+        result = await e2e_server.call_tool("search_function", {"function_name": "create_user/0"})
 
         assert len(result) == 1
         # Should handle gracefully even if not found

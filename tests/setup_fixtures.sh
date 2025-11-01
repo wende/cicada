@@ -22,8 +22,20 @@ fi
 # Generate index for test fixtures
 echo "Generating index for $FIXTURE_DIR..."
 if command -v uv >/dev/null 2>&1; then
-    uv run python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --extract-keywords
+    uv run python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json
 else
-    python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --extract-keywords
+    python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json
 fi
 echo "✓ Test fixtures generated successfully"
+
+# Create config.yaml for acceptance tests
+echo "Creating config for test fixtures..."
+mkdir -p tests/fixtures/.cicada
+cat > tests/fixtures/.cicada/config.yaml << EOF
+repository:
+  path: $FIXTURE_DIR
+
+storage:
+  index_path: tests/fixtures/.cicada/index.json
+EOF
+echo "✓ Config created for test fixtures"

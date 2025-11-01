@@ -3,7 +3,7 @@ Comprehensive tests for cicada/pr_indexer/pr_index_builder.py
 """
 
 import json
-import pytest
+
 from cicada.pr_indexer.pr_index_builder import PRIndexBuilder
 
 
@@ -391,9 +391,7 @@ class TestMergePartialClean:
         """Test that partial merge counts comments correctly"""
         builder = PRIndexBuilder("owner", "repo")
         existing_index = {
-            "prs": {
-                "100": {"number": 100, "commits": [], "comments": [{"body": "c1"}]}
-            },
+            "prs": {"100": {"number": 100, "commits": [], "comments": [{"body": "c1"}]}},
             "commit_to_pr": {},
             "file_to_prs": {},
             "metadata": {},
@@ -464,7 +462,7 @@ class TestLoadExistingIndex:
 
         def mock_open(*args, **kwargs):
             if str(index_path) in str(args[0]):
-                raise IOError("Mocked IO error")
+                raise OSError("Mocked IO error")
             return original_open(*args, **kwargs)
 
         monkeypatch.setattr("builtins.open", mock_open)
@@ -487,7 +485,7 @@ class TestSaveIndex:
         assert output_path.exists()
 
         # Verify content
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             loaded = json.load(f)
         assert loaded["metadata"]["total_prs"] == 1
 
@@ -521,6 +519,6 @@ class TestSaveIndex:
         builder.save_index(index2, str(output_path))
 
         # Verify it was overwritten
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             loaded = json.load(f)
         assert loaded["metadata"]["version"] == 2

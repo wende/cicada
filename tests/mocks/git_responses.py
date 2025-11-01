@@ -7,10 +7,10 @@ Provides response builders for git operations that can be customized
 for different test scenarios while maintaining realistic output formats.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 
-def create_file_content_response(lines: List[str], _file_path: str = "test.py") -> str:
+def create_file_content_response(lines: list[str], _file_path: str = "test.py") -> str:
     """
     Create mock file content response.
 
@@ -25,7 +25,7 @@ def create_file_content_response(lines: List[str], _file_path: str = "test.py") 
 
 
 def create_git_show_response(
-    _ref: str = "HEAD", file_path: str = "test.py", content: Optional[List[str]] = None
+    _ref: str = "HEAD", file_path: str = "test.py", content: list[str] | None = None
 ) -> str:
     """
     Create mock git show output.
@@ -53,7 +53,7 @@ def create_git_show_response(
     return create_file_content_response(content, file_path)
 
 
-def create_git_ls_files_response(file_paths: List[str], exists: bool = True) -> str:
+def create_git_ls_files_response(file_paths: list[str], exists: bool = True) -> str:
     """
     Create mock git ls-files output.
 
@@ -69,9 +69,7 @@ def create_git_ls_files_response(file_paths: List[str], exists: bool = True) -> 
     return ""
 
 
-def create_git_log_response(
-    commits: List[Dict[str, str]], format_string: str = "%H %s"
-) -> str:
+def create_git_log_response(commits: list[dict[str, str]], format_string: str = "%H %s") -> str:
     """
     Create mock git log output.
 
@@ -131,9 +129,9 @@ def create_git_diff_response(
 
 
 def create_git_status_response(
-    modified_files: List[str] = None,
-    untracked_files: List[str] = None,
-    staged_files: List[str] = None,
+    modified_files: list[str] = None,
+    untracked_files: list[str] = None,
+    staged_files: list[str] = None,
 ) -> str:
     """
     Create mock git status output.
@@ -176,7 +174,7 @@ def create_git_status_response(
 # File evolution scenarios for line mapping tests
 
 
-def create_file_evolution_scenario() -> Dict[str, List[str]]:
+def create_file_evolution_scenario() -> dict[str, list[str]]:
     """
     Create a file evolution scenario for testing line mapping.
 
@@ -228,7 +226,7 @@ def create_file_evolution_scenario() -> Dict[str, List[str]]:
     }
 
 
-def create_line_mapping_test_data() -> Dict[str, Any]:
+def create_line_mapping_test_data() -> dict[str, Any]:
     """
     Create test data for line mapping scenarios.
 
@@ -297,7 +295,7 @@ def create_git_not_found_response() -> str:
 # Helper functions for specific test scenarios
 
 
-def create_simple_python_file() -> List[str]:
+def create_simple_python_file() -> list[str]:
     """Create a simple Python file for testing."""
     return [
         "#!/usr/bin/env python3",
@@ -317,7 +315,7 @@ def create_simple_python_file() -> List[str]:
     ]
 
 
-def create_file_with_comments() -> List[str]:
+def create_file_with_comments() -> list[str]:
     """Create a file with various comment types for testing."""
     return [
         "def function_with_comments():",
@@ -332,7 +330,7 @@ def create_file_with_comments() -> List[str]:
     ]
 
 
-def create_large_file(lines: int = 100) -> List[str]:
+def create_large_file(lines: int = 100) -> list[str]:
     """Create a large file for performance testing."""
     file_lines = [
         '"""Large test file."""',

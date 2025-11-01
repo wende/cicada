@@ -6,10 +6,10 @@ Tests server initialization, tool validation, and basic operations.
 """
 
 import json
-import sys
+
 import pytest
 import yaml
-from pathlib import Path
+
 from cicada.mcp_server import CicadaServer
 
 
@@ -211,9 +211,7 @@ class TestSearchModuleUsage:
                     "imports": ["MyApp.User"],
                     "requires": [],
                     "uses": [],
-                    "calls": [
-                        {"module": "User", "function": "create", "arity": 1, "line": 10}
-                    ],
+                    "calls": [{"module": "User", "function": "create", "arity": 1, "line": 10}],
                 },
             },
             "metadata": {"total_modules": 2},
@@ -235,9 +233,7 @@ class TestSearchModuleUsage:
     @pytest.mark.asyncio
     async def test_module_not_found(self, test_server):
         """Should return error when module doesn't exist"""
-        result = await test_server._search_module_usage(
-            "NonExistent.Module", "markdown"
-        )
+        result = await test_server._search_module_usage("NonExistent.Module", "markdown")
         assert len(result) == 1
         assert "not found in index" in result[0].text
 
@@ -300,13 +296,9 @@ class TestListTools:
 
         for tool in tools:
             assert tool.description, f"Tool '{tool.name}' missing description"
-            assert (
-                len(tool.description) > 10
-            ), f"Tool '{tool.name}' has short description"
+            assert len(tool.description) > 10, f"Tool '{tool.name}' has short description"
             assert tool.inputSchema, f"Tool '{tool.name}' missing inputSchema"
-            assert (
-                "properties" in tool.inputSchema
-            ), f"Tool '{tool.name}' schema missing properties"
+            assert "properties" in tool.inputSchema, f"Tool '{tool.name}' schema missing properties"
 
 
 class TestUnknownTool:
@@ -392,9 +384,7 @@ class TestAddCodeExamples:
 
     def test_handles_missing_files_gracefully(self, test_server_with_files):
         """Should skip code examples for missing files"""
-        call_sites = [
-            {"file": "lib/nonexistent.ex", "line": 10, "calling_module": "Test"}
-        ]
+        call_sites = [{"file": "lib/nonexistent.ex", "line": 10, "calling_module": "Test"}]
 
         test_server_with_files._add_code_examples(call_sites)
 

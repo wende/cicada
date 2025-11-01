@@ -12,9 +12,9 @@ def extract_string_from_arguments(arguments_node, source_code: bytes) -> str | N
             string_content = []
             for string_child in child.children:
                 if string_child.type == "quoted_content":
-                    content = source_code[
-                        string_child.start_byte : string_child.end_byte
-                    ].decode("utf-8")
+                    content = source_code[string_child.start_byte : string_child.end_byte].decode(
+                        "utf-8"
+                    )
                     string_content.append(content)
 
             if string_content:

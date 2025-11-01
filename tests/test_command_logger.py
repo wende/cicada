@@ -71,7 +71,7 @@ class TestCommandLogger:
 
         # Read the log file
         log_file = Path(temp_log_dir) / f"{timestamp.strftime('%Y-%m-%d')}.jsonl"
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             log_entry = json.loads(f.read().strip())
 
         # Check fields
@@ -99,7 +99,7 @@ class TestCommandLogger:
 
         # Read the log file
         log_file = Path(temp_log_dir) / f"{timestamp.strftime('%Y-%m-%d')}.jsonl"
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             log_entry = json.loads(f.read().strip())
 
         # Check error fields
@@ -126,7 +126,7 @@ class TestCommandLogger:
         assert len(log_files) == 1
 
         # Check that all three entries are in the file
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             lines = f.readlines()
         assert len(lines) == 3
 
@@ -341,7 +341,7 @@ class TestCommandLogger:
 
         # Read the log
         log_file = list(Path(temp_log_dir).glob("*.jsonl"))[0]
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             entry = json.loads(f.read())
 
         # Check precision

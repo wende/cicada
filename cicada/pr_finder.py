@@ -8,7 +8,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 from cicada.utils import load_index
 
@@ -48,7 +48,7 @@ class PRFinder:
             elif not self.index:
                 # Always show warning (even in non-verbose mode) with color
                 print(
-                    f"\033[33m⚠️  No PR index found - using slower network lookups. Create index: python cicada/pr_indexer.py\033[0m",
+                    "\033[33m⚠️  No PR index found - using slower network lookups. Create index: cicada index-pr\033[0m",
                     file=sys.stderr,
                 )
 
@@ -72,9 +72,9 @@ class PRFinder:
             raise RuntimeError(
                 "GitHub CLI (gh) is not installed or not available in PATH. "
                 "Install it from https://cli.github.com/"
-            )
+            ) from None
 
-    def _load_index(self) -> Optional[Dict[str, Any]]:
+    def _load_index(self) -> dict[str, Any] | None:
         """
         Load the PR index from file.
 
@@ -90,7 +90,7 @@ class PRFinder:
 
         return load_index(index_file, verbose=self.verbose, raise_on_error=False)
 
-    def _lookup_pr_in_index(self, commit_sha: str) -> Optional[Dict[str, Any]]:
+    def _lookup_pr_in_index(self, commit_sha: str) -> dict[str, Any] | None:
         """
         Look up PR information from the index.
 
@@ -114,9 +114,7 @@ class PRFinder:
 
         return pr
 
-    def _run_git_blame(
-        self, file_path: str, line_number: int
-    ) -> Optional[Dict[str, str | None]]:
+    def _run_git_blame(self, file_path: str, line_number: int) -> dict[str, str | None] | None:
         """
         Run git blame to find the commit that introduced a specific line.
 
@@ -155,9 +153,7 @@ class PRFinder:
                 if line.startswith("author "):
                     author_name = line[7:]  # Skip 'author '
                 elif line.startswith("author-mail "):
-                    author_email = line[12:].strip(
-                        "<>"
-                    )  # Skip 'author-mail ' and remove < >
+                    author_email = line[12:].strip("<>")  # Skip 'author-mail ' and remove < >
 
             return {
                 "commit": commit_sha,
@@ -166,9 +162,9 @@ class PRFinder:
             }
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"git blame failed: {e.stderr}")
+            raise RuntimeError(f"git blame failed: {e.stderr}") from e
 
-    def _get_repo_info(self) -> Optional[tuple[str, str]]:
+    def _get_repo_info(self) -> tuple[str, str] | None:
         """
         Get the repository owner and name from git remote.
 
@@ -203,7 +199,7 @@ class PRFinder:
             # Not a GitHub repository or no remote configured
             return None
 
-    def _find_pr_for_commit(self, commit_sha: str) -> Optional[Dict[str, Any]]:
+    def _find_pr_for_commit(self, commit_sha: str) -> dict[str, Any] | None:
         """
         Find the PR that introduced a specific commit.
 
@@ -248,13 +244,13 @@ class PRFinder:
                 "merged_at": pr.get("merged_at"),
             }
 
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             # Commit might not be associated with a PR
             return None
         except (json.JSONDecodeError, KeyError) as e:
-            raise RuntimeError(f"Failed to parse PR information: {e}")
+            raise RuntimeError(f"Failed to parse PR information: {e}") from e
 
-    def find_pr_for_line(self, file_path: str, line_number: int) -> Dict[str, Any]:
+    def find_pr_for_line(self, file_path: str, line_number: int) -> dict[str, Any]:
         """
         Find the PR that introduced a specific line of code.
 
@@ -314,7 +310,7 @@ class PRFinder:
             "pr": pr_info,
         }
 
-    def format_result(self, result: Dict[str, Any], output_format: str = "text") -> str:
+    def format_result(self, result: dict[str, Any], output_format: str = "text") -> str:
         """
         Format the result for display.
 
@@ -352,7 +348,7 @@ class PRFinder:
         if output_format == "markdown":
             output = [
                 f"## Line {result['line_number']} in {result['file_path']}",
-                f"",
+                "",
                 f"**Commit:** `{short_commit}`  ",
                 f"**Author:** {author_str}",
             ]

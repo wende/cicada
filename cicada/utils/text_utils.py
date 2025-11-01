@@ -6,10 +6,9 @@ including splitting camelCase, PascalCase, and snake_case identifiers.
 """
 
 import re
-from typing import List
 
 
-def split_identifier(identifier: str, lowercase: bool = True) -> List[str]:
+def split_identifier(identifier: str, lowercase: bool = True) -> list[str]:
     """
     Split an identifier by camelCase, PascalCase, and snake_case.
 

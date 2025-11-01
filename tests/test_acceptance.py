@@ -13,7 +13,6 @@ import pytest
 
 from cicada.mcp_server import CicadaServer
 
-
 # Fixtures
 
 
@@ -255,9 +254,7 @@ async def test_acceptance_output_format_consistency(server):
     function_name = "add_numbers/2"
 
     # Get markdown output
-    markdown_result = await server._search_function(
-        function_name, output_format="markdown"
-    )
+    markdown_result = await server._search_function(function_name, output_format="markdown")
     assert len(markdown_result) > 0
     markdown_text = markdown_result[0].text
     assert function_name.split("/")[0] in markdown_text
@@ -276,9 +273,7 @@ async def test_acceptance_output_format_consistency(server):
 @pytest.mark.asyncio
 async def test_acceptance_error_handling_nonexistent_module(server):
     """Test error handling when searching for nonexistent module."""
-    result = await server._search_module(
-        "NonexistentModule.That.DoesNotExist", "markdown"
-    )
+    result = await server._search_module("NonexistentModule.That.DoesNotExist", "markdown")
     assert len(result) > 0
     text = result[0].text
     # Should have some response, even if it's an error message
@@ -288,9 +283,7 @@ async def test_acceptance_error_handling_nonexistent_module(server):
 @pytest.mark.asyncio
 async def test_acceptance_error_handling_nonexistent_function(server):
     """Test error handling when searching for nonexistent function."""
-    result = await server._search_function(
-        "nonexistent_function_xyz/99", output_format="markdown"
-    )
+    result = await server._search_function("nonexistent_function_xyz/99", output_format="markdown")
     assert len(result) > 0
     text = result[0].text
     # Should have some response, even if it's an error message

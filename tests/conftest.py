@@ -4,8 +4,9 @@ Pytest configuration and fixtures for all tests.
 
 import json
 import os
-import yaml
+
 import pytest
+import yaml
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -85,9 +86,7 @@ def setup_test_environment():
             "MyAppTest.UserTest": {
                 "file": "test/my_app/user_test.exs",
                 "line": 1,
-                "functions": [
-                    {"name": "test_create_user", "arity": 1, "line": 10, "type": "def"}
-                ],
+                "functions": [{"name": "test_create_user", "arity": 1, "line": 10, "type": "def"}],
                 "calls": [
                     {
                         "module": "User",

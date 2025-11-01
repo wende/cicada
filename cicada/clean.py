@@ -9,9 +9,24 @@ import argparse
 import json
 import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
-from cicada.utils import get_storage_dir
+from cicada.utils import (
+    get_hashes_path,
+    get_index_path,
+    get_pr_index_path,
+    get_storage_dir,
+)
+
+
+@dataclass
+class CleanItem:
+    """Represents an item to be cleaned/removed."""
+
+    description: str
+    path: Path
+    is_mcp_config: bool = False
 
 
 def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bool:
@@ -29,7 +44,7 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
         return False
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
 
         # Determine the config key based on editor type
@@ -50,10 +65,119 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
 
             return True
 
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"Warning: Could not process {config_path}: {e}")
 
     return False
+
+
+def clean_index_only(repo_path: Path) -> None:
+    """
+    Remove only the main index files (index.json and hashes.json).
+
+    Args:
+        repo_path: Path to the repository
+    """
+    repo_path = repo_path.resolve()
+
+    print("=" * 60)
+    print("Cicada Clean - Main Index")
+    print("=" * 60)
+    print()
+    print(f"Repository: {repo_path}")
+    print()
+
+    # Collect index files to remove
+    items_to_remove: list[CleanItem] = []
+
+    index_path = get_index_path(repo_path)
+    hashes_path = get_hashes_path(repo_path)
+
+    if index_path.exists():
+        items_to_remove.append(CleanItem("Main index", index_path))
+    if hashes_path.exists():
+        items_to_remove.append(CleanItem("File hashes", hashes_path))
+
+    # Show what will be removed
+    if not items_to_remove:
+        print("✓ No main index files found.")
+        print()
+        return
+
+    print("The following items will be removed:")
+    print()
+    for item in items_to_remove:
+        print(f"  • {item.description}: {item.path}")
+    print()
+
+    # Remove items
+    removed_count = 0
+    errors = []
+    for item in items_to_remove:
+        try:
+            item.path.unlink()
+            print(f"✓ Removed {item.description}")
+            removed_count += 1
+        except (OSError, PermissionError) as e:
+            error_msg = f"Failed to remove {item.description}: {e}"
+            print(f"✗ {error_msg}")
+            errors.append(error_msg)
+
+    print()
+    print("=" * 60)
+    if errors:
+        print(
+            f"⚠ Cleanup completed with errors ({removed_count}/{len(items_to_remove)} items removed)"
+        )
+        print("=" * 60)
+        print()
+        sys.exit(1)
+    else:
+        print(f"✓ Cleanup Complete! ({removed_count} items removed)")
+        print("=" * 60)
+        print()
+
+
+def clean_pr_index_only(repo_path: Path) -> None:
+    """
+    Remove only the PR index file (pr_index.json).
+
+    Args:
+        repo_path: Path to the repository
+    """
+    repo_path = repo_path.resolve()
+
+    print("=" * 60)
+    print("Cicada Clean - PR Index")
+    print("=" * 60)
+    print()
+    print(f"Repository: {repo_path}")
+    print()
+
+    pr_index_path = get_pr_index_path(repo_path)
+
+    if not pr_index_path.exists():
+        print("✓ No PR index file found.")
+        print()
+        return
+
+    print("The following item will be removed:")
+    print()
+    print(f"  • PR index: {pr_index_path}")
+    print()
+
+    # Remove PR index
+    try:
+        pr_index_path.unlink()
+        print("✓ Removed PR index")
+        print()
+        print("=" * 60)
+        print("✓ Cleanup Complete!")
+        print("=" * 60)
+        print()
+    except (OSError, PermissionError) as e:
+        print(f"✗ Failed to remove PR index: {e}")
+        sys.exit(1)
 
 
 def clean_repository(repo_path: Path, force: bool = False) -> None:
@@ -74,17 +198,17 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     print()
 
     # Collect items to remove
-    items_to_remove = []
+    items_to_remove: list[CleanItem] = []
 
     # 1. Storage directory (~/.cicada/projects/<repo_hash>/)
     storage_dir = get_storage_dir(repo_path)
     if storage_dir.exists():
-        items_to_remove.append(("Storage directory", storage_dir))
+        items_to_remove.append(CleanItem("Storage directory", storage_dir))
 
     # 2. Old .cicada directory (backward compatibility)
     old_cicada_dir = repo_path / ".cicada"
     if old_cicada_dir.exists():
-        items_to_remove.append(("Legacy .cicada directory", old_cicada_dir))
+        items_to_remove.append(CleanItem("Legacy .cicada directory", old_cicada_dir))
 
     # 3. MCP config files
     mcp_configs = [
@@ -97,18 +221,14 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
         if config_path.exists():
             # Check if cicada entry exists
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = json.load(f)
 
-                config_key = (
-                    "mcpServers" if ".vscode" not in str(config_path) else "mcp.servers"
-                )
+                config_key = "mcpServers" if ".vscode" not in str(config_path) else "mcp.servers"
 
                 if config_key in config and "cicada" in config[config_key]:
-                    items_to_remove.append(
-                        (desc, config_path, True)
-                    )  # True = is MCP config
-            except (json.JSONDecodeError, IOError):
+                    items_to_remove.append(CleanItem(desc, config_path, is_mcp_config=True))
+            except (OSError, json.JSONDecodeError):
                 pass
 
     # Show what will be removed
@@ -120,10 +240,10 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     print("The following items will be removed:")
     print()
     for item in items_to_remove:
-        if len(item) == 3 and item[2]:  # MCP config entry
-            print(f"  • {item[0]}: Remove 'cicada' entry from {item[1]}")
+        if item.is_mcp_config:
+            print(f"  • {item.description}: Remove 'cicada' entry from {item.path}")
         else:
-            print(f"  • {item[0]}: {item[1]}")
+            print(f"  • {item.description}: {item.path}")
     print()
 
     # Confirmation prompt
@@ -139,33 +259,46 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
 
     # Remove items
     removed_count = 0
+    errors = []
     for item in items_to_remove:
-        if len(item) == 3 and item[2]:  # MCP config entry
-            desc, config_path, _ = item
-            if remove_mcp_config_entry(config_path):
-                print(f"✓ Removed 'cicada' entry from {desc}")
+        if item.is_mcp_config:
+            if remove_mcp_config_entry(item.path):
+                print(f"✓ Removed 'cicada' entry from {item.description}")
                 removed_count += 1
+            else:
+                error_msg = f"Failed to remove 'cicada' entry from {item.description}"
+                print(f"✗ {error_msg}")
+                errors.append(error_msg)
         else:
-            desc, path = item
             try:
-                if path.is_dir():
-                    shutil.rmtree(path)
+                if item.path.is_dir():
+                    shutil.rmtree(item.path)
                 else:
-                    path.unlink()
-                print(f"✓ Removed {desc}")
+                    item.path.unlink()
+                print(f"✓ Removed {item.description}")
                 removed_count += 1
             except (OSError, PermissionError) as e:
-                print(f"✗ Failed to remove {desc}: {e}")
+                error_msg = f"Failed to remove {item.description}: {e}"
+                print(f"✗ {error_msg}")
+                errors.append(error_msg)
 
     print()
     print("=" * 60)
-    print(f"✓ Cleanup Complete! ({removed_count} items removed)")
-    print("=" * 60)
-    print()
-    print("Next steps:")
-    print("1. Restart your editor if it's currently running")
-    print("2. Run 'uvx cicada <editor>' to set up Cicada again")
-    print()
+    if errors:
+        print(
+            f"⚠ Cleanup completed with errors ({removed_count}/{len(items_to_remove)} items removed)"
+        )
+        print("=" * 60)
+        print()
+        sys.exit(1)
+    else:
+        print(f"✓ Cleanup Complete! ({removed_count} items removed)")
+        print("=" * 60)
+        print()
+        print("Next steps:")
+        print("1. Restart your editor if it's currently running")
+        print("2. Run 'uvx cicada <editor>' to set up Cicada again")
+        print()
 
 
 def clean_all_projects(force: bool = False) -> None:
@@ -219,35 +352,47 @@ def clean_all_projects(force: bool = False) -> None:
 
     # Remove all project directories
     removed_count = 0
+    errors = []
     for proj_dir in project_dirs:
         try:
             shutil.rmtree(proj_dir)
             print(f"✓ Removed {proj_dir.name}/")
             removed_count += 1
         except (OSError, PermissionError) as e:
-            print(f"✗ Failed to remove {proj_dir.name}/: {e}")
+            error_msg = f"Failed to remove {proj_dir.name}/: {e}"
+            print(f"✗ {error_msg}")
+            errors.append(error_msg)
 
     print()
     print("=" * 60)
-    print(f"✓ Cleanup Complete! ({removed_count}/{len(project_dirs)} projects removed)")
-    print("=" * 60)
-    print()
+    if errors:
+        print(
+            f"⚠ Cleanup completed with errors ({removed_count}/{len(project_dirs)} projects removed)"
+        )
+        print("=" * 60)
+        print()
+        sys.exit(1)
+    else:
+        print(f"✓ Cleanup Complete! ({removed_count}/{len(project_dirs)} projects removed)")
+        print("=" * 60)
+        print()
 
 
 def main():
-    """Main entry point for the clean command."""
+    """
+    Main entry point for the clean command.
+
+    Note: This function is kept for backward compatibility but the unified CLI
+    in cli.py should be used instead (cicada clean).
+    """
     parser = argparse.ArgumentParser(
-        description="Remove all Cicada configuration and indexes for a repository",
+        description="Remove all Cicada configuration and indexes for current repository",
         epilog="Examples:\n"
-        "  cicada-clean -f              # Clean current repository\n"
-        "  cicada-clean --all -f        # Remove ALL project storage\n",
+        "  cicada clean                 # Clean current repository\n"
+        "  cicada clean -f              # Clean current repository (skip confirmation)\n"
+        "  cicada clean --all           # Remove ALL project storage\n"
+        "  cicada clean --all -f        # Remove ALL project storage (skip confirmation)\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "repo",
-        nargs="?",
-        default=None,
-        help="Path to the repository (default: current directory)",
     )
     parser.add_argument(
         "-f",
@@ -272,18 +417,8 @@ def main():
             sys.exit(1)
         return
 
-    # Determine repo path
-    repo_path = Path(args.repo) if args.repo else Path.cwd()
-
-    # Validate path exists
-    if not repo_path.exists():
-        print(f"Error: Path does not exist: {repo_path}")
-        sys.exit(1)
-
-    # Validate path is a directory
-    if not repo_path.is_dir():
-        print(f"Error: Path is not a directory: {repo_path}")
-        sys.exit(1)
+    # Clean current directory
+    repo_path = Path.cwd()
 
     # Run cleanup
     try:

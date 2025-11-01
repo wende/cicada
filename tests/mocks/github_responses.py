@@ -8,12 +8,10 @@ for different test scenarios while maintaining realistic data structures.
 """
 
 import json
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 
-def create_pr_list_response(
-    count: int = 5, state: str = "all", start_number: int = 1
-) -> str:
+def create_pr_list_response(count: int = 5, state: str = "all", start_number: int = 1) -> str:
     """
     Create a mock PR list response.
 
@@ -33,7 +31,7 @@ def create_pr_list_response(
 
 
 def create_graphql_response(
-    prs: Optional[List[Dict[str, Any]]] = None,
+    prs: list[dict[str, Any]] | None = None,
     include_comments: bool = True,
     include_files: bool = True,
     include_commits: bool = True,
@@ -69,8 +67,7 @@ def create_graphql_response(
         if include_commits:
             pr_data["commits"] = {
                 "nodes": [
-                    {"commit": {"oid": f"commit{i}_{j}"}}
-                    for j in range(pr.get("commit_count", 2))
+                    {"commit": {"oid": f"commit{i}_{j}"}} for j in range(pr.get("commit_count", 2))
                 ]
             }
         else:
@@ -78,9 +75,7 @@ def create_graphql_response(
 
         if include_files:
             pr_data["files"] = {
-                "nodes": [
-                    {"path": f"file{i}_{j}.py"} for j in range(pr.get("file_count", 3))
-                ]
+                "nodes": [{"path": f"file{i}_{j}.py"} for j in range(pr.get("file_count", 3))]
             }
         else:
             pr_data["files"] = {"nodes": []}
@@ -136,7 +131,7 @@ def create_rest_pr_response(
 
 def create_review_comments_response(
     count: int = 3, file_path: str = "test.py", resolved: bool = False
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Create mock review comment data.
 
@@ -176,7 +171,7 @@ def create_single_pr_data(
     comment_count: int = 2,
     file_count: int = 3,
     commit_count: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create data for a single PR.
 
@@ -203,7 +198,7 @@ def create_single_pr_data(
     }
 
 
-def create_review_threads_data(comment_count: int = 2) -> List[Dict[str, Any]]:
+def create_review_threads_data(comment_count: int = 2) -> list[dict[str, Any]]:
     """
     Create mock review thread data.
 
@@ -310,15 +305,11 @@ def create_pr_with_complex_comments() -> str:
     complex_threads = [
         {
             "isResolved": True,
-            "comments": {
-                "nodes": create_review_comments_response(3, "resolved_file.py", True)
-            },
+            "comments": {"nodes": create_review_comments_response(3, "resolved_file.py", True)},
         },
         {
             "isResolved": False,
-            "comments": {
-                "nodes": create_review_comments_response(2, "active_file.py", False)
-            },
+            "comments": {"nodes": create_review_comments_response(2, "active_file.py", False)},
         },
     ]
 

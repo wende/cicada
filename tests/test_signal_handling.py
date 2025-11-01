@@ -3,8 +3,7 @@ Tests for signal handling in indexer.
 """
 
 import signal
-import threading
-from pathlib import Path
+
 from cicada.indexer import ElixirIndexer
 
 
@@ -58,8 +57,10 @@ end
     assert output_path.exists()
     assert len(files_processed) == 2
 
-    # Verify hashes were saved for processed files only
-    hashes_path = tmp_path / ".cicada" / "hashes.json"
+    # Verify hashes were saved for processed files only in centralized storage
+    from cicada.utils import get_hashes_path
+
+    hashes_path = get_hashes_path(tmp_path)
     assert hashes_path.exists()
 
     import json

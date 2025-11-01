@@ -16,6 +16,8 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
+> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered keyword search with **15-25x faster** incremental indexing. [What's New →](#whats-new-in-v020)
+
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
 [Installation](#installation) •
@@ -51,6 +53,78 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
     </tr>
   </table>
 </div>
+
+## What's New in v0.2.0
+
+### 🤖 Enhanced AI Keyword Extraction
+
+AI-powered semantic search is now production-ready with advanced NLP capabilities:
+
+- **BERT Integration**: KeyBERT-based keyword extraction for superior semantic understanding
+- **Configurable Model Tiers**: Choose between `fast`, `regular`, or `large` models to balance speed and accuracy
+- **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
+- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance
+
+```bash
+# Index with enhanced AI keyword extraction
+cicada index --nlp --fast
+
+# Search by concept, not just exact names
+# AI will find: create_user, user_creation, new_user_account, etc.
+```
+
+### ⚡ Incremental Indexing - Lightning Fast Updates
+
+Say goodbye to slow reindexing! v0.2.0 introduces intelligent change detection that makes reindexing **15-25x faster**:
+
+- **🚀 15-25x Speedup**: Only processes files that actually changed (MD5 hash-based detection)
+- **💾 Interrupt Safety**: Ctrl-C gracefully saves progress - resume anytime without data loss
+- **🎯 Perfect for AI Search**: Keyword extraction drops from 48.7s to 2.1s for typical updates
+- **🔄 Zero Configuration**: Works automatically out of the box
+
+```bash
+# First run: full index + hash computation (~12s for 200 files)
+cicada index --nlp
+
+# Subsequent runs: lightning fast incremental updates
+# Changed 5 files? Only 2.1s instead of 48.7s!
+cicada index --nlp
+```
+
+**Performance Benchmark** (200-file Phoenix app, 5 files changed):
+
+| Operation | Before v0.2.0 | v0.2.0 Incremental | Speedup |
+|-----------|---------------|-------------------|---------|
+| Code indexing only | 12.3s | 0.8s | **15.4x faster** |
+| With AI keyword extraction | 48.7s | 2.1s | **23.2x faster** |
+
+### 🛡️ Production-Ready Features
+
+- **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
+- **Resume Capability**: Interrupted? Just run the same command again to continue
+- **Smart Merging**: Automatically merges incremental changes with existing index
+- **Backward Compatible**: Seamlessly upgrades from v0.1.x with no breaking changes
+
+### Migration from v0.1.x
+
+✅ **Zero Breaking Changes** - v0.2.0 is fully backward compatible
+✅ **Automatic Upgrade** - Just install and run `cicada index` as usual
+✅ **Graceful Fallback** - Missing hashes? Performs full index once automatically
+
+```bash
+# Update to v0.2.0
+uv tool install git+https://github.com/wende/cicada.git@latest --force
+
+# Run indexer - automatically enables incremental mode
+cicada index --nlp
+
+# Need to switch keyword extraction methods? Use --full for consistency
+cicada index --rag --fast --full
+```
+
+**[Read the complete incremental indexing guide →](docs/INCREMENTAL_INDEXING.md)**
+
+---
 
 ### Key Features
 
@@ -95,9 +169,9 @@ cicada claude  # or: cicada cursor, cicada vs
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
-- `cicada-index` - Re-index code with custom options (medium/large spaCy models)
-- `cicada-index-pr` - Index pull requests for PR attribution
-- `cicada-install` - Legacy setup (creates `.cicada/` in repo)
+- `cicada index` - Re-index code with custom options (--nlp or --rag)
+- `cicada index-pr` - Index pull requests for PR attribution
+- `cicada find-dead-code` - Find potentially unused functions
 
 ### Try Before Installing
 
@@ -118,8 +192,8 @@ uvx --from cicada-mcp cicada vs
 
 **Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
 - ✅ Faster MCP server startup (no temporary environment creation)
-- ✅ Access to all CLI commands (`cicada-index`, `cicada-index-pr`)
-- ✅ Fine-tuned keyword extraction with medium/large spaCy models
+- ✅ Access to all CLI commands (`cicada index`, `cicada index-pr`)
+- ✅ Fine-tuned keyword extraction with lemminflect or BERT models
 - ✅ PR indexing features
 - ✅ Custom re-indexing options
 
@@ -169,7 +243,7 @@ After installation, ask your AI coding assistant:
 
 **For PR features**, first run:
 ```bash
-cicada-index-pr .
+cicada index-pr .
 ```
 
 ---
@@ -214,6 +288,14 @@ your-project/
 }
 ```
 
+✅ Fast startup, no paths, portable!
+
+**Migration tip from v0.1.x:** If you have the old Python-based config, run:
+```bash
+uv tool install git+https://github.com/wende/cicada.git@v0.2.0 --force
+cicada claude  # Re-run to get optimized config
+```
+
 ### Re-indexing
 
 After code changes, re-run the setup command:
@@ -237,19 +319,14 @@ Index pull requests for PR-related features:
 
 ```bash
 # After permanent installation
-cicada-index-pr .
+cicada index-pr .
 
 # Or with uvx
 uvx --from cicada-mcp cicada-index-pr .
 ```
 
-### Legacy Installation
-
-If you prefer the old setup (stores files in `.cicada/` directory in your repo):
-
-```bash
-# Only available after permanent installation
-cicada-install
+# Clean rebuild (re-index everything from scratch)
+cicada index-pr . --clean
 ```
 
 **See also:** [PR Indexing Documentation](docs/PR_INDEXING.md)
@@ -312,7 +389,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 - Wildcard pattern matching (`create*`, `*_user`)
 - NLP-extracted keywords from docs
 - Relevance scoring
-- Requires: Index built with `--extract-keywords`
+- Requires: Index built with `--nlp` or `--rag`
 
 **`find_dead_code`** - Identify potentially unused functions
 - Three confidence levels (high, medium, low)
@@ -336,7 +413,6 @@ CICADA provides several command-line tools for setup, indexing, and analysis:
 **`cicada`** - Initialize CICADA in your project
 ```bash
 cicada                           # Setup in current directory
-cicada --skip-install           # Skip dependency installation
 cicada /path/to/other/project   # Setup in different directory
 ```
 - Generates `.mcp.json` configuration
@@ -346,21 +422,21 @@ cicada /path/to/other/project   # Setup in different directory
 
 ### Indexing Tools
 
-**`cicada-index`** - Index Elixir codebase
+**`cicada index`** - Index Elixir codebase
 ```bash
-cicada-index                         # Index current directory
-cicada-index --output .cicada/index.json
-cicada-index --extract-keywords      # Include NLP keyword extraction
+cicada index                         # Index current directory
+cicada index --nlp                   # Use NLP keyword extraction (lemminflect)
+cicada index --rag                   # Use BERT-based keyword extraction
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites
 - Resolves aliases for accurate tracking
 - Optional keyword extraction for semantic search
 
-**`cicada-index-pr`** - Index GitHub pull requests
+**`cicada index-pr`** - Index GitHub pull requests
 ```bash
-cicada-index-pr .              # Index PRs for current repo
-cicada-index-pr . --clean      # Full rebuild from scratch
+cicada index-pr .              # Index PRs for current repo
+cicada index-pr . --clean      # Full rebuild from scratch
 ```
 - Requires GitHub CLI (`gh`) authenticated
 - Indexes PR metadata and review comments
@@ -369,12 +445,12 @@ cicada-index-pr . --clean      # Full rebuild from scratch
 
 ### Analysis Tools
 
-**`cicada-find-dead-code`** - Find unused functions (CLI version)
+**`cicada find-dead-code`** - Find unused functions (CLI version)
 ```bash
-cicada-find-dead-code                      # Show high confidence only
-cicada-find-dead-code --min-confidence low # Show all candidates
-cicada-find-dead-code --format json        # JSON output
-cicada-find-dead-code --index path/to/index.json
+cicada find-dead-code                      # Show high confidence only
+cicada find-dead-code --min-confidence low # Show all candidates
+cicada find-dead-code --format json        # JSON output
+cicada find-dead-code --index path/to/index.json
 ```
 - Analyzes function usage across codebase
 - Categorizes by confidence level
@@ -383,6 +459,22 @@ cicada-find-dead-code --index path/to/index.json
 ---
 
 ## Roadmap
+
+### v0.2.0 (Released - October 2025) ✅
+- **Enhanced AI Keyword Extraction** - Production-ready semantic search
+  - BERT integration with KeyBERT for superior keyword extraction
+  - Configurable model tiers (fast, regular, large)
+  - Wildcard pattern support (`create*`, `*_user`)
+  - Improved relevance scoring
+- **Incremental Indexing** - 15-25x faster reindexing
+  - MD5-based change detection
+  - Processes only modified files
+  - Interrupt-safe with graceful Ctrl-C handling
+  - Resume capability for interrupted indexes
+- **Production Hardening**
+  - Signal handlers (SIGINT, SIGTERM)
+  - Partial progress saving
+  - Automatic hash storage and management
 
 ### v0.1.1 (Released - October 2025) ✅
 - Module and function search
@@ -400,12 +492,12 @@ cicada-find-dead-code --index path/to/index.json
 - Intelligent .mcp.json auto-configuration
 - `uv tool install` support
 - **Automatic version update checking** - Notifies users when newer versions are available
-- **NLP Keyword search** (EXPERIMENTAL) - Semantic search across documentation with wildcard support
+- **NLP Keyword search** (EXPERIMENTAL) - Basic semantic search across documentation
 
-### v0.2 (Potential Future Enhancements)
-- Incremental code re-indexing
+### v0.3 (Potential Future Enhancements)
 - Enhanced keyword search with BM25 ranking
-- RAG with KeyBERT option (??)
+- Directory tree hashing for faster change detection
+- Caching optimizations for large codebases
 
 ### Long Term (Stretch Goals)
 - Multi-language support (Python, TypeScript)
@@ -520,7 +612,7 @@ When reporting bugs or requesting features:
 
 Run the indexer first:
 ```bash
-cicada-index /path/to/project
+cicada index /path/to/project
 ```
 
 ### "Module not found"
@@ -548,14 +640,14 @@ brew install gh  # macOS
 gh auth login
 
 # Index PRs (first time or after new PRs)
-cicada-index-pr .
+cicada index-pr .
 
 # Clean rebuild (re-index everything from scratch)
-cicada-index-pr . --clean
+cicada index-pr . --clean
 ```
 
 **Common issues:**
-- "No PR index found" → Run `cicada-index-pr .`
+- "No PR index found" → Run `cicada index-pr .`
 - "Not a GitHub repository" → Ensure repo has GitHub remote
 - Slow indexing → Incremental updates are used by default
 

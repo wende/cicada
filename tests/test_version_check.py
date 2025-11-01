@@ -3,13 +3,15 @@ Tests for cicada/version_check.py
 """
 
 import subprocess
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 from cicada.version_check import (
+    check_for_updates,
+    compare_versions,
     get_current_version,
     get_latest_github_tag,
-    compare_versions,
-    check_for_updates,
 )
 
 
@@ -70,9 +72,7 @@ class TestGetLatestGithubTag:
     )
     def test_exception_handling(self, exception, monkeypatch):
         """Should return None on exceptions"""
-        monkeypatch.setattr(
-            subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(exception)
-        )
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(exception))
         assert get_latest_github_tag() is None
 
     def test_custom_repo(self, monkeypatch):
@@ -129,9 +129,7 @@ class TestCheckForUpdates:
     def test_newer_version_available(self, monkeypatch, capsys):
         """Should display update message when newer version available"""
         monkeypatch.setattr("cicada.version_check.get_current_version", lambda: "0.1.0")
-        monkeypatch.setattr(
-            "cicada.version_check.get_latest_github_tag", lambda: "0.2.0"
-        )
+        monkeypatch.setattr("cicada.version_check.get_latest_github_tag", lambda: "0.2.0")
 
         check_for_updates()
 
@@ -150,16 +148,10 @@ class TestCheckForUpdates:
             ("0.1.0", None),  # Unable to fetch latest
         ],
     )
-    def test_no_update_message(
-        self, current_version, latest_version, monkeypatch, capsys
-    ):
+    def test_no_update_message(self, current_version, latest_version, monkeypatch, capsys):
         """Should not display message when no update needed"""
-        monkeypatch.setattr(
-            "cicada.version_check.get_current_version", lambda: current_version
-        )
-        monkeypatch.setattr(
-            "cicada.version_check.get_latest_github_tag", lambda: latest_version
-        )
+        monkeypatch.setattr("cicada.version_check.get_current_version", lambda: current_version)
+        monkeypatch.setattr("cicada.version_check.get_latest_github_tag", lambda: latest_version)
 
         check_for_updates()
 
@@ -177,9 +169,7 @@ class TestCheckForUpdates:
     def test_exception_handling(self, failing_function, exception, monkeypatch, capsys):
         """Should fail silently on exceptions"""
         monkeypatch.setattr("cicada.version_check.get_current_version", lambda: "0.1.0")
-        monkeypatch.setattr(
-            "cicada.version_check.get_latest_github_tag", lambda: "0.2.0"
-        )
+        monkeypatch.setattr("cicada.version_check.get_latest_github_tag", lambda: "0.2.0")
 
         if failing_function == "get_current_version":
             monkeypatch.setattr(

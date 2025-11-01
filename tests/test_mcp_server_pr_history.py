@@ -6,10 +6,11 @@ Tests PR finding, blame tracking, commit history, and git integration.
 """
 
 import json
+from unittest.mock import Mock, patch
+
 import pytest
 import yaml
-from pathlib import Path
-from unittest.mock import Mock, patch
+
 from cicada.mcp_server import CicadaServer
 
 
@@ -19,18 +20,19 @@ class TestFindPRForLine:
     @pytest.fixture
     def test_server_with_pr_index(self, tmp_path):
         """Create a test server with PR index"""
+        from cicada.utils import get_pr_index_path
+
         index = {"modules": {}, "metadata": {"total_modules": 0}}
         index_path = tmp_path / "index.json"
         with open(index_path, "w") as f:
             json.dump(index, f)
 
         pr_index = {
-            "prs": {
-                "123": {"number": 123, "title": "Add feature", "author": "developer"}
-            },
+            "prs": {"123": {"number": 123, "title": "Add feature", "author": "developer"}},
             "commit_to_pr": {"abc123": 123},
         }
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
@@ -66,7 +68,7 @@ class TestFindPRForLine:
 
         assert len(result) == 1
         assert "PR index not found" in result[0].text
-        assert "cicada-index-pr" in result[0].text
+        assert "cicada index-pr" in result[0].text
 
     @pytest.mark.asyncio
     async def test_finds_pr_with_mock(self, test_server_with_pr_index):
@@ -80,9 +82,7 @@ class TestFindPRForLine:
             mock_finder.format_result.return_value = "PR #123: Test PR"
             mock_finder_class.return_value = mock_finder
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
             assert "PR #123" in result[0].text
@@ -186,7 +186,10 @@ class TestGetFilePRHistory:
                 },
             },
         }
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        from cicada.utils import get_pr_index_path
+
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
@@ -222,14 +225,12 @@ class TestGetFilePRHistory:
 
         assert len(result) == 1
         assert "PR index not available" in result[0].text
-        assert "pr_indexer.py" in result[0].text
+        assert "cicada index-pr" in result[0].text
 
     @pytest.mark.asyncio
     async def test_file_not_found(self, test_server_with_pr_data):
         """Should return message when file has no PRs"""
-        result = await test_server_with_pr_data._get_file_pr_history(
-            "lib/nonexistent.ex"
-        )
+        result = await test_server_with_pr_data._get_file_pr_history("lib/nonexistent.ex")
 
         assert len(result) == 1
         assert "No pull requests found" in result[0].text
@@ -293,9 +294,7 @@ class TestExtractCompleteCall:
             (["first()\n", "second()\n", "last()\n"], 3, ["last()"]),
         ],
     )
-    def test_extracts_code_with_context(
-        self, lines, line_num, should_contain, test_server
-    ):
+    def test_extracts_code_with_context(self, lines, line_num, should_contain, test_server):
         """Should extract code with appropriate context"""
         result = test_server._extract_complete_call(lines, line_num)
 
@@ -428,13 +427,16 @@ class TestFindPRForLineNetworkFallback:
     @pytest.fixture
     def test_server_with_pr_index(self, tmp_path):
         """Create a test server with PR index"""
+        from cicada.utils import get_pr_index_path
+
         index = {"modules": {}, "metadata": {"total_modules": 0}}
         index_path = tmp_path / "index.json"
         with open(index_path, "w") as f:
             json.dump(index, f)
 
         pr_index = {"prs": {}, "commit_to_pr": {}}
-        pr_index_path = tmp_path / ".cicada" / "pr_index.json"
+        # Use centralized storage for PR index
+        pr_index_path = get_pr_index_path(tmp_path)
         pr_index_path.parent.mkdir(parents=True, exist_ok=True)
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
@@ -469,15 +471,10 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
-            assert (
-                "incomplete" in result[0].text.lower()
-                or "update" in result[0].text.lower()
-            )
+            assert "incomplete" in result[0].text.lower() or "update" in result[0].text.lower()
 
     @pytest.mark.asyncio
     async def test_no_pr_in_both(self, test_server_with_pr_index):
@@ -498,9 +495,7 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line(
-                "test.ex", 42, "text"
-            )
+            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
 
             assert len(result) == 1
             assert "Commit abc123" in result[0].text

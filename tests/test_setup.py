@@ -35,9 +35,7 @@ class TestGetMcpConfigForEditor:
     def test_claude_config_structure(self, mock_repo, mock_storage_dir):
         """Claude config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "claude", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".mcp.json"
         assert "mcpServers" in config
@@ -52,9 +50,7 @@ class TestGetMcpConfigForEditor:
     def test_cursor_config_structure(self, mock_repo, mock_storage_dir):
         """Cursor config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "cursor", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("cursor", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".cursor" / "mcp.json"
         assert "mcpServers" in config
@@ -67,9 +63,7 @@ class TestGetMcpConfigForEditor:
     def test_vs_config_structure(self, mock_repo, mock_storage_dir):
         """VS Code config should have correct structure"""
         with patch("shutil.which", return_value="cicada-server"):
-            config_path, config = get_mcp_config_for_editor(
-                "vs", mock_repo, mock_storage_dir
-            )
+            config_path, config = get_mcp_config_for_editor("vs", mock_repo, mock_storage_dir)
 
         assert config_path == mock_repo / ".vscode" / "settings.json"
         assert "mcp.servers" in config  # Different key for VS Code
@@ -99,9 +93,7 @@ class TestGetMcpConfigForEditor:
         # Create existing config for Claude
         config_path = mock_repo / ".mcp.json"
         existing_config = {
-            "mcpServers": {
-                "other-server": {"command": "other-command", "args": ["--flag"]}
-            }
+            "mcpServers": {"other-server": {"command": "other-command", "args": ["--flag"]}}
         }
         config_path.write_text(json.dumps(existing_config))
 
@@ -140,9 +132,7 @@ class TestGetMcpConfigForEditor:
     def test_updates_existing_cicada_config(self, mock_repo, mock_storage_dir):
         """Should update existing cicada configuration"""
         config_path = mock_repo / ".mcp.json"
-        existing_config = {
-            "mcpServers": {"cicada": {"command": "old-command", "env": {}}}
-        }
+        existing_config = {"mcpServers": {"cicada": {"command": "old-command", "env": {}}}}
         config_path.write_text(json.dumps(existing_config))
 
         _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)
@@ -202,6 +192,48 @@ class TestCreateConfigYaml:
                 assert "path:" in content
                 assert "storage:" in content
                 assert "index_path:" in content
+                assert "keyword_extraction:" in content
+                assert "method: lemminflect" in content  # Default
+                assert "tier: regular" in content  # Default
+
+    def test_config_yaml_with_bert_method(self, mock_paths):
+        """Config YAML should save KeyBERT method when specified"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(
+                    repo_path, storage_dir, keyword_method="bert", keyword_tier="fast"
+                )
+
+                content = config_path.read_text()
+                assert "keyword_extraction:" in content
+                assert "method: bert" in content
+                assert "tier: fast" in content
+
+    def test_config_yaml_with_bert_max_tier(self, mock_paths):
+        """Config YAML should save KeyBERT max tier when specified"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(
+                    repo_path, storage_dir, keyword_method="bert", keyword_tier="max"
+                )
+
+                content = config_path.read_text()
+                assert "method: bert" in content
+                assert "tier: max" in content
 
 
 class TestIndexRepository:
@@ -235,12 +267,12 @@ class TestIndexRepository:
                 # Verify indexer was created with verbose=True
                 mock_indexer_class.assert_called_once_with(verbose=True)
 
-                # Verify index_repository was called with correct params
-                mock_indexer.index_repository.assert_called_once_with(
+                # Verify incremental_index_repository was called with correct params
+                mock_indexer.incremental_index_repository.assert_called_once_with(
                     repo_path=str(mock_repo),
                     output_path=str(index_path),
                     extract_keywords=True,
-                    spacy_model="small",
+                    force_full=False,
                 )
 
     def test_handles_indexing_errors(self, mock_repo):
@@ -248,7 +280,7 @@ class TestIndexRepository:
         with patch("cicada.setup.ElixirIndexer") as mock_indexer_class:
             with patch("cicada.setup.get_index_path"):
                 mock_indexer = MagicMock()
-                mock_indexer.index_repository.side_effect = Exception("Indexing failed")
+                mock_indexer.incremental_index_repository.side_effect = Exception("Indexing failed")
                 mock_indexer_class.return_value = mock_indexer
 
                 # Should raise the exception (not caught in current implementation)
@@ -329,9 +361,7 @@ class TestSetupFunction:
             with patch("cicada.setup.create_storage_dir"):
                 with patch("cicada.setup.index_repository"):
                     with patch("cicada.setup.create_config_yaml"):
-                        with patch(
-                            "cicada.setup.get_mcp_config_for_editor"
-                        ) as mock_mcp:
+                        with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
                             config_path = mock_repo / f".{editor}.json"
                             mock_mcp.return_value = (config_path, {})
 
@@ -421,3 +451,643 @@ class TestErrorHandling:
         assert len(result) == 2
         assert isinstance(result[0], Path)
         assert isinstance(result[1], dict)
+
+
+class TestLoadExistingConfig:
+    """Tests for _load_existing_config helper function"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        return repo_path
+
+    def test_loads_valid_json_config(self, mock_repo):
+        """Should load valid JSON configuration"""
+        from cicada.setup import _load_existing_config
+
+        config_path = mock_repo / ".mcp.json"
+        valid_config = {"mcpServers": {"test": "value"}}
+        config_path.write_text(json.dumps(valid_config))
+
+        result = _load_existing_config(config_path)
+
+        assert result == valid_config
+
+    def test_returns_empty_dict_when_file_not_exists(self, mock_repo):
+        """Should return empty dict when config file doesn't exist"""
+        from cicada.setup import _load_existing_config
+
+        config_path = mock_repo / "nonexistent.json"
+
+        result = _load_existing_config(config_path)
+
+        assert result == {}
+
+    def test_handles_malformed_json_gracefully(self, mock_repo, capsys):
+        """Should return empty dict and print warning for malformed JSON"""
+        from cicada.setup import _load_existing_config
+
+        config_path = mock_repo / ".mcp.json"
+        config_path.write_text("{invalid json content}")
+
+        result = _load_existing_config(config_path)
+
+        assert result == {}
+        captured = capsys.readouterr()
+        assert "Warning: Existing config" in captured.out
+        assert "malformed" in captured.out
+
+    def test_handles_oserror_gracefully(self, mock_repo, capsys):
+        """Should handle OSError when reading config file"""
+        from cicada.setup import _load_existing_config
+
+        config_path = mock_repo / ".mcp.json"
+        config_path.write_text("{}")
+
+        # Make file unreadable
+        config_path.chmod(0o000)
+
+        try:
+            result = _load_existing_config(config_path)
+
+            assert result == {}
+            captured = capsys.readouterr()
+            assert "Warning: Could not read config file" in captured.out
+        finally:
+            # Restore permissions for cleanup
+            config_path.chmod(0o644)
+
+
+class TestBuildServerConfig:
+    """Tests for _build_server_config helper function"""
+
+    def test_builds_config_with_command_only(self, tmp_path):
+        """Should build config with only command when no args or cwd"""
+        from cicada.setup import _build_server_config
+
+        repo_path = tmp_path / "repo"
+        storage_dir = tmp_path / "storage"
+
+        result = _build_server_config("test-command", [], None, repo_path, storage_dir)
+
+        assert result["command"] == "test-command"
+        assert "args" not in result
+        assert "cwd" not in result
+        assert result["env"]["CICADA_REPO_PATH"] == str(repo_path)
+        assert result["env"]["CICADA_CONFIG_DIR"] == str(storage_dir)
+
+    def test_builds_config_with_args(self, tmp_path):
+        """Should include args when provided"""
+        from cicada.setup import _build_server_config
+
+        repo_path = tmp_path / "repo"
+        storage_dir = tmp_path / "storage"
+        args = ["-m", "cicada.mcp_server"]
+
+        result = _build_server_config("python3", args, None, repo_path, storage_dir)
+
+        assert result["command"] == "python3"
+        assert result["args"] == args
+        assert "cwd" not in result
+
+    def test_builds_config_with_cwd(self, tmp_path):
+        """Should include cwd when provided"""
+        from cicada.setup import _build_server_config
+
+        repo_path = tmp_path / "repo"
+        storage_dir = tmp_path / "storage"
+        cwd = "/custom/working/dir"
+
+        result = _build_server_config("test-command", [], cwd, repo_path, storage_dir)
+
+        assert result["command"] == "test-command"
+        assert result["cwd"] == cwd
+
+    def test_builds_config_with_all_parameters(self, tmp_path):
+        """Should build complete config with all parameters"""
+        from cicada.setup import _build_server_config
+
+        repo_path = tmp_path / "repo"
+        storage_dir = tmp_path / "storage"
+        args = ["--verbose", "--debug"]
+        cwd = "/custom/dir"
+
+        result = _build_server_config("test-cmd", args, cwd, repo_path, storage_dir)
+
+        assert result["command"] == "test-cmd"
+        assert result["args"] == args
+        assert result["cwd"] == cwd
+        assert result["env"]["CICADA_REPO_PATH"] == str(repo_path)
+        assert result["env"]["CICADA_CONFIG_DIR"] == str(storage_dir)
+
+
+class TestCreateConfigYamlVerbose:
+    """Tests for create_config_yaml verbose parameter"""
+
+    @pytest.fixture
+    def mock_paths(self, tmp_path):
+        """Setup mock paths"""
+        repo_path = tmp_path / "repo"
+        storage_dir = tmp_path / "storage"
+        repo_path.mkdir()
+        storage_dir.mkdir()
+        return repo_path, storage_dir
+
+    def test_prints_message_when_verbose_true(self, mock_paths, capsys):
+        """Should print success message when verbose=True"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(repo_path, storage_dir, verbose=True)
+
+                captured = capsys.readouterr()
+                assert "✓ Config file created" in captured.out
+                assert str(config_path) in captured.out
+
+    def test_silent_when_verbose_false(self, mock_paths, capsys):
+        """Should not print message when verbose=False"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                create_config_yaml(repo_path, storage_dir, verbose=False)
+
+                captured = capsys.readouterr()
+                assert captured.out == ""
+
+    def test_creates_file_regardless_of_verbose(self, mock_paths):
+        """Should create config file regardless of verbose setting"""
+        repo_path, storage_dir = mock_paths
+
+        with patch("cicada.setup.get_config_path") as mock_get_config:
+            with patch("cicada.setup.get_index_path") as mock_get_index:
+                config_path = storage_dir / "config.yaml"
+                index_path = storage_dir / "index.json"
+                mock_get_config.return_value = config_path
+                mock_get_index.return_value = index_path
+
+                # Test verbose=False
+                create_config_yaml(repo_path, storage_dir, verbose=False)
+                assert config_path.exists()
+
+                # Clean up
+                config_path.unlink()
+
+                # Test verbose=True
+                create_config_yaml(repo_path, storage_dir, verbose=True)
+                assert config_path.exists()
+
+
+class TestIndexRepositoryForceFullParameter:
+    """Tests for index_repository force_full parameter"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_calls_incremental_index_with_force_full_false(self, mock_repo):
+        """Should pass force_full=False by default"""
+        with patch("cicada.setup.ElixirIndexer") as mock_indexer_class:
+            with patch("cicada.setup.get_index_path"):
+                mock_indexer = MagicMock()
+                mock_indexer_class.return_value = mock_indexer
+
+                index_repository(mock_repo, force_full=False)
+
+                mock_indexer.incremental_index_repository.assert_called_once()
+                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
+                assert call_kwargs["force_full"] is False
+
+    def test_calls_incremental_index_with_force_full_true(self, mock_repo):
+        """Should pass force_full=True when specified"""
+        with patch("cicada.setup.ElixirIndexer") as mock_indexer_class:
+            with patch("cicada.setup.get_index_path"):
+                mock_indexer = MagicMock()
+                mock_indexer_class.return_value = mock_indexer
+
+                index_repository(mock_repo, force_full=True)
+
+                mock_indexer.incremental_index_repository.assert_called_once()
+                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
+                assert call_kwargs["force_full"] is True
+
+    def test_prints_error_message_on_failure(self, mock_repo, capsys):
+        """Should print error messages when indexing fails"""
+        with patch("cicada.setup.ElixirIndexer") as mock_indexer_class:
+            with patch("cicada.setup.get_index_path"):
+                mock_indexer = MagicMock()
+                mock_indexer.incremental_index_repository.side_effect = Exception("Test error")
+                mock_indexer_class.return_value = mock_indexer
+
+                with pytest.raises(Exception, match="Test error"):
+                    index_repository(mock_repo)
+
+                captured = capsys.readouterr()
+                assert "Error: Failed to index repository" in captured.out
+                assert "Test error" in captured.out
+                assert (
+                    "Please check that the repository contains valid Elixir files" in captured.out
+                )
+
+
+class TestSetupIndexExists:
+    """Tests for setup() with index_exists parameter"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_skips_indexing_when_index_exists(self, mock_repo, capsys):
+        """Should skip indexing when index_exists=True"""
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.index_repository") as mock_index:
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        storage_dir = mock_repo.parent / "storage"
+                        mock_create_storage.return_value = storage_dir
+                        config_path = mock_repo / ".mcp.json"
+                        mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                        setup("claude", mock_repo, index_exists=True)
+
+                        # Should NOT call index_repository
+                        mock_index.assert_not_called()
+
+                        captured = capsys.readouterr()
+                        assert "✓ Found existing index" in captured.out
+
+    def test_shows_condensed_output_when_index_exists(self, mock_repo, capsys):
+        """Should show condensed output when index_exists=True"""
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        storage_dir = mock_repo.parent / "storage"
+                        mock_create_storage.return_value = storage_dir
+                        config_path = mock_repo / ".mcp.json"
+                        mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                        setup(
+                            "claude",
+                            mock_repo,
+                            keyword_method="bert",
+                            keyword_tier="fast",
+                            index_exists=True,
+                        )
+
+                        captured = capsys.readouterr()
+                        assert "✓ Found existing index (BERT fast)" in captured.out
+                        assert "Storage:" in captured.out
+                        assert "Restart CLAUDE" in captured.out
+
+    def test_calls_create_config_yaml_with_verbose_false_when_index_exists(self, mock_repo):
+        """Should call create_config_yaml with verbose=False when index_exists=True"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.create_config_yaml") as mock_create_config:
+                with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                    config_path = mock_repo / ".mcp.json"
+                    mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                    setup("claude", mock_repo, index_exists=True)
+
+                    # Verify verbose=False was passed
+                    mock_create_config.assert_called_once()
+                    call_kwargs = mock_create_config.call_args[1]
+                    assert call_kwargs["verbose"] is False
+
+
+class TestSetupKeywordParameters:
+    """Tests for setup() keyword_method and keyword_tier parameters"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_passes_keyword_method_to_create_config_yaml(self, mock_repo):
+        """Should pass keyword_method to create_config_yaml"""
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml") as mock_create_config:
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        storage_dir = mock_repo.parent / "storage"
+                        mock_create_storage.return_value = storage_dir
+                        config_path = mock_repo / ".mcp.json"
+                        mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                        setup("claude", mock_repo, keyword_method="bert", keyword_tier="fast")
+
+                        mock_create_config.assert_called()
+                        # Check positional args (repo_path, storage_dir, keyword_method, keyword_tier, verbose)
+                        call_args = mock_create_config.call_args[0]
+                        assert call_args[2] == "bert"  # keyword_method is 3rd positional arg
+                        assert call_args[3] == "fast"  # keyword_tier is 4th positional arg
+
+    def test_defaults_to_lemminflect_when_no_method_specified(self, mock_repo):
+        """Should use lemminflect as default when no method specified"""
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml") as mock_create_config:
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        storage_dir = mock_repo.parent / "storage"
+                        mock_create_storage.return_value = storage_dir
+                        config_path = mock_repo / ".mcp.json"
+                        mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                        setup("claude", mock_repo)
+
+                        # Should pass None for both (create_config_yaml handles defaults)
+                        mock_create_config.assert_called()
+                        call_args = mock_create_config.call_args[0]
+                        assert call_args[2] is None  # keyword_method
+                        assert call_args[3] is None  # keyword_tier
+
+
+class TestSetupSettingsChangeDetection:
+    """Tests for setup() settings change detection and reindexing"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository with existing config"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_detects_method_change_and_prompts_user(self, mock_repo, capsys):
+        """Should detect keyword method change and prompt for confirmation"""
+        import yaml
+
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.get_config_path") as mock_get_config:
+                with patch("cicada.setup.get_index_path") as mock_get_index:
+                    with patch("cicada.setup.index_repository") as mock_index:
+                        with patch("cicada.setup.create_config_yaml"):
+                            with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                                with patch("builtins.input", return_value="n"):
+                                    storage_dir = mock_repo.parent / "storage"
+                                    storage_dir.mkdir()
+                                    mock_create_storage.return_value = storage_dir
+
+                                    config_path = storage_dir / "config.yaml"
+                                    index_path = storage_dir / "index.json"
+                                    mock_get_config.return_value = config_path
+                                    mock_get_index.return_value = index_path
+
+                                    # Create existing config with lemminflect
+                                    config_path.write_text(
+                                        yaml.dump(
+                                            {
+                                                "keyword_extraction": {
+                                                    "method": "lemminflect",
+                                                    "tier": "regular",
+                                                }
+                                            }
+                                        )
+                                    )
+                                    index_path.touch()
+
+                                    mcp_config_path = mock_repo / ".mcp.json"
+                                    mock_mcp.return_value = (mcp_config_path, {"mcpServers": {}})
+
+                                    # Try to change to bert
+                                    with pytest.raises(SystemExit):
+                                        setup(
+                                            "claude",
+                                            mock_repo,
+                                            keyword_method="bert",
+                                            keyword_tier="fast",
+                                        )
+
+                                    captured = capsys.readouterr()
+                                    assert "WARNING: Index Already Exists" in captured.out
+                                    assert "LEMMINFLECT" in captured.out
+                                    assert "BERT (fast)" in captured.out
+                                    assert "Setup cancelled" in captured.out
+
+    def test_proceeds_with_reindex_when_user_confirms(self, mock_repo):
+        """Should reindex with force_full=True when user confirms settings change"""
+        import yaml
+
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.get_config_path") as mock_get_config:
+                with patch("cicada.setup.get_index_path") as mock_get_index:
+                    with patch("cicada.setup.index_repository") as mock_index:
+                        with patch("cicada.setup.create_config_yaml"):
+                            with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                                with patch("builtins.input", return_value="y"):
+                                    storage_dir = mock_repo.parent / "storage"
+                                    storage_dir.mkdir()
+                                    mock_create_storage.return_value = storage_dir
+
+                                    config_path = storage_dir / "config.yaml"
+                                    index_path = storage_dir / "index.json"
+                                    mock_get_config.return_value = config_path
+                                    mock_get_index.return_value = index_path
+
+                                    # Create existing config
+                                    config_path.write_text(
+                                        yaml.dump(
+                                            {
+                                                "keyword_extraction": {
+                                                    "method": "lemminflect",
+                                                    "tier": "regular",
+                                                }
+                                            }
+                                        )
+                                    )
+                                    index_path.touch()
+
+                                    mcp_config_path = mock_repo / ".mcp.json"
+                                    mock_mcp.return_value = (mcp_config_path, {"mcpServers": {}})
+
+                                    setup(
+                                        "claude",
+                                        mock_repo,
+                                        keyword_method="bert",
+                                        keyword_tier="fast",
+                                    )
+
+                                    # Should call index_repository with force_full=True
+                                    mock_index.assert_called_once()
+                                    call_kwargs = mock_index.call_args[1]
+                                    assert call_kwargs["force_full"] is True
+
+    def test_skips_reindex_when_settings_unchanged(self, mock_repo, capsys):
+        """Should skip reindexing when settings haven't changed"""
+        import yaml
+
+        with patch("cicada.setup.create_storage_dir") as mock_create_storage:
+            with patch("cicada.setup.get_config_path") as mock_get_config:
+                with patch("cicada.setup.get_index_path") as mock_get_index:
+                    with patch("cicada.setup.index_repository") as mock_index:
+                        with patch("cicada.setup.create_config_yaml"):
+                            with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                                storage_dir = mock_repo.parent / "storage"
+                                storage_dir.mkdir()
+                                mock_create_storage.return_value = storage_dir
+
+                                config_path = storage_dir / "config.yaml"
+                                index_path = storage_dir / "index.json"
+                                mock_get_config.return_value = config_path
+                                mock_get_index.return_value = index_path
+
+                                # Create existing config with bert/fast
+                                config_path.write_text(
+                                    yaml.dump(
+                                        {"keyword_extraction": {"method": "bert", "tier": "fast"}}
+                                    )
+                                )
+                                index_path.touch()
+
+                                mcp_config_path = mock_repo / ".mcp.json"
+                                mock_mcp.return_value = (mcp_config_path, {"mcpServers": {}})
+
+                                # Setup with same settings
+                                setup(
+                                    "claude", mock_repo, keyword_method="bert", keyword_tier="fast"
+                                )
+
+                                # Should NOT call index_repository
+                                mock_index.assert_not_called()
+
+                                captured = capsys.readouterr()
+                                assert "✓ Using existing index" in captured.out
+
+
+class TestMainErrorCases:
+    """Tests for main() error handling"""
+
+    def test_main_validates_path_exists(self, tmp_path):
+        """Main should exit with error if path doesn't exist"""
+        from cicada.setup import main
+
+        nonexistent = tmp_path / "does_not_exist"
+
+        with patch("sys.argv", ["cicada", "claude", str(nonexistent)]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+
+            assert exc_info.value.code == 1
+
+    def test_main_validates_path_is_directory(self, tmp_path):
+        """Main should exit with error if path is not a directory"""
+        from cicada.setup import main
+
+        file_path = tmp_path / "not_a_directory.txt"
+        file_path.write_text("test")
+
+        with patch("sys.argv", ["cicada", "claude", str(file_path)]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+
+            assert exc_info.value.code == 1
+
+    def test_main_handles_setup_failure(self, tmp_path, capsys):
+        """Main should handle setup() exceptions and exit gracefully"""
+        from cicada.setup import main
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+
+        with patch("sys.argv", ["cicada", "claude", str(repo_path)]):
+            with patch("cicada.setup.setup", side_effect=Exception("Setup failed")):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+
+                assert exc_info.value.code == 1
+                captured = capsys.readouterr()
+                assert "Error: Setup failed: Setup failed" in captured.out
+
+
+class TestSetupPermanentInstallationTip:
+    """Tests for permanent installation tip in setup()"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_shows_installation_tip_when_cicada_not_installed(self, mock_repo, capsys):
+        """Should show installation tip when cicada-mcp/cicada-server not in PATH"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch("shutil.which", return_value=None):
+                            config_path = mock_repo / ".mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            setup("claude", mock_repo)
+
+                            captured = capsys.readouterr()
+                            assert (
+                                "💡 Tip: For best experience, install Cicada permanently"
+                                in captured.out
+                            )
+                            assert "uv tool install" in captured.out
+                            assert "cicada-index" in captured.out
+
+    def test_hides_installation_tip_when_cicada_mcp_installed(self, mock_repo, capsys):
+        """Should not show tip when cicada-mcp is installed"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch(
+                            "shutil.which",
+                            side_effect=lambda x: "cicada-mcp" if x == "cicada-mcp" else None,
+                        ):
+                            config_path = mock_repo / ".mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            setup("claude", mock_repo)
+
+                            captured = capsys.readouterr()
+                            assert "💡 Tip: For best experience" not in captured.out
+
+    def test_hides_installation_tip_when_cicada_server_installed(self, mock_repo, capsys):
+        """Should not show tip when cicada-server is installed (backwards compat)"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch(
+                            "shutil.which",
+                            side_effect=lambda x: "cicada-server" if x == "cicada-server" else None,
+                        ):
+                            config_path = mock_repo / ".mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            setup("claude", mock_repo)
+
+                            captured = capsys.readouterr()
+                            assert "💡 Tip: For best experience" not in captured.out

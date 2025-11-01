@@ -7,11 +7,12 @@ Tests the PRIndexer class methods with proper mocking of external dependencies.
 Author: Cursor(Auto)
 """
 
-import sys
 import json
-import pytest
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -131,9 +132,7 @@ class TestFetchAllPRs:
 
         prs = mock_indexer.fetch_all_prs(state="merged")
 
-        mock_indexer.api_client.fetch_pr_list.assert_called_once_with(
-            state="merged", limit=100000
-        )
+        mock_indexer.api_client.fetch_pr_list.assert_called_once_with(state="merged", limit=100000)
 
     def test_fetch_all_prs_batch_processing(self, mock_indexer):
         """Test that PRs are fetched in batches."""
@@ -354,9 +353,7 @@ class TestIndexRepository:
             indexer = PRIndexer(str(tmp_path))
             yield indexer
 
-    def test_index_repository_incremental_with_existing_index(
-        self, mock_indexer, tmp_path
-    ):
+    def test_index_repository_incremental_with_existing_index(self, mock_indexer, tmp_path):
         """Test incremental indexing with existing index."""
         output_path = tmp_path / ".cicada" / "pr_index.json"
         output_path.parent.mkdir(exist_ok=True)
@@ -371,9 +368,7 @@ class TestIndexRepository:
         mock_indexer.index_builder.load_existing_index.return_value = existing_index
         mock_indexer.incremental_update = Mock(return_value=[{"number": 2}])
         mock_indexer.line_mapper.map_all_comment_lines = Mock()
-        mock_indexer.index_builder.merge_indexes.return_value = {
-            "prs": {"1": {}, "2": {}}
-        }
+        mock_indexer.index_builder.merge_indexes.return_value = {"prs": {"1": {}, "2": {}}}
         mock_indexer.index_builder.save_index = Mock()
 
         result = mock_indexer.index_repository(str(output_path), incremental=True)
@@ -395,9 +390,7 @@ class TestIndexRepository:
 
         assert result == existing_index
 
-    def test_index_repository_incremental_no_existing_index(
-        self, mock_indexer, tmp_path
-    ):
+    def test_index_repository_incremental_no_existing_index(self, mock_indexer, tmp_path):
         """Test incremental mode falls back to full index when no existing index."""
         output_path = tmp_path / ".cicada" / "pr_index.json"
 
@@ -449,9 +442,7 @@ class TestPerformFullIndex:
     def test_perform_full_index_complete_fetch(self, mock_indexer):
         """Test full index with complete fetch."""
         mock_indexer.api_client.get_total_pr_count.return_value = 10
-        mock_indexer.fetch_all_prs = Mock(
-            return_value=[{"number": i} for i in range(1, 11)]
-        )
+        mock_indexer.fetch_all_prs = Mock(return_value=[{"number": i} for i in range(1, 11)])
         mock_indexer.line_mapper.map_all_comment_lines = Mock()
         mock_indexer.index_builder.build_index.return_value = {"prs": {}}
 
@@ -487,9 +478,7 @@ class TestPerformFullIndex:
         mock_indexer.fetch_all_prs = Mock(return_value=[{"number": 50}])  # Partial
         mock_indexer.line_mapper.map_all_comment_lines = Mock()
         mock_indexer.index_builder.build_index.return_value = {"prs": {}}
-        mock_indexer.index_builder.merge_partial_clean.return_value = {
-            "prs": {"merged": True}
-        }
+        mock_indexer.index_builder.merge_partial_clean.return_value = {"prs": {"merged": True}}
 
         result = mock_indexer._perform_full_index("output.json", existing_index)
 

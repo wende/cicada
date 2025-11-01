@@ -1,16 +1,16 @@
 # Incremental Indexing - Fast Reindexing with File Hashing
 
-The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with spaCy NLP.
+The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with lemminflect or BERT.
 
 ## How It Works
 
 1. **First Run (Full Index)**:
    - Indexes all Elixir files in your repository
    - Extracts modules, functions, documentation, dependencies
-   - Optionally extracts keywords using spaCy NLP
+   - Optionally extracts keywords using lemminflect or BERT
    - Computes MD5 hash for each processed file
-   - Saves index to `.cicada/index.json`
-   - Saves file hashes to `.cicada/hashes.json`
+   - Saves index to `~/.cicada/projects/<repo_hash>/index.json`
+   - Saves file hashes to `~/.cicada/projects/<repo_hash>/hashes.json`
 
 2. **Subsequent Runs (Incremental)**:
    - Loads existing index and hashes
@@ -38,27 +38,35 @@ The incremental indexing system allows you to reindex your Elixir codebase effic
 
 ```bash
 # First run: full index with hash computation
-cicada-index
+cicada index
 
 # Subsequent runs: automatic incremental indexing
-cicada-index  # Only processes changed files
+cicada index  # Only processes changed files
 
 # Force full reindex (ignore hashes)
-cicada-index --full
+cicada index --full
 ```
 
-### With Keyword Extraction
+### Switching Keyword Extraction Methods
+
+When switching between keyword extraction methods (lemminflect vs BERT), you should use `--full` to ensure consistent keywords across all files:
 
 ```bash
-# First run with keywords (slow but only once)
-cicada-index --extract-keywords
+# Initially indexed with lemminflect (default)
+cicada index --nlp
 
-# Subsequent runs with keywords (much faster!)
-cicada-index --extract-keywords  # Only extracts from changed files
+# Switching to BERT - use --full for consistency
+cicada index --rag --fast --full
 
-# Force full keyword reindex
-cicada-index --extract-keywords --full
+# Switching back to lemminflect with different model - use --full again
+cicada index --nlp --max --full
 ```
+
+**Why use `--full`?**
+- Without `--full`, incremental indexing only reprocesses changed files
+- Unchanged files retain keywords from the previous extraction method
+- Results in mixed keyword extraction methods in a single index
+- Using `--full` ensures all files use the same extraction method
 
 ### Output Example
 
@@ -82,8 +90,8 @@ Incremental indexing complete!
   Files processed: 5
   Files deleted: 1
 
-Index saved to: .cicada/index.json
-Hashes saved to: .cicada/hashes.json
+Index saved to: ~/.cicada/projects/<repo_hash>/index.json
+Hashes saved to: ~/.cicada/projects/<repo_hash>/hashes.json
 ```
 
 **Incremental indexing with no changes:**
@@ -128,7 +136,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada-index --extract-keywords
+cicada index --nlp  # or --rag
 ```
 
 The incremental indexing system will:
@@ -139,7 +147,7 @@ The incremental indexing system will:
 
 ## Hash Storage Structure
 
-The hash file (`.cicada/hashes.json`) contains:
+The hash file (`~/.cicada/projects/<repo_hash>/hashes.json`) contains:
 
 ```json
 {
@@ -280,8 +288,8 @@ _handle_interrupt() called
 | **Speedup** | **23.2x** | **95.7% time saved** |
 
 **Why bigger speedup with keywords?**
-- Keyword extraction using spaCy NLP is CPU-intensive
-- Loading spaCy models takes ~1-2 seconds
+- Keyword extraction using lemminflect or BERT is CPU-intensive
+- Loading BERT models takes ~1-2 seconds
 - NLP processing adds ~0.2s per file with documentation
 - Incremental indexing amortizes model load time
 - Only processes changed files → huge savings
@@ -291,19 +299,19 @@ _handle_interrupt() called
 **During active development:**
 ```bash
 # Edit 2-3 files, reindex frequently
-cicada-index --extract-keywords  # ~1-2s instead of ~50s
+cicada index --nlp  # ~1-2s instead of ~50s (only reprocesses changed files)
 ```
 
 **After git pull:**
 ```bash
 # Pulled 10 changed files from main branch
-cicada-index  # ~3s instead of ~12s
+cicada index  # ~3s instead of ~12s
 ```
 
 **Clean build:**
 ```bash
 # Switched to different branch with many changes
-cicada-index --full  # ~12s (same as before)
+cicada index --full  # ~12s (same as before)
 ```
 
 ## File Patterns
@@ -346,10 +354,13 @@ priv/           # Private resources
 **Solution:**
 ```bash
 # Force full reindex
-cicada-index --full
+cicada index --full
 
-# With keywords
-cicada-index --extract-keywords --full
+# With NLP keyword extraction
+cicada index --nlp --full
+
+# With BERT keyword extraction
+cicada index --rag --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -365,8 +376,11 @@ cicada-index --extract-keywords --full
 **Solution:**
 ```bash
 # Delete hash file and reindex
-rm .cicada/hashes.json
-cicada-index
+rm ~/.cicada/projects/<repo_hash>/hashes.json
+cicada index
+
+# Or use cicada clean to remove all storage
+cicada clean
 ```
 
 ### Issue: Incremental indexing too slow
@@ -378,7 +392,7 @@ cicada-index
 ```bash
 # Check which files are detected as changed
 # Look for "Changes detected:" output
-cicada-index
+cicada index
 ```
 
 **Common causes:**
@@ -389,7 +403,7 @@ cicada-index
 **Solution:**
 - If many files changed: This is expected behavior
 - If hash file missing: First run will be slow (rebuilding hashes)
-- If corruption suspected: Delete `.cicada/` and start fresh
+- If corruption suspected: Use `cicada clean` to remove all storage and start fresh
 
 ### Issue: "No changes detected" but I know I changed files
 
@@ -400,17 +414,15 @@ cicada-index
 # Compute hash manually
 md5 lib/my_app/user.ex
 
-# Compare with stored hash
-cat .cicada/hashes.json | grep "user.ex"
+# Compare with stored hash in ~/.cicada/projects/<repo_hash>/hashes.json
+cat ~/.cicada/projects/<repo_hash>/hashes.json | grep "user.ex"
 ```
 
 **Solution:**
 If file truly changed but hash matches (unlikely):
 ```bash
-# Force reindex of specific files by deleting their hashes
-# Edit .cicada/hashes.json manually or:
-rm .cicada/hashes.json
-cicada-index
+# Force full reindex
+cicada index --full
 ```
 
 ## Best Practices
@@ -421,10 +433,10 @@ Add to your development workflow:
 
 ```bash
 # After pulling changes
-git pull && cicada-index
+git pull && cicada index
 
-# Before committing (if using keyword search)
-cicada-index --extract-keywords && git commit
+# Before committing (reindex changed files)
+cicada index --nlp && git commit
 ```
 
 ### 2. CI/CD Integration
@@ -435,7 +447,7 @@ In your CI pipeline:
 # .github/workflows/ci.yml
 - name: Index codebase
   run: |
-    cicada-index --extract-keywords
+    cicada index --nlp
     # Run tests that depend on index
     pytest tests/
 ```
@@ -449,19 +461,22 @@ Create `.git/hooks/pre-commit`:
 ```bash
 #!/bin/bash
 # Reindex changed files before commit
-cicada-index --extract-keywords
+cicada index --nlp
 ```
 
-### 4. Gitignore Configuration
+### 4. Storage Location
 
-Always exclude index files from git:
+All index files and hashes are stored in a centralized location outside your repository:
 
-```gitignore
-# .gitignore
-.cicada/
+```
+~/.cicada/projects/<repo_hash>/
+  ├── index.json        # Code index
+  ├── hashes.json       # File hashes for incremental indexing
+  ├── config.yaml       # Keyword extraction configuration
+  └── pr_index.json     # Pull request index (if using PR features)
 ```
 
-CICADA automatically adds this on first run.
+Only the MCP configuration file (`.mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json`) is added to your repository.
 
 ### 5. Periodic Full Reindexing
 
@@ -469,12 +484,12 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada-index --extract-keywords --full
+cicada index --nlp --full  # or --rag --full
 ```
 
 This ensures:
 - No accumulated drift from interrupted runs
-- Fresh keyword extraction with latest spaCy models
+- Fresh keyword extraction with current configuration
 - Cleanup of any orphaned entries
 
 ## Advanced Usage
@@ -576,9 +591,9 @@ MD5 collision probability is negligible for this use case:
 
 ## FAQ
 
-**Q: Does incremental indexing work with `--extract-keywords`?**
+**Q: Does incremental indexing work with `--nlp` or `--rag`?**
 
-A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using `--extract-keywords`.
+A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using keyword extraction.
 
 **Q: What happens if I interrupt during keyword extraction?**
 
@@ -586,7 +601,7 @@ A: Current file finishes extracting keywords, then progress is saved. Next run c
 
 **Q: Can I use incremental indexing in CI/CD?**
 
-A: Yes, but CI usually runs in clean environments without persisted `.cicada/` directories. First run will always be full. Consider caching `.cicada/` between runs if your CI supports it.
+A: Yes, but CI usually runs in clean environments without persisted `~/.cicada/` directories. First run will always be full. Consider caching `~/.cicada/projects/` between runs if your CI supports it.
 
 **Q: Does it detect renamed files?**
 
@@ -602,7 +617,7 @@ A: Yes, it's just JSON. Useful for forcing reindex of specific files by deleting
 
 **Q: Does it work with multiple repositories?**
 
-A: Yes, each repository has its own `.cicada/` directory with independent hashes. No cross-contamination.
+A: Yes, each repository has its own `~/.cicada/projects/<repo_hash>/` directory with independent hashes. No cross-contamination.
 
 **Q: What if I change the hashing algorithm in future versions?**
 
@@ -619,4 +634,4 @@ Incremental indexing provides:
 ✅ **Zero configuration** - works out of the box
 ✅ **Backward compatible** - gracefully handles missing hashes
 
-Simply run `cicada-index` as usual - incremental indexing happens automatically!
+Simply run `cicada index` as usual - incremental indexing happens automatically!

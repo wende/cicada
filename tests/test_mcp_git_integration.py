@@ -5,8 +5,10 @@ Integration tests for MCP server git history functionality.
 import asyncio
 import json
 import os
+
 import pytest
 import yaml
+
 from cicada.mcp_server import CicadaServer
 
 
@@ -62,9 +64,7 @@ def test_list_tools_includes_get_commit_history(test_server):
     ), "Tool description should mention git history"
 
     # Check required parameters
-    assert (
-        "file_path" in git_tool.inputSchema["properties"]
-    ), "Tool should have file_path parameter"
+    assert "file_path" in git_tool.inputSchema["properties"], "Tool should have file_path parameter"
 
     print("  ✓ get_commit_history tool is registered")
     print(f"  ✓ Tool description: {git_tool.description[:100]}...")
@@ -124,17 +124,13 @@ def test_get_commit_history_function_specific(test_server):
     text = result[0].text
 
     # Check that it mentions the function or file name
-    assert (
-        "__init__" in text or "mcp_server.py" in text
-    ), "Should mention function or file name"
+    assert "__init__" in text or "mcp_server.py" in text, "Should mention function or file name"
 
     # If commits were found, check for proper formatting
     if "No commit history found" not in text:
         assert "Git History for" in text, "Should have title when commits found"
         if "Relevance:" in text:
-            assert (
-                "🎯" in text or "📝" in text
-            ), "Should include relevance emoji indicators"
+            assert "🎯" in text or "📝" in text, "Should include relevance emoji indicators"
             print("  ✓ Function-specific history with relevance indicators")
         else:
             print("  ✓ Function-specific history retrieved")
@@ -146,9 +142,7 @@ def test_get_commit_history_nonexistent_file(test_server):
     """Test handling of non-existent file."""
     print("\nTesting non-existent file handling...")
 
-    result = asyncio.run(
-        test_server._get_file_history("nonexistent_file.txt", max_commits=5)
-    )
+    result = asyncio.run(test_server._get_file_history("nonexistent_file.txt", max_commits=5))
 
     assert len(result) == 1, "Should return one TextContent"
     text = result[0].text

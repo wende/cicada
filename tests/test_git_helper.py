@@ -2,10 +2,12 @@
 Unit tests for the git_helper module.
 """
 
-import pytest
 from pathlib import Path
-from cicada.git_helper import GitHelper
+
 import git
+import pytest
+
+from cicada.git_helper import GitHelper
 
 
 def test_git_helper_initialization():
@@ -121,9 +123,7 @@ def test_get_function_history():
     # Check that commits have relevance field
     if commits:
         for commit in commits:
-            assert (
-                "relevance" in commit
-            ), "Function history commits should have 'relevance' field"
+            assert "relevance" in commit, "Function history commits should have 'relevance' field"
             assert commit["relevance"] in [
                 "mentioned",
                 "file_change",
@@ -282,6 +282,84 @@ def test_multiple_file_history():
         print(f"  ✓ {file_path}: {count} commit(s)")
 
 
+def test_get_file_history_with_error():
+    """Test file history handles errors gracefully."""
+    print("\nTesting file history error handling...")
+
+    helper = GitHelper(".")
+
+    # Mock iter_commits to raise an exception
+    import unittest.mock as mock
+
+    with mock.patch.object(helper.repo, "iter_commits", side_effect=Exception("Test error")):
+        commits = helper.get_file_history("test.txt")
+
+        # Should return empty list on error
+        assert len(commits) == 0
+
+    print("  ✓ Error handled gracefully")
+
+
+def test_get_function_history_no_mentions():
+    """Test function history when function is not mentioned in commits."""
+    print("\nTesting function history with no mentions...")
+
+    helper = GitHelper(".")
+
+    # Test with a function name that likely doesn't exist in commit messages
+    commits = helper.get_function_history_heuristic(
+        "README.md", "nonexistent_function_xyz123", 1, max_commits=3
+    )
+
+    # Should still return some commits (file changes)
+    assert isinstance(commits, list)
+
+    # All commits should have relevance field
+    for commit in commits:
+        assert "relevance" in commit
+        # Since function name doesn't exist, should all be file_change
+        assert commit["relevance"] == "file_change"
+
+    print(f"  ✓ Found {len(commits)} file change commit(s)")
+
+
+def test_get_function_history_max_commits_limit():
+    """Test that function history respects max_commits."""
+    print("\nTesting function history max_commits limit...")
+
+    helper = GitHelper(".")
+
+    commits = helper.get_function_history_heuristic("README.md", "test", 1, max_commits=2)
+
+    # Should not exceed max_commits
+    assert len(commits) <= 2
+
+    print(f"  ✓ Returned {len(commits)} commit(s), respects max limit")
+
+
+def test_repo_path_attribute():
+    """Test that repo_path is set correctly."""
+    print("\nTesting repo_path attribute...")
+
+    helper = GitHelper(".")
+    assert helper.repo_path.is_dir()
+    assert (helper.repo_path / ".git").exists()
+
+    print(f"  ✓ Repo path: {helper.repo_path}")
+
+
+def test_get_recent_commits_with_limit():
+    """Test that recent commits respects the limit."""
+    print("\nTesting recent commits with small limit...")
+
+    helper = GitHelper(".")
+    commits = helper.get_recent_commits(max_count=1)
+
+    assert len(commits) == 1
+
+    print("  ✓ Exactly 1 commit returned")
+
+
 if __name__ == "__main__":
     print("Running git_helper tests...\n")
 
@@ -291,13 +369,18 @@ if __name__ == "__main__":
         test_get_recent_commits()
         test_get_file_history()
         test_get_file_history_nonexistent()
+        test_get_file_history_with_error()
         test_get_function_history()
+        test_get_function_history_no_mentions()
+        test_get_function_history_max_commits_limit()
         test_search_commits()
         test_get_commit_details()
         test_get_commit_details_short_sha()
         test_get_commit_details_invalid()
         test_date_format()
         test_multiple_file_history()
+        test_repo_path_attribute()
+        test_get_recent_commits_with_limit()
 
         print("\n" + "=" * 50)
         print("All git_helper tests passed!")

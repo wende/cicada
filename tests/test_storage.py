@@ -2,17 +2,18 @@
 Comprehensive tests for cicada/utils/storage.py
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
+
 from cicada.utils.storage import (
-    get_repo_hash,
-    get_storage_dir,
     create_storage_dir,
-    get_index_path,
     get_config_path,
     get_hashes_path,
+    get_index_path,
     get_pr_index_path,
+    get_repo_hash,
+    get_storage_dir,
 )
 
 

@@ -214,7 +214,7 @@ def test_pr_index_loading():
 
     try:
         # Test loading
-        with open(temp_path, "r") as f:
+        with open(temp_path) as f:
             loaded = json.load(f)
 
         checks = [

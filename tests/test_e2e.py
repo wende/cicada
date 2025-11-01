@@ -4,8 +4,10 @@ End-to-end integration tests for Cicada.
 
 import os
 from pathlib import Path
+
 import pytest
 import yaml
+
 from cicada.indexer import ElixirIndexer
 from cicada.mcp_server import CicadaServer
 
@@ -118,9 +120,7 @@ def test_module_not_found():
         response_text = result[0].text
 
         assert "Module Not Found" in response_text, "Error message not in response"
-        assert (
-            "NonExistent.Module" in response_text
-        ), "Query module name not in response"
+        assert "NonExistent.Module" in response_text, "Query module name not in response"
 
         print("  ✓ Module not found error handled correctly")
 

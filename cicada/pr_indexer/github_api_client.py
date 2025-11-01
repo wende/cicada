@@ -10,7 +10,7 @@ separating API concerns from indexing logic.
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
+from typing import Any
 
 from cicada.utils import SubprocessRunner
 
@@ -50,9 +50,9 @@ class GitHubAPIClient:
             raise RuntimeError(
                 "GitHub CLI (gh) is not installed or not available in PATH. "
                 "Install it from https://cli.github.com/"
-            )
+            ) from None
 
-    def get_repo_info(self) -> Tuple[str, str]:
+    def get_repo_info(self) -> tuple[str, str]:
         """
         Get repository owner and name from git remote.
 
@@ -81,9 +81,9 @@ class GitHubAPIClient:
             return owner, repo_name
 
         except subprocess.CalledProcessError:
-            raise RuntimeError("Not a GitHub repository or no remote configured")
+            raise RuntimeError("Not a GitHub repository or no remote configured") from None
 
-    def fetch_pr_list(self, state: str = "all", limit: int = 10000) -> List[int]:
+    def fetch_pr_list(self, state: str = "all", limit: int = 10000) -> list[int]:
         """
         Fetch list of PR numbers.
 
@@ -115,11 +115,11 @@ class GitHubAPIClient:
             return [pr["number"] for pr in pr_list]
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to fetch PR list: {e.stderr}")
+            raise RuntimeError(f"Failed to fetch PR list: {e.stderr}") from e
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse PR list: {e}")
+            raise RuntimeError(f"Failed to parse PR list: {e}") from e
 
-    def fetch_prs_batch_graphql(self, pr_numbers: List[int]) -> List[Dict[str, Any]]:
+    def fetch_prs_batch_graphql(self, pr_numbers: list[int]) -> list[dict[str, Any]]:
         """
         Fetch detailed PR information for a batch using GraphQL.
 
@@ -189,9 +189,7 @@ class GitHubAPIClient:
         """
 
         try:
-            result = self.runner.run_gh_command(
-                ["api", "graphql", "-f", f"query={query}"]
-            )
+            result = self.runner.run_gh_command(["api", "graphql", "-f", f"query={query}"])
 
             data = json.loads(result.stdout)
             repo_data = data.get("data", {}).get("repository", {})
@@ -199,15 +197,13 @@ class GitHubAPIClient:
             return self._parse_graphql_response(repo_data, len(pr_numbers))
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"GraphQL query failed for PRs {pr_numbers}: {e.stderr}")
+            raise RuntimeError(f"GraphQL query failed for PRs {pr_numbers}: {e.stderr}") from e
         except (json.JSONDecodeError, KeyError) as e:
-            raise RuntimeError(
-                f"Failed to parse GraphQL response for PRs {pr_numbers}: {e}"
-            )
+            raise RuntimeError(f"Failed to parse GraphQL response for PRs {pr_numbers}: {e}") from e
 
     def _parse_graphql_response(
-        self, repo_data: Dict[str, Any], num_prs: int
-    ) -> List[Dict[str, Any]]:
+        self, repo_data: dict[str, Any], num_prs: int
+    ) -> list[dict[str, Any]]:
         """
         Parse GraphQL response into PR dictionaries.
 
@@ -227,8 +223,7 @@ class GitHubAPIClient:
 
             # Extract commits
             commits = [
-                node["commit"]["oid"]
-                for node in pr_data.get("commits", {}).get("nodes", [])
+                node["commit"]["oid"] for node in pr_data.get("commits", {}).get("nodes", [])
             ]
 
             # Extract files
@@ -255,7 +250,7 @@ class GitHubAPIClient:
 
         return detailed_prs
 
-    def _parse_review_comments(self, pr_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _parse_review_comments(self, pr_data: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse review thread comments from PR data.
 
@@ -277,9 +272,7 @@ class GitHubAPIClient:
                 comments.append(
                     {
                         "id": comment_node.get("id"),
-                        "author": (comment_node.get("author") or {}).get(
-                            "login", "unknown"
-                        ),
+                        "author": (comment_node.get("author") or {}).get("login", "unknown"),
                         "body": comment_node.get("body", ""),
                         "created_at": comment_node.get("createdAt"),
                         "path": comment_node.get("path"),
@@ -293,7 +286,7 @@ class GitHubAPIClient:
 
         return comments
 
-    def fetch_pr_rest(self, pr_number: int) -> Dict[str, Any]:
+    def fetch_pr_rest(self, pr_number: int) -> dict[str, Any]:
         """
         Fallback method to fetch a single PR using REST API.
 
@@ -351,7 +344,7 @@ class GitHubAPIClient:
                 "comments": [],
             }
 
-    def _fetch_pr_commits_rest(self, pr_number: int) -> List[str]:
+    def _fetch_pr_commits_rest(self, pr_number: int) -> list[str]:
         """
         Fetch commit SHAs for a PR using REST API.
 
@@ -374,17 +367,13 @@ class GitHubAPIClient:
                 ]
             )
 
-            commits = [
-                line.strip()
-                for line in result.stdout.strip().split("\n")
-                if line.strip()
-            ]
+            commits = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
             return commits
 
         except subprocess.CalledProcessError:
             return []
 
-    def _fetch_pr_files_rest(self, pr_number: int) -> List[str]:
+    def _fetch_pr_files_rest(self, pr_number: int) -> list[str]:
         """
         Fetch changed files for a PR using REST API.
 
@@ -399,11 +388,7 @@ class GitHubAPIClient:
                 ["pr", "view", str(pr_number), "--json", "files", "-q", ".files[].path"]
             )
 
-            files = [
-                line.strip()
-                for line in result.stdout.strip().split("\n")
-                if line.strip()
-            ]
+            files = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
             return files
 
         except subprocess.CalledProcessError:
@@ -427,5 +412,5 @@ class GitHubAPIClient:
             if pr_list:
                 return pr_list[0]["number"]
             return 0
-        except:
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, IndexError):
             return 0

@@ -8,6 +8,7 @@ from .indexer import PRIndexer
 def main():
     """CLI entry point for pr_indexer."""
     import argparse
+
     from cicada.version_check import check_for_updates
 
     # Check for updates (non-blocking, fails silently)
@@ -38,19 +39,13 @@ def main():
     try:
         indexer = PRIndexer(repo_path=args.repo)
         # Incremental by default, unless --clean is specified
-        _ = indexer.index_repository(
-            output_path=args.output, incremental=not args.clean
-        )
+        _ = indexer.index_repository(output_path=args.output, incremental=not args.clean)
 
-        print(
-            "\n✅ Indexing complete! You can now use the MCP tools for PR history lookups."
-        )
+        print("\nIndexing complete! You can now use the MCP tools for PR history lookups.")
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
-        print(
-            "Partial index may have been saved. Run again to continue (incremental by default)."
-        )
+        print("Partial index may have been saved. Run again to continue (incremental by default).")
         sys.exit(130)  # Standard exit code for SIGINT
 
     except Exception as e:

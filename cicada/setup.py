@@ -13,17 +13,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from cicada.indexer import ElixirIndexer
 from cicada.utils import (
     create_storage_dir,
-    get_index_path,
     get_config_path,
-    get_hashes_path,
-    get_storage_dir,
+    get_index_path,
 )
-
 
 EditorType = Literal["claude", "cursor", "vs"]
 
@@ -42,21 +39,19 @@ def _load_existing_config(config_path: Path) -> dict:
         return {}
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        print(
-            f"Warning: Existing config at {config_path} is malformed, creating new one: {e}"
-        )
+        print(f"Warning: Existing config at {config_path} is malformed, creating new one: {e}")
         return {}
-    except IOError as e:
+    except OSError as e:
         print(f"Warning: Could not read config file {config_path}: {e}")
         return {}
 
 
 def _build_server_config(
     command: str, args: list, cwd: str | None, repo_path: Path, storage_dir: Path
-) -> dict:
+) -> dict[str, Any]:
     """
     Build the MCP server configuration.
 
@@ -70,7 +65,7 @@ def _build_server_config(
     Returns:
         Server configuration dict
     """
-    server_config = {"command": command}
+    server_config: dict[str, Any] = {"command": command}
 
     if args:
         server_config["args"] = args
@@ -129,7 +124,7 @@ def get_mcp_config_for_editor(
         raise ValueError(f"Unsupported editor: {editor}")
 
     spec = editor_specs[editor]
-    config_path = spec["config_path"]
+    config_path = cast(Path, spec["config_path"])
 
     # Create parent directory if needed
     if spec["needs_dir"]:
@@ -150,7 +145,11 @@ def get_mcp_config_for_editor(
 
 
 def create_config_yaml(
-    repo_path: Path, storage_dir: Path, verbose: bool = True
+    repo_path: Path,
+    storage_dir: Path,
+    keyword_method: str | None = None,
+    keyword_tier: str | None = None,
+    verbose: bool = True,
 ) -> None:
     """
     Create config.yaml in storage directory.
@@ -158,16 +157,28 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
-        verbose: Whether to print progress messages (default: True)
+        keyword_method: Keyword extraction method ('lemminflect' or 'bert'), None for default
+        keyword_tier: Model tier ('fast', 'regular', 'max'), None for default
+        verbose: If True, print success message. If False, silently create config.
     """
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
+
+    # Default to lemminflect if not specified
+    if keyword_method is None:
+        keyword_method = "lemminflect"
+    if keyword_tier is None:
+        keyword_tier = "regular"
 
     config_content = f"""repository:
   path: {repo_path}
 
 storage:
   index_path: {index_path}
+
+keyword_extraction:
+  method: {keyword_method}
+  tier: {keyword_tier}
 """
 
     with open(config_path, "w") as f:
@@ -177,12 +188,13 @@ storage:
         print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path, verbose: bool = True) -> None:
+def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = True) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        force_full: If True, force full reindex instead of incremental
         verbose: Whether to print progress messages (default: True)
 
     Raises:
@@ -192,18 +204,14 @@ def index_repository(repo_path: Path, verbose: bool = True) -> None:
         index_path = get_index_path(repo_path)
         indexer = ElixirIndexer(verbose=verbose)
 
-        # Index with keyword extraction enabled by default
-        # Note: Using 'small' model for compatibility with uvx
-        # For better accuracy, install permanently and use cicada-index with --spacy-model medium/large
-        indexer.index_repository(
+        # Use incremental indexing by default (unless force_full is True)
+        indexer.incremental_index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
             extract_keywords=True,
-            spacy_model="small",
+            force_full=force_full,
         )
-
-        if verbose:
-            print(f"✓ Repository indexed at {index_path}")
+        # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
             print(f"Error: Failed to index repository: {e}")
@@ -211,64 +219,175 @@ def index_repository(repo_path: Path, verbose: bool = True) -> None:
         raise
 
 
-def setup(editor: EditorType, repo_path: Path | None = None) -> None:
+def setup_multiple_editors(
+    editors: list[EditorType],
+    repo_path: Path,
+    storage_dir: Path,
+    verbose: bool = False,
+) -> None:
+    """
+    Create MCP configs for multiple editors at once (for server mode).
+
+    Args:
+        editors: List of editor types to configure
+        repo_path: Path to the repository
+        storage_dir: Path to the storage directory
+        verbose: If True, print progress messages
+    """
+    for editor in editors:
+        try:
+            config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
+
+            # Write config file
+            with open(config_path, "w") as f:
+                json.dump(config_content, f, indent=2)
+
+            if verbose:
+                print(f"✓ Created {editor.upper()} config at {config_path}")
+        except Exception as e:
+            if verbose:
+                print(f"⚠ Error creating {editor.upper()} config: {e}")
+
+
+def setup(
+    editor: EditorType,
+    repo_path: Path | None = None,
+    keyword_method: str | None = None,
+    keyword_tier: str | None = None,
+    index_exists: bool = False,
+) -> None:
     """
     Run the complete setup for the specified editor.
 
     Args:
         editor: Editor type (claude, cursor, vs)
         repo_path: Path to the repository (defaults to current directory)
+        keyword_method: Keyword extraction method ('lemminflect' or 'bert'), None for default
+        keyword_tier: Model tier ('fast', 'regular', 'max'), None for default
+        index_exists: If True, skip banner and show condensed output (index already exists)
     """
     # Determine repository path
     if repo_path is None:
         repo_path = Path.cwd()
     repo_path = repo_path.resolve()
 
-    print("=" * 60)
-    print(f"Cicada Setup for {editor.upper()}")
-    print("=" * 60)
-    print()
-
     # Create storage directory
-    print(f"Repository: {repo_path}")
     storage_dir = create_storage_dir(repo_path)
-    print(f"Storage: {storage_dir}")
-    print()
 
-    # Index repository
-    index_repository(repo_path)
-    print()
+    # Show condensed output if index already exists
+    if index_exists:
+        # Determine method and tier for display
+        display_method = keyword_method if keyword_method else "lemminflect"
+        display_tier = keyword_tier if keyword_tier else "regular"
+        print(f"✓ Found existing index ({display_method.upper()} {display_tier})")
+        # Skip indexing when index_exists is True - we're just reusing it
+        should_index = False
+        force_full = False
+        # Ensure config.yaml is up to date with current settings
+        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+    else:
+        # Show full banner for new setup
+        print("=" * 60)
+        print(f"Cicada Setup for {editor.upper()}")
+        print("=" * 60)
+        print()
+        print(f"Repository: {repo_path}")
+        print(f"Storage: {storage_dir}")
+        print()
 
-    # Create config.yaml
-    create_config_yaml(repo_path, storage_dir)
-    print()
+        # Check if config already exists and determine if we need to reindex
+        config_path = get_config_path(repo_path)
+        index_path = get_index_path(repo_path)
+        should_index = True
+        force_full = False
+
+        if config_path.exists() and index_path.exists():
+            import yaml
+
+            try:
+                with open(config_path) as f:
+                    existing_config = yaml.safe_load(f)
+                    existing_method = existing_config.get("keyword_extraction", {}).get(
+                        "method", "lemminflect"
+                    )
+                    existing_tier = existing_config.get("keyword_extraction", {}).get(
+                        "tier", "regular"
+                    )
+
+                    # Determine new method and tier (default to lemminflect/regular if not specified)
+                    new_method = keyword_method if keyword_method else "lemminflect"
+                    new_tier = keyword_tier if keyword_tier else "regular"
+
+                    # Check if settings changed
+                    settings_changed = (existing_method != new_method) or (
+                        existing_tier != new_tier
+                    )
+
+                    if settings_changed:
+                        print("=" * 60)
+                        print("⚠️  WARNING: Index Already Exists")
+                        print("=" * 60)
+                        print()
+                        print(
+                            f"This repository already has an index with {existing_method.upper()} ({existing_tier}) keyword extraction."
+                        )
+                        print(f"You are now switching to {new_method.upper()} ({new_tier}).")
+                        print()
+                        print(
+                            "This will require reindexing the ENTIRE codebase, which may take several minutes."
+                        )
+                        print()
+
+                        # Ask for confirmation
+                        response = input("Do you want to continue? [y/N]: ").strip().lower()
+                        if response not in ("y", "yes"):
+                            print("\nSetup cancelled.")
+                            sys.exit(0)
+                        print()
+                        force_full = True  # Force full reindex when settings change
+                    else:
+                        # Settings unchanged - just use existing index
+                        print(f"✓ Using existing index ({existing_method}, {existing_tier})")
+                        print()
+                        should_index = False
+            except Exception:
+                # If we can't read the config, just proceed with indexing
+                pass
+
+        # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
+        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+
+        # Index repository if needed
+        if should_index:
+            index_repository(repo_path, force_full=force_full)
+            print()
 
     # Create MCP config for the editor
-    config_path, config_content = get_mcp_config_for_editor(
-        editor, repo_path, storage_dir
-    )
+    config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
+
+    # Check if MCP config already exists
+    mcp_config_existed = config_path.exists()
 
     # Write config file
     with open(config_path, "w") as f:
         json.dump(config_content, f, indent=2)
 
-    print(f"✓ MCP configuration created at {config_path}")
-    print()
-
-    print("=" * 60)
-    print("✓ Setup Complete!")
-    print("=" * 60)
-    print()
-    print("Next steps:")
-    print(f"1. Restart {editor.upper()}")
-    print("2. Cicada MCP server will be available automatically")
-    print()
-    print("Storage location:")
-    print(f"  {storage_dir}")
-    print()
-    print("All index files are stored outside your repository.")
-    print(f"Only {config_path.name} was added to your repo.")
-    print()
+    if index_exists:
+        # Show condensed success message
+        mcp_verb = "updated" if mcp_config_existed else "created"
+        print(f"✓ MCP configuration {mcp_verb} at {config_path}")
+        print()
+        print(f"Storage: {storage_dir}")
+        print()
+        print(f"Restart {editor.upper()}.")
+        print("To reindex from scratch: cicada clean -f")
+        print()
+    else:
+        # Show simplified success message for first-time setup
+        print(f"Project config created at: {config_path}")
+        print()
+        print(f"Restart {editor.upper()}.")
+        print()
 
     # Check if running via uvx and suggest permanent installation
     import shutil
@@ -280,7 +399,7 @@ def setup(editor: EditorType, repo_path: Path | None = None) -> None:
         print()
         print("   Benefits:")
         print("   • Faster MCP server startup (no uvx overhead)")
-        print("   • Access to cicada-index with medium/large spaCy models")
+        print("   • Access to cicada-index with enhanced keyword extraction (BERT/lemminflect)")
         print("   • PR indexing with cicada-index-pr")
         print()
 

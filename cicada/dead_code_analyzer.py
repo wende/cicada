@@ -6,8 +6,6 @@ Identifies potentially unused public functions using the indexed codebase data.
 Author: Cursor(Auto)
 """
 
-from typing import Dict, List, Optional
-
 
 class DeadCodeAnalyzer:
     """Analyzes Elixir code index to find potentially unused public functions."""
@@ -56,9 +54,7 @@ class DeadCodeAnalyzer:
         for module_name, module_data in self.modules.items():
             # Skip test files and .exs files entirely
             if self._is_test_file(module_data["file"]):
-                skipped_files += sum(
-                    1 for f in module_data["functions"] if f["type"] == "def"
-                )
+                skipped_files += sum(1 for f in module_data["functions"] if f["type"] == "def")
                 continue
 
             # Analyze each function in the module
@@ -77,9 +73,7 @@ class DeadCodeAnalyzer:
                 analyzed += 1
 
                 # Find usages of this function
-                usage_count = self._find_usages(
-                    module_name, function["name"], function["arity"]
-                )
+                usage_count = self._find_usages(module_name, function["name"], function["arity"])
 
                 # If function is used, skip it
                 if usage_count > 0:
@@ -149,14 +143,10 @@ class DeadCodeAnalyzer:
             # Test files
             "/test/" in file_lower
             or file_lower.startswith("test/")
-            or file_lower.endswith("_test.ex")
-            # All .exs files (scripts, config files, etc.)
-            or file_lower.endswith(".exs")
+            or file_lower.endswith(("_test.ex", ".exs"))
         )
 
-    def _find_usages(
-        self, target_module: str, target_function: str, target_arity: int
-    ) -> int:
+    def _find_usages(self, target_module: str, target_function: str, target_arity: int) -> int:
         """
         Find the number of times a function is called across the codebase.
 
@@ -203,9 +193,12 @@ class DeadCodeAnalyzer:
                         # Filter out calls that are BEFORE the function definition
                         # (@spec, @doc annotations appear 1-5 lines before the def)
                         # Only filter if call is before def and within 5 lines
-                        if function_def_line and call["line"] < function_def_line:
-                            if (function_def_line - call["line"]) <= 5:
-                                continue
+                        if (
+                            function_def_line
+                            and call["line"] < function_def_line
+                            and (function_def_line - call["line"]) <= 5
+                        ):
+                            continue
                         call_count += 1
                 else:
                     # Qualified call - resolve the module name
@@ -260,12 +253,12 @@ class DeadCodeAnalyzer:
         Returns:
             True if module appears in value_mentions of any other module
         """
-        for other_module, module_data in self.modules.items():
+        for _other_module, module_data in self.modules.items():
             if module_name in module_data.get("value_mentions", []):
                 return True
         return False
 
-    def _find_value_mentioners(self, module_name: str) -> List[dict]:
+    def _find_value_mentioners(self, module_name: str) -> list[dict]:
         """
         Find all modules that mention this module as a value.
 

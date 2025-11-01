@@ -7,22 +7,22 @@ Author: Cursor(Auto)
 """
 
 import tree_sitter_elixir as ts_elixir
-from tree_sitter import Parser, Language
+from tree_sitter import Language, Parser
 
 from .extractors import (
-    extract_modules,
-    extract_functions,
-    extract_specs,
-    match_specs_to_functions,
-    extract_docs,
-    match_docs_to_functions,
     extract_aliases,
-    extract_imports,
-    extract_requires,
-    extract_uses,
     extract_behaviours,
+    extract_docs,
     extract_function_calls,
+    extract_functions,
+    extract_imports,
+    extract_modules,
+    extract_requires,
+    extract_specs,
+    extract_uses,
     extract_value_mentions,
+    match_docs_to_functions,
+    match_specs_to_functions,
 )
 
 

@@ -2,43 +2,67 @@
 
 Quick test plan before merging to main.
 
+## Command Overview
+
+**`cicada` vs `cicada-mcp`**: Both commands provide the same core functionality:
+
+### `cicada` (Primary CLI)
+- Interactive setup and management
+- Default behavior: `cicada` or `cicada install` - interactive setup
+- Verbose output, progress indicators, user prompts
+- Recommended for manual/interactive use
+
+### `cicada-mcp` (MCP Server)
+- MCP server mode entry point
+- Default behavior: `cicada-mcp` - starts MCP server on stdio (silent)
+- Can run all CLI commands via subcommands
+- Recommended for MCP server integration
+
+### Behavioral Consistency
+
+**Storage**: Both commands now enforce **centralized storage** (`~/.cicada/projects/<hash>/`):
+- ✅ `index` - NO --output option (uses centralized storage)
+- ✅ `index-pr` - NO --output option (uses centralized storage)
+- ✅ `find-dead-code` - --index defaults to centralized storage
+
+**Minor Differences**:
+- `cicada index` has `--test` flag for keyword extraction testing
+- `cicada-mcp index` does not have `--test` flag (server mode doesn't need it)
+
+**Key Point**: All indexing and analysis commands behave identically whether called via `cicada` or `cicada-mcp`. Use whichever is more convenient for testing.
+
 ## Setup & Install
-- [ ] `cicada` - Setup in current directory, verify `.mcp.json` created
-- [ ] `cicada .` - Explicit current directory path
-- [ ] `cicada /path/to/other/project` - Setup in different directory
-- [ ] `cicada --skip-install` - Skip dependency installation
+- [x] `cicada` - Interactive setup
+- [x] `cicada .` - Explicit current directory path
+- [x] `cicada /path/to/other/project` - Setup in different directory
 
 ## Index - Basic
-- [ ] `cicada index` - Interactive setup (no flags), choose nlp/rag, choose tier
-- [ ] `cicada index .` - Default output path
-- [ ] `cicada index --output custom.json` - Custom output path
+- [x] `cicada index` - Interactive setup (no flags), choose nlp/rag, choose tier
+- [x] `cicada index .` - Uses centralized storage path
 
 ## Index - NLP Mode
-- [ ] `cicada index --nlp` - NLP with regular tier (default)
-- [ ] `cicada index --nlp --fast` - NLP with fast tier
-- [ ] `cicada index --nlp --max` - NLP with max tier
+- [x] `cicada index --nlp` - NLP with regular tier (default)
 
 ## Index - RAG Mode
-- [ ] `cicada index --rag` - RAG with regular tier (default)
-- [ ] `cicada index --rag --fast` - RAG with fast tier
-- [ ] `cicada index --rag --max` - RAG with max tier
+- [x] `cicada index --rag` - RAG with regular tier (default)
+- [x] `cicada index --rag --fast` - RAG with fast tier
+- [x] `cicada index --rag --max` - RAG with max tier
 
 ## Index - Error Cases
-- [ ] `cicada index --fast` - Should error: "requires --nlp or --rag"
-- [ ] `cicada index --max` - Should error: "requires --nlp or --rag"
-- [ ] `cicada index --nlp --rag` - Should error: "Cannot specify both"
+- [x] `cicada index --fast` - Should error: "requires --rag"
+- [x] `cicada index --max` - Should error: "requires --rag"
+- [x] `cicada index --nlp --rag` - Should error: "Cannot specify both"
 
 ## Index - Incremental
-- [ ] Run `cicada index --nlp` twice - Second run should be faster (incremental)
-- [ ] Modify 1-2 files, run again - Only changed files reprocessed
-- [ ] Ctrl-C during indexing, run again - Resume from saved progress
+- [x] Run `cicada index --nlp` twice - Second run should be faster (incremental)
+- [x] Modify 1-2 files, run again - Only changed files reprocessed
+- [x] Ctrl-C during indexing, run again - Resume from saved progress
 
 ## PR Indexing
-- [ ] `cicada index-pr` - Default incremental update
-- [ ] `cicada index-pr .` - Explicit current directory
-- [ ] `cicada index-pr --clean` - Clean rebuild from scratch
-- [ ] `cicada index-pr --output custom_pr.json` - Custom output path
-- [ ] Ctrl-C during PR indexing - Verify graceful shutdown message
+- [/] `cicada index-pr` - Default incremental update
+- [/] `cicada index-pr .` - Explicit current directory
+- [/] `cicada index-pr --clean` - Clean rebuild from scratch
+- [/] Ctrl-C during PR indexing - Verify graceful shutdown message
 
 ## Dead Code Analysis
 - [ ] `cicada find-dead-code` - Default (high confidence, markdown)

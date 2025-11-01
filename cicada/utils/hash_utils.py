@@ -10,7 +10,6 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 
 def compute_file_hash(file_path: str) -> str:
@@ -38,12 +37,12 @@ def compute_file_hash(file_path: str) -> str:
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
     except FileNotFoundError:
-        raise FileNotFoundError(f"File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}") from None
     except Exception as e:
-        raise IOError(f"Error reading file {file_path}: {e}")
+        raise OSError(f"Error reading file {file_path}: {e}") from e
 
 
-def load_file_hashes(cicada_dir: str) -> Dict[str, str]:
+def load_file_hashes(cicada_dir: str) -> dict[str, str]:
     """
     Load file hashes from .cicada/hashes.json.
 
@@ -60,15 +59,15 @@ def load_file_hashes(cicada_dir: str) -> Dict[str, str]:
         return {}
 
     try:
-        with open(hashes_path, "r", encoding="utf-8") as f:
+        with open(hashes_path, encoding="utf-8") as f:
             data = json.load(f)
             return data.get("hashes", {})
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"Warning: Could not load hashes.json: {e}")
         return {}
 
 
-def save_file_hashes(cicada_dir: str, hashes: Dict[str, str]) -> None:
+def save_file_hashes(cicada_dir: str, hashes: dict[str, str]) -> None:
     """
     Save file hashes to .cicada/hashes.json.
 
@@ -90,13 +89,13 @@ def save_file_hashes(cicada_dir: str, hashes: Dict[str, str]) -> None:
     try:
         with open(hashes_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-    except IOError as e:
+    except OSError as e:
         print(f"Warning: Could not save hashes.json: {e}")
 
 
 def detect_file_changes(
-    files: List[str], old_hashes: Dict[str, str], repo_path: str | None = None
-) -> Tuple[List[str], List[str], List[str]]:
+    files: list[str], old_hashes: dict[str, str], repo_path: str | None = None
+) -> tuple[list[str], list[str], list[str]]:
     """
     Detect new, modified, and deleted files by comparing hashes.
 
@@ -137,7 +136,7 @@ def detect_file_changes(
                 current_hash = compute_file_hash(full_path)
                 if current_hash != old_hashes[file_path]:
                     modified_files.append(file_path)
-            except (FileNotFoundError, IOError) as e:
+            except (OSError, FileNotFoundError) as e:
                 # File might have been deleted after listing
                 print(f"Warning: Could not hash {file_path}: {e}")
                 deleted_files.append(file_path)
@@ -145,9 +144,7 @@ def detect_file_changes(
     return new_files, modified_files, deleted_files
 
 
-def compute_hashes_for_files(
-    files: List[str], repo_path: str | None = None
-) -> Dict[str, str]:
+def compute_hashes_for_files(files: list[str], repo_path: str | None = None) -> dict[str, str]:
     """
     Compute MD5 hashes for a list of files.
 
@@ -167,7 +164,7 @@ def compute_hashes_for_files(
 
         try:
             hashes[file_path] = compute_file_hash(full_path)
-        except (FileNotFoundError, IOError) as e:
+        except (OSError, FileNotFoundError) as e:
             print(f"Warning: Could not hash {file_path}: {e}")
 
     return hashes

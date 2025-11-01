@@ -7,14 +7,15 @@ Tests all methods and error paths with proper mocking to achieve high coverage
 while maintaining loose coupling to implementation details.
 """
 
-import pytest
 import subprocess
 
+import pytest
+
 from cicada.pr_indexer.line_mapper import LineMapper
-from tests.mocks.subprocess_mocks import MockSubprocessRunner, MockCompletedProcess
 from tests.mocks.git_responses import (
     create_git_show_response,
 )
+from tests.mocks.subprocess_mocks import MockCompletedProcess, MockSubprocessRunner
 
 
 class TestLineMapperInit:
@@ -389,9 +390,7 @@ class TestMapLineToCurrentSuccess:
         )
 
         # Mock git show for HEAD (line moved down by 5)
-        head_content = (
-            ["line1"] + [f"new_line_{i}" for i in range(5)] + ["line2", "line3"]
-        )
+        head_content = ["line1"] + [f"new_line_{i}" for i in range(5)] + ["line2", "line3"]
         mock_runner.add_git_response(
             command=["show", "HEAD:test.py"],
             response=MockCompletedProcess(
@@ -830,9 +829,7 @@ class TestFindMatchingLine:
         mapper = LineMapper(tmp_path)
 
         current_lines = ["line1", "  line2  ", "line3"]  # line2 has extra whitespace
-        result = mapper._find_matching_line(
-            current_lines, "line2", 2
-        )  # Looking for "line2"
+        result = mapper._find_matching_line(current_lines, "line2", 2)  # Looking for "line2"
 
         assert result == 2  # Will match because we strip whitespace in comparison
 

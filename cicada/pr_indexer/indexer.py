@@ -5,11 +5,11 @@ Fetches all PRs from a GitHub repository and builds an index mapping commits to 
 """
 
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Any
 
 from .github_api_client import GitHubAPIClient
-from .pr_index_builder import PRIndexBuilder
 from .line_mapper import LineMapper
+from .pr_index_builder import PRIndexBuilder
 
 
 class PRIndexer:
@@ -36,9 +36,7 @@ class PRIndexer:
         self.repo_owner, self.repo_name = temp_client.get_repo_info()
 
         # Initialize components
-        self.api_client = GitHubAPIClient(
-            self.repo_path, self.repo_owner, self.repo_name
-        )
+        self.api_client = GitHubAPIClient(self.repo_path, self.repo_owner, self.repo_name)
         self.index_builder = PRIndexBuilder(self.repo_owner, self.repo_name)
         self.line_mapper = LineMapper(self.repo_path)
 
@@ -48,7 +46,7 @@ class PRIndexer:
         if not git_dir.exists():
             raise ValueError(f"Not a git repository: {self.repo_path}")
 
-    def fetch_all_prs(self, state: str = "all") -> List[Dict[str, Any]]:
+    def fetch_all_prs(self, state: str = "all") -> list[dict[str, Any]]:
         """
         Fetch all pull requests from GitHub using GraphQL for efficiency.
 
@@ -93,11 +91,9 @@ class PRIndexer:
             return detailed_prs
 
         except RuntimeError as e:
-            raise RuntimeError(f"Failed to fetch PRs: {e}")
+            raise RuntimeError(f"Failed to fetch PRs: {e}") from e
 
-    def incremental_update(
-        self, existing_index: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    def incremental_update(self, existing_index: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Fetch PRs bidirectionally: newer (above max) and older (below min).
 
@@ -108,7 +104,7 @@ class PRIndexer:
             List of new PRs
         """
         # Get min and max PR numbers currently in the index
-        existing_pr_numbers = [int(num) for num in existing_index.get("prs", {}).keys()]
+        existing_pr_numbers = [int(num) for num in existing_index.get("prs", {})]
 
         if not existing_pr_numbers:
             print("Empty index, performing full fetch...")
@@ -145,13 +141,11 @@ class PRIndexer:
             print()
 
         # Fetch detailed info for all PRs
-        detailed_prs = self._fetch_prs_in_batches(
-            newer_pr_numbers, older_pr_numbers, min_pr
-        )
+        detailed_prs = self._fetch_prs_in_batches(newer_pr_numbers, older_pr_numbers, min_pr)
 
         return detailed_prs
 
-    def _fetch_newer_prs(self, max_pr: int) -> List[int]:
+    def _fetch_newer_prs(self, max_pr: int) -> list[int]:
         """Fetch PR numbers newer than max_pr."""
         pr_numbers = self.api_client.fetch_pr_list(state="all", limit=1000)
 
@@ -164,7 +158,7 @@ class PRIndexer:
 
         return newer
 
-    def _fetch_older_prs(self, min_pr: int) -> List[int]:
+    def _fetch_older_prs(self, min_pr: int) -> list[int]:
         """Fetch PR numbers older than min_pr."""
         if min_pr <= 1:
             return []
@@ -184,8 +178,8 @@ class PRIndexer:
             return []
 
     def _fetch_prs_in_batches(
-        self, newer_pr_numbers: List[int], older_pr_numbers: List[int], min_pr: int
-    ) -> List[Dict[str, Any]]:
+        self, newer_pr_numbers: list[int], older_pr_numbers: list[int], min_pr: int
+    ) -> list[dict[str, Any]]:
         """Fetch PRs in batches, showing progress."""
         detailed_prs = []
         batch_size = 10
@@ -197,9 +191,7 @@ class PRIndexer:
                 print(f"\n⬆️  Fetching {len(newer_pr_numbers)} newer PRs...")
                 for i in range(0, len(newer_pr_numbers), batch_size):
                     batch = newer_pr_numbers[i : i + batch_size]
-                    print(
-                        f"  Batch {i//batch_size + 1}/{newer_batches} ({len(batch)} PRs)..."
-                    )
+                    print(f"  Batch {i//batch_size + 1}/{newer_batches} ({len(batch)} PRs)...")
                     batch_prs = self.api_client.fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
 
@@ -212,9 +204,7 @@ class PRIndexer:
                 )
                 for i in range(0, len(older_pr_numbers), batch_size):
                     batch = older_pr_numbers[i : i + batch_size]
-                    print(
-                        f"  Batch {i//batch_size + 1}/{older_batches} ({len(batch)} PRs)..."
-                    )
+                    print(f"  Batch {i//batch_size + 1}/{older_batches} ({len(batch)} PRs)...")
                     batch_prs = self.api_client.fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
 
@@ -227,9 +217,7 @@ class PRIndexer:
 
         return detailed_prs
 
-    def index_repository(
-        self, output_path: str = ".cicada/pr_index.json", incremental: bool = False
-    ):
+    def index_repository(self, output_path: str, incremental: bool = False):
         """
         Index the repository's PRs and save to file.
 
@@ -266,8 +254,8 @@ class PRIndexer:
         return index
 
     def _perform_full_index(
-        self, _output_path: str, existing_index: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, _output_path: str, existing_index: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Perform a full index build."""
         total_prs_in_repo = self.api_client.get_total_pr_count()
         print(f"Starting clean rebuild ({total_prs_in_repo} PRs in repository)...")

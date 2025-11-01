@@ -5,10 +5,10 @@ This module provides centralized subprocess execution with consistent
 error handling and logging patterns.
 """
 
+import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, List, Union
 
 
 class SubprocessRunner:
@@ -20,7 +20,7 @@ class SubprocessRunner:
     error handling.
     """
 
-    def __init__(self, cwd: Optional[Union[str, Path]] = None, verbose: bool = False):
+    def __init__(self, cwd: str | Path | None = None, verbose: bool = False):
         """
         Initialize the subprocess runner.
 
@@ -33,11 +33,11 @@ class SubprocessRunner:
 
     def run(
         self,
-        cmd: Union[str, List[str]],
+        cmd: str | list[str],
         capture_output: bool = True,
         text: bool = True,
         check: bool = True,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> subprocess.CompletedProcess:
         """
         Run a subprocess command with error handling.
@@ -56,6 +56,10 @@ class SubprocessRunner:
             subprocess.CalledProcessError: If command fails and check=True
             subprocess.TimeoutExpired: If timeout is reached
         """
+        # Convert string commands to list for safety and compatibility
+        if isinstance(cmd, str):
+            cmd = shlex.split(cmd)
+
         try:
             result = subprocess.run(
                 cmd,
@@ -77,14 +81,14 @@ class SubprocessRunner:
                 if e.stderr:
                     print(f"Error: {e.stderr}", file=sys.stderr)
             raise
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             if self.verbose:
                 print(f"Command timed out: {cmd}", file=sys.stderr)
             raise
 
     def run_git_command(
         self,
-        args: Union[str, List[str]],
+        args: str | list[str],
         check: bool = True,
     ) -> subprocess.CompletedProcess:
         """
@@ -101,16 +105,13 @@ class SubprocessRunner:
             runner.run_git_command(['status', '--short'])
             runner.run_git_command('log --oneline -n 5')
         """
-        if isinstance(args, str):
-            cmd = f"git {args}"
-        else:
-            cmd = ["git"] + args
+        cmd = f"git {args}" if isinstance(args, str) else ["git"] + args
 
         return self.run(cmd, check=check)
 
     def run_gh_command(
         self,
-        args: Union[str, List[str]],
+        args: str | list[str],
         check: bool = True,
     ) -> subprocess.CompletedProcess:
         """
@@ -127,10 +128,7 @@ class SubprocessRunner:
             runner.run_gh_command(['pr', 'list'])
             runner.run_gh_command('api repos/owner/repo/pulls')
         """
-        if isinstance(args, str):
-            cmd = f"gh {args}"
-        else:
-            cmd = ["gh"] + args
+        cmd = f"gh {args}" if isinstance(args, str) else ["gh"] + args
 
         return self.run(cmd, check=check)
 
@@ -139,8 +137,8 @@ class SubprocessRunner:
 
 
 def run_git_command(
-    args: Union[str, List[str]],
-    cwd: Optional[Union[str, Path]] = None,
+    args: str | list[str],
+    cwd: str | Path | None = None,
     check: bool = True,
     verbose: bool = False,
 ) -> subprocess.CompletedProcess:
@@ -161,8 +159,8 @@ def run_git_command(
 
 
 def run_gh_command(
-    args: Union[str, List[str]],
-    cwd: Optional[Union[str, Path]] = None,
+    args: str | list[str],
+    cwd: str | Path | None = None,
     check: bool = True,
     verbose: bool = False,
 ) -> subprocess.CompletedProcess:

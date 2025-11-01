@@ -12,6 +12,190 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MIT License file for PyPI compliance ([#26](https://github.com/wende/cicada/pull/26))
 - Enhanced pyproject.toml with complete package metadata for PyPI ([#26](https://github.com/wende/cicada/pull/26))
 
+### Changed
+- **BREAKING: Removed legacy `.cicada/` directory structure** - All indexes and hashes now stored in centralized `~/.cicada/projects/<repo_hash>/` location
+  - Removed `cicada .` and `cicada <path>` direct indexing commands
+  - Use `cicada claude`, `cicada cursor`, or `cicada vs` for setup
+  - MCP server no longer supports old `.cicada/` path fallback
+  - All CLI commands now use centralized storage by default
+
+### Removed
+- Legacy `install.py` module and related installation functions
+- Backward compatibility for old `.cicada/` directory structure in MCP server
+- Default `output_path` parameters in indexing functions (now required to be explicit)
+
+## [0.2.0] - 2025-10-31
+
+### Added
+
+- **Unified CLI Interface** ([#18](https://github.com/wende/cicada/pull/18))
+  - Consolidated all CLI commands into single `cicada` command with subcommands
+  - New commands: `cicada index`, `cicada index-pr`, `cicada find-dead-code`
+  - Backward compatibility maintained for `cicada` and `cicada ./path` setup
+  - Added comprehensive CLI migration guide (docs/CLI_MIGRATION.md)
+
+- **AI Keyword Extraction Enhancements** ([#14](https://github.com/wende/cicada/pull/14)): Production-ready semantic search with improved NLP keyword extraction
+  - BERT-based keyword extraction with KeyBERT integration for higher-quality semantic understanding
+  - Configurable model tiers (`fast`, `regular`, `max`) to balance speed vs. accuracy
+  - New CLI flags: `--nlp` (spaCy-based) and `--rag` (BERT-based) for explicit extraction method selection
+  - Model tier flags: `--fast` and `--max` to specify quality level
+  - Replaced `--model-tier` and `--extract-keywords` with more intuitive flag system
+  - Wildcard pattern support in keyword search (`create*`, `*_user`)
+  - Enhanced relevance scoring with confidence levels
+  - Lazy model downloads - only download when needed
+  - Model caching for faster subsequent runs
+
+- **Interactive Setup System**
+  - Rich terminal menu interface for guided setup
+  - Extraction method selection (lemminflect vs KeyBERT)
+  - Model tier selection with descriptions
+  - Fallback to text-based input for unsupported terminals
+  - Error recovery with graceful degradation
+  - ASCII art branding for better CLI experience
+
+- **Incremental Indexing System**: Smart change detection for lightning-fast reindexing
+  - MD5-based file change detection - only processes modified files
+  - 15-25x faster reindexing for typical workflows (5 files changed in 200-file codebase)
+  - Especially valuable with keyword extraction: 2.1s instead of 48.7s (23.2x speedup)
+  - Automatic hash computation and storage in `~/.cicada/projects/<repo_hash>/hashes.json`
+  - Graceful handling of new, modified, and deleted files
+
+- **Interrupt Safety**: Production-grade Ctrl-C handling
+  - Signal handlers (SIGINT, SIGTERM) for graceful shutdown
+  - Saves partial progress automatically when interrupted
+  - Resume capability - continue from where you left off
+  - Double Ctrl-C for force quit when needed
+
+- **Model Configuration Tracking**: Automatic detection and warning for model changes during incremental indexing
+  - Tracks keyword extraction method (lemminflect vs KeyBERT) and model tier in index metadata
+  - Detects configuration changes and prompts user before proceeding
+  - Interactive menu to choose: reindex with new model or keep existing index
+  - Prevents inconsistent indexes with mixed model configurations
+  - Falls back to text input when terminal menus unavailable
+  - Fully backward compatible with existing indexes
+
+### Changed
+
+- **CLI Command Structure** ([#18](https://github.com/wende/cicada/pull/18))
+  - `cicada-index` → `cicada index`
+  - `cicada-index-pr` → `cicada index-pr`
+  - `cicada-find-dead-code` → `cicada find-dead-code`
+  - Updated all documentation to reflect new command structure
+
+- **Setup Workflow Improvements**
+  - Streamlined setup UX with condensed output
+  - Config.yaml created before indexing for proper method selection
+  - Reduced redundant technical messages during setup
+  - Improved progress reporting and status messages
+  - Better handling of existing indexes (reuse without verbose output)
+
+- **CLI Flag Changes**
+  - Removed: `--model-tier` (replaced with `--fast`/`--max`)
+  - Removed: `--extract-keywords` (replaced with `--nlp`/`--rag`)
+  - Added: `--nlp` for spaCy-based keyword extraction
+  - Added: `--rag` for BERT-based keyword extraction (RAG-optimized)
+  - Added: `--fast` for fast model tier
+  - Added: `--max` for maximum quality model tier
+  - Default behavior: Interactive setup when no flags provided
+
+- Indexing workflow now uses incremental mode by default
+  - First run: Full index with hash computation
+  - Subsequent runs: Process only changed files
+  - Use `--full` flag to force complete reindexing
+
+- Keyword extraction now preserves method consistency across full/incremental runs
+  - When switching between lemminflect and BERT, use `--full` flag for consistent results
+  - Indexer reads config.yaml to determine extraction method
+  - Proper selection of BERT vs lemminflect based on setup choice
+
+### Fixed
+
+- **Security** ([#14](https://github.com/wende/cicada/pull/14))
+  - Fixed command injection vulnerability in install.py
+  - Replaced shell string commands with subprocess list arguments
+  - Properly escaped repo_path and output_path variables
+
+- **Build and CI**
+  - Removed redundant extract-keywords target causing CI failures
+  - Fixed test infrastructure for CI/CD environments
+  - All tests now passing consistently (1099 tests)
+
+- **Code Quality**
+  - Fixed 50+ linting issues (PIE810, SIM102, SIM108, B904, E722, F841, etc.)
+  - Consistent code formatting with black
+  - Removed unused imports and variables
+  - Improved exception handling with proper exception chaining
+
+- **CLI and UX**
+  - Fixed keyword extraction method selection (KeyBERT now properly used when selected)
+  - Fixed color naming inconsistency (CYAN → ORANGE to match actual color)
+  - Fixed Makefile reset target for better portability
+  - Fixed inconsistent stderr output handling in verbose mode
+
+### Testing
+
+- **Coverage Improvements**: 70% → 83.37% coverage with 400+ new tests
+  - cicada/cli.py: 92.83% coverage (37 new tests)
+  - signature_builder.py: 65.79% → 100% coverage (20 new tests)
+  - keyword_search.py: 53.07% → 97.81% coverage (33 new tests)
+  - pr_finder.py: 64.85% → 85.15% coverage (31 new tests)
+  - interactive_setup.py: 46.54% → 96.86% coverage (24 new tests)
+  - extractors/base.py: 44.93% → 62.32% coverage (24 new tests)
+  - text_utils.py: 100% coverage (new test file)
+  - lightweight_keyword_extractor.py: 96.30% coverage (new test file)
+
+- **New Test Files**
+  - tests/test_cli.py - Comprehensive CLI handler tests
+  - tests/test_keyword_search.py - Keyword search functionality
+  - tests/test_signature_builder.py - Signature building logic
+  - tests/test_pr_finder.py - Enhanced PR finder tests
+  - tests/test_text_utils.py - Text utility functions
+  - tests/test_lightweight_keyword_extractor.py - Lightweight extractor tests
+
+- **Test Infrastructure**
+  - Added pytest-xdist for parallel test execution
+  - Improved test fixtures and mocking
+  - Enhanced error handling test coverage
+  - Edge case and unicode handling tests
+
+### Documentation
+
+- **New Documentation**
+  - docs/CLI_MIGRATION.md - Complete guide for unified CLI transition
+  - docs/BERT_KEYWORD_EXTRACTOR.md - BERT keyword extraction guide
+  - docs/FEATURE_MODEL_TRACKING.md - Model tracking feature documentation
+  - docs/MODEL_CHANGE_DETECTION.md - Model change detection guide
+  - docs/MCP_TOOLS_REFERENCE.md - MCP tools reference documentation
+  - OBJECTIVE_MERGE.md - Merge investigation documentation
+
+- **Updated Documentation**
+  - README.md - Updated all commands to use unified CLI syntax
+  - docs/INCREMENTAL_INDEXING.md - Updated with new command structure
+  - extensions/claude-code/INSTALL.md - Updated installation instructions
+  - All examples now use `cicada index` instead of `cicada-index`
+
+### Performance
+
+- **Incremental indexing benchmarks** (200-file Phoenix app, 5 files changed):
+  - Full index: 12.3s → Incremental: 0.8s (15.4x faster)
+  - With keyword extraction: 48.7s → 2.1s (23.2x faster)
+- Hash computation overhead: ~100ms for typical codebases (negligible)
+- Interrupt and resume: No performance penalty for graceful shutdowns
+- Model caching reduces subsequent BERT extraction runs by 40-60%
+
+### Dependencies
+
+- **Added**
+  - keybert - BERT-based keyword extraction
+  - sentence-transformers - For semantic embeddings
+  - simple-term-menu - Interactive terminal menus
+  - pytest-xdist - Parallel test execution
+
+- **Updated**
+  - pyproject.toml restructured for uv package manager
+  - Consolidated dependency groups under [dependency-groups]
+  - Removed duplicate optional dependencies section
+
 ## [0.1.2] - 2025-01-XX
 
 ### Added
@@ -102,6 +286,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PR Indexing documentation
 - Troubleshooting guide
 - Contributing guidelines
+
+---
+
+## Version Naming Scheme
+
+- **Major versions (1.0, 2.0)**: Breaking changes, major architectural shifts
+- **Minor versions (0.1, 0.2)**: New features, significant enhancements, backward compatible
+- **Patch versions (0.1.1, 0.1.2)**: Bug fixes, minor improvements, documentation updates
+
+## Links
+
+- [GitHub Repository](https://github.com/wende/cicada)
+- [Issues](https://github.com/wende/cicada/issues)
+- [MCP Documentation](https://modelcontextprotocol.io)
 
 [Unreleased]: https://github.com/wende/cicada/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/wende/cicada/compare/v0.1.1...v0.1.2

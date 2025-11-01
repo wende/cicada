@@ -220,9 +220,7 @@ def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
                 mcp_server._auto_setup_if_needed()
 
 
-def test_cicada_repo_path_takes_precedence_over_workspace_folder_paths(
-    monkeypatch, tmp_path
-):
+def test_cicada_repo_path_takes_precedence_over_workspace_folder_paths(monkeypatch, tmp_path):
     """Test that CICADA_REPO_PATH takes precedence over WORKSPACE_FOLDER_PATHS."""
     repo1 = tmp_path / "repo1"
     repo2 = tmp_path / "repo2"

@@ -3,10 +3,10 @@ Lightweight Keyword Extraction using lemminflect
 Fast keyword extraction for programming documentation
 """
 
-from collections import Counter
 import re
 import sys
 import warnings
+from collections import Counter
 
 from cicada.utils import split_camel_snake_case
 
@@ -189,9 +189,7 @@ class LightweightKeywordExtractor:
         for identifier in identifiers:
             split_text = split_camel_snake_case(identifier)
             words = [
-                word.lower()
-                for word in split_text.split()
-                if len(word) > 1 and word.isalpha()
+                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
             ]
             split_words.extend(words)
         return identifiers, list(set(split_words))
@@ -264,9 +262,7 @@ class LightweightKeywordExtractor:
                 lemmatized_words.append(lemma)
 
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
-        all_keywords = (
-            lemmatized_words + (code_identifiers_lower * 10) + (code_split_words * 3)
-        )
+        all_keywords = lemmatized_words + (code_identifiers_lower * 10) + (code_split_words * 3)
         keyword_freq = Counter(all_keywords)
         top_keywords = keyword_freq.most_common(top_n)
 
@@ -274,9 +270,7 @@ class LightweightKeywordExtractor:
         # This ensures weighted keywords are included in the calculation
         total_words = len(all_keywords)
         if total_words > 0:
-            tf_scores = {
-                word: (freq / total_words) for word, freq in keyword_freq.items()
-            }
+            tf_scores = {word: (freq / total_words) for word, freq in keyword_freq.items()}
         else:
             tf_scores = {}
 
@@ -291,8 +285,6 @@ class LightweightKeywordExtractor:
             "lemmatized_words": list(set(lemmatized_words))[:20],
             "code_identifiers": code_identifiers,
             "code_split_words": code_split_words,
-            "tf_scores": dict(
-                sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]
-            ),
+            "tf_scores": dict(sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]),
             "stats": stats,
         }

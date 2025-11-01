@@ -3,6 +3,7 @@ Documentation extraction logic.
 """
 
 import textwrap
+
 from .base import extract_string_from_arguments
 
 
@@ -30,15 +31,13 @@ def _find_docs_recursive(node, source_code: bytes, docs: dict):
             # Check if this is a doc attribute
             for call_child in operand.children:
                 if call_child.type == "identifier":
-                    attr_name = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
 
                     if attr_name == "doc":
                         # Extract the doc definition
-                        doc_info = _parse_doc(
-                            operand, source_code, node.start_point[0] + 1
-                        )
+                        doc_info = _parse_doc(operand, source_code, node.start_point[0] + 1)
                         if doc_info:
                             # Store the entire doc_info dict (includes text and examples)
                             docs[doc_info["line"]] = doc_info
@@ -50,9 +49,9 @@ def _find_docs_recursive(node, source_code: bytes, docs: dict):
             is_defmodule_or_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["defmodule", "def", "defp"]:
                         is_defmodule_or_def = True
                         break

@@ -9,13 +9,13 @@ import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class CommandLogger:
     """Logger for MCP tool executions."""
 
-    def __init__(self, log_dir: Optional[str] = None):
+    def __init__(self, log_dir: str | None = None):
         """Initialize the command logger.
 
         Args:
@@ -47,11 +47,11 @@ class CommandLogger:
     def log_command(
         self,
         tool_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         response: Any,
         execution_time_ms: float,
-        timestamp: Optional[datetime] = None,
-        error: Optional[str] = None,
+        timestamp: datetime | None = None,
+        error: str | None = None,
     ) -> None:
         """Log a command execution.
 
@@ -102,11 +102,11 @@ class CommandLogger:
     async def log_command_async(
         self,
         tool_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         response: Any,
         execution_time_ms: float,
-        timestamp: Optional[datetime] = None,
-        error: Optional[str] = None,
+        timestamp: datetime | None = None,
+        error: str | None = None,
     ) -> None:
         """Async version of log_command that runs file I/O in a thread pool.
 
@@ -166,9 +166,7 @@ class CommandLogger:
         log_files = sorted(self.log_dir.glob("*.jsonl"))
         return log_files
 
-    def read_logs(
-        self, date: Optional[str] = None, limit: Optional[int] = None
-    ) -> list[Dict[str, Any]]:
+    def read_logs(self, date: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         """Read logs from file(s).
 
         Args:
@@ -206,7 +204,7 @@ class CommandLogger:
 
         return logs
 
-    def _read_log_file(self, file_path: Path) -> list[Dict[str, Any]]:
+    def _read_log_file(self, file_path: Path) -> list[dict[str, Any]]:
         """Read logs from a single JSONL file.
 
         Args:
@@ -217,7 +215,7 @@ class CommandLogger:
         """
         logs = []
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:
@@ -232,7 +230,7 @@ class CommandLogger:
 
         return logs
 
-    def clear_logs(self, older_than_days: Optional[int] = None) -> int:
+    def clear_logs(self, older_than_days: int | None = None) -> int:
         """Clear log files.
 
         Args:
@@ -275,10 +273,10 @@ class CommandLogger:
 
 
 # Global logger instance
-_global_logger: Optional[CommandLogger] = None
+_global_logger: CommandLogger | None = None
 
 
-def get_logger(log_dir: Optional[str] = None) -> CommandLogger:
+def get_logger(log_dir: str | None = None) -> CommandLogger:
     """Get or create the global command logger instance.
 
     Args:

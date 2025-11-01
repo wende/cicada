@@ -6,11 +6,13 @@ without breaking, ensuring users can set up multiple environments.
 """
 
 import json
-import pytest
 from pathlib import Path
 from unittest.mock import patch
-from cicada.setup import setup, get_mcp_config_for_editor
-from cicada.utils import get_storage_dir, get_index_path
+
+import pytest
+
+from cicada.setup import get_mcp_config_for_editor, setup
+from cicada.utils import get_storage_dir
 
 
 @pytest.fixture
@@ -154,9 +156,7 @@ class TestMultiEditorSetup:
             Path(vs_config["mcp.servers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]),
         ]
 
-        assert (
-            len(set(storage_dirs)) == 1
-        ), "All editors should use the same storage directory"
+        assert len(set(storage_dirs)) == 1, "All editors should use the same storage directory"
 
         # Verify storage directory contains expected files
         storage_dir = storage_dirs[0]
@@ -191,16 +191,10 @@ class TestMultiEditorSetup:
         assert "cicada" in updated_config["mcpServers"]
 
         # Verify storage directory is still the same
-        initial_storage = Path(
-            initial_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]
-        )
-        updated_storage = Path(
-            updated_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]
-        )
+        initial_storage = Path(initial_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"])
+        updated_storage = Path(updated_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"])
 
-        assert (
-            initial_storage == updated_storage
-        ), "Storage directory should remain the same"
+        assert initial_storage == updated_storage, "Storage directory should remain the same"
 
     @patch("cicada.setup.index_repository")
     def test_preserves_existing_mcp_config_entries(self, mock_index, mock_elixir_repo):
@@ -227,9 +221,7 @@ class TestMultiEditorSetup:
         with open(claude_config_path) as f:
             updated_config = json.load(f)
 
-        assert (
-            "other-server" in updated_config["mcpServers"]
-        ), "Existing server should be preserved"
+        assert "other-server" in updated_config["mcpServers"], "Existing server should be preserved"
         assert "cicada" in updated_config["mcpServers"], "Cicada server should be added"
 
         # Verify other-server config is unchanged
@@ -292,9 +284,7 @@ class TestMultiEditorSetup:
         setup("vs", mock_elixir_repo)
 
         # Verify indexing was called three times
-        assert (
-            mock_index.call_count == 3
-        ), "Indexing should be called once per setup run"
+        assert mock_index.call_count == 3, "Indexing should be called once per setup run"
 
         # Verify all calls had the same repo_path
         for call in mock_index.call_args_list:
@@ -312,12 +302,8 @@ class TestGetMcpConfigForEditorMultiEditor:
 
         with patch("shutil.which", return_value="cicada-server"):
             # Get configs for all three editors
-            claude_path, _ = get_mcp_config_for_editor(
-                "claude", mock_elixir_repo, storage_dir
-            )
-            cursor_path, _ = get_mcp_config_for_editor(
-                "cursor", mock_elixir_repo, storage_dir
-            )
+            claude_path, _ = get_mcp_config_for_editor("claude", mock_elixir_repo, storage_dir)
+            cursor_path, _ = get_mcp_config_for_editor("cursor", mock_elixir_repo, storage_dir)
             vs_path, _ = get_mcp_config_for_editor("vs", mock_elixir_repo, storage_dir)
 
             # Verify paths are different
@@ -338,23 +324,13 @@ class TestGetMcpConfigForEditorMultiEditor:
 
         with patch("shutil.which", return_value="cicada-server"):
             # Get configs for all three editors
-            _, claude_config = get_mcp_config_for_editor(
-                "claude", mock_elixir_repo, storage_dir
-            )
-            _, cursor_config = get_mcp_config_for_editor(
-                "cursor", mock_elixir_repo, storage_dir
-            )
-            _, vs_config = get_mcp_config_for_editor(
-                "vs", mock_elixir_repo, storage_dir
-            )
+            _, claude_config = get_mcp_config_for_editor("claude", mock_elixir_repo, storage_dir)
+            _, cursor_config = get_mcp_config_for_editor("cursor", mock_elixir_repo, storage_dir)
+            _, vs_config = get_mcp_config_for_editor("vs", mock_elixir_repo, storage_dir)
 
             # Extract storage directories from configs
-            claude_storage = claude_config["mcpServers"]["cicada"]["env"][
-                "CICADA_CONFIG_DIR"
-            ]
-            cursor_storage = cursor_config["mcpServers"]["cicada"]["env"][
-                "CICADA_CONFIG_DIR"
-            ]
+            claude_storage = claude_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]
+            cursor_storage = cursor_config["mcpServers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]
             vs_storage = vs_config["mcp.servers"]["cicada"]["env"]["CICADA_CONFIG_DIR"]
 
             # Verify all use the same storage directory

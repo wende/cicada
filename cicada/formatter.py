@@ -6,13 +6,13 @@ This module provides formatting utilities for Cicada MCP server responses,
 supporting both Markdown and JSON output formats.
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
-import argparse
+from typing import Any
 
-from cicada.utils import FunctionGrouper, CallSiteFormatter, SignatureBuilder
+from cicada.utils import CallSiteFormatter, FunctionGrouper, SignatureBuilder
 
 
 class ModuleFormatter:
@@ -24,7 +24,7 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_markdown(
-        module_name: str, data: Dict[str, Any], private_functions: str = "exclude"
+        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
     ) -> str:
         """
         Format module data as Markdown.
@@ -69,9 +69,7 @@ class ModuleFormatter:
         if public_grouped and private_functions != "only":
             lines.extend(["", "Public:", ""])
             # Sort by line number instead of function name
-            for (_, _), clauses in sorted(
-                public_grouped.items(), key=lambda x: x[1][0]["line"]
-            ):
+            for (_, _), clauses in sorted(public_grouped.items(), key=lambda x: x[1][0]["line"]):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
                 func_sig = SignatureBuilder.build(func)
@@ -81,9 +79,7 @@ class ModuleFormatter:
         if private_grouped and private_functions in ["include", "only"]:
             lines.extend(["", "Private:", ""])
             # Sort by line number instead of function name
-            for (_, _), clauses in sorted(
-                private_grouped.items(), key=lambda x: x[1][0]["line"]
-            ):
+            for (_, _), clauses in sorted(private_grouped.items(), key=lambda x: x[1][0]["line"]):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
                 func_sig = SignatureBuilder.build(func)
@@ -104,7 +100,7 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_json(
-        module_name: str, data: Dict[str, Any], private_functions: str = "exclude"
+        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
     ) -> str:
         """
         Format module data as JSON.
@@ -203,9 +199,7 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return json.dumps(error_result, indent=2)
 
     @staticmethod
-    def format_function_results_markdown(
-        function_name: str, results: list[Dict[str, Any]]
-    ) -> str:
+    def format_function_results_markdown(function_name: str, results: list[dict[str, Any]]) -> str:
         """
         Format function search results as Markdown.
 
@@ -254,7 +248,7 @@ No functions matching `{function_name}` were found in the index.
         else:
             lines = [
                 f"Functions matching {function_name}",
-                f"",
+                "",
                 f"Found {len(consolidated_results)} match(es):",
             ]
 
@@ -287,18 +281,14 @@ No functions matching `{function_name}` were found in the index.
             # Add documentation if present
             if func.get("doc"):
                 if len(consolidated_results) == 1:
-                    lines.extend(
-                        ["", f"{indent}Documentation:", "", f"{indent}{func['doc']}"]
-                    )
+                    lines.extend(["", f"{indent}Documentation:", "", f"{indent}{func['doc']}"])
                 else:
                     lines.extend(["", "Documentation:", "", func["doc"]])
 
             # Add examples if present
             if func.get("examples"):
                 if len(consolidated_results) == 1:
-                    lines.extend(
-                        ["", f"{indent}Examples:", "", f"{indent}{func['examples']}"]
-                    )
+                    lines.extend(["", f"{indent}Examples:", "", f"{indent}{func['examples']}"])
                 else:
                     lines.extend(["", "Examples:", "", func["examples"]])
 
@@ -321,23 +311,17 @@ No functions matching `{function_name}` were found in the index.
                 if has_examples:
                     # Separate into code and test call sites WITH examples
                     code_sites_with_examples = [
-                        s
-                        for s in call_sites_with_examples
-                        if "test" not in s["file"].lower()
+                        s for s in call_sites_with_examples if "test" not in s["file"].lower()
                     ]
                     test_sites_with_examples = [
-                        s
-                        for s in call_sites_with_examples
-                        if "test" in s["file"].lower()
+                        s for s in call_sites_with_examples if "test" in s["file"].lower()
                     ]
 
                     lines.append(f"{indent}Usage Examples:")
 
                     if code_sites_with_examples:
                         # Group code sites by caller
-                        grouped_code = CallSiteFormatter.group_by_caller(
-                            code_sites_with_examples
-                        )
+                        grouped_code = CallSiteFormatter.group_by_caller(code_sites_with_examples)
                         code_count = sum(len(site["lines"]) for site in grouped_code)
                         lines.append(f"{indent}Code ({code_count}):")
                         for site in grouped_code:
@@ -350,12 +334,8 @@ No functions matching `{function_name}` were found in the index.
 
                             # Show consolidated line numbers only if multiple lines
                             if len(site["lines"]) > 1:
-                                line_list = ", ".join(
-                                    f":{line}" for line in site["lines"]
-                                )
-                                lines.append(
-                                    f"{indent}- {caller} at {site['file']}{line_list}"
-                                )
+                                line_list = ", ".join(f":{line}" for line in site["lines"])
+                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
                             else:
                                 lines.append(f"{indent}- {caller} at {site['file']}")
 
@@ -371,9 +351,7 @@ No functions matching `{function_name}` were found in the index.
                         if code_sites_with_examples:
                             lines.append("")  # Blank line between sections
                         # Group test sites by caller
-                        grouped_test = CallSiteFormatter.group_by_caller(
-                            test_sites_with_examples
-                        )
+                        grouped_test = CallSiteFormatter.group_by_caller(test_sites_with_examples)
                         test_count = sum(len(site["lines"]) for site in grouped_test)
                         lines.append(f"{indent}Test ({test_count}):")
                         for site in grouped_test:
@@ -386,12 +364,8 @@ No functions matching `{function_name}` were found in the index.
 
                             # Show consolidated line numbers only if multiple lines
                             if len(site["lines"]) > 1:
-                                line_list = ", ".join(
-                                    f":{line}" for line in site["lines"]
-                                )
-                                lines.append(
-                                    f"{indent}- {caller} at {site['file']}{line_list}"
-                                )
+                                line_list = ", ".join(f":{line}" for line in site["lines"])
+                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
                             else:
                                 lines.append(f"{indent}- {caller} at {site['file']}")
 
@@ -419,14 +393,10 @@ No functions matching `{function_name}` were found in the index.
                     if remaining_call_sites:
                         # Separate into code and test
                         remaining_code = [
-                            s
-                            for s in remaining_call_sites
-                            if "test" not in s["file"].lower()
+                            s for s in remaining_call_sites if "test" not in s["file"].lower()
                         ]
                         remaining_test = [
-                            s
-                            for s in remaining_call_sites
-                            if "test" in s["file"].lower()
+                            s for s in remaining_call_sites if "test" in s["file"].lower()
                         ]
 
                         lines.append("")
@@ -447,12 +417,8 @@ No functions matching `{function_name}` were found in the index.
                                 else:
                                     caller = site["calling_module"]
 
-                                line_list = ", ".join(
-                                    f":{line}" for line in site["lines"]
-                                )
-                                lines.append(
-                                    f"{indent}- {caller} at {site['file']}{line_list}"
-                                )
+                                line_list = ", ".join(f":{line}" for line in site["lines"])
+                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
 
                         if remaining_test:
                             if remaining_code:
@@ -471,17 +437,11 @@ No functions matching `{function_name}` were found in the index.
                                 else:
                                     caller = site["calling_module"]
 
-                                line_list = ", ".join(
-                                    f":{line}" for line in site["lines"]
-                                )
-                                lines.append(
-                                    f"{indent}- {caller} at {site['file']}{line_list}"
-                                )
+                                line_list = ", ".join(f":{line}" for line in site["lines"])
+                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
                 else:
                     # Separate into code and test call sites
-                    code_sites = [
-                        s for s in call_sites if "test" not in s["file"].lower()
-                    ]
+                    code_sites = [s for s in call_sites if "test" not in s["file"].lower()]
                     test_sites = [s for s in call_sites if "test" in s["file"].lower()]
 
                     call_count = len(call_sites)
@@ -504,9 +464,7 @@ No functions matching `{function_name}` were found in the index.
 
                             # Show consolidated line numbers
                             line_list = ", ".join(f":{line}" for line in site["lines"])
-                            lines.append(
-                                f"{indent}- {caller} at {site['file']}{line_list}"
-                            )
+                            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
 
                     if test_sites:
                         if code_sites:
@@ -525,9 +483,7 @@ No functions matching `{function_name}` were found in the index.
 
                             # Show consolidated line numbers
                             line_list = ", ".join(f":{line}" for line in site["lines"])
-                            lines.append(
-                                f"{indent}- {caller} at {site['file']}{line_list}"
-                            )
+                            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
                 lines.append("")
             else:
                 lines.extend([f"{indent}*No call sites found*"])
@@ -535,9 +491,7 @@ No functions matching `{function_name}` were found in the index.
         return "\n".join(lines)
 
     @staticmethod
-    def format_function_results_json(
-        function_name: str, results: list[Dict[str, Any]]
-    ) -> str:
+    def format_function_results_json(function_name: str, results: list[dict[str, Any]]) -> str:
         """
         Format function search results as JSON.
 
@@ -593,9 +547,7 @@ No functions matching `{function_name}` were found in the index.
         return json.dumps(output, indent=2)
 
     @staticmethod
-    def format_module_usage_markdown(
-        module_name: str, usage_results: Dict[str, Any]
-    ) -> str:
+    def format_module_usage_markdown(module_name: str, usage_results: dict[str, Any]) -> str:
         """
         Format module usage results as Markdown.
 
@@ -624,9 +576,7 @@ No functions matching `{function_name}` were found in the index.
                     if imp["alias_name"] != module_name.split(".")[-1]
                     else ""
                 )
-                lines.append(
-                    f"- `{imp['importing_module']}` {alias_info} — `{imp['file']}`"
-                )
+                lines.append(f"- `{imp['importing_module']}` {alias_info} — `{imp['file']}`")
             lines.append("")
 
         # Show imports section
@@ -674,9 +624,7 @@ No functions matching `{function_name}` were found in the index.
                 lines.append("")
 
                 for call in fc["calls"]:
-                    alias_info = (
-                        f" (via `{call['alias_used']}`)" if call["alias_used"] else ""
-                    )
+                    alias_info = f" (via `{call['alias_used']}`)" if call["alias_used"] else ""
                     # Show unique line numbers for this function
                     line_list = ", ".join(f":{line}" for line in sorted(call["lines"]))
                     lines.append(
@@ -692,9 +640,7 @@ No functions matching `{function_name}` were found in the index.
         return "\n".join(lines)
 
     @staticmethod
-    def format_module_usage_json(
-        module_name: str, usage_results: Dict[str, Any]
-    ) -> str:
+    def format_module_usage_json(module_name: str, usage_results: dict[str, Any]) -> str:
         """
         Format module usage results as JSON.
 
@@ -726,7 +672,7 @@ No functions matching `{function_name}` were found in the index.
 
     @staticmethod
     def format_keyword_search_results_markdown(
-        _keywords: list[str], results: list[Dict[str, Any]]
+        _keywords: list[str], results: list[dict[str, Any]]
     ) -> str:
         """
         Format keyword search results as Markdown.
@@ -814,9 +760,9 @@ class JSONFormatter:
             data = json.loads(json_string)
             return json.dumps(data, indent=self.indent, sort_keys=self.sort_keys)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {e}")
+            raise ValueError(f"Invalid JSON: {e}") from e
 
-    def format_file(self, input_path: Path, output_path: Optional[Path] = None) -> str:
+    def format_file(self, input_path: Path, output_path: Path | None = None) -> str:
         """
         Format a JSON file.
 
@@ -835,7 +781,7 @@ class JSONFormatter:
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
         # Read the input file
-        with open(input_path, "r") as f:
+        with open(input_path) as f:
             json_string = f.read()
 
         # Format the JSON

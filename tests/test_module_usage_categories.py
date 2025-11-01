@@ -9,8 +9,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cicada.parser import ElixirParser
 from cicada.formatter import ModuleFormatter
+from cicada.parser import ElixirParser
 
 
 def test_parser_extracts_all_categories():
@@ -18,9 +18,7 @@ def test_parser_extracts_all_categories():
     parser = ElixirParser()
 
     # Parse the AB module which has examples of all categories
-    test_file = (
-        Path(__file__).parent / "fixtures" / "test_module_with_usage_categories.ex"
-    )
+    test_file = Path(__file__).parent / "fixtures" / "test_module_with_usage_categories.ex"
     modules = parser.parse_file(str(test_file))
 
     assert modules is not None
@@ -101,9 +99,7 @@ def test_formatter_displays_categories():
     }
 
     # Format as markdown
-    result = ModuleFormatter.format_module_usage_markdown(
-        "AB.TypeParser", usage_results
-    )
+    result = ModuleFormatter.format_module_usage_markdown("AB.TypeParser", usage_results)
 
     # Verify all sections are present
     assert "# Usage of `AB.TypeParser`" in result

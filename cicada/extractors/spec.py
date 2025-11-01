@@ -27,9 +27,9 @@ def _find_specs_recursive(node, source_code: bytes, specs: dict):
             # Check if this is a spec attribute
             for call_child in operand.children:
                 if call_child.type == "identifier":
-                    attr_name = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
 
                     if attr_name == "spec":
                         # Extract the spec definition
@@ -45,9 +45,9 @@ def _find_specs_recursive(node, source_code: bytes, specs: dict):
             is_defmodule_or_def = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[
-                        call_child.start_byte : call_child.end_byte
-                    ].decode("utf-8")
+                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+                        "utf-8"
+                    )
                     if target_text in ["defmodule", "def", "defp"]:
                         is_defmodule_or_def = True
                         break
@@ -95,9 +95,7 @@ def _parse_spec(spec_node, source_code: bytes) -> dict | None:
                                     fc_child.start_byte : fc_child.end_byte
                                 ].decode("utf-8")
                             elif fc_child.type == "arguments":
-                                param_types = _extract_param_types(
-                                    fc_child, source_code
-                                )
+                                param_types = _extract_param_types(fc_child, source_code)
 
                         if func_name:
                             return {
@@ -137,9 +135,7 @@ def match_specs_to_functions(functions: list, specs: dict) -> list:
                 args_with_types = []
                 for i, arg_name in enumerate(func["args"]):
                     if i < len(spec["param_types"]):
-                        args_with_types.append(
-                            {"name": arg_name, "type": spec["param_types"][i]}
-                        )
+                        args_with_types.append({"name": arg_name, "type": spec["param_types"][i]})
                     else:
                         args_with_types.append({"name": arg_name, "type": None})
                 func["args_with_types"] = args_with_types

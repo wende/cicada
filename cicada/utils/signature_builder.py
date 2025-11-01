@@ -5,7 +5,7 @@ This module provides utilities for formatting function signatures,
 eliminating duplication across the formatter module.
 """
 
-from typing import Dict, List, Any
+from typing import Any
 
 
 class SignatureBuilder:
@@ -17,7 +17,7 @@ class SignatureBuilder:
     """
 
     @staticmethod
-    def build(func: Dict[str, Any]) -> str:
+    def build(func: dict[str, Any]) -> str:
         """
         Build a formatted function signature.
 
@@ -78,7 +78,7 @@ class SignatureBuilder:
         return signature
 
     @staticmethod
-    def _format_args_with_types(args_with_types: List[Dict[str, str]]) -> str:
+    def _format_args_with_types(args_with_types: list[dict[str, str]]) -> str:
         """
         Format arguments with type annotations.
 

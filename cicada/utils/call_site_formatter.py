@@ -5,7 +5,7 @@ This module provides utilities for grouping and formatting call sites,
 eliminating duplication in the formatter module.
 """
 
-from typing import Dict, List, Any, Tuple
+from typing import Any
 
 
 class CallSiteFormatter:
@@ -17,7 +17,7 @@ class CallSiteFormatter:
     """
 
     @staticmethod
-    def group_by_caller(call_sites: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def group_by_caller(call_sites: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Group call sites by their caller (calling_module + calling_function).
 
@@ -56,7 +56,7 @@ class CallSiteFormatter:
             #     'lines': [10, 20]
             # }]
         """
-        grouped: Dict[Tuple, Dict[str, Any]] = {}
+        grouped: dict[tuple, dict[str, Any]] = {}
 
         for site in call_sites:
             # Create a key based on caller identity
@@ -81,9 +81,7 @@ class CallSiteFormatter:
 
             grouped[key]["lines"].append(site["line"])
             if "code_line" in site:
-                grouped[key]["code_lines"].append(
-                    {"line": site["line"], "code": site["code_line"]}
-                )
+                grouped[key]["code_lines"].append({"line": site["line"], "code": site["code_line"]})
 
         # Convert back to list and sort lines
         result = []

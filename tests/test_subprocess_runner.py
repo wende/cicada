@@ -2,14 +2,16 @@
 Tests for cicada/utils/subprocess_runner.py
 """
 
-import pytest
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+
 from cicada.utils.subprocess_runner import (
     SubprocessRunner,
-    run_git_command,
     run_gh_command,
+    run_git_command,
 )
 
 
@@ -121,14 +123,12 @@ class TestSubprocessRunner:
         "method,command_input,expected_prefix",
         [
             ("run_git_command", ["status"], ["git", "status"]),
-            ("run_git_command", "status", "git status"),
+            ("run_git_command", "status", ["git", "status"]),
             ("run_gh_command", ["pr", "list"], ["gh", "pr", "list"]),
-            ("run_gh_command", "pr list", "gh pr list"),
+            ("run_gh_command", "pr list", ["gh", "pr", "list"]),
         ],
     )
-    def test_command_prefixes(
-        self, method, command_input, expected_prefix, monkeypatch
-    ):
+    def test_command_prefixes(self, method, command_input, expected_prefix, monkeypatch):
         """Should prepend correct command prefix (git/gh)"""
         calls = []
 

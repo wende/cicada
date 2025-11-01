@@ -5,6 +5,7 @@ Test script for search_function MCP tool.
 import asyncio
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add parent directory to path
@@ -14,16 +15,30 @@ from cicada.mcp_server import CicadaServer
 
 
 @pytest.mark.asyncio
-async def test_search_function():
+async def test_search_function(tmp_path):
     """Test the search_function tool."""
-    # Create server with test index
-    server = CicadaServer(config_path="config.yaml")
-
-    # Override index to use test index
+    # Load test index
     import json
+    import yaml
 
-    with open("data/test_index.json", "r") as f:
-        server.index = json.load(f)
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    # Create temporary config and index
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    # Create server with test index
+    server = CicadaServer(config_path=str(config_path))
 
     print("Testing search_function tool...\n")
 

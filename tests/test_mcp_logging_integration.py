@@ -91,7 +91,7 @@ class TestMCPLoggingIntegration:
         assert len(log_files) == 1
 
         # Read and verify log entry
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read().strip())
 
         assert log_entry["tool_name"] == "search_module"
@@ -115,7 +115,7 @@ class TestMCPLoggingIntegration:
         assert len(log_files) == 1
 
         # Read and verify log entry
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read().strip())
 
         assert log_entry["tool_name"] == "invalid_tool"
@@ -141,7 +141,7 @@ class TestMCPLoggingIntegration:
         assert len(log_files) == 1
 
         # Read and verify both entries
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             lines = f.readlines()
 
         assert len(lines) == 2
@@ -166,7 +166,7 @@ class TestMCPLoggingIntegration:
 
         # Read log entry
         log_files = list(Path(log_dir).glob("*.jsonl"))
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read())
 
         # Verify all arguments are logged
@@ -183,7 +183,7 @@ class TestMCPLoggingIntegration:
 
         # Read log entry
         log_files = list(Path(log_dir).glob("*.jsonl"))
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read())
 
         # Execution time should be positive and reasonable (< 10 seconds)
@@ -201,7 +201,7 @@ class TestMCPLoggingIntegration:
 
         # Read log entry
         log_files = list(Path(log_dir).glob("*.jsonl"))
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read())
 
         # Verify timestamp format
@@ -221,16 +221,14 @@ class TestMCPLoggingIntegration:
 
         # Read log entry
         log_files = list(Path(log_dir).glob("*.jsonl"))
-        with open(log_files[0], "r") as f:
+        with open(log_files[0]) as f:
             log_entry = json.loads(f.read())
 
         # Response should be serialized as a list
         assert "response" in log_entry
         assert isinstance(log_entry["response"], list)
 
-    async def test_logger_handles_write_errors_gracefully(
-        self, test_server, monkeypatch
-    ):
+    async def test_logger_handles_write_errors_gracefully(self, test_server, monkeypatch):
         """Test that the server continues working even if logging fails."""
         server, log_dir = test_server
 
