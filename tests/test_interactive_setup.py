@@ -798,9 +798,9 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=0 (Claude), method=0 (Lemminflect)
+        # Menu selections: editor=0 (Claude), extraction=0 (Regular), expansion=0 (Lemmi)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]
         mock_menu_class.return_value = mock_menu_instance
 
         show_full_interactive_setup(mock_elixir_repo)
@@ -810,8 +810,8 @@ class TestShowFullInteractiveSetup:
         call_args = mock_setup.call_args[0]
         call_kwargs = mock_setup.call_args[1]
         assert call_args[0] == "claude"
-        assert call_kwargs["keyword_method"] == "lemminflect"
-        assert call_kwargs["keyword_tier"] == "regular"
+        assert call_kwargs["extraction_method"] == "regular"
+        assert call_kwargs["expansion_method"] == "lemmi"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -841,9 +841,9 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=1 (Cursor), method=1 (BERT), tier=0 (fast)
+        # Menu selections: editor=1 (Cursor), extraction=1 (BERT), expansion=1 (GloVe)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, 1, 0]
+        mock_menu_instance.show.side_effect = [1, 1, 1]
         mock_menu_class.return_value = mock_menu_instance
 
         show_full_interactive_setup(mock_elixir_repo)
@@ -852,8 +852,8 @@ class TestShowFullInteractiveSetup:
         call_args = mock_setup.call_args[0]
         call_kwargs = mock_setup.call_args[1]
         assert call_args[0] == "cursor"
-        assert call_kwargs["keyword_method"] == "bert"
-        assert call_kwargs["keyword_tier"] == "fast"
+        assert call_kwargs["extraction_method"] == "bert"
+        assert call_kwargs["expansion_method"] == "glove"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -883,7 +883,7 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=2 (VS), method=1 (BERT), tier=2 (max)
+        # Menu selections: editor=2 (VS), extraction=1 (BERT), expansion=2 (FastText)
         mock_menu_instance = MagicMock()
         mock_menu_instance.show.side_effect = [2, 1, 2]
         mock_menu_class.return_value = mock_menu_instance
@@ -894,8 +894,8 @@ class TestShowFullInteractiveSetup:
         call_args = mock_setup.call_args[0]
         call_kwargs = mock_setup.call_args[1]
         assert call_args[0] == "vs"
-        assert call_kwargs["keyword_method"] == "bert"
-        assert call_kwargs["keyword_tier"] == "max"
+        assert call_kwargs["extraction_method"] == "bert"
+        assert call_kwargs["expansion_method"] == "fasttext"
 
     def test_non_elixir_project_exits(self, tmp_path, capsys):
         """Test that non-Elixir project shows error and exits"""
@@ -943,7 +943,10 @@ class TestShowFullInteractiveSetup:
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
+                return_value={
+                    "keyword_extraction": {"method": "bert"},
+                    "keyword_expansion": {"method": "glove"},
+                },
             ),
         ):
             # Only editor selection should happen (index 0 = Claude)
@@ -956,11 +959,11 @@ class TestShowFullInteractiveSetup:
             # Should call setup with existing settings
             mock_setup.assert_called_once()
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "fast"
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "glove"
             assert call_kwargs["index_exists"] is True
 
-            # Should only show editor menu, not method/tier menus
+            # Should only show editor menu, not extraction/expansion menus
             assert mock_menu_instance.show.call_count == 1
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
@@ -1157,7 +1160,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # editor, extraction, expansion
         mock_menu_class.return_value = mock_menu_instance
 
         mock_setup.side_effect = Exception("Setup failed")
@@ -1188,14 +1191,15 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Text-based inputs: editor=2 (Cursor), method=1 (Lemminflect)
+        # Text-based inputs: editor=2 (VS), extraction=1 (Regular), expansion=1 (GloVe)
         # When has_terminal_menu=False, it calls show_first_time_setup and returns early
-        mock_input.side_effect = ["2", "1"]
+        mock_input.side_effect = ["2", "1", "2"]  # VS, Regular, GloVe
 
         # Should run without errors and use text-based fallback
         # Note: When has_terminal_menu=False and there's no existing index,
-        # it calls show_first_time_setup which returns early without calling setup()
-        show_full_interactive_setup(mock_elixir_repo)
+        # it calls show_first_time_setup which returns with extraction/expansion methods
+        with patch("cicada.setup.setup"):
+            show_full_interactive_setup(mock_elixir_repo)
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -1260,8 +1264,8 @@ class TestShowFullInteractiveSetup:
         mock_menu_instance.show.side_effect = [0, Exception("Terminal error")]
         mock_menu_class.return_value = mock_menu_instance
 
-        # Text-based fallback for method and tier
-        mock_input.side_effect = ["1"]
+        # Text-based fallback for extraction and expansion
+        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
 
         # Should fall back and complete
         with patch("cicada.setup.setup"):
@@ -1338,16 +1342,16 @@ class TestShowFullInteractiveSetup:
         # But reading config fails
         with patch("builtins.open", side_effect=Exception("Read error")):
             mock_menu_instance = MagicMock()
-            # Editor, method, tier (all 3 menus shown due to config error)
+            # Editor, extraction, expansion (all 3 menus shown due to config error)
             mock_menu_instance.show.side_effect = [0, 0, 0]
             mock_menu_class.return_value = mock_menu_instance
 
             show_full_interactive_setup(mock_elixir_repo)
 
-            # Should show all menus due to config read failure
+            # Should show all 3 menus due to config read failure
             assert (
-                mock_menu_instance.show.call_count == 2
-            )  # Editor + method (lemminflect has no tier)
+                mock_menu_instance.show.call_count == 3
+            )  # Editor + extraction + expansion
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -1378,7 +1382,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # editor, extraction, expansion
         mock_menu_class.return_value = mock_menu_instance
 
         with patch("pathlib.Path.cwd", return_value=mock_elixir_repo):
