@@ -1,0 +1,91 @@
+name: cicada-mcp
+description: "AI-powered code intelligence for Elixir projects. Provides AST-aware search, function tracking, PR attribution, and semantic search via MCP."
+version: 0.1.6
+author: wende
+homepage: https://github.com/wende/cicada
+license: MIT
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - repositoryPath
+    properties:
+      repositoryPath:
+        type: string
+        description: "Absolute path to the Elixir repository to analyze"
+  commandFunction: |-
+    config => ({
+      command: 'uvx',
+      args: ['cicada-mcp', config.repositoryPath]
+    })
+
+tags:
+  - elixir
+  - code-search
+  - git-history
+  - code-intelligence
+  - developer-tools
+  - mcp
+  - ai-assistant
+  - semantic-search
+  - pr-attribution
+
+categories:
+  - Development Tools
+  - Code Analysis
+  - Version Control
+
+features:
+  - "AST-aware Elixir module and function search"
+  - "Call site tracking with alias resolution"
+  - "PR attribution via git blame + GitHub integration"
+  - "Function evolution tracking with git history"
+  - "Semantic keyword search with BERT/NLP"
+  - "Dead code detection with confidence scoring"
+  - "Incremental indexing (15-25x faster updates)"
+  - "PR review comments with line-level mapping"
+
+requirements:
+  - "Elixir project with indexed codebase (run 'cicada index' first)"
+  - "Optional: GitHub CLI for PR attribution features"
+  - "Optional: PR index for PR-related tools (run 'cicada index-pr')"
+
+documentation: |
+  ## Quick Start
+
+  Before using Cicada MCP through Smithery, you need to index your Elixir codebase:
+
+  ```bash
+  # Install Cicada
+  uv tool install cicada-mcp
+
+  # Index your codebase
+  cd /path/to/your/elixir/project
+  cicada index --nlp
+
+  # Optional: Index PRs for attribution features
+  cicada index-pr .
+  ```
+
+  ## Configuration
+
+  When configuring Cicada in Smithery, provide:
+  - **repositoryPath**: Absolute path to your indexed Elixir project
+
+  Cicada automatically finds the index files at `~/.cicada/projects/<hash>/`
+
+  ## Available MCP Tools
+
+  - `search_module` - Find modules and view all their functions
+  - `search_function` - Locate function definitions and track usage
+  - `search_module_usage` - Track module dependencies
+  - `find_pr_for_line` - Identify which PR introduced code
+  - `get_file_pr_history` - View complete PR history for files
+  - `get_commit_history` - Track file and function evolution
+  - `get_blame` - Show line-by-line code ownership
+  - `search_by_keywords` - Semantic search across documentation
+  - `find_dead_code` - Identify potentially unused functions
+
+  For detailed documentation, visit: https://github.com/wende/cicada
