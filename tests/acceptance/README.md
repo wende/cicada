@@ -118,17 +118,17 @@ Test keyword-based semantic search for modules and functions.
 **Prerequisites:**
 1. Build index with keyword extraction:
    ```bash
-   uv run python -m cicada.indexer tests/fixtures/elixir_project
+   uv run python -m cicada.indexer tests/fixtures/test_project
    ```
    Note: The indexer now always extracts keywords when a config exists.
 2. Create config file (if not exists):
    ```bash
-   mkdir -p tests/fixtures/elixir_project/.cicada
-   cat > tests/fixtures/elixir_project/.cicada/config.yaml << EOF
+   mkdir -p tests/fixtures/.cicada
+   cat > tests/fixtures/.cicada/config.yaml << EOF
    repository:
-     path: tests/fixtures/elixir_project
+     path: tests/fixtures/test_project
    storage:
-     index_path: tests/fixtures/elixir_project/.cicada/index.json
+     index_path: tests/fixtures/.cicada/index.json
    EOF
    ```
 

@@ -645,7 +645,13 @@ def handle_server(args):
             keyword_tier = "regular"
 
         # Create config.yaml (silent)
-        create_config_yaml(repo_path, storage_dir, keyword_method, keyword_tier, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            keyword_method=keyword_method,
+            keyword_tier=keyword_tier,
+            verbose=False,
+        )
 
         # Index repository (silent)
         try:

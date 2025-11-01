@@ -13,25 +13,8 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-# Convert arguments to Python list format
-KEYWORDS="["
-for keyword in "$@"; do
-    KEYWORDS="$KEYWORDS'$keyword', "
-done
-KEYWORDS="${KEYWORDS%, }]"
-
-echo "Searching for keywords: $KEYWORDS"
+echo "Searching for keywords: $@"
 echo "========================================"
 echo ""
 
-uv run python -c "
-import asyncio
-from cicada.mcp_server import CicadaServer
-
-async def search():
-    server = CicadaServer(config_path='tests/fixtures/elixir_project/.cicada/config.yaml')
-    result = await server._search_by_keywords($KEYWORDS)
-    print(result[0].text)
-
-asyncio.run(search())
-"
+uv run python tests/acceptance/runner.py search_keywords "$@"

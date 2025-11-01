@@ -375,9 +375,9 @@ class TestHandleIndex:
 
             # Verify config was created with lemminflect
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "lemminflect"  # keyword_method
-            assert call_args[3] == "regular"  # keyword_tier
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["keyword_method"] == "lemminflect"
+            assert call_kwargs["keyword_tier"] == "regular"
 
     def test_rag_flag_creates_config_with_bert(self, mock_repo):
         """--rag should create config with bert"""
@@ -403,9 +403,9 @@ class TestHandleIndex:
 
             # Verify config was created with bert
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"
-            assert call_args[3] == "regular"
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["keyword_method"] == "bert"
+            assert call_kwargs["keyword_tier"] == "regular"
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""

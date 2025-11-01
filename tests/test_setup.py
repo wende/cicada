@@ -802,10 +802,10 @@ class TestSetupKeywordParameters:
                         setup("claude", mock_repo, keyword_method="bert", keyword_tier="fast")
 
                         mock_create_config.assert_called()
-                        # Check positional args (repo_path, storage_dir, keyword_method, keyword_tier, verbose)
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] == "bert"  # keyword_method is 3rd positional arg
-                        assert call_args[3] == "fast"  # keyword_tier is 4th positional arg
+                        # Check keyword args
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["keyword_method"] == "bert"
+                        assert call_kwargs["keyword_tier"] == "fast"
 
     def test_defaults_to_lemminflect_when_no_method_specified(self, mock_repo):
         """Should use lemminflect as default when no method specified"""
@@ -822,9 +822,9 @@ class TestSetupKeywordParameters:
 
                         # Should pass None for both (create_config_yaml handles defaults)
                         mock_create_config.assert_called()
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] is None  # keyword_method
-                        assert call_args[3] is None  # keyword_tier
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["keyword_method"] is None
+                        assert call_kwargs["keyword_tier"] is None
 
 
 class TestSetupSettingsChangeDetection:
