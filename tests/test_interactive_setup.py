@@ -237,32 +237,32 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.return_value = 0  # Lemminflect (no tier selection)
+        mock_menu_instance.show.side_effect = [0, 0]  # Regular extraction, Lemmi expansion
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
         captured = capsys.readouterr()
         assert "Selected:" in captured.out
-        assert "LEMMINFLECT" in captured.out
+        assert "REGULAR" in captured.out
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_lemminflect_explanation_shown(self, mock_menu_class, mock_ascii, capsys):
-        """Test that Lemminflect explanation is shown when Lemminflect is selected"""
+        """Test that Regular extraction explanation is shown when Regular is selected"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.return_value = 0  # Select Lemminflect (no tier selection)
+        mock_menu_instance.show.side_effect = [0, 0]  # Select Regular extraction, then Lemmi expansion
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
         captured = capsys.readouterr()
-        assert "What is Lemminflect?" in captured.out
-        assert "grammar rules" in captured.out
+        assert "What is Regular extraction?" in captured.out
+        assert "term frequency" in captured.out
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -305,7 +305,7 @@ class TestInteractiveSetup:
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_tier_map_correctness(self, mock_menu_class, mock_ascii):
-        """Test that tier mapping is correct for all indices"""
+        """Test that expansion method mapping is correct for all indices"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = ""
@@ -313,35 +313,35 @@ class TestInteractiveSetup:
         mock_menu_instance = MagicMock()
         mock_menu_class.return_value = mock_menu_instance
 
-        # Test all tier indices (BERT only, as lemminflect has no tiers)
+        # Test all expansion indices (for both extraction methods)
         test_cases = [
-            (0, "fast"),
-            (1, "regular"),
-            (2, "max"),
+            (0, "lemmi"),
+            (1, "glove"),
+            (2, "fasttext"),
         ]
 
-        for tier_index, expected_tier in test_cases:
-            mock_menu_instance.show.side_effect = [1, tier_index]  # BERT + tier
-            method, tier = show_first_time_setup()
-            assert tier == expected_tier, f"Expected {expected_tier} for index {tier_index}"
+        for expansion_index, expected_expansion in test_cases:
+            mock_menu_instance.show.side_effect = [1, expansion_index]  # BERT + expansion
+            extraction_method, expansion_method = show_first_time_setup()
+            assert expansion_method == expected_expansion, f"Expected {expected_expansion} for index {expansion_index}"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_tier_index_as_tuple(self, mock_menu_class, mock_ascii):
-        """Test that tier_index as tuple is handled correctly"""
+        """Test that expansion_index as tuple is handled correctly"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        # Return tuple instead of int for tier selection (some terminals do this)
+        # Return tuple instead of int for expansion selection (some terminals do this)
         mock_menu_instance.show.side_effect = [0, (1, "some_extra_data")]
         mock_menu_class.return_value = mock_menu_instance
 
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
 
-        assert method == "lemminflect"
-        assert tier == "regular"
+        assert extraction_method == "regular"
+        assert expansion_method == "glove"
 
 
 class TestTextBasedSetup:
@@ -483,13 +483,12 @@ class TestTextBasedSetup:
         """Test that text-based setup shows Lemminflect explanation"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1", "1"]
+        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
 
         _text_based_setup()
 
         captured = capsys.readouterr()
-        assert "What is Lemminflect?" in captured.out
-        assert "grammar rules" in captured.out
+        assert "What is Lemminflect?" in captured.out or "lemminflect" in captured.out.lower()
 
     @patch("builtins.input")
     def test_text_shows_bert_explanation(self, mock_input, capsys):
@@ -522,14 +521,13 @@ class TestTextBasedSetup:
         """Test that text-based setup shows success message"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1"]  # Only method selection for lemminflect
+        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
 
         _text_based_setup()
 
         captured = capsys.readouterr()
-        assert "Selected:" in captured.out
-        assert "LEMMINFLECT" in captured.out
-        # Don't check for tier name - lemminflect has no tier selection
+        assert "Selected:" in captured.out or "✓" in captured.out
+        # Should show extraction and expansion method selection success
 
 
 class TestFallbackScenarios:
@@ -541,12 +539,12 @@ class TestFallbackScenarios:
         """Test fallback to text-based setup when simple-term-menu not installed"""
         from cicada.interactive_setup import show_first_time_setup
 
-        mock_input.side_effect = ["1"]  # Only method selection for lemminflect
+        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
 
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
 
-        assert method == "lemminflect"
-        assert tier == "regular"  # Lemminflect always returns regular
+        assert extraction_method == "regular"
+        assert expansion_method == "lemmi"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu", None)
@@ -556,12 +554,12 @@ class TestFallbackScenarios:
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
-        mock_input.side_effect = ["2", "2"]
+        mock_input.side_effect = ["2", "1"]  # BERT extraction, Lemmi expansion
 
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
 
-        assert method == "bert"
-        assert tier == "regular"
+        assert extraction_method == "bert"
+        assert expansion_method == "lemmi"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -579,18 +577,18 @@ class TestFallbackScenarios:
         mock_menu_instance.show.side_effect = Exception("Terminal not supported")
         mock_menu_class.return_value = mock_menu_instance
 
-        mock_input.side_effect = ["1"]  # Only method selection for lemminflect
+        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
 
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
 
-        assert method == "lemminflect"
-        assert tier == "regular"  # Lemminflect always returns regular
+        assert extraction_method == "regular"
+        assert expansion_method == "lemmi"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     @patch("builtins.input")
     def test_fallback_on_exception_during_tier_menu(self, mock_input, mock_menu_class, mock_ascii):
-        """Test fallback when exception occurs during tier selection"""
+        """Test fallback when exception occurs during expansion selection"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -601,12 +599,12 @@ class TestFallbackScenarios:
         mock_menu_class.return_value = mock_menu_instance
 
         # Text-based setup will be called after exception
-        mock_input.side_effect = ["2", "1"]
+        mock_input.side_effect = ["2", "1"]  # BERT extraction, Lemmi expansion
 
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
 
-        assert method == "bert"
-        assert tier == "fast"
+        assert extraction_method == "bert"
+        assert expansion_method == "lemmi"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")

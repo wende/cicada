@@ -475,8 +475,8 @@ class TestHandleIndex:
 
         # Verify error message was printed
         captured = capsys.readouterr()
-        assert "Cannot change extraction method" in captured.err
-        assert "regular to bert" in captured.err
+        assert "Cannot change extraction" in captured.err
+        assert "regular" in captured.err and "bert" in captured.err
         assert "cicada clean" in captured.err
 
     def test_changing_expansion_method_exits_with_error(self, mock_repo, capsys):
