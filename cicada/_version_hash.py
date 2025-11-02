@@ -1,4 +1,4 @@
 """Auto-generated file containing build-time git tag and hash."""
 
-GIT_TAG = "v0.2.0-rc0"
-GIT_HASH = "59c06a1"
+GIT_TAG = "latest"
+GIT_HASH = "e78f194"
