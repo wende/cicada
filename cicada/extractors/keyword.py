@@ -126,9 +126,22 @@ class BaseKeywordExtractor:
             return []
 
     def _extract_keywords(
-        self, words: list[str], code_identifiers: list[str], code_split_words: list[str], top_n: int
+        self,
+        words: list[str],
+        code_identifiers: list[str],
+        code_split_words: list[str],
+        top_n: int,
+        total_tokens: int,
     ) -> tuple[list, dict, dict]:
-        """Extract keywords from a list of words."""
+        """Extract keywords from a list of words.
+
+        Args:
+            words: Filtered words (after stopword removal)
+            code_identifiers: Extracted code identifiers
+            code_split_words: Words split from code identifiers
+            top_n: Number of top keywords to return
+            total_tokens: Total token count before filtering (for stats)
+        """
         code_identifiers_lower = [ident.lower() for ident in code_identifiers]
         all_keywords = words + (code_identifiers_lower * 10) + (code_split_words * 3)
         keyword_freq = Counter(all_keywords)
@@ -141,7 +154,7 @@ class BaseKeywordExtractor:
             tf_scores = {}
 
         stats = {
-            "total_tokens": len(words),
+            "total_tokens": total_tokens,
             "total_words": len(words),
             "unique_words": len(set(words)),
         }
@@ -172,6 +185,7 @@ class RegularKeywordExtractor(BaseKeywordExtractor):
 
         code_identifiers, code_split_words = self.extract_code_identifiers(text)
         tokens = self._tokenize(text)
+        total_tokens = len(tokens)
         regular_words = []
         for word in tokens:
             word_lower = word.lower()
@@ -179,7 +193,7 @@ class RegularKeywordExtractor(BaseKeywordExtractor):
                 regular_words.append(word_lower)
 
         top_keywords, tf_scores, stats = self._extract_keywords(
-            regular_words, code_identifiers, code_split_words, top_n
+            regular_words, code_identifiers, code_split_words, top_n, total_tokens
         )
 
         return {
