@@ -16,7 +16,7 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered keyword search with **15-25x faster** incremental indexing. [What's New →](#whats-new-in-v020)
+> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered semantic keyword search across the entire codebase. [What's New →](#whats-new-in-v020)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
