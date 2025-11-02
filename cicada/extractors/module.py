@@ -2,6 +2,8 @@
 Module extraction logic.
 """
 
+from cicada.utils import extract_text_from_node
+
 from .base import extract_string_from_arguments
 
 
@@ -31,7 +33,7 @@ def _find_modules_recursive(node, source_code: bytes, modules: list):
 
         # Check if this is a defmodule call
         if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
+            target_text = extract_text_from_node(target, source_code)
 
             if target_text == "defmodule":
                 # Extract module name from arguments
@@ -39,9 +41,7 @@ def _find_modules_recursive(node, source_code: bytes, modules: list):
 
                 for arg_child in arguments.children:
                     if arg_child.type == "alias":
-                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
+                        module_name = extract_text_from_node(arg_child, source_code)
                         break
 
                 if module_name and do_block:
@@ -82,9 +82,7 @@ def _find_moduledoc_recursive(node, source_code: bytes) -> str | None:
             # Check if this is a moduledoc attribute
             for call_child in operand.children:
                 if call_child.type == "identifier":
-                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    attr_name = extract_text_from_node(call_child, source_code)
 
                     if attr_name == "moduledoc":
                         # Extract the documentation string from the arguments
@@ -102,9 +100,7 @@ def _find_moduledoc_recursive(node, source_code: bytes) -> str | None:
             is_defmodule = False
             for call_child in child.children:
                 if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    target_text = extract_text_from_node(call_child, source_code)
                     if target_text == "defmodule":
                         is_defmodule = True
                         break

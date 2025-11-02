@@ -1,3 +1,6 @@
+from cicada.utils import extract_text_from_node, is_function_definition_call
+
+
 def _find_nodes_recursive(node, source_code: bytes, results: list, node_type: str, parse_function):
     """Recursively find nodes of a specific type and parse them."""
     if node.type == node_type:
@@ -10,19 +13,8 @@ def _find_nodes_recursive(node, source_code: bytes, results: list, node_type: st
 
     # Recursively search children, but skip function bodies
     for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
-
-            if is_function_def:
-                continue
+        if child.type == "call" and is_function_definition_call(child, source_code):
+            continue
 
         _find_nodes_recursive(child, source_code, results, node_type, parse_function)
 
@@ -46,9 +38,7 @@ def _find_attribute_recursive(
             # Check if this is a doc attribute
             for call_child in operand.children:
                 if call_child.type == "identifier":
-                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    attr_name = extract_text_from_node(call_child, source_code)
 
                     if attr_name == attribute_name:
                         # Extract the doc definition
@@ -68,18 +58,7 @@ def _find_attribute_recursive(
     # Recursively search children
     for child in node.children:
         # Don't recurse into nested defmodule or function definitions
-        if child.type == "call":
-            is_defmodule_or_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["defmodule", "def", "defp"]:
-                        is_defmodule_or_def = True
-                        break
-
-            if is_defmodule_or_def:
-                continue
+        if child.type == "call" and is_function_definition_call(child, source_code):
+            continue
 
         _find_attribute_recursive(child, source_code, attributes, attribute_name, parse_function)

@@ -1,9 +1,8 @@
-import re
 import sys
 from collections import Counter
 from typing import Any
 
-from cicada.utils import split_camel_snake_case
+from cicada.utils import extract_code_identifiers as util_extract_code_identifiers
 
 
 class BaseKeywordExtractor:
@@ -86,33 +85,12 @@ class BaseKeywordExtractor:
             "up",
             "out",
         }
-        self.CODE_PATTERNS = [
-            re.compile(r"\b[a-z]+[A-Z][a-zA-Z]*\b"),
-            re.compile(r"\b[A-Z]{2,}[a-z]+[a-zA-Z]*\b"),
-            re.compile(r"\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b"),
-            re.compile(r"\b[a-z]+_[a-z_]+\b"),
-            re.compile(r"\b[A-Z]{2,}\b"),
-        ]
-        self.TOKEN_PATTERN = re.compile(r"\b[a-zA-Z][a-zA-Z0-9_]*\b")
 
     def _tokenize(self, text: str) -> list[str]:
-        return self.TOKEN_PATTERN.findall(text)
+        """Tokenize text into words."""
+        import re
 
-    def extract_code_identifiers(self, text: str) -> tuple[list[str], list[str]]:
-        identifiers = []
-        for pattern in self.CODE_PATTERNS:
-            matches = pattern.findall(text)
-            identifiers.extend(matches)
-        identifiers = list(set(identifiers))
-
-        split_words = []
-        for identifier in identifiers:
-            split_text = split_camel_snake_case(identifier)
-            words = [
-                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
-            ]
-            split_words.extend(words)
-        return identifiers, list(set(split_words))
+        return re.findall(r"\b[a-zA-Z][a-zA-Z0-9_]*\b", text)
 
     def extract_keywords_simple(self, text: str, top_n: int = 10) -> list[str]:
         if not text or not text.strip():
@@ -183,7 +161,7 @@ class RegularKeywordExtractor(BaseKeywordExtractor):
                 },
             }
 
-        code_identifiers, code_split_words = self.extract_code_identifiers(text)
+        code_identifiers, code_split_words = util_extract_code_identifiers(text)
         tokens = self._tokenize(text)
         total_tokens = len(tokens)
         regular_words = []

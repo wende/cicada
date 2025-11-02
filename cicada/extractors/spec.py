@@ -2,6 +2,8 @@
 Type spec extraction logic.
 """
 
+from cicada.utils import extract_text_from_node
+
 from .common import _find_attribute_recursive
 
 
@@ -35,9 +37,7 @@ def _parse_spec(spec_node, source_code: bytes) -> dict | None:
                             found_call = True
                         elif found_call and op_child.type not in ["::", "operator"]:
                             # This is the return type node (after :: operator)
-                            return_type = source_code[
-                                op_child.start_byte : op_child.end_byte
-                            ].decode("utf-8")
+                            return_type = extract_text_from_node(op_child, source_code)
 
                     if func_call:
                         func_name = None
@@ -45,9 +45,7 @@ def _parse_spec(spec_node, source_code: bytes) -> dict | None:
 
                         for fc_child in func_call.children:
                             if fc_child.type == "identifier":
-                                func_name = source_code[
-                                    fc_child.start_byte : fc_child.end_byte
-                                ].decode("utf-8")
+                                func_name = extract_text_from_node(fc_child, source_code)
                             elif fc_child.type == "arguments":
                                 param_types = _extract_param_types(fc_child, source_code)
 
@@ -71,7 +69,7 @@ def _extract_param_types(params_node, source_code: bytes) -> list[str]:
             continue
 
         # Get the type as a string
-        type_str = source_code[child.start_byte : child.end_byte].decode("utf-8")
+        type_str = extract_text_from_node(child, source_code)
         param_types.append(type_str)
 
     return param_types

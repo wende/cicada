@@ -4,6 +4,8 @@ Dependency extraction logic (alias, import, require, use).
 Author: Cursor(Auto)
 """
 
+from cicada.utils import extract_text_from_node
+
 from .common import _find_nodes_recursive
 
 
@@ -31,7 +33,7 @@ def _parse_alias_call(node, source_code: bytes) -> dict | None:
             arguments = child
 
     if target and arguments:
-        target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
+        target_text = extract_text_from_node(target, source_code)
 
         if target_text == "alias":
             # Parse the alias
@@ -61,7 +63,7 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
     for arg_child in arguments_node.children:
         # Simple alias: alias MyApp.User
         if arg_child.type == "alias":
-            full_name = source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+            full_name = extract_text_from_node(arg_child, source_code)
             # Get the last part as the short name
             short_name = full_name.split(".")[-1]
             result[short_name] = full_name
@@ -74,9 +76,7 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
 
             for dot_child in arg_child.children:
                 if dot_child.type == "alias":
-                    module_prefix = source_code[dot_child.start_byte : dot_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    module_prefix = extract_text_from_node(dot_child, source_code)
                 elif dot_child.type == "tuple":
                     tuple_node = dot_child
 
@@ -84,9 +84,7 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
                 # Extract each alias from the tuple
                 for tuple_child in tuple_node.children:
                     if tuple_child.type == "alias":
-                        short_name = source_code[
-                            tuple_child.start_byte : tuple_child.end_byte
-                        ].decode("utf-8")
+                        short_name = extract_text_from_node(tuple_child, source_code)
                         full_name = f"{module_prefix}.{short_name}"
                         result[short_name] = full_name
 
@@ -100,22 +98,16 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
                     for pair_child in kw_child.children:
                         if pair_child.type == "keyword":
                             # Get keyword text (e.g., "as:")
-                            key_text = source_code[
-                                pair_child.start_byte : pair_child.end_byte
-                            ].decode("utf-8")
+                            key_text = extract_text_from_node(pair_child, source_code)
                         elif pair_child.type == "alias":
-                            alias_name = source_code[
-                                pair_child.start_byte : pair_child.end_byte
-                            ].decode("utf-8")
+                            alias_name = extract_text_from_node(pair_child, source_code)
 
                     # If we found 'as:', update the result to use custom name
                     if key_text and "as" in key_text and alias_name:
                         # Get the full module name from previous arg
                         for prev_arg in arguments_node.children:
                             if prev_arg.type == "alias":
-                                full_name = source_code[
-                                    prev_arg.start_byte : prev_arg.end_byte
-                                ].decode("utf-8")
+                                full_name = extract_text_from_node(prev_arg, source_code)
                                 # Remove the default short name and add custom one
                                 result.clear()
                                 result[alias_name] = full_name
@@ -146,13 +138,13 @@ def _parse_declaration_call(node, source_code: bytes, declaration_name: str) -> 
             arguments = child
 
     if target and arguments:
-        target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
+        target_text = extract_text_from_node(target, source_code)
 
         if target_text == declaration_name:
             # Parse the declaration
             for arg_child in arguments.children:
                 if arg_child.type == "alias":
-                    return source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+                    return extract_text_from_node(arg_child, source_code)
     return None
 
 
@@ -216,7 +208,7 @@ def _parse_behaviour_call(node, source_code: bytes) -> str | None:
 
         for child in behaviour_call.children:
             if child.type == "identifier":
-                identifier_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
+                identifier_text = extract_text_from_node(child, source_code)
             elif child.type == "arguments":
                 arguments_node = child
 
@@ -225,12 +217,10 @@ def _parse_behaviour_call(node, source_code: bytes) -> str | None:
             for arg_child in arguments_node.children:
                 if arg_child.type == "alias":
                     # @behaviour ModuleName
-                    return source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+                    return extract_text_from_node(arg_child, source_code)
                 elif arg_child.type == "atom":
                     # @behaviour :module_name
-                    atom_text = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    atom_text = extract_text_from_node(arg_child, source_code)
                     # Remove leading colon and convert to module format if needed
                     return atom_text.lstrip(":")
     return None
