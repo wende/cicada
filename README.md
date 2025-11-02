@@ -154,7 +154,7 @@ cicada claude  # or: cicada cursor, cicada vs
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
-- `cicada index` - Re-index code with custom options (--nlp or --rag)
+- `cicada index` - Re-index code with custom options (--fast, --regular, or --max)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
 
@@ -372,9 +372,9 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 **`search_by_keywords`** (EXPERIMENTAL) - Semantic documentation search
 - Find code by concepts, not just names
 - Wildcard pattern matching (`create*`, `*_user`)
-- NLP-extracted keywords from docs
+- AI-extracted keywords from docs
 - Relevance scoring
-- Requires: Index built with `--nlp` or `--rag`
+- Requires: Index built with keyword extraction (--fast, --regular, or --max)
 
 **`find_dead_code`** - Identify potentially unused functions
 - Three confidence levels (high, medium, low)
@@ -410,8 +410,9 @@ cicada /path/to/other/project   # Setup in different directory
 **`cicada index`** - Index Elixir codebase
 ```bash
 cicada index                         # Index current directory
-cicada index --nlp                   # Use NLP keyword extraction (lemminflect)
-cicada index --rag                   # Use BERT-based keyword extraction
+cicada index --fast                  # Fast tier: Regular extraction + lemminflect (no downloads)
+cicada index --regular               # Regular tier: KeyBERT small + GloVe (128MB, default)
+cicada index --max                   # Max tier: KeyBERT large + FastText (958MB+)
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites

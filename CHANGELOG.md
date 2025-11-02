@@ -7,24 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- GitHub Actions workflow for automated PyPI publishing ([#26](https://github.com/wende/cicada/pull/26))
-- MIT License file for PyPI compliance ([#26](https://github.com/wende/cicada/pull/26))
-- Enhanced pyproject.toml with complete package metadata for PyPI ([#26](https://github.com/wende/cicada/pull/26))
-
-### Changed
-- **BREAKING: Removed legacy `.cicada/` directory structure** - All indexes and hashes now stored in centralized `~/.cicada/projects/<repo_hash>/` location
-  - Removed `cicada .` and `cicada <path>` direct indexing commands
-  - Use `cicada claude`, `cicada cursor`, or `cicada vs` for setup
-  - MCP server no longer supports old `.cicada/` path fallback
-  - All CLI commands now use centralized storage by default
-
-### Removed
-- Legacy `install.py` module and related installation functions
-- Backward compatibility for old `.cicada/` directory structure in MCP server
-- Default `output_path` parameters in indexing functions (now required to be explicit)
-
-## [0.2.0] - 2025-10-31
+## [0.2.0] - 2025-11-01
 
 ### Added
 
@@ -34,16 +17,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatibility maintained for `cicada` and `cicada ./path` setup
   - Added comprehensive CLI migration guide (docs/CLI_MIGRATION.md)
 
-- **AI Keyword Extraction Enhancements** ([#14](https://github.com/wende/cicada/pull/14)): Production-ready semantic search with improved NLP keyword extraction
+- **Simplified Tier-Based Model Selection** ([#49](https://github.com/wende/cicada/pull/49), [#14](https://github.com/wende/cicada/pull/14))
+  - Three-tier system: `--fast` (no downloads), `--regular` (128MB, default), `--max` (958MB+)
+  - Fast tier: Regular extraction + lemminflect expansion (zero downloads)
+  - Regular tier: KeyBERT small + GloVe expansion (balanced quality/size)
+  - Max tier: KeyBERT large + FastText expansion (maximum quality)
   - BERT-based keyword extraction with KeyBERT integration for higher-quality semantic understanding
-  - Configurable model tiers (`fast`, `regular`, `max`) to balance speed vs. accuracy
-  - New CLI flags: `--nlp` (spaCy-based) and `--rag` (BERT-based) for explicit extraction method selection
-  - Model tier flags: `--fast` and `--max` to specify quality level
-  - Replaced `--model-tier` and `--extract-keywords` with more intuitive flag system
-  - Wildcard pattern support in keyword search (`create*`, `*_user`)
-  - Enhanced relevance scoring with confidence levels
   - Lazy model downloads - only download when needed
   - Model caching for faster subsequent runs
+
+- **Configurable Search Thresholds** ([#49](https://github.com/wende/cicada/pull/49))
+  - `--extraction-threshold` (default: 0.3) for semantic similarity filtering
+  - `--min-score` (default: 0.5) for minimum keyword quality
+  - `--expansion-threshold` (default: 0.2) for keyword expansion sensitivity
+  - Wildcard pattern support in keyword search (`create*`, `*_user`)
+  - Enhanced relevance scoring with confidence levels
+
+- **Interactive Keyword Testing Modes**
+  - `cicada index --test` for testing keyword extraction
+  - `cicada index --test-expansion` for testing keyword expansion
+  - Fine-tune parameters before full indexing
+
+- **Enhanced Clean Command**
+  - Granular cleanup: `--index` (main index), `--pr-index` (PR index only)
+  - `--all` flag to remove all Cicada storage across all projects
+  - `-f/--force` flag to skip confirmation prompts
+
+- **PR Index Rebuild Support**
+  - `cicada index-pr --clean` flag for full PR index rebuild
+  - Complements incremental update mode with clean slate option
+
+- **Two-Stage Keyword Extraction System** ([#43](https://github.com/wende/cicada/pull/43), [#42](https://github.com/wende/cicada/pull/42))
+  - Separate extraction and expansion methods for better semantic search
+  - Improved compound word handling in semantic lookups
+  - Reorganized codebase into cleaner package structure
+
+- **Version Tracking** (807108f)
+  - `--version` / `-v` flag to display version, git tag, and commit hash
+  - Helps distinguish PyPI releases from development builds
+
+- **Acceptance Testing Framework** ([#45](https://github.com/wende/cicada/pull/45))
+  - Automated acceptance test suite for MCP tools and CLI commands
+
+- GitHub Actions workflow for automated PyPI publishing ([#26](https://github.com/wende/cicada/pull/26))
+- MIT License file for PyPI compliance ([#26](https://github.com/wende/cicada/pull/26))
 
 - **Interactive Setup System**
   - Rich terminal menu interface for guided setup
@@ -82,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `cicada-find-dead-code` → `cicada find-dead-code`
   - Updated all documentation to reflect new command structure
 
+- **Improved Search Result Formatting** ([#47](https://github.com/wende/cicada/pull/47))
+  - More compact and scannable keyword search results
+  - Cleaner documentation previews
+
 - **Setup Workflow Improvements**
   - Streamlined setup UX with condensed output
   - Config.yaml created before indexing for proper method selection
@@ -89,14 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved progress reporting and status messages
   - Better handling of existing indexes (reuse without verbose output)
 
-- **CLI Flag Changes**
-  - Removed: `--model-tier` (replaced with `--fast`/`--max`)
-  - Removed: `--extract-keywords` (replaced with `--nlp`/`--rag`)
-  - Added: `--nlp` for spaCy-based keyword extraction
-  - Added: `--rag` for BERT-based keyword extraction (RAG-optimized)
-  - Added: `--fast` for fast model tier
-  - Added: `--max` for maximum quality model tier
-  - Default behavior: Interactive setup when no flags provided
+- **BREAKING: Removed legacy `.cicada/` directory structure** - All indexes and hashes now stored in centralized `~/.cicada/projects/<repo_hash>/` location
+  - Removed `cicada .` and `cicada <path>` direct indexing commands
+  - Use `cicada claude`, `cicada cursor`, or `cicada vs` for setup
+  - MCP server no longer supports old `.cicada/` path fallback
 
 - Indexing workflow now uses incremental mode by default
   - First run: Full index with hash computation
@@ -132,31 +149,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed Makefile reset target for better portability
   - Fixed inconsistent stderr output handling in verbose mode
 
-### Testing
+- Test infrastructure improvements preventing unwanted test artifacts ([#47](https://github.com/wende/cicada/pull/47))
+- Type checking and API consistency improvements ([#43](https://github.com/wende/cicada/pull/43))
 
-- **Coverage Improvements**: 70% → 83.37% coverage with 400+ new tests
-  - cicada/cli.py: 92.83% coverage (37 new tests)
-  - signature_builder.py: 65.79% → 100% coverage (20 new tests)
-  - keyword_search.py: 53.07% → 97.81% coverage (33 new tests)
-  - pr_finder.py: 64.85% → 85.15% coverage (31 new tests)
-  - interactive_setup.py: 46.54% → 96.86% coverage (24 new tests)
-  - extractors/base.py: 44.93% → 62.32% coverage (24 new tests)
-  - text_utils.py: 100% coverage (new test file)
-  - lightweight_keyword_extractor.py: 96.30% coverage (new test file)
+### Removed
 
-- **New Test Files**
-  - tests/test_cli.py - Comprehensive CLI handler tests
-  - tests/test_keyword_search.py - Keyword search functionality
-  - tests/test_signature_builder.py - Signature building logic
-  - tests/test_pr_finder.py - Enhanced PR finder tests
-  - tests/test_text_utils.py - Text utility functions
-  - tests/test_lightweight_keyword_extractor.py - Lightweight extractor tests
-
-- **Test Infrastructure**
-  - Added pytest-xdist for parallel test execution
-  - Improved test fixtures and mocking
-  - Enhanced error handling test coverage
-  - Edge case and unicode handling tests
+- Legacy `.cicada/` directory structure and backward compatibility
+- `--model-tier` and `--extract-keywords` flags (replaced by `--fast`/`--regular`/`--max` tier system)
 
 ### Documentation
 
@@ -174,15 +173,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - extensions/claude-code/INSTALL.md - Updated installation instructions
   - All examples now use `cicada index` instead of `cicada-index`
 
-### Performance
-
-- **Incremental indexing benchmarks** (200-file Phoenix app, 5 files changed):
-  - Full index: 12.3s → Incremental: 0.8s (15.4x faster)
-  - With keyword extraction: 48.7s → 2.1s (23.2x faster)
-- Hash computation overhead: ~100ms for typical codebases (negligible)
-- Interrupt and resume: No performance penalty for graceful shutdowns
-- Model caching reduces subsequent BERT extraction runs by 40-60%
-
 ### Dependencies
 
 - **Added**
@@ -196,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Consolidated dependency groups under [dependency-groups]
   - Removed duplicate optional dependencies section
 
-## [0.1.2] - 2025-01-XX
+## [0.1.2] - 2025-10-30
 
 ### Added
 - `cicada-clean` command to remove repository configuration and clean up MCP settings ([#24](https://github.com/wende/cicada/pull/24))
@@ -227,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added executable bundling research documentation ([#21](https://github.com/wende/cicada/pull/21))
 - Updated README with new setup workflow and storage structure ([#20](https://github.com/wende/cicada/pull/20))
 
-## [0.1.1] - 2024-10-XX
+## [0.1.1] - 2025-10-26
 
 ### Added
 - Coverage reporting to CI workflow ([#3](https://github.com/wende/cicada/pull/3))
@@ -244,7 +234,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated documentation for v0.1.0 release ([#9](https://github.com/wende/cicada/pull/9))
 - Marketing improvements and gitignore updates ([#5](https://github.com/wende/cicada/pull/5))
 
-## [0.1.0] - 2024-10-XX
+## [0.1.0] - 2025-10-25
 
 ### Added
 - Initial release of CICADA
@@ -301,7 +291,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wende/cicada/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/wende/cicada/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/wende/cicada/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/wende/cicada/releases/tag/v0.1.0
