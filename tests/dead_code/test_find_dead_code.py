@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cicada.find_dead_code import (
+from cicada.dead_code.finder import (
     filter_by_confidence,
     format_json,
     format_markdown,
@@ -469,7 +469,7 @@ def test_main_missing_index_file(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
         pytest.raises(SystemExit) as exc,
     ):
         main()
@@ -487,7 +487,7 @@ def test_main_invalid_index_file(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
         pytest.raises(SystemExit) as exc,
     ):
         main()
@@ -528,7 +528,7 @@ def test_main_with_valid_index_markdown(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -567,7 +567,7 @@ def test_main_with_json_format(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code", "--format", "json"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -608,7 +608,7 @@ def test_main_with_min_confidence_high(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "high"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -649,7 +649,7 @@ def test_main_with_min_confidence_medium(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "medium"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -699,7 +699,7 @@ def test_main_with_min_confidence_low(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code", "--min-confidence", "low"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 
@@ -717,7 +717,7 @@ def test_main_default_index_path(tmp_path, capsys):
 
     with (
         patch("sys.argv", ["cicada-find-dead-code"]),
-        patch("cicada.find_dead_code.get_index_path", return_value=index_path),
+        patch("cicada.dead_code.finder.get_index_path", return_value=index_path),
     ):
         main()
 

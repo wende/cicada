@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cicada.utils import load_index
+from cicada.utils import is_git_repository, load_index
 
 
 class PRFinder:
@@ -58,8 +58,7 @@ class PRFinder:
 
     def _validate_git_repo(self):
         """Validate that the path is a git repository."""
-        git_dir = self.repo_path / ".git"
-        if not git_dir.exists():
+        if not is_git_repository(self.repo_path):
             raise ValueError(f"Not a git repository: {self.repo_path}")
 
     def _validate_gh_cli(self):

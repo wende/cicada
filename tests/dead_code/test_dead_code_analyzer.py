@@ -5,7 +5,7 @@ Author: Cursor(Auto)
 
 import pytest
 
-from cicada.dead_code_analyzer import DeadCodeAnalyzer
+from cicada.dead_code.analyzer import DeadCodeAnalyzer
 
 
 @pytest.fixture

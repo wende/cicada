@@ -20,9 +20,9 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from cicada.command_logger import get_logger
-from cicada.formatter import ModuleFormatter
+from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
-from cicada.mcp_tools import get_tool_definitions
+from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
 from cicada.utils import get_config_path, get_pr_index_path, load_index
 
@@ -1287,7 +1287,7 @@ class CicadaServer:
             return [TextContent(type="text", text=result)]
 
         # Format results
-        from cicada.formatter import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(keywords, results)
 
@@ -1304,8 +1304,8 @@ class CicadaServer:
         Returns:
             TextContent with formatted dead code analysis
         """
-        from cicada.dead_code_analyzer import DeadCodeAnalyzer
-        from cicada.find_dead_code import (
+        from cicada.dead_code.analyzer import DeadCodeAnalyzer
+        from cicada.dead_code.finder import (
             filter_by_confidence,
             format_json,
             format_markdown,
@@ -1420,7 +1420,6 @@ def main():
     import sys
 
     # Accept optional positional argument for repo path
-    # Usage: cicada-server [repo_path]
     if len(sys.argv) > 1:
         repo_path = sys.argv[1]
         # Convert to absolute path

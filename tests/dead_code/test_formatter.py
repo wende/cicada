@@ -9,7 +9,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cicada.formatter import ModuleFormatter
+from cicada.format import ModuleFormatter
 
 
 def test_group_call_sites_by_caller_single_caller():
@@ -722,7 +722,7 @@ def test_format_function_results_json_not_found():
 
 def test_json_formatter_format_string():
     """Test JSONFormatter format_string method."""
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter(indent=2)
     input_json = '{"key":"value","nested":{"a":1}}'
@@ -738,7 +738,7 @@ def test_json_formatter_format_string_invalid():
     """Test JSONFormatter with invalid JSON."""
     import pytest
 
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter()
 
@@ -748,7 +748,7 @@ def test_json_formatter_format_string_invalid():
 
 def test_json_formatter_format_dict():
     """Test JSONFormatter format_dict method."""
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter(indent=4, sort_keys=True)
     data = {"z": 1, "a": 2, "m": 3}
@@ -763,7 +763,7 @@ def test_json_formatter_format_dict():
 
 def test_json_formatter_format_file(tmp_path):
     """Test JSONFormatter format_file method."""
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     # Create test JSON file
     input_file = tmp_path / "input.json"
@@ -781,7 +781,7 @@ def test_json_formatter_format_file_not_found(tmp_path):
     """Test JSONFormatter with non-existent file."""
     import pytest
 
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter()
     nonexistent = tmp_path / "nonexistent.json"
@@ -792,7 +792,7 @@ def test_json_formatter_format_file_not_found(tmp_path):
 
 def test_json_formatter_format_file_with_output(tmp_path):
     """Test JSONFormatter writing to output file."""
-    from cicada.formatter import JSONFormatter
+    from cicada.format import JSONFormatter
 
     # Create test JSON file
     input_file = tmp_path / "input.json"
@@ -815,7 +815,7 @@ def test_json_formatter_main_with_output(tmp_path, monkeypatch, capsys):
     """Test main() function with output file."""
     import sys
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     # Create test file
     input_file = tmp_path / "test.json"
@@ -838,7 +838,7 @@ def test_json_formatter_main_to_stdout(tmp_path, monkeypatch, capsys):
     """Test main() function printing to stdout."""
     import sys
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     # Create test file
     input_file = tmp_path / "test.json"
@@ -859,7 +859,7 @@ def test_json_formatter_main_with_indent(tmp_path, monkeypatch):
     """Test main() function with custom indent."""
     import sys
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key":"value"}')
@@ -880,7 +880,7 @@ def test_json_formatter_main_with_sort_keys(tmp_path, monkeypatch):
     """Test main() function with sort_keys."""
     import sys
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"z":1,"a":2}')
@@ -902,7 +902,7 @@ def test_json_formatter_main_with_compact(tmp_path, monkeypatch):
     """Test main() function with compact flag."""
     import sys
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key": "value"}')
@@ -925,7 +925,7 @@ def test_json_formatter_main_file_not_found(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     nonexistent = tmp_path / "nonexistent.json"
 
@@ -944,7 +944,7 @@ def test_json_formatter_main_invalid_json(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.formatter import main
+    from cicada.format import main
 
     input_file = tmp_path / "invalid.json"
     input_file.write_text("{invalid json}")
@@ -964,7 +964,7 @@ def test_json_formatter_main_unexpected_error(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.formatter import JSONFormatter, main
+    from cicada.format import JSONFormatter, main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key":"value"}')

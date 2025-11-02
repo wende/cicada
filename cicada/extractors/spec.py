@@ -2,60 +2,16 @@
 Type spec extraction logic.
 """
 
+from cicada.utils import extract_text_from_node
+
+from .common import _find_attribute_recursive
+
 
 def extract_specs(node, source_code: bytes) -> dict:
     """Extract all @spec attributes from a module body."""
     specs = {}
-    _find_specs_recursive(node, source_code, specs)
+    _find_attribute_recursive(node, source_code, specs, "spec", _parse_spec)
     return specs
-
-
-def _find_specs_recursive(node, source_code: bytes, specs: dict):
-    """Recursively find @spec declarations."""
-    # Look for unary_operator nodes (which represent @ attributes)
-    if node.type == "unary_operator":
-        operator = None
-        operand = None
-
-        for child in node.children:
-            if child.type == "@":
-                operator = child
-            elif child.type == "call":
-                operand = child
-
-        if operator and operand:
-            # Check if this is a spec attribute
-            for call_child in operand.children:
-                if call_child.type == "identifier":
-                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-
-                    if attr_name == "spec":
-                        # Extract the spec definition
-                        spec_info = _parse_spec(operand, source_code)
-                        if spec_info:
-                            key = f"{spec_info['name']}/{spec_info['arity']}"
-                            specs[key] = spec_info
-
-    # Recursively search children
-    for child in node.children:
-        # Don't recurse into nested defmodule or function definitions
-        if child.type == "call":
-            is_defmodule_or_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["defmodule", "def", "defp"]:
-                        is_defmodule_or_def = True
-                        break
-
-            if is_defmodule_or_def:
-                continue
-
-        _find_specs_recursive(child, source_code, specs)
 
 
 def _parse_spec(spec_node, source_code: bytes) -> dict | None:
@@ -81,9 +37,7 @@ def _parse_spec(spec_node, source_code: bytes) -> dict | None:
                             found_call = True
                         elif found_call and op_child.type not in ["::", "operator"]:
                             # This is the return type node (after :: operator)
-                            return_type = source_code[
-                                op_child.start_byte : op_child.end_byte
-                            ].decode("utf-8")
+                            return_type = extract_text_from_node(op_child, source_code)
 
                     if func_call:
                         func_name = None
@@ -91,9 +45,7 @@ def _parse_spec(spec_node, source_code: bytes) -> dict | None:
 
                         for fc_child in func_call.children:
                             if fc_child.type == "identifier":
-                                func_name = source_code[
-                                    fc_child.start_byte : fc_child.end_byte
-                                ].decode("utf-8")
+                                func_name = extract_text_from_node(fc_child, source_code)
                             elif fc_child.type == "arguments":
                                 param_types = _extract_param_types(fc_child, source_code)
 
@@ -117,7 +69,7 @@ def _extract_param_types(params_node, source_code: bytes) -> list[str]:
             continue
 
         # Get the type as a string
-        type_str = source_code[child.start_byte : child.end_byte].decode("utf-8")
+        type_str = extract_text_from_node(child, source_code)
         param_types.append(type_str)
 
     return param_types

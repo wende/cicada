@@ -9,13 +9,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cicada.keybert_extractor import KeyBERTExtractor
+from cicada.extractors.keybert import KeyBERTExtractor
+from cicada.utils import extract_code_identifiers
 
 
 class TestKeyBERTExtractorInitialization:
     """Tests for KeyBERTExtractor initialization"""
 
-    @patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None)
+    @patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None)
     def test_keybert_import_failure(self):
         """Test that missing KeyBERT raises helpful ImportError"""
         with patch.dict("sys.modules", {"keybert": None}):
@@ -31,7 +32,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -56,7 +57,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -80,7 +81,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_class = MagicMock()
         mock_keybert_class.side_effect = Exception("Model download failed")
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -99,19 +100,10 @@ class TestKeyBERTExtractorInitialization:
 class TestCodeIdentifierExtraction:
     """Tests for code identifier extraction functionality"""
 
-    def _create_mock_extractor(self):
-        """Create a mock KeyBERTExtractor without initializing KeyBERT"""
-        extractor = KeyBERTExtractor.__new__(KeyBERTExtractor)
-        extractor.verbose = False
-        extractor.kw_model = MagicMock()
-        return extractor
-
     def test_extract_camel_case_identifiers(self):
         """Test extraction of camelCase identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The getUserData function retrieves user information"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "getUserData" in identifiers
         assert "get" in split_words
@@ -120,10 +112,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_pascal_case_identifiers(self):
         """Test extraction of PascalCase identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The UserController handles user operations"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "UserController" in identifiers
         assert "user" in split_words
@@ -131,10 +121,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_snake_case_identifiers(self):
         """Test extraction of snake_case identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The get_user_data function is important"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "get_user_data" in identifiers
         assert "get" in split_words
@@ -143,10 +131,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_uppercase_acronyms(self):
         """Test extraction of all-uppercase acronyms"""
-        extractor = self._create_mock_extractor()
-
         text = "Using HTTP and API for the SQL database"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "HTTP" in identifiers
         assert "API" in identifiers
@@ -154,10 +140,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_mixed_patterns(self):
         """Test extraction of mixed case patterns"""
-        extractor = self._create_mock_extractor()
-
         text = "HTTPServer handles requests using XMLParser and PostgreSQL"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "HTTPServer" in identifiers
         assert "XMLParser" in identifiers
@@ -173,29 +157,23 @@ class TestCodeIdentifierExtraction:
 
     def test_identifiers_deduplication(self):
         """Test that duplicate identifiers are removed"""
-        extractor = self._create_mock_extractor()
-
         text = "getUserData uses getUserData to getUserData"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         # Should have only one instance of getUserData
         assert identifiers.count("getUserData") == 1
 
     def test_split_words_deduplication(self):
         """Test that duplicate split words are removed"""
-        extractor = self._create_mock_extractor()
-
         text = "getUserData and setUserData and UserModel"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         # "user" should appear only once in split_words despite multiple occurrences
         assert split_words.count("user") == 1
 
     def test_empty_text_returns_empty_lists(self):
         """Test that empty text returns empty lists"""
-        extractor = self._create_mock_extractor()
-
-        identifiers, split_words = extractor.extract_code_identifiers("")
+        identifiers, split_words = extract_code_identifiers("")
         assert identifiers == []
         assert split_words == []
 

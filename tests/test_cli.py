@@ -9,15 +9,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cicada.cli import (
+from cicada.commands import (
     handle_clean,
     handle_editor_setup,
     handle_find_dead_code,
     handle_index,
     handle_index_pr,
-    handle_install_command,
-    main,
+    handle_install as handle_install_command,
 )
+from cicada.cli import main
 
 
 class TestMain:
@@ -27,7 +27,7 @@ class TestMain:
         """Should route to handle_editor_setup for claude"""
         with (
             patch.object(sys, "argv", ["cicada", "claude"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -38,7 +38,7 @@ class TestMain:
         """Should route to handle_editor_setup for cursor"""
         with (
             patch.object(sys, "argv", ["cicada", "cursor"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -49,7 +49,7 @@ class TestMain:
         """Should route to handle_editor_setup for vs"""
         with (
             patch.object(sys, "argv", ["cicada", "vs"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -60,7 +60,7 @@ class TestMain:
         """Should route to handle_index"""
         with (
             patch.object(sys, "argv", ["cicada", "index"]),
-            patch("cicada.cli.handle_index") as mock_handler,
+            patch("cicada.commands.handle_index") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -69,7 +69,7 @@ class TestMain:
         """Should route to handle_index_pr"""
         with (
             patch.object(sys, "argv", ["cicada", "index-pr"]),
-            patch("cicada.cli.handle_index_pr") as mock_handler,
+            patch("cicada.commands.handle_index_pr") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -78,7 +78,7 @@ class TestMain:
         """Should route to handle_find_dead_code"""
         with (
             patch.object(sys, "argv", ["cicada", "find-dead-code"]),
-            patch("cicada.cli.handle_find_dead_code") as mock_handler,
+            patch("cicada.commands.handle_find_dead_code") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -87,7 +87,7 @@ class TestMain:
         """Should route to handle_clean"""
         with (
             patch.object(sys, "argv", ["cicada", "clean", "-f"]),
-            patch("cicada.cli.handle_clean") as mock_handler,
+            patch("cicada.commands.handle_clean") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -105,7 +105,7 @@ class TestMain:
         """Should route to install command when path is '.'"""
         with (
             patch.object(sys, "argv", ["cicada", "."]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -116,7 +116,7 @@ class TestMain:
         """Should route to install command when path starts with './'"""
         with (
             patch.object(sys, "argv", ["cicada", "./some/path"]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -127,7 +127,7 @@ class TestMain:
         """Should route to install command when path starts with '/'"""
         with (
             patch.object(sys, "argv", ["cicada", "/absolute/path"]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -138,7 +138,7 @@ class TestMain:
         """Should route to install command when path is '..'"""
         with (
             patch.object(sys, "argv", ["cicada", ".."]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -639,10 +639,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
             patch(
-                "cicada.find_dead_code.format_markdown", return_value="# Dead Code"
+                "cicada.dead_code.finder.format_markdown", return_value="# Dead Code"
             ) as mock_format,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
@@ -666,10 +666,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
-            patch("cicada.find_dead_code.format_json", return_value="{}") as mock_format_json,
-            patch("cicada.find_dead_code.format_markdown") as mock_format_md,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.finder.format_json", return_value="{}") as mock_format_json,
+            patch("cicada.dead_code.finder.format_markdown") as mock_format_md,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
             mock_analyzer = MagicMock()

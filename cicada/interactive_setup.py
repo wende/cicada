@@ -12,8 +12,7 @@ except ImportError:
     TerminalMenu = None  # type: ignore
     has_terminal_menu = False
 
-from cicada.ascii_art import generate_gradient_ascii_art
-from cicada.colors import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED
+from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
 from cicada.setup import EditorType
 
 

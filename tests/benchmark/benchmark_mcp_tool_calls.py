@@ -53,7 +53,7 @@ class MCPToolCallBenchmark:
 
         # Import cicada tools to get descriptions
         try:
-            from cicada.mcp_tools import get_tool_definitions
+            from cicada.mcp.tools import get_tool_definitions
 
             tools = get_tool_definitions()
             tool_descriptions = {}

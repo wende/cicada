@@ -4,7 +4,6 @@ Semantic keyword extraction using transformer-based embeddings
 """
 
 import os
-import re
 import sys
 from typing import Any
 
@@ -12,10 +11,11 @@ from typing import Any
 # Must be set before importing transformers/keybert
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from cicada.utils import split_camel_snake_case
+from cicada.extractors.keyword import BaseKeywordExtractor
+from cicada.utils import extract_code_identifiers
 
 
-class KeyBERTExtractor:
+class KeyBERTExtractor(BaseKeywordExtractor):
     """Extract keywords from text using KeyBERT semantic analysis."""
 
     # Single model configuration
@@ -32,16 +32,7 @@ class KeyBERTExtractor:
     _KeyBERT: type | None = None
 
     def __init__(self, verbose: bool = False):
-        """
-        Initialize KeyBERT model.
-
-        Args:
-            verbose: If True, print status messages during initialization
-
-        Raises:
-            ImportError: If KeyBERT is not installed
-            RuntimeError: If model loading fails
-        """
+        super().__init__(verbose)
         self.verbose = verbose
 
         # Print message BEFORE the slow import
@@ -76,65 +67,6 @@ class KeyBERTExtractor:
                 f"Failed to load KeyBERT model '{self.MODEL_NAME}'. "
                 f"Ensure the model is downloaded and available. Error: {e}"
             ) from e
-
-    def extract_code_identifiers(self, text: str) -> tuple[list[str], list[str]]:
-        """
-        Extract code-specific identifiers and their split words.
-
-        Returns a tuple of (identifiers, split_words) where:
-        - identifiers: original camelCase/PascalCase/snake_case identifiers
-        - split_words: individual words extracted from those identifiers
-        """
-        # Match camelCase, snake_case, PascalCase, and mixed patterns
-        patterns = [
-            r"\b[a-z]+[A-Z][a-zA-Z]*\b",  # camelCase (e.g., getUserData)
-            r"\b[A-Z]{2,}[a-z]+[a-zA-Z]*\b",  # Uppercase prefix + PascalCase
-            r"\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b",  # PascalCase (e.g., UserController)
-            r"\b[a-z]+_[a-z_]+\b",  # snake_case (e.g., get_user_data)
-            r"\b[A-Z]{2,}\b",  # All UPPERCASE (e.g., HTTP, API)
-        ]
-
-        identifiers = []
-        for pattern in patterns:
-            matches = re.findall(pattern, text)
-            identifiers.extend(matches)
-
-        identifiers = list(set(identifiers))
-
-        # Split identifiers into individual words
-        split_words = []
-        for identifier in identifiers:
-            split_text = split_camel_snake_case(identifier)
-            # Extract individual words (lowercase, length > 1)
-            words = [
-                word.lower() for word in split_text.split() if len(word) > 1 and word.isalpha()
-            ]
-            split_words.extend(words)
-
-        return identifiers, list(set(split_words))
-
-    def extract_keywords_simple(self, text: str, top_n: int = 10) -> list[str]:
-        """
-        Extract keywords and return a simple list of keyword strings.
-
-        Args:
-            text: Input text to analyze
-            top_n: Number of top keywords to return
-
-        Returns:
-            List of keyword strings (e.g., ['authentication', 'user', 'validate'])
-        """
-        if not text or not text.strip():
-            return []
-
-        try:
-            results = self.extract_keywords(text, top_n=top_n)
-            # Extract just the keyword strings from top_keywords tuples
-            return [keyword for keyword, _ in results["top_keywords"]]
-        except Exception as e:
-            if self.verbose:
-                print(f"Warning: Keyword extraction failed: {e}", file=sys.stderr)
-            return []
 
     def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
         """
@@ -171,7 +103,7 @@ class KeyBERTExtractor:
             }
 
         # 1. Extract code identifiers and their split words
-        code_identifiers, code_split_words = self.extract_code_identifiers(text)
+        code_identifiers, code_split_words = extract_code_identifiers(text)
 
         # 2. Use KeyBERT to extract semantic keywords
         try:
