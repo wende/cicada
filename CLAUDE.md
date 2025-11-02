@@ -22,12 +22,7 @@ When creating a new release:
    git push origin v0.X.Y
    git push origin main
    ```
-
-4. **Build and publish to PyPI:**
-   ```bash
-   uv build
-   uv publish
-   ```
+   Note: CI/CD will automatically build and publish to PyPI. The "latest" tag is a moving tag that always points to the latest vX.Y.Z release.
 
 5. **Test the installation:**
    ```bash
@@ -47,8 +42,108 @@ When creating a new release:
 
 ## Project Context
 
-- **Language Support:** Currently Elixir only. Python and TypeScript are planned.
+- **Language Support:**
+  - **Elixir**: Full support with tree-sitter AST parsing and incremental indexing
+  - **Python (MVP)**: SCIP-based indexing powered by Pyright (requires Node.js/npm)
+  - **TypeScript**: Planned for future releases
 - **Primary Installation Method:** uv tool install (recommended over Python direct install)
+
+## Testing & Dogfooding
+
+**IMPORTANT: Cicada is an MCP tool for code analysis - USE IT ON ITSELF!**
+
+When developing cicada features:
+
+1. **Always use cicada MCP tools to explore the cicada codebase:**
+   - Use `mcp__cicada__search_module` to view module APIs
+   - Use `mcp__cicada__search_function` to find function definitions and call sites
+   - Use `mcp__cicada__search_by_keywords` for semantic search
+   - Use `mcp__cicada__find_pr_for_line` to understand code history
+
+2. **Reindex after making changes:**
+   ```bash
+   cicada clean -f
+   cicada index --nlp  # or --rag
+   ```
+
+3. **Report bugs you discover while dogfooding:**
+   - If a search returns unexpected results, investigate why
+   - If module views show 0 functions when they shouldn't, that's a bug
+   - If keyword search fails, that needs fixing
+   - Document issues you find - we're eating our own dog food!
+
+4. **Test the feature you're developing:**
+   - After implementing a feature, use it on the cicada codebase
+   - Verify it works correctly in a real-world scenario
+   - Fix any issues before considering the work complete
+
+## Project Structure
+
+Cicada follows a language-agnostic architecture with clear separation between universal and language-specific code:
+
+### Source Code Organization
+
+```
+cicada/
+├── languages/           # Language-specific implementations
+│   ├── scip/           # Universal SCIP adapter (language-agnostic)
+│   │   ├── converter.py    # SCIP → Cicada format converter
+│   │   ├── reader.py       # SCIP protobuf file reader
+│   │   └── scip_pb2.py     # Protocol Buffer definitions
+│   ├── python/         # Python-specific implementation
+│   │   ├── indexer.py      # Python indexer using scip-python
+│   │   └── scip_installer.py  # scip-python installer utilities
+│   └── elixir/         # Elixir-specific implementation
+│       ├── indexer.py      # Elixir indexer using tree-sitter
+│       ├── parser.py       # Tree-sitter AST parser
+│       └── extractors/     # AST node extractors
+│           ├── module.py   # Module extraction
+│           ├── function.py # Function extraction
+│           ├── call.py     # Call site extraction
+│           └── ...
+└── ...
+```
+
+### Test Organization
+
+Tests mirror the source structure for clarity:
+
+```
+tests/
+├── languages/          # Language-specific tests
+│   ├── python/        # Python language tests
+│   │   └── test_python_support.py
+│   ├── elixir/        # Elixir language tests
+│   │   ├── test_indexer.py
+│   │   ├── test_parser.py
+│   │   └── test_call_extractor.py
+│   └── scip/          # Universal SCIP tests (if needed)
+├── fixtures/          # Shared test fixtures
+│   ├── sample_python/ # Python test code
+│   └── sample.ex      # Elixir test code
+└── conftest.py        # Shared test utilities
+```
+
+### Design Principles
+
+1. **Language-Agnostic Core**: The SCIP adapter in `cicada/languages/scip/` is completely language-agnostic and works with any SCIP-compatible indexer (Python, TypeScript, Java, Rust, Go, etc.).
+
+2. **Language-Specific Implementations**: Each language has its own directory under `cicada/languages/` containing:
+   - Indexer implementation
+   - Language-specific utilities
+   - Parser/extractor logic (if not using SCIP)
+
+3. **Test Fixture Helpers**: Use the `fixtures_dir` pytest fixture to access test fixtures:
+   ```python
+   def test_something(fixtures_dir):
+       sample_file = fixtures_dir / "sample.ex"
+   ```
+   This avoids hardcoding relative paths like `Path(__file__).parent.parent.parent`.
+
+4. **Adding New Languages**:
+   - For SCIP-supported languages: Create `cicada/languages/<lang>/indexer.py` that uses the universal SCIP adapter
+   - For non-SCIP languages: Create full parser/extractor implementation like Elixir
+   - Add corresponding test directory in `tests/languages/<lang>/`
 
 ## Storage Structure
 
@@ -72,10 +167,6 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
   - `get_hashes_path(repo_path)` - Get path to hashes.json
   - `get_pr_index_path(repo_path)` - Get path to pr_index.json
 
-- **Backward Compatibility:** The MCP server (`cicada/mcp_server.py`) supports both:
-  - New structure: `~/.cicada/projects/<hash>/`
-  - Old structure: `.cicada/` in project root
-
 ### Testing Storage-Related Code
 
 When adding or modifying storage-related functionality:
@@ -86,11 +177,7 @@ When adding or modifying storage-related functionality:
    - Directory creation with proper permissions
    - Edge cases (non-existent paths, unicode, spaces in paths)
 
-2. **Test backward compatibility:**
-   - Ensure MCP server can still load from old `.cicada/` structure
-   - Verify graceful fallback when new structure is unavailable
-
-3. **Error handling:**
+2. **Error handling:**
    - Test permission errors, disk full scenarios
    - Verify appropriate logging for debugging
 
@@ -107,6 +194,13 @@ This project uses **uv** as the primary Python package manager and build tool. W
 
 The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
 
+## Documentation
+
+- All project documentation should be written in Markdown format
+- Documentation files are stored in the `docs/` directory
+- Keep documentation up-to-date with code changes
+- Include examples and use cases where appropriate
+
 ## Code Style
 
 - Use `black` for Python code formatting
@@ -118,12 +212,12 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - use make to run tests
 
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for Elixir/Python code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
-  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
+  - PREFERRED for Elixir/Python: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
+  - PREFERRED for Elixir/Python: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
+  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage` (Python MVP: limited support)
   - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
   - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
   - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
@@ -132,9 +226,9 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
 
   ### DO NOT use Grep for:
-  - ❌ Searching for module structure
-  - ❌ Searching for function definitions
-  - ❌ Searching for module imports/usage
+  - ❌ Searching for module structure (Elixir/Python)
+  - ❌ Searching for function definitions (Elixir/Python)
+  - ❌ Searching for module imports/usage (Elixir/Python)
 
   ### You can still use Grep for:
   - ✓ Non-code files (markdown, JSON, config)

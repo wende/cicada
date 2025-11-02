@@ -13,12 +13,12 @@ from cicada.formatter import ModuleFormatter
 from cicada.languages.elixir.parser import ElixirParser
 
 
-def test_parser_extracts_all_categories():
+def test_parser_extracts_all_categories(fixtures_dir):
     """Test that the parser extracts all usage categories."""
     parser = ElixirParser()
 
     # Parse the AB module which has examples of all categories
-    test_file = Path(__file__).parent / "fixtures" / "test_module_with_usage_categories.ex"
+    test_file = fixtures_dir / "test_module_with_usage_categories.ex"
     modules = parser.parse_file(str(test_file))
 
     assert modules is not None

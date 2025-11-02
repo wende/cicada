@@ -13,6 +13,11 @@ from .index_utils import (
     save_index,
     validate_index_structure,
 )
+from .keyword_utils import (
+    create_keyword_extractor,
+    get_keyword_extractor_from_config,
+    read_keyword_extraction_config,
+)
 from .path_utils import normalize_file_path, resolve_to_repo_root
 from .signature_builder import SignatureBuilder
 from .storage import (
@@ -49,4 +54,7 @@ __all__ = [
     "get_config_path",
     "get_hashes_path",
     "get_pr_index_path",
+    "read_keyword_extraction_config",
+    "create_keyword_extractor",
+    "get_keyword_extractor_from_config",
 ]

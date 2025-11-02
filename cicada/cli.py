@@ -444,10 +444,13 @@ def handle_editor_setup(args, editor: str):
     # Use current directory as repo path
     repo_path = Path.cwd()
 
-    # Check if it's an Elixir repository
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
+    # Detect project language (validates project type)
+    from cicada.setup import detect_project_language
+
+    try:
+        _ = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Determine keyword extraction method and tier from flags
@@ -506,7 +509,7 @@ def handle_index(args):
     """Handle the index subcommand."""
     from pathlib import Path
 
-    from cicada.languages.elixir.indexer import ElixirIndexer
+    from cicada.setup import detect_project_language, index_repository
     from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
 
@@ -563,11 +566,17 @@ def handle_index(args):
     config_path = get_config_path(repo_path_obj)
     config_exists = config_path.exists()
 
+    # Detect project language
+    try:
+        language = detect_project_language(repo_path_obj)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     # Use centralized storage paths
-    from cicada.utils.storage import create_storage_dir, get_index_path
+    from cicada.utils.storage import create_storage_dir
 
     storage_dir = create_storage_dir(repo_path_obj)
-    index_path = get_index_path(repo_path_obj)
 
     # Determine keyword extraction method and tier
     keyword_method = None
@@ -632,7 +641,7 @@ def handle_index(args):
         create_config_yaml(
             repo_path_obj,
             storage_dir,
-            language="elixir",
+            language=language,
             keyword_method=keyword_method,
             keyword_tier=keyword_tier,
         )
@@ -646,13 +655,12 @@ def handle_index(args):
         print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
         sys.exit(2)
 
-    # If config exists (or was just created), indexer will read it automatically
-    indexer = ElixirIndexer(verbose=True)
-    indexer.incremental_index_repository(
-        str(repo_path_obj),
-        str(index_path),  # Use centralized storage path
-        extract_keywords=True,  # Always extract keywords if we have a config
+    # If config exists (or was just created), use index_repository with detected language
+    index_repository(
+        repo_path_obj,
+        language=language,
         force_full=False,
+        verbose=True,
     )
 
 

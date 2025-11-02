@@ -32,7 +32,12 @@
 
 ## Overview
 
-CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Supports Elixir and Python projects**, with TypeScript support planned for future releases.
+
+- **Elixir**: Tree-sitter AST parsing with incremental indexing
+- **Python (MVP)**: SCIP-based type-aware indexing powered by Pyright
+
+Provides instant access to modules, functions, call sites, and PR attribution.
 
 <div align="center">
   <table>
@@ -152,7 +157,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install cicada-mcp
 
 # Step 2: Setup in each project (one command per project)
-cd /path/to/your/elixir/project
+cd /path/to/your/project  # Works for both Elixir and Python!
 cicada claude  # or: cicada cursor, cicada vs
 ```
 
@@ -164,7 +169,26 @@ cicada claude  # or: cicada cursor, cicada vs
 
 **After setup:**
 1. Restart your editor
-2. Start coding with AI-powered Elixir intelligence!
+2. Start coding with AI-powered code intelligence!
+
+### Python Projects - Additional Requirements
+
+For Python projects, Cicada requires Node.js and npm to run scip-python (the Python indexer):
+
+```bash
+# Install Node.js (if not already installed)
+# macOS:
+brew install node
+
+# Or download from: https://nodejs.org/
+```
+
+**scip-python will be installed automatically** when you first index a Python project. The installation happens once and is reused for all Python projects.
+
+**Note:** Python indexing (MVP) currently has these limitations:
+- Full reindex only (no incremental updates yet)
+- Basic module/function search (advanced features coming soon)
+- May take 2-5 minutes for medium-sized projects
 
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
@@ -178,7 +202,7 @@ cicada claude  # or: cicada cursor, cicada vs
 Want to test Cicada first? Use `uvx` for a quick trial:
 
 ```bash
-cd /path/to/your/elixir/project
+cd /path/to/your/project  # Works for Elixir or Python
 
 # For Claude Code
 uvx --from cicada-mcp cicada claude

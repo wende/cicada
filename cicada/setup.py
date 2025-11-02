@@ -25,6 +25,44 @@ from cicada.utils import (
 EditorType = Literal["claude", "cursor", "vs"]
 
 
+def detect_project_language(repo_path: Path) -> str:
+    """
+    Detect project language from marker files.
+
+    Args:
+        repo_path: Repository root path
+
+    Returns:
+        Language name ('elixir' or 'python')
+
+    Raises:
+        ValueError: If no recognized project type found
+    """
+    # Check for Python markers
+    python_markers = [
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+    ]
+
+    for marker in python_markers:
+        if (repo_path / marker).exists():
+            return "python"
+
+    # Check for Elixir marker
+    if (repo_path / "mix.exs").exists():
+        return "elixir"
+
+    # No recognized language
+    raise ValueError(
+        f"Could not detect project language in {repo_path}\n"
+        "Expected Python markers (pyproject.toml, setup.py, etc.) "
+        "or Elixir marker (mix.exs)"
+    )
+
+
 def _load_existing_config(config_path: Path) -> dict:
     """
     Load existing configuration file with error handling.
@@ -189,12 +227,18 @@ def create_config_yaml(
         print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = True) -> None:
+def index_repository(
+    repo_path: Path,
+    language: str | None = None,
+    force_full: bool = False,
+    verbose: bool = True,
+) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        language: Language to index ('elixir' or 'python'). If None, auto-detect.
         force_full: If True, force full reindex instead of incremental
         verbose: Whether to print progress messages (default: True)
 
@@ -202,21 +246,51 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
         Exception: If indexing fails
     """
     try:
-        index_path = get_index_path(repo_path)
-        indexer = ElixirIndexer(verbose=verbose)
+        # Auto-detect language if not specified
+        if language is None:
+            language = detect_project_language(repo_path)
+            if verbose:
+                print(f"Detected {language} project")
 
-        # Use incremental indexing by default (unless force_full is True)
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            force_full=force_full,
-        )
+        index_path = get_index_path(repo_path)
+
+        # Get appropriate indexer for the language
+        if language == "elixir":
+            indexer = ElixirIndexer(verbose=verbose)
+            # Elixir supports incremental indexing
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                force_full=force_full,
+            )
+        elif language == "python":
+            # Lazy import to avoid protobuf version conflicts when not using Python
+            from cicada.languages.python.indexer import PythonSCIPIndexer
+
+            indexer = PythonSCIPIndexer(verbose=verbose)
+            # MVP: Python doesn't support incremental yet, always full index
+            result = indexer.index_repository(
+                repo_path=repo_path,
+                output_path=index_path,
+                force=True,
+                verbose=verbose,
+            )
+            if not result.get("success"):
+                errors = result.get("errors", ["Unknown error"])
+                raise Exception(f"Indexing failed: {'; '.join(errors)}")
+        else:
+            raise ValueError(f"Unsupported language: {language}")
+
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
             print(f"Error: Failed to index repository: {e}")
-            print("Please check that the repository contains valid Elixir files.")
+            if language == "elixir":
+                print("Please check that the repository contains valid Elixir files.")
+            elif language == "python":
+                print("Please check that the repository contains valid Python files.")
+                print("Note: Python indexing requires Node.js and npm.")
         raise
 
 
@@ -272,6 +346,13 @@ def setup(
         repo_path = Path.cwd()
     repo_path = repo_path.resolve()
 
+    # Detect language
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
@@ -288,7 +369,7 @@ def setup(
         create_config_yaml(
             repo_path,
             storage_dir,
-            language="elixir",
+            language=language,
             keyword_method=keyword_method,
             keyword_tier=keyword_tier,
             verbose=False,
@@ -366,7 +447,7 @@ def setup(
         create_config_yaml(
             repo_path,
             storage_dir,
-            language="elixir",
+            language=language,
             keyword_method=keyword_method,
             keyword_tier=keyword_tier,
             verbose=False,
@@ -374,7 +455,7 @@ def setup(
 
         # Index repository if needed
         if should_index:
-            index_repository(repo_path, force_full=force_full)
+            index_repository(repo_path, language=language, force_full=force_full)
             print()
 
     # Create MCP config for the editor
@@ -452,10 +533,11 @@ def main():
         print(f"Error: Path is not a directory: {repo_path}")
         sys.exit(1)
 
-    # Check if it's an Elixir repository
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project")
-        print("(mix.exs not found)")
+    # Check if it's an Elixir or Python repository
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
     # Run setup

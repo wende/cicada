@@ -344,16 +344,17 @@ class TestSetupFunction:
             with patch("cicada.setup.index_repository"):
                 with patch("cicada.setup.create_config_yaml"):
                     with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
-                        with patch("pathlib.Path.cwd") as mock_cwd:
-                            with patch("builtins.open", mock_open()):
-                                mock_cwd.return_value = Path("/mock/cwd")
-                                config_path = Path("/mock/cwd/.mcp.json")
-                                mock_mcp.return_value = (config_path, {})
+                        with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                            with patch("pathlib.Path.cwd") as mock_cwd:
+                                with patch("builtins.open", mock_open()):
+                                    mock_cwd.return_value = Path("/mock/cwd")
+                                    config_path = Path("/mock/cwd/.mcp.json")
+                                    mock_mcp.return_value = (config_path, {})
 
-                                setup("claude", None)
+                                    setup("claude", None)
 
-                                # Should have resolved current directory
-                                mock_cwd.assert_called()
+                                    # Should have resolved current directory
+                                    mock_cwd.assert_called()
 
     def test_setup_all_three_editors(self, mock_repo):
         """Setup should work for all three editor types"""

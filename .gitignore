@@ -64,4 +64,12 @@ test_config.yaml
 # Test fixtures - local-only test projects
 tests/fixtures/elixir_project
 tests/fixtures/test_project
+tests/fixtures/*/node_modules/
 .env
+scip_doc/
+
+# Test artifacts (root level only)
+/test_*.py
+/*_test.json
+/python_*.json
+/typescript_*.json

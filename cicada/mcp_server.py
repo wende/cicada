@@ -1359,7 +1359,7 @@ def _auto_setup_if_needed():
     This enables zero-config MCP usage - just point the MCP config to cicada-server
     and it will index the repository on first run.
     """
-    from cicada.setup import create_config_yaml, index_repository
+    from cicada.setup import create_config_yaml, detect_project_language, index_repository
     from cicada.utils import (
         create_storage_dir,
         get_config_path,
@@ -1392,14 +1392,11 @@ def _auto_setup_if_needed():
         # Already set up, nothing to do
         return
 
-    # Setup needed - create storage and index (silent mode)
-    # TODO: Phase 5 - Add language detection to support Python and other languages
-    # For now, assume Elixir and validate project structure
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
+    # Setup needed - detect language and create storage/index (silent mode)
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -1407,10 +1404,10 @@ def _auto_setup_if_needed():
         storage_dir = create_storage_dir(repo_path)
 
         # Index repository (silent mode)
-        index_repository(repo_path, verbose=False)
+        index_repository(repo_path, language=language, verbose=False)
 
         # Create config.yaml (silent mode)
-        create_config_yaml(repo_path, storage_dir, language="elixir", verbose=False)
+        create_config_yaml(repo_path, storage_dir, language=language, verbose=False)
 
     except Exception as e:
         print(f"Cicada auto-setup error: {e}", file=sys.stderr)

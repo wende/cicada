@@ -227,9 +227,13 @@ class UniversalIndexSchema:
             language=language,
         )
 
-    def validate(self) -> tuple[bool, list[str]]:
+    def validate(self, strict: bool = True) -> tuple[bool, list[str]]:
         """
-        Validate the index structure.
+        Validate the index structure comprehensively.
+
+        Args:
+            strict: If True, validate all field types and constraints.
+                   If False, only validate required fields exist.
 
         Returns:
             tuple[bool, list[str]]: (is_valid, list of error messages)
@@ -239,19 +243,14 @@ class UniversalIndexSchema:
         # Check required top-level fields
         if not isinstance(self.modules, dict):
             errors.append("'modules' must be a dictionary")
+            return (False, errors)  # Fatal error, can't continue
+
         if not isinstance(self.metadata, dict):
             errors.append("'metadata' must be a dictionary")
+            return (False, errors)  # Fatal error, can't continue
 
         # Validate metadata
-        required_metadata = [
-            "indexed_at",
-            "total_modules",
-            "total_functions",
-            "repo_path",
-        ]
-        for field_name in required_metadata:
-            if field_name not in self.metadata:
-                errors.append(f"metadata missing required field: '{field_name}'")
+        errors.extend(self._validate_metadata(self.metadata, strict))
 
         # Validate each module
         for module_name, module_data in self.modules.items():
@@ -259,14 +258,249 @@ class UniversalIndexSchema:
                 errors.append(f"Module '{module_name}' data must be a dictionary")
                 continue
 
-            # Check required module fields
-            required_module_fields = ["file", "line", "functions"]
-            for field_name in required_module_fields:
-                if field_name not in module_data:
-                    errors.append(f"Module '{module_name}' missing required field: '{field_name}'")
-
-            # Validate functions list
-            if "functions" in module_data and not isinstance(module_data["functions"], list):
-                errors.append(f"Module '{module_name}' functions must be a list")
+            module_errors = self._validate_module(module_name, module_data, strict)
+            errors.extend(module_errors)
 
         return (len(errors) == 0, errors)
+
+    def _validate_metadata(self, metadata: dict, strict: bool) -> list[str]:
+        """Validate metadata section."""
+        errors = []
+
+        # Required fields
+        required_fields = {
+            "indexed_at": str,
+            "total_modules": int,
+            "total_functions": int,
+            "repo_path": str,
+        }
+
+        for field_name, expected_type in required_fields.items():
+            if field_name not in metadata:
+                errors.append(f"metadata missing required field: '{field_name}'")
+            elif strict and not isinstance(metadata[field_name], expected_type):
+                actual_type = type(metadata[field_name]).__name__
+                errors.append(
+                    f"metadata.{field_name} must be {expected_type.__name__}, " f"got {actual_type}"
+                )
+
+        # Optional but typed fields
+        if "language" in metadata and strict:
+            if not isinstance(metadata["language"], str):
+                errors.append("metadata.language must be a string")
+
+        if "version" in metadata and strict:
+            if not isinstance(metadata["version"], str):
+                errors.append("metadata.version must be a string")
+
+        # Validate counts are non-negative
+        if strict:
+            for count_field in ["total_modules", "total_functions"]:
+                if count_field in metadata and isinstance(metadata[count_field], int):
+                    if metadata[count_field] < 0:
+                        errors.append(f"metadata.{count_field} must be non-negative")
+
+        return errors
+
+    def _validate_module(self, module_name: str, module_data: dict, strict: bool) -> list[str]:
+        """Validate a single module entry."""
+        errors = []
+
+        # Required module fields
+        required_fields = {
+            "file": str,
+            "line": int,
+            "functions": list,
+        }
+
+        for field_name, expected_type in required_fields.items():
+            if field_name not in module_data:
+                errors.append(f"Module '{module_name}' missing required field: '{field_name}'")
+            elif strict and not isinstance(module_data[field_name], expected_type):
+                actual_type = type(module_data[field_name]).__name__
+                errors.append(
+                    f"Module '{module_name}'.{field_name} must be {expected_type.__name__}, "
+                    f"got {actual_type}"
+                )
+
+        # Validate line number
+        if strict and "line" in module_data:
+            if isinstance(module_data["line"], int) and module_data["line"] <= 0:
+                errors.append(f"Module '{module_name}'.line must be positive")
+
+        # Validate optional list fields
+        for list_field in ["calls", "dependencies"]:
+            if list_field in module_data and strict:
+                if not isinstance(module_data[list_field], list):
+                    errors.append(f"Module '{module_name}'.{list_field} must be a list")
+
+        # Validate each function
+        if "functions" in module_data and isinstance(module_data["functions"], list):
+            for idx, func in enumerate(module_data["functions"]):
+                func_errors = self._validate_function(module_name, idx, func, strict)
+                errors.extend(func_errors)
+
+        # Validate calls structure if present
+        if "calls" in module_data and isinstance(module_data["calls"], list) and strict:
+            for idx, call in enumerate(module_data["calls"]):
+                call_errors = self._validate_call(module_name, idx, call)
+                errors.extend(call_errors)
+
+        return errors
+
+    def _validate_function(
+        self, module_name: str, func_idx: int, func_data: dict, strict: bool
+    ) -> list[str]:
+        """Validate a single function entry."""
+        errors = []
+
+        if not isinstance(func_data, dict):
+            errors.append(
+                f"Module '{module_name}' function at index {func_idx} must be a dictionary"
+            )
+            return errors
+
+        # Required function fields
+        required_fields = {
+            "name": str,
+            "arity": int,
+            "args": list,
+            "type": str,
+            "line": int,
+            "signature": str,
+        }
+
+        for field_name, expected_type in required_fields.items():
+            if field_name not in func_data:
+                errors.append(
+                    f"Module '{module_name}' function at index {func_idx} "
+                    f"missing required field: '{field_name}'"
+                )
+            elif strict and not isinstance(func_data[field_name], expected_type):
+                actual_type = type(func_data[field_name]).__name__
+                errors.append(
+                    f"Module '{module_name}' function at index {func_idx}: "
+                    f"{field_name} must be {expected_type.__name__}, got {actual_type}"
+                )
+
+        if not strict:
+            return errors
+
+        # Strict validation: constraints and value checks
+        func_name = func_data.get("name", f"<unnamed at index {func_idx}>")
+
+        # Validate arity matches args length
+        if "arity" in func_data and "args" in func_data:
+            if isinstance(func_data["arity"], int) and isinstance(func_data["args"], list):
+                if func_data["arity"] != len(func_data["args"]):
+                    errors.append(
+                        f"Module '{module_name}' function '{func_name}': "
+                        f"arity ({func_data['arity']}) does not match args length "
+                        f"({len(func_data['args'])})"
+                    )
+
+        # Validate arity is non-negative
+        if "arity" in func_data and isinstance(func_data["arity"], int):
+            if func_data["arity"] < 0:
+                errors.append(
+                    f"Module '{module_name}' function '{func_name}': " f"arity must be non-negative"
+                )
+
+        # Validate line number is positive
+        if "line" in func_data and isinstance(func_data["line"], int):
+            if func_data["line"] <= 0:
+                errors.append(
+                    f"Module '{module_name}' function '{func_name}': " f"line must be positive"
+                )
+
+        # Validate args are all strings
+        if "args" in func_data and isinstance(func_data["args"], list):
+            for arg_idx, arg in enumerate(func_data["args"]):
+                if not isinstance(arg, str):
+                    errors.append(
+                        f"Module '{module_name}' function '{func_name}': "
+                        f"arg at index {arg_idx} must be a string, got {type(arg).__name__}"
+                    )
+
+        # Validate type is known value (for common types)
+        if "type" in func_data and isinstance(func_data["type"], str):
+            known_types = {
+                "def",
+                "defp",
+                "defmacro",
+                "defmacrop",  # Elixir
+                "public",
+                "private",  # Python/generic
+                "function",
+                "method",  # Generic
+            }
+            # Don't enforce this strictly, just warn if it's completely empty
+            if not func_data["type"].strip():
+                errors.append(
+                    f"Module '{module_name}' function '{func_name}': " f"type cannot be empty"
+                )
+
+        # Validate optional fields if present
+        if "doc" in func_data and func_data["doc"] is not None:
+            if not isinstance(func_data["doc"], str):
+                errors.append(
+                    f"Module '{module_name}' function '{func_name}': "
+                    f"doc must be a string or null"
+                )
+
+        if "keywords" in func_data and func_data["keywords"] is not None:
+            if not isinstance(func_data["keywords"], list):
+                errors.append(
+                    f"Module '{module_name}' function '{func_name}': "
+                    f"keywords must be a list or null"
+                )
+
+        return errors
+
+    def _validate_call(self, module_name: str, call_idx: int, call_data: dict) -> list[str]:
+        """Validate a single call entry."""
+        errors = []
+
+        if not isinstance(call_data, dict):
+            errors.append(f"Module '{module_name}' call at index {call_idx} must be a dictionary")
+            return errors
+
+        # Required call fields
+        required_fields = {"function": str, "arity": int, "line": int}
+
+        for field_name, expected_type in required_fields.items():
+            if field_name not in call_data:
+                errors.append(
+                    f"Module '{module_name}' call at index {call_idx} "
+                    f"missing required field: '{field_name}'"
+                )
+            elif not isinstance(call_data[field_name], expected_type):
+                actual_type = type(call_data[field_name]).__name__
+                errors.append(
+                    f"Module '{module_name}' call at index {call_idx}: "
+                    f"{field_name} must be {expected_type.__name__}, got {actual_type}"
+                )
+
+        # module is optional but should be string or None
+        if "module" in call_data and call_data["module"] is not None:
+            if not isinstance(call_data["module"], str):
+                errors.append(
+                    f"Module '{module_name}' call at index {call_idx}: "
+                    f"module must be a string or null"
+                )
+
+        # Validate constraints
+        if "arity" in call_data and isinstance(call_data["arity"], int):
+            if call_data["arity"] < 0:
+                errors.append(
+                    f"Module '{module_name}' call at index {call_idx}: "
+                    f"arity must be non-negative"
+                )
+
+        if "line" in call_data and isinstance(call_data["line"], int):
+            if call_data["line"] <= 0:
+                errors.append(
+                    f"Module '{module_name}' call at index {call_idx}: " f"line must be positive"
+                )
+
+        return errors

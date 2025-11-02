@@ -18,24 +18,55 @@ from cicada.utils.index_utils import (
 
 @pytest.fixture
 def sample_index():
-    """Sample valid index structure"""
+    """Sample valid index structure compliant with UniversalIndexSchema"""
     return {
         "modules": {
-            "lib/my_module.ex": {
+            "MyModule": {
+                "file": "lib/my_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "my_func", "arity": 2, "type": "def"},
-                    {"name": "private_func", "arity": 1, "type": "defp"},
-                ]
+                    {
+                        "name": "my_func",
+                        "arity": 2,
+                        "args": ["arg1", "arg2"],
+                        "type": "def",
+                        "line": 10,
+                        "signature": "my_func(arg1, arg2)",
+                    },
+                    {
+                        "name": "private_func",
+                        "arity": 1,
+                        "args": ["param"],
+                        "type": "defp",
+                        "line": 20,
+                        "signature": "private_func(param)",
+                    },
+                ],
+                "calls": [],
             },
-            "lib/other_module.ex": {
+            "OtherModule": {
+                "file": "lib/other_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "other_func", "arity": 0, "type": "def"},
-                ]
+                    {
+                        "name": "other_func",
+                        "arity": 0,
+                        "args": [],
+                        "type": "def",
+                        "line": 5,
+                        "signature": "other_func()",
+                    },
+                ],
+                "calls": [],
             },
         },
         "metadata": {
-            "version": "1.0",
-            "timestamp": "2025-01-01T00:00:00Z",
+            "indexed_at": "2025-01-01T00:00:00Z",
+            "total_modules": 2,
+            "total_functions": 3,
+            "repo_path": "/path/to/repo",
+            "language": "elixir",
+            "version": "2.0",
         },
     }
 

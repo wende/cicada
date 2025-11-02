@@ -187,7 +187,13 @@ LanguageRegistry.register_language(
     config=LanguageConfig.default_elixir(),
 )
 
-# Python will be registered in Phase 5 after implementation
+# Register Python (SCIP-based)
+LanguageRegistry.register_language(
+    language="python",
+    parser_class=None,  # No parser needed for SCIP-based indexing
+    indexer_class="cicada.languages.python.indexer.PythonSCIPIndexer",
+    config=LanguageConfig.default_python(),
+)
 
 
 # Global registry singleton

@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cicada.parsing.schema import UniversalIndexSchema
+
 
 def load_index(
     index_path: str | Path,
@@ -94,13 +96,17 @@ def save_index(
 def validate_index_structure(
     index: Any,
     required_keys: list[str] | None = None,
+    strict: bool = True,
 ) -> tuple[bool, str | None]:
     """
-    Validate the structure of an index dictionary.
+    Validate the structure of an index dictionary using UniversalIndexSchema.
 
     Args:
         index: Index dictionary to validate
         required_keys: List of required top-level keys (default: ['modules', 'metadata'])
+                      If provided, performs basic key checking only for backward compatibility.
+        strict: If True, validate all field types and constraints (default).
+               If False, only validate required fields exist.
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -111,25 +117,51 @@ def validate_index_structure(
         if not valid:
             print(f"Invalid index: {error}")
     """
+    # Basic type check
     if not isinstance(index, dict):
         return False, "Index must be a dictionary"
 
-    if required_keys is None:
-        required_keys = ["modules", "metadata"]
+    # Legacy mode: simple key checking for backward compatibility
+    if required_keys is not None:
+        for key in required_keys:
+            if key not in index:
+                return False, f"Missing required key: {key}"
 
-    for key in required_keys:
-        if key not in index:
-            return False, f"Missing required key: {key}"
+        # Basic structure checks
+        if "modules" in index and not isinstance(index["modules"], dict):
+            return False, "'modules' must be a dictionary"
 
-    # Validate modules structure
-    if "modules" in index and not isinstance(index["modules"], dict):
+        if "metadata" in index and not isinstance(index["metadata"], dict):
+            return False, "'metadata' must be a dictionary"
+
+        return True, None
+
+    # Default mode: comprehensive schema validation
+    # First do basic structure check before attempting schema validation
+    if "modules" not in index:
+        return False, "Missing required key: modules"
+
+    if "metadata" not in index:
+        return False, "Missing required key: metadata"
+
+    if not isinstance(index["modules"], dict):
         return False, "'modules' must be a dictionary"
 
-    # Validate metadata structure
-    if "metadata" in index and not isinstance(index["metadata"], dict):
+    if not isinstance(index["metadata"], dict):
         return False, "'metadata' must be a dictionary"
 
-    return True, None
+    try:
+        schema = UniversalIndexSchema.from_dict(index)
+        is_valid, errors = schema.validate(strict=strict)
+
+        if not is_valid:
+            # Return first error for single-error API
+            return False, errors[0] if errors else "Validation failed"
+
+        return True, None
+
+    except Exception as e:
+        return False, f"Failed to validate index: {str(e)}"
 
 
 def merge_indexes(

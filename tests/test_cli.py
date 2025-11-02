@@ -196,7 +196,7 @@ class TestHandleEditorSetup:
         assert "Cannot specify both --nlp and --rag" in captured.err
 
     def test_requires_elixir_project(self, tmp_path, capsys):
-        """Should error if not an Elixir project"""
+        """Should error if not a recognized project type"""
         args = MagicMock(fast=False, max=False, nlp=False, rag=False)
 
         with (
@@ -207,7 +207,7 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "does not appear to be an Elixir project" in captured.err
+        assert "Could not detect project language" in captured.err
 
     def test_nlp_flag_sets_lemminflect(self, mock_elixir_repo):
         """--nlp should set method to lemminflect"""
