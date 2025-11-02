@@ -139,14 +139,18 @@ class BaseKeywordExtractor:
 
         return top_keywords, tf_scores, stats
 
-    def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
+    def extract_keywords(
+        self, text: str, top_n: int = 15, min_score: float = 0.0
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
 
 class RegularKeywordExtractor(BaseKeywordExtractor):
     """Extract keywords using basic term frequency (TF) without lemmatization."""
 
-    def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
+    def extract_keywords(
+        self, text: str, top_n: int = 15, min_score: float = 0.0
+    ) -> dict[str, Any]:
         if not text or not text.strip():
             return {
                 "top_keywords": [],
@@ -174,8 +178,11 @@ class RegularKeywordExtractor(BaseKeywordExtractor):
             regular_words, code_identifiers, code_split_words, top_n, total_tokens
         )
 
+        # Filter by minimum score threshold (min_score is a frequency count for RegularKeywordExtractor)
+        filtered_keywords = [(word, score) for word, score in top_keywords if score >= min_score]
+
         return {
-            "top_keywords": top_keywords,
+            "top_keywords": filtered_keywords,
             "regular_words": list(set(regular_words))[:20],
             "code_identifiers": code_identifiers,
             "code_split_words": code_split_words,

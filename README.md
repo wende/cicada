@@ -73,56 +73,7 @@ cicada index --nlp --fast
 # AI will find: create_user, user_creation, new_user_account, etc.
 ```
 
-### ⚡ Incremental Indexing - Lightning Fast Updates
-
-Say goodbye to slow reindexing! v0.2.0 introduces intelligent change detection that makes reindexing **15-25x faster**:
-
-- **🚀 15-25x Speedup**: Only processes files that actually changed (MD5 hash-based detection)
-- **💾 Interrupt Safety**: Ctrl-C gracefully saves progress - resume anytime without data loss
-- **🎯 Perfect for AI Search**: Keyword extraction drops from 48.7s to 2.1s for typical updates
-- **🔄 Zero Configuration**: Works automatically out of the box
-
-```bash
-# First run: full index + hash computation (~12s for 200 files)
-cicada index --nlp
-
-# Subsequent runs: lightning fast incremental updates
-# Changed 5 files? Only 2.1s instead of 48.7s!
-cicada index --nlp
-```
-
-**Performance Benchmark** (200-file Phoenix app, 5 files changed):
-
-| Operation | Before v0.2.0 | v0.2.0 Incremental | Speedup |
-|-----------|---------------|-------------------|---------|
-| Code indexing only | 12.3s | 0.8s | **15.4x faster** |
-| With AI keyword extraction | 48.7s | 2.1s | **23.2x faster** |
-
-### 🛡️ Production-Ready Features
-
-- **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
-- **Resume Capability**: Interrupted? Just run the same command again to continue
-- **Smart Merging**: Automatically merges incremental changes with existing index
-- **Backward Compatible**: Seamlessly upgrades from v0.1.x with no breaking changes
-
-### Migration from v0.1.x
-
-✅ **Zero Breaking Changes** - v0.2.0 is fully backward compatible
-✅ **Automatic Upgrade** - Just install and run `cicada index` as usual
-✅ **Graceful Fallback** - Missing hashes? Performs full index once automatically
-
-```bash
-# Update to v0.2.0
-uv tool install git+https://github.com/wende/cicada.git@latest --force
-
-# Run indexer - automatically enables incremental mode
-cicada index --nlp
-
-# Need to switch keyword extraction methods? Use --full for consistency
-cicada index --rag --fast --full
-```
-
-**[Read the complete incremental indexing guide →](docs/INCREMENTAL_INDEXING.md)**
+### ⚡ Incremental Indexing
 
 ---
 

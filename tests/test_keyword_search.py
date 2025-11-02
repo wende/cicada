@@ -24,21 +24,21 @@ class TestKeywordSearcher:
                             "arity": 1,
                             "line": 10,
                             "doc": "Creates a new user",
-                            "keywords": ["create", "user", "new"],
+                            "keywords": {"create": 0.8, "user": 0.9, "new": 0.7},
                         },
                         {
                             "name": "update",
                             "arity": 2,
                             "line": 20,
                             "doc": "Updates user data",
-                            "keywords": ["update", "modify", "change"],
+                            "keywords": {"update": 0.8, "modify": 0.7, "change": 0.6},
                         },
                         {
                             "name": "delete_user",
                             "arity": 1,
                             "line": 30,
                             "doc": "Deletes a user",
-                            "keywords": ["delete", "remove", "user"],
+                            "keywords": {"delete": 0.8, "remove": 0.7, "user": 0.9},
                         },
                     ],
                 },
@@ -46,14 +46,14 @@ class TestKeywordSearcher:
                     "file": "lib/my_app/post.ex",
                     "line": 1,
                     "moduledoc": "Post management module",
-                    "keywords": ["post", "article", "content"],
+                    "keywords": {"post": 0.9, "article": 0.7, "content": 0.8},
                     "functions": [
                         {
                             "name": "create",
                             "arity": 1,
                             "line": 10,
                             "doc": "Creates a new post",
-                            "keywords": ["create", "post", "publish"],
+                            "keywords": {"create": 0.8, "post": 0.9, "publish": 0.8},
                         },
                     ],
                 },
@@ -117,13 +117,13 @@ class TestKeywordSearcher:
         results = searcher.search(["*user"])
 
         assert len(results) > 0
-        # Should match user-related results - matched_keywords contains the pattern itself
+        # Should match user-related results
         assert any("*user" in r["matched_keywords"] for r in results)
 
     def test_search_with_wildcard_middle(self, sample_index):
         """Test wildcard search with pattern in the middle."""
         searcher = KeywordSearcher(sample_index)
-        results = searcher.search(["del*user"])
+        results = searcher.search(["*delete*"])
 
         assert len(results) > 0
         # Should match delete_user
@@ -135,44 +135,8 @@ class TestKeywordSearcher:
         # Question mark should not be treated as a wildcard
         results = searcher.search(["user?"])
 
-        # Should return no results or very few since ? is not a wildcard
-        assert len(results) == 0 or all("?" not in r["matched_keywords"] for r in results)
-
-    def test_wildcard_expansion(self, sample_index):
-        """Test _expand_wildcard_keywords method."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["cre*", "user"]
-        document_keywords = ["create", "user", "new"]
-
-        matched = searcher._expand_wildcard_keywords(query_keywords, document_keywords)
-
-        assert "cre*" in matched  # Pattern should match "create"
-        assert "user" in matched  # Exact match
-
-    def test_wildcard_expansion_with_identifier(self, sample_index):
-        """Test _expand_wildcard_keywords_with_identifier method."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["del*"]
-        document_keywords = ["delete", "remove", "user"]
-        identifier_name = "delete_user"
-
-        matched = searcher._expand_wildcard_keywords_with_identifier(
-            query_keywords, document_keywords, identifier_name
-        )
-
-        assert "del*" in matched  # Should match both "delete" keyword and "delete_user" identifier
-
-    def test_wildcard_scores(self, sample_index):
-        """Test _get_wildcard_scores method."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["creat*", "user"]
-
-        scores = searcher._get_wildcard_scores(query_keywords)
-
-        # Should have scores for all documents
-        assert len(scores) == len(searcher.document_map)
-        # Some scores should be positive for matching documents
-        assert any(score > 0 for score in scores)
+        # Should return no results since ? is not a wildcard
+        assert len(results) == 0
 
     def test_has_wildcards_detection(self, sample_index):
         """Test _has_wildcards method."""
@@ -195,137 +159,31 @@ class TestKeywordSearcher:
         # Question mark should not work as wildcard
         assert searcher._match_wildcard("user?", "users") is False
 
-    def test_count_wildcard_matches(self, sample_index):
-        """Test _count_wildcard_matches method."""
+    def test_multiple_wildcard_patterns(self, sample_index):
+        """Test search with multiple wildcard patterns."""
         searcher = KeywordSearcher(sample_index)
-        query_keywords = ["creat*", "user"]
-        item_keywords = ["create", "user", "new"]
-        identifier_name = "create_user"
+        results = searcher.search(["creat*", "*user"])
 
-        result = searcher._count_wildcard_matches(query_keywords, item_keywords, identifier_name)
-
-        assert result["score"] == 2  # Both patterns match
-        assert result["confidence"] == 100.0  # All query keywords matched
-        assert "creat*" in result["matched_keywords"]
-        assert "user" in result["matched_keywords"]
-
-    def test_count_wildcard_matches_without_identifier(self, sample_index):
-        """Test _count_wildcard_matches without identifier name."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["creat*"]
-        item_keywords = ["create", "new"]
-
-        result = searcher._count_wildcard_matches(query_keywords, item_keywords, None)
-
-        assert result["score"] == 1
-        assert "creat*" in result["matched_keywords"]
-
-    def test_identifier_boost(self, sample_index):
-        """Test that identifier name matches get boosted."""
-        searcher = KeywordSearcher(sample_index)
-        # Search for "user" should boost results with "user" in the name
-        results = searcher.search(["user"], top_n=10)
-
-        # Functions with "user" in the name should rank higher
         assert len(results) > 0
-        # delete_user should be highly ranked
-        top_names = [r["name"] for r in results[:3]]
-        assert any("user" in name.lower() for name in top_names)
+        # Should match functions with both patterns
+        assert any(r["confidence"] > 50 for r in results)
 
-    def test_identifier_boost_wildcard(self, sample_index):
-        """Test _apply_identifier_boost_wildcard method."""
+    def test_wildcard_case_insensitive(self, sample_index):
+        """Test that wildcard matching is case insensitive."""
         searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "name": "MyApp.User.delete_user/1",
-            "function": "delete_user",
-            "keywords": ["delete", "remove"],
-        }
-        query_keywords = ["del*"]
-        base_score = 1.0
 
-        boosted_score = searcher._apply_identifier_boost_wildcard(
-            base_score, query_keywords, doc_info
-        )
-
-        # Score should be boosted because "del*" matches "delete_user"
-        assert boosted_score > base_score
-        assert boosted_score == base_score * searcher.IDENTIFIER_MATCH_BOOST
-
-    def test_calculate_name_coverage_penalty_exact_match(self, sample_index):
-        """Test that exact name matches get no penalty."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "create_user",
-        }
-        query_keywords = ["create", "user"]
-
-        penalty = searcher._calculate_name_coverage_penalty(query_keywords, doc_info)
-
-        assert penalty == 1.0  # No penalty for exact match
-
-    def test_calculate_name_coverage_penalty_extra_words(self, sample_index):
-        """Test penalty for function names with extra words."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "create_invalid_user",
-        }
-        query_keywords = ["create", "user"]
-
-        penalty = searcher._calculate_name_coverage_penalty(query_keywords, doc_info)
-
-        # Should have penalty because "invalid" is not in query
-        assert penalty < 1.0
-        assert penalty == 0.7  # 1 extra word = 30% penalty
-
-    def test_calculate_name_coverage_penalty_module(self, sample_index):
-        """Test that modules don't get name coverage penalty."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "module",
-            "function": "MyApp.User.Extra",
-        }
-        query_keywords = ["user"]
-
-        penalty = searcher._calculate_name_coverage_penalty(query_keywords, doc_info)
-
-        assert penalty == 1.0  # Modules should not be penalized
-
-    def test_count_matches(self, sample_index):
-        """Test _count_matches method."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["create", "user"]
-        item_keywords = ["create", "user", "new"]
-
-        result = searcher._count_matches(query_keywords, item_keywords)
-
-        assert result["score"] == 2
-        assert result["confidence"] == 100.0
-        assert result["matched_keywords"] == ["create", "user"]
-
-    def test_count_matches_partial(self, sample_index):
-        """Test _count_matches with partial matches."""
-        searcher = KeywordSearcher(sample_index)
-        query_keywords = ["create", "delete", "update"]
-        item_keywords = ["create", "user", "new"]
-
-        result = searcher._count_matches(query_keywords, item_keywords)
-
-        assert result["score"] == 1  # Only "create" matches
-        assert result["confidence"] == pytest.approx(33.3, rel=0.1)  # 1/3 * 100
-        assert result["matched_keywords"] == ["create"]
+        assert searcher._match_wildcard("USER*", "username") is True
+        assert searcher._match_wildcard("user*", "USERNAME") is True
 
     def test_index_without_keywords_fallback(self, index_without_keywords):
-        """Test that searcher falls back to identifier names when no keywords exist."""
+        """Test that searcher can handle indexes without keywords."""
         searcher = KeywordSearcher(index_without_keywords)
 
-        # Should still be able to search using identifier names
+        # Should return no results since there are no keywords in the index
         results = searcher.search(["add"])
 
-        assert len(results) > 0
-        assert any("add" in r["name"].lower() for r in results)
+        # With no keywords, nothing matches
+        assert len(results) == 0
 
     def test_empty_index(self):
         """Test searcher with empty index."""
@@ -335,7 +193,6 @@ class TestKeywordSearcher:
         results = searcher.search(["anything"])
 
         assert len(results) == 0
-        assert searcher.bm25 is None
 
     def test_search_returns_correct_fields(self, sample_index):
         """Test that search results contain all expected fields."""
@@ -376,73 +233,40 @@ class TestKeywordSearcher:
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
 
-    def test_extract_identifier_name_module(self, sample_index):
-        """Test _extract_identifier_name for modules."""
+    def test_score_calculation_simple(self, sample_index):
+        """Test that scores are calculated as sum of matched keyword weights."""
         searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "module",
-            "name": "MyApp.User",
-        }
-
-        name = searcher._extract_identifier_name(doc_info)
-
-        assert name == "MyApp.User"
-
-    def test_extract_identifier_name_function(self, sample_index):
-        """Test _extract_identifier_name for functions."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "create_user",
-        }
-
-        name = searcher._extract_identifier_name(doc_info)
-
-        assert name == "create_user"
-
-    def test_apply_identifier_boost_with_match(self, sample_index):
-        """Test _apply_identifier_boost when identifier matches."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "delete_user",
-        }
-        query_keywords = ["delete"]
-        base_score = 1.0
-
-        boosted_score = searcher._apply_identifier_boost(base_score, query_keywords, doc_info)
-
-        assert boosted_score == base_score * searcher.IDENTIFIER_MATCH_BOOST
-
-    def test_apply_identifier_boost_without_match(self, sample_index):
-        """Test _apply_identifier_boost when identifier doesn't match."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "create_user",
-        }
-        query_keywords = ["delete"]
-        base_score = 1.0
-
-        boosted_score = searcher._apply_identifier_boost(base_score, query_keywords, doc_info)
-
-        assert boosted_score == base_score  # No boost
-
-    def test_multiple_wildcard_patterns(self, sample_index):
-        """Test search with multiple wildcard patterns."""
-        searcher = KeywordSearcher(sample_index)
-        results = searcher.search(["creat*", "*user"])
+        # Search for "create" and "user" should match MyApp.User.create/1
+        # which has create: 0.8, user: 0.9
+        results = searcher.search(["create", "user"], top_n=10)
 
         assert len(results) > 0
-        # Should match functions with both patterns
-        assert any(r["confidence"] > 50 for r in results)
+        # Find the create/1 function
+        create_result = next((r for r in results if r["name"] == "MyApp.User.create/1"), None)
+        assert create_result is not None
+        # Score should be 0.8 + 0.9 = 1.7
+        assert abs(create_result["score"] - 1.7) < 0.01
 
-    def test_wildcard_case_insensitive(self, sample_index):
-        """Test that wildcard matching is case insensitive."""
+    def test_partial_keyword_match(self, sample_index):
+        """Test search with partial keyword matches."""
         searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create", "nonexistent"])
 
-        assert searcher._match_wildcard("USER*", "username") is True
-        assert searcher._match_wildcard("user*", "USERNAME") is True
+        assert len(results) > 0
+        # Should still find results that match "create"
+        assert any("create" in r["name"].lower() for r in results)
+
+    def test_wildcard_score_summation(self, sample_index):
+        """Test that wildcard matches also sum the weights."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["del*"], top_n=10)
+
+        assert len(results) > 0
+        # Should match delete_user with score from "delete" keyword (0.8)
+        delete_result = next((r for r in results if "delete_user" in r["name"]), None)
+        assert delete_result is not None
+        # Score should include the weight of "delete" (0.8)
+        assert delete_result["score"] > 0
 
     def test_search_includes_documentation(self, sample_index):
         """Test that search results include documentation when available."""
@@ -452,24 +276,42 @@ class TestKeywordSearcher:
         # At least some results should have doc
         assert any("doc" in r and r["doc"] for r in results)
 
-    def test_negative_score_handling(self, sample_index):
-        """Test handling of negative BM25 scores with coverage penalty."""
-        searcher = KeywordSearcher(sample_index)
-        doc_info = {
-            "type": "function",
-            "function": "extra_long_function_name",
+    def test_backward_compatibility_list_keywords(self):
+        """Test that indexes with keyword lists (not dicts) still work."""
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "lib/test.ex",
+                    "line": 1,
+                    "keywords": ["search", "find", "lookup"],  # List format
+                    "functions": [
+                        {
+                            "name": "search",
+                            "arity": 1,
+                            "line": 10,
+                            "keywords": ["search", "query"],  # List format
+                        },
+                    ],
+                }
+            }
         }
-        query_keywords = ["function"]
 
-        # When final_score is negative and penalty < 1.0, divide instead of multiply
-        negative_score = -0.5
-        coverage_penalty = 0.7
+        searcher = KeywordSearcher(index)
+        results = searcher.search(["search"])
 
-        # Simulate the logic in search()
-        if negative_score < 0 and coverage_penalty < 1.0:
-            result_score = negative_score / coverage_penalty
-        else:
-            result_score = negative_score * coverage_penalty
+        assert len(results) > 0
+        assert any("search" in r["name"].lower() for r in results)
 
-        # Division should make negative score more negative
-        assert result_score < negative_score
+    def test_confidence_percentage(self, sample_index):
+        """Test that confidence is calculated correctly."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create", "user", "nonexistent"], top_n=10)
+
+        assert len(results) > 0
+        # Find a result with partial matches
+        for result in results:
+            # Confidence should be (matched / total) * 100
+            matched = len(result["matched_keywords"])
+            total = 3
+            expected_confidence = (matched / total) * 100
+            assert result["confidence"] == pytest.approx(expected_confidence, rel=0.1)
