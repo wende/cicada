@@ -1,59 +1,31 @@
-#!/usr/bin/env python
 """
-Entry point for cicada-mcp command.
+CLI Command Handlers - Centralizes argparse logic and all CLI command handlers.
 
-Behavior:
-- With no args: Start MCP server
-- With path arg: Start MCP server for that path
-- cicada-mcp install: Interactive setup with editor and model selection
-- With subcommands: Route to appropriate handler (same as cicada CLI)
-
-This provides unified command interface for both cicada and cicada-mcp.
+This module defines the argument parser and individual handler functions for all
+Cicada CLI commands. It aims to consolidate command-line interface logic,
+making `cli.py` a thin entry point and `mcp_entry.py` focused solely on MCP server startup.
 """
 
 import argparse
 import sys
 
 
-def main():
-    """Main entry point for cicada-mcp command."""
-    # Known subcommands
-    known_subcommands = [
-        "install",
-        "server",
-        "claude",
-        "cursor",
-        "vs",
-        "index",
-        "index-pr",
-        "find-dead-code",
-        "clean",
-    ]
-
-    # Handle path argument for backward compatibility (cicada-mcp <path>)
-    # If first arg is not a known subcommand and not a flag, treat it as a path
-    server_path = None
-    if (
-        len(sys.argv) > 1
-        and sys.argv[1] not in known_subcommands
-        and not sys.argv[1].startswith("-")
-    ):
-        # Extract the path and remove it from sys.argv so argparse doesn't see it
-        server_path = sys.argv[1]
-        sys.argv = [sys.argv[0]] + sys.argv[2:]
-
+def get_argument_parser():
     parser = argparse.ArgumentParser(
-        prog="cicada-mcp",
-        description="Cicada MCP Server - AI-powered Elixir code analysis",
-        epilog="Run 'cicada-mcp <command> --help' for more information on a command.",
+        prog="cicada",
+        description="Cicada - AI-powered Elixir code analysis and search",
+        epilog="Run 'cicada <command> --help' for more information on a command.",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version="%(prog)s version from subcommand",
+        help="Show version and commit hash",
     )
 
-    # Create subparsers for commands (optional to support default server mode)
-    subparsers = parser.add_subparsers(dest="command", help="Available commands", required=False)
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # ========================================================================
-    # INSTALL subcommand - Interactive setup
-    # ========================================================================
     install_parser = subparsers.add_parser(
         "install",
         help="Interactive setup for Cicada",
@@ -101,9 +73,6 @@ def main():
         help="Use BERT max tier (requires --rag)",
     )
 
-    # ========================================================================
-    # SERVER subcommand - Silent MCP server
-    # ========================================================================
     server_parser = subparsers.add_parser(
         "server",
         help="Start MCP server (silent mode with defaults)",
@@ -151,9 +120,6 @@ def main():
         help="Force BERT max tier (requires --rag)",
     )
 
-    # ========================================================================
-    # CLAUDE subcommand (editor setup)
-    # ========================================================================
     claude_parser = subparsers.add_parser(
         "claude",
         help="Setup Cicada for Claude Code editor",
@@ -172,17 +138,14 @@ def main():
     claude_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     claude_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
-    # ========================================================================
-    # CURSOR subcommand (editor setup)
-    # ========================================================================
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="Setup Cicada for Cursor editor",
@@ -201,17 +164,14 @@ def main():
     cursor_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     cursor_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
-    # ========================================================================
-    # VS subcommand (editor setup)
-    # ========================================================================
     vs_parser = subparsers.add_parser(
         "vs",
         help="Setup Cicada for VS Code editor",
@@ -230,17 +190,14 @@ def main():
     vs_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     vs_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
     )
 
-    # ========================================================================
-    # INDEX subcommand
-    # ========================================================================
     index_parser = subparsers.add_parser(
         "index",
         help="Index an Elixir repository to extract modules and functions",
@@ -265,17 +222,19 @@ def main():
     index_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --nlp or --rag)",
+        help="Use fast tier model (requires --rag)",
     )
     index_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --nlp or --rag)",
+        help="Use maximum quality tier model (requires --rag)",
+    )
+    index_parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Start interactive keyword extraction test mode",
     )
 
-    # ========================================================================
-    # INDEX-PR subcommand
-    # ========================================================================
     index_pr_parser = subparsers.add_parser(
         "index-pr",
         help="Index GitHub pull requests for fast offline lookup",
@@ -293,9 +252,6 @@ def main():
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
     )
 
-    # ========================================================================
-    # FIND-DEAD-CODE subcommand
-    # ========================================================================
     dead_code_parser = subparsers.add_parser(
         "find-dead-code",
         help="Find potentially unused public functions in Elixir codebase",
@@ -308,15 +264,10 @@ Confidence Levels:
   low    - Zero usage, but module passed as value (possible dynamic calls)
 
 Examples:
-  cicada-mcp find-dead-code                      # Show high confidence candidates
-  cicada-mcp find-dead-code --min-confidence low # Show all candidates
-  cicada-mcp find-dead-code --format json        # Output as JSON
+  cicada find-dead-code                      # Show high confidence candidates
+  cicada find-dead-code --min-confidence low # Show all candidates
+  cicada find-dead-code --format json        # Output as JSON
         """,
-    )
-    dead_code_parser.add_argument(
-        "--index",
-        default=None,
-        help="Path to index file (default: uses current directory's centralized index)",
     )
     dead_code_parser.add_argument(
         "--format",
@@ -331,9 +282,6 @@ Examples:
         help="Minimum confidence level to show (default: high)",
     )
 
-    # ========================================================================
-    # CLEAN subcommand
-    # ========================================================================
     clean_parser = subparsers.add_parser(
         "clean",
         help="Remove Cicada configuration and indexes",
@@ -341,12 +289,12 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  cicada-mcp clean                   # Remove everything (interactive with confirmation)
-  cicada-mcp clean -f                # Remove everything (skip confirmation)
-  cicada-mcp clean --index           # Remove main index (index.json, hashes.json)
-  cicada-mcp clean --pr-index        # Remove PR index (pr_index.json)
-  cicada-mcp clean --all             # Remove ALL project storage
-  cicada-mcp clean --all -f          # Remove ALL project storage (skip confirmation)
+  cicada clean                   # Remove everything (interactive with confirmation)
+  cicada clean -f                # Remove everything (skip confirmation)
+  cicada clean --index           # Remove main index (index.json, hashes.json)
+  cicada clean --pr-index        # Remove PR index (pr_index.json)
+  cicada clean --all             # Remove ALL project storage
+  cicada clean --all -f          # Remove ALL project storage (skip confirmation)
         """,
     )
     clean_parser.add_argument(
@@ -371,68 +319,324 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
-    # Parse arguments
-    args = parser.parse_args()
+    return parser
 
-    # Store the server path for default handler
-    args._server_path = server_path
 
-    # Route to appropriate handler
+def handle_command(args):
     if args.command == "install":
         handle_install(args)
     elif args.command == "server":
         handle_server(args)
     elif args.command == "claude":
-        from cicada.cli import handle_editor_setup
-
         handle_editor_setup(args, "claude")
     elif args.command == "cursor":
-        from cicada.cli import handle_editor_setup
-
         handle_editor_setup(args, "cursor")
     elif args.command == "vs":
-        from cicada.cli import handle_editor_setup
-
         handle_editor_setup(args, "vs")
     elif args.command == "index":
-        from cicada.cli import handle_index
-
         handle_index(args)
     elif args.command == "index-pr":
-        from cicada.cli import handle_index_pr
-
         handle_index_pr(args)
     elif args.command == "find-dead-code":
-        from cicada.cli import handle_find_dead_code
-
         handle_find_dead_code(args)
     elif args.command == "clean":
-        from cicada.cli import handle_clean
-
         handle_clean(args)
-    else:
-        # No subcommand - start server
-        handle_default_server(args)
+    elif args.command is None:
+        return False
+    return True
 
 
-def handle_default_server(args):
-    """
-    Handle default behavior when called with no subcommand.
-    Starts MCP server silently.
-    """
-    import asyncio
-    import os
+def handle_editor_setup(args, editor: str):
+    from pathlib import Path
+    from typing import cast
+
+    from cicada.setup import EditorType, setup
+
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
+        sys.exit(1)
+
+    if args.nlp and args.rag:
+        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+        sys.exit(1)
+
+    repo_path = Path.cwd()
+
+    if not (repo_path / "mix.exs").exists():
+        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
+        print("(mix.exs not found)", file=sys.stderr)
+        sys.exit(1)
+
+    from cicada.utils.storage import get_config_path, get_index_path
+
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+
+    extraction_method = None
+    expansion_method = None
+
+    if args.nlp:
+        extraction_method = "regular"
+        expansion_method = "lemmi"
+    elif args.rag:
+        extraction_method = "bert"
+        if args.fast:
+            expansion_method = "glove"
+        elif args.max:
+            expansion_method = "fasttext"
+        else:
+            expansion_method = "lemmi"
+
+    if extraction_method is None and config_path.exists() and index_path.exists():
+        import yaml
+
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                expansion_method = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
+        except Exception as e:
+            print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+    try:
+        setup(
+            cast(EditorType, editor),
+            repo_path,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            index_exists=config_path.exists() and index_path.exists(),
+        )
+    except Exception as e:
+        print(f"\nError: Setup failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_index(args):
     from pathlib import Path
 
-    # Check if a path was provided (backward compatibility: cicada-mcp <path>)
-    if hasattr(args, "_server_path") and args._server_path:
-        repo_path = Path(args._server_path).resolve()
-        os.environ["CICADA_REPO_PATH"] = str(repo_path)
+    from cicada.indexer import ElixirIndexer
+    from cicada.utils.storage import get_config_path
+    from cicada.version_check import check_for_updates
 
-    # Import and run MCP server
-    from cicada.mcp_server import async_main
+    check_for_updates()
 
-    asyncio.run(async_main())
+    if args.test:
+        if (args.fast or args.max) and not args.rag:
+            print("Error: --fast or --max requires --rag", file=sys.stderr)
+            sys.exit(1)
+
+        if args.nlp and args.rag:
+            print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+            sys.exit(1)
+
+        if args.nlp:
+            method = "lemminflect"
+            tier = "regular"
+        elif args.rag:
+            method = "bert"
+            if args.fast:
+                tier = "fast"
+            elif args.max:
+                tier = "max"
+            else:
+                tier = "regular"
+        else:
+            method = "lemminflect"
+            tier = "regular"
+
+        from cicada.keyword_test import run_keywords_interactive
+
+        run_keywords_interactive(method=method, tier=tier)
+        return
+
+    if (args.fast or args.max) and not args.rag:
+        print("Error: --fast or --max requires --rag", file=sys.stderr)
+        sys.exit(1)
+
+    if args.nlp and args.rag:
+        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
+        sys.exit(1)
+
+    repo_path_obj = Path(args.repo).resolve()
+    config_path = get_config_path(repo_path_obj)
+
+    from cicada.utils.storage import create_storage_dir, get_index_path
+
+    storage_dir = create_storage_dir(repo_path_obj)
+    index_path = get_index_path(repo_path_obj)
+
+    extraction_method = None
+    expansion_method = None
+
+    if args.nlp or args.rag:
+        from cicada.setup import create_config_yaml
+
+        if args.nlp:
+            extraction_method = "regular"
+            expansion_method = "lemmi"
+        else:
+            extraction_method = "bert"
+            if args.fast:
+                expansion_method = "glove"
+            elif args.max:
+                expansion_method = "fasttext"
+            else:
+                expansion_method = "lemmi"
+
+        if config_path.exists():
+            import yaml
+
+            try:
+                with open(config_path) as f:
+                    existing_config = yaml.safe_load(f)
+                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                        "method", "regular"
+                    )
+                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                        "method", "lemmi"
+                    )
+
+                    extraction_changed = existing_extraction != extraction_method
+                    expansion_changed = existing_expansion != expansion_method
+
+                    if extraction_changed or expansion_changed:
+                        if extraction_changed and expansion_changed:
+                            change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
+                        elif extraction_changed:
+                            change_desc = (
+                                f"extraction from {existing_extraction} to {extraction_method}"
+                            )
+                        else:
+                            change_desc = (
+                                f"expansion from {existing_expansion} to {expansion_method}"
+                            )
+
+                        print(
+                            f"Error: Cannot change {change_desc}",
+                            file=sys.stderr,
+                        )
+                        print(
+                            "\nTo reindex with different settings, first run:",
+                            file=sys.stderr,
+                        )
+                        print("  cicada clean", file=sys.stderr)
+                        print("\nThen run your index command again.", file=sys.stderr)
+                        sys.exit(1)
+            except Exception as e:
+                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+
+        create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
+    elif not config_path.exists():
+        print("Error: No keyword extraction method specified.", file=sys.stderr)
+        print("\nYou must specify either --nlp or --rag for keyword extraction:", file=sys.stderr)
+        print("  --nlp       Use NLP keyword extraction (lemminflect-based)", file=sys.stderr)
+        print("  --rag       Use RAG-optimized keyword extraction (BERT-based)", file=sys.stderr)
+        print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
+        sys.exit(2)
+
+    indexer = ElixirIndexer(verbose=True)
+    indexer.incremental_index_repository(
+        str(repo_path_obj),
+        str(index_path),
+        extract_keywords=True,
+        force_full=False,
+    )
+
+
+def handle_index_pr(args):
+    from cicada.pr_indexer import PRIndexer
+    from cicada.utils import get_pr_index_path
+    from cicada.version_check import check_for_updates
+
+    check_for_updates()
+
+    try:
+        output_path = str(get_pr_index_path(args.repo))
+
+        indexer = PRIndexer(repo_path=args.repo)
+        indexer.index_repository(output_path=output_path, incremental=not args.clean)
+
+        print("\n✅ Indexing complete! You can now use the MCP tools for PR history lookups.")
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Indexing interrupted by user.")
+        print("Partial index may have been saved. Run again to continue (incremental by default).")
+        sys.exit(130)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_find_dead_code(args):
+    from cicada.dead_code.analyzer import DeadCodeAnalyzer
+    from cicada.dead_code.finder import filter_by_confidence, format_json, format_markdown
+    from cicada.utils import get_index_path, load_index
+
+    index_path = get_index_path(".")
+
+    if not index_path.exists():
+        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
+        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        index = load_index(index_path, raise_on_error=True)
+    except Exception as e:
+        print(f"Error loading index: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    assert index is not None, "Index should not be None after successful load"
+
+    analyzer = DeadCodeAnalyzer(index)
+    results = analyzer.analyze()
+
+    results = filter_by_confidence(results, args.min_confidence)
+
+    output = format_json(results) if args.format == "json" else format_markdown(results)
+
+    print(output)
+
+
+def handle_clean(args):
+    from pathlib import Path
+
+    from cicada.clean import (
+        clean_all_projects,
+        clean_index_only,
+        clean_pr_index_only,
+        clean_repository,
+    )
+
+    if args.all:
+        try:
+            clean_all_projects(force=args.force)
+        except Exception as e:
+            print(f"\nError: Cleanup failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    flag_count = sum([args.index, args.pr_index])
+    if flag_count > 1:
+        print("Error: Cannot specify multiple clean options.", file=sys.stderr)
+        print("Choose only one: --index, --pr-index, or -f/--force", file=sys.stderr)
+        sys.exit(1)
+
+    repo_path = Path.cwd()
+
+    try:
+        if args.index:
+            clean_index_only(repo_path)
+        elif args.pr_index:
+            clean_pr_index_only(repo_path)
+        else:
+            clean_repository(repo_path, force=args.force)
+    except Exception as e:
+        print(f"\nError: Cleanup failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_install(args):
@@ -485,21 +689,22 @@ def handle_install(args):
     elif args.vs:
         editor = "vs"
 
-    # Determine keyword method and tier from flags
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods from flags
+    extraction_method = None
+    expansion_method = None
 
     if args.nlp:
-        keyword_method = "lemminflect"
-        keyword_tier = "regular"
+        extraction_method = "regular"
+        expansion_method = "lemmi"
     elif args.rag:
-        keyword_method = "bert"
+        extraction_method = "bert"
+        # Map tier flags to expansion methods
         if args.fast:
-            keyword_tier = "fast"
+            expansion_method = "glove"  # GloVe (128MB)
         elif args.max:
-            keyword_tier = "max"
+            expansion_method = "fasttext"  # FastText (958MB)
         else:
-            keyword_tier = "regular"
+            expansion_method = "lemmi"  # Default: lemmi only
 
     # Check if index already exists
     config_path = get_config_path(repo_path)
@@ -507,7 +712,7 @@ def handle_install(args):
     index_exists = config_path.exists() and index_path.exists()
 
     # If no flags provided, use full interactive setup
-    if editor is None and keyword_method is None:
+    if editor is None and extraction_method is None:
         from cicada.interactive_setup import show_full_interactive_setup
 
         show_full_interactive_setup(repo_path)
@@ -538,32 +743,32 @@ def handle_install(args):
         editor = editor_map[menu_idx]
 
     # If only editor flag provided (no model), prompt for model (unless index exists)
-    if keyword_method is None and not index_exists:
-        keyword_method, keyword_tier = show_first_time_setup()
+    if extraction_method is None and not index_exists:
+        extraction_method, expansion_method = show_first_time_setup()
 
     # If index exists but no model flags, use existing settings
-    if keyword_method is None and index_exists:
+    if extraction_method is None and index_exists:
         import yaml
 
         try:
             with open(config_path) as f:
                 existing_config = yaml.safe_load(f)
-                keyword_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "lemminflect"
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
                 )
-                keyword_tier = existing_config.get("keyword_extraction", {}).get("tier", "regular")
-        except Exception:
-            # If we can't read config, use defaults
-            keyword_method = "lemminflect"
-            keyword_tier = "regular"
+                expansion_method = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
+        except Exception as e:
+            print(f"Warning: Could not load existing config, using defaults: {e}", file=sys.stderr)
 
     # Run setup
     try:
         setup(
             editor,
             repo_path,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
             index_exists=index_exists,
         )
     except Exception as e:
@@ -616,21 +821,22 @@ def handle_server(args):
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
-    # Determine keyword extraction method and tier
-    keyword_method = None
-    keyword_tier = None
+    # Determine extraction and expansion methods
+    extraction_method = None
+    expansion_method = None
 
     if args.nlp:
-        keyword_method = "lemminflect"
-        keyword_tier = "regular"
+        extraction_method = "regular"
+        expansion_method = "lemmi"
     elif args.rag:
-        keyword_method = "bert"
+        extraction_method = "bert"
+        # Map tier flags to expansion methods
         if args.fast:
-            keyword_tier = "fast"
+            expansion_method = "glove"  # GloVe (128MB)
         elif args.max:
-            keyword_tier = "max"
+            expansion_method = "fasttext"  # FastText (958MB)
         else:
-            keyword_tier = "regular"
+            expansion_method = "lemmi"  # Default: lemmi only
 
     # Check if setup is needed
     config_path = get_config_path(repo_path)
@@ -639,18 +845,14 @@ def handle_server(args):
 
     if needs_setup:
         # Silent setup with defaults
-        # If no method specified, default to lemminflect (fastest, no downloads)
-        if keyword_method is None:
-            keyword_method = "lemminflect"
-            keyword_tier = "regular"
+        # If no method specified, default to regular + lemmi (fastest, no downloads)
+        if extraction_method is None:
+            extraction_method = "regular"
+            expansion_method = "lemmi"
 
         # Create config.yaml (silent)
         create_config_yaml(
-            repo_path,
-            storage_dir,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
-            verbose=False,
+            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
         )
 
         # Index repository (silent)
@@ -680,10 +882,6 @@ def handle_server(args):
     os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
     # Start MCP server (silent)
-    from cicada.mcp_server import async_main
+    from cicada.mcp.server import async_main
 
     asyncio.run(async_main())
-
-
-if __name__ == "__main__":
-    main()

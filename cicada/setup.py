@@ -147,8 +147,8 @@ def get_mcp_config_for_editor(
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
-    keyword_method: str | None = None,
-    keyword_tier: str | None = None,
+    extraction_method: str | None = None,
+    expansion_method: str | None = None,
     verbose: bool = True,
 ) -> None:
     """
@@ -157,18 +157,18 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
-        keyword_method: Keyword extraction method ('lemminflect' or 'bert'), None for default
-        keyword_tier: Model tier ('fast', 'regular', 'max'), None for default
+        extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
+        expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
         verbose: If True, print success message. If False, silently create config.
     """
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
-    # Default to lemminflect if not specified
-    if keyword_method is None:
-        keyword_method = "lemminflect"
-    if keyword_tier is None:
-        keyword_tier = "regular"
+    # Default to regular extraction + lemmi expansion
+    if extraction_method is None:
+        extraction_method = "regular"
+    if expansion_method is None:
+        expansion_method = "lemmi"
 
     config_content = f"""repository:
   path: {repo_path}
@@ -177,8 +177,10 @@ storage:
   index_path: {index_path}
 
 keyword_extraction:
-  method: {keyword_method}
-  tier: {keyword_tier}
+  method: {extraction_method}
+
+keyword_expansion:
+  method: {expansion_method}
 """
 
     with open(config_path, "w") as f:
@@ -252,8 +254,8 @@ def setup_multiple_editors(
 def setup(
     editor: EditorType,
     repo_path: Path | None = None,
-    keyword_method: str | None = None,
-    keyword_tier: str | None = None,
+    extraction_method: str | None = None,
+    expansion_method: str | None = None,
     index_exists: bool = False,
 ) -> None:
     """
@@ -262,8 +264,8 @@ def setup(
     Args:
         editor: Editor type (claude, cursor, vs)
         repo_path: Path to the repository (defaults to current directory)
-        keyword_method: Keyword extraction method ('lemminflect' or 'bert'), None for default
-        keyword_tier: Model tier ('fast', 'regular', 'max'), None for default
+        extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
+        expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
         index_exists: If True, skip banner and show condensed output (index already exists)
     """
     # Determine repository path
@@ -276,20 +278,18 @@ def setup(
 
     # Show condensed output if index already exists
     if index_exists:
-        # Determine method and tier for display
-        display_method = keyword_method if keyword_method else "lemminflect"
-        display_tier = keyword_tier if keyword_tier else "regular"
-        print(f"✓ Found existing index ({display_method.upper()} {display_tier})")
+        # Determine method for display
+        display_extraction = extraction_method if extraction_method else "regular"
+        display_expansion = expansion_method if expansion_method else "lemmi"
+        print(
+            f"✓ Found existing index ({display_extraction.upper()} + {display_expansion.upper()})"
+        )
         # Skip indexing when index_exists is True - we're just reusing it
         should_index = False
         force_full = False
         # Ensure config.yaml is up to date with current settings
         create_config_yaml(
-            repo_path,
-            storage_dir,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
-            verbose=False,
+            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
         )
     else:
         # Show full banner for new setup
@@ -313,20 +313,20 @@ def setup(
             try:
                 with open(config_path) as f:
                     existing_config = yaml.safe_load(f)
-                    existing_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "lemminflect"
+                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                        "method", "regular"
                     )
-                    existing_tier = existing_config.get("keyword_extraction", {}).get(
-                        "tier", "regular"
+                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                        "method", "lemmi"
                     )
 
-                    # Determine new method and tier (default to lemminflect/regular if not specified)
-                    new_method = keyword_method if keyword_method else "lemminflect"
-                    new_tier = keyword_tier if keyword_tier else "regular"
+                    # Determine new methods (default to regular + lemmi if not specified)
+                    new_extraction = extraction_method if extraction_method else "regular"
+                    new_expansion = expansion_method if expansion_method else "lemmi"
 
                     # Check if settings changed
-                    settings_changed = (existing_method != new_method) or (
-                        existing_tier != new_tier
+                    settings_changed = (existing_extraction != new_extraction) or (
+                        existing_expansion != new_expansion
                     )
 
                     if settings_changed:
@@ -335,9 +335,11 @@ def setup(
                         print("=" * 60)
                         print()
                         print(
-                            f"This repository already has an index with {existing_method.upper()} ({existing_tier}) keyword extraction."
+                            f"This repository already has an index with {existing_extraction.upper()} + {existing_expansion.upper()}."
                         )
-                        print(f"You are now switching to {new_method.upper()} ({new_tier}).")
+                        print(
+                            f"You are now switching to {new_extraction.upper()} + {new_expansion.upper()}."
+                        )
                         print()
                         print(
                             "This will require reindexing the ENTIRE codebase, which may take several minutes."
@@ -353,7 +355,9 @@ def setup(
                         force_full = True  # Force full reindex when settings change
                     else:
                         # Settings unchanged - just use existing index
-                        print(f"✓ Using existing index ({existing_method}, {existing_tier})")
+                        print(
+                            f"✓ Using existing index ({existing_extraction.upper()} + {existing_expansion.upper()})"
+                        )
                         print()
                         should_index = False
             except Exception:
@@ -362,11 +366,7 @@ def setup(
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
         create_config_yaml(
-            repo_path,
-            storage_dir,
-            keyword_method=keyword_method,
-            keyword_tier=keyword_tier,
-            verbose=False,
+            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
         )
 
         # Index repository if needed

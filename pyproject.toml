@@ -62,8 +62,8 @@ Changelog = "https://github.com/wende/cicada/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/wende/cicada#readme"
 
 [project.scripts]
-cicada-mcp = "cicada.mcp_entry:main"
-cicada-server = "cicada.mcp_entry:main"  # Backwards compatibility
+cicada-mcp = "cicada.mcp.entry:main"
+cicada-server = "cicada.mcp.entry:main"  # Backwards compatibility
 cicada = "cicada.cli:main"
 
 
@@ -88,7 +88,7 @@ omit = [
     "*/site-packages/*",
     # Entry points - thin wrappers with low ROI for testing
     "*/cli.py",
-    "*/mcp_entry.py",
+    "*/mcp/entry.py",
     "*/install.py",
 ]
 branch = true

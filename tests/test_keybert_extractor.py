@@ -9,13 +9,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cicada.keybert_extractor import KeyBERTExtractor
+from cicada.extractors.keybert import KeyBERTExtractor
+from cicada.utils import extract_code_identifiers
 
 
 class TestKeyBERTExtractorInitialization:
     """Tests for KeyBERTExtractor initialization"""
 
-    @patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None)
+    @patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None)
     def test_keybert_import_failure(self):
         """Test that missing KeyBERT raises helpful ImportError"""
         with patch.dict("sys.modules", {"keybert": None}):
@@ -23,27 +24,15 @@ class TestKeyBERTExtractorInitialization:
                 with pytest.raises(
                     ImportError, match=r"KeyBERT is not installed[\s\S]*uv add keybert"
                 ):
-                    KeyBERTExtractor(verbose=False, model_tier="fast")
+                    KeyBERTExtractor(verbose=False)
 
-    def test_invalid_model_tier(self):
-        """Test that invalid model tier raises ValueError"""
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT"):
-            with pytest.raises(ValueError, match="Invalid model tier 'invalid'"):
-                KeyBERTExtractor(verbose=False, model_tier="invalid")
-
-    def test_model_tier_none_raises_error(self):
-        """Test that model_tier=None raises ValueError"""
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT"):
-            with pytest.raises(ValueError, match="model_tier must be specified"):
-                KeyBERTExtractor(verbose=False, model_tier=None)
-
-    def test_initialization_fast_model(self):
-        """Test initialization with fast model tier"""
+    def test_initialization_success(self):
+        """Test successful KeyBERTExtractor initialization"""
         mock_keybert_class = MagicMock()
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -55,59 +44,12 @@ class TestKeyBERTExtractorInitialization:
 
                 mock_import.side_effect = import_side_effect
 
-                extractor = KeyBERTExtractor(verbose=False, model_tier="fast")
+                extractor = KeyBERTExtractor(verbose=False)
 
-                assert extractor.model_tier == "fast"
-                assert extractor.model_name == "all-MiniLM-L6-v2"
-                mock_keybert_class.assert_called_once_with(model="all-MiniLM-L6-v2")
-
-    def test_initialization_regular_model(self):
-        """Test initialization with regular model tier"""
-        mock_keybert_class = MagicMock()
-        mock_keybert_instance = MagicMock()
-        mock_keybert_class.return_value = mock_keybert_instance
-
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
-            with patch("builtins.__import__") as mock_import:
-
-                def import_side_effect(name, *args, **kwargs):
-                    if name == "keybert":
-                        module = MagicMock()
-                        module.KeyBERT = mock_keybert_class
-                        return module
-                    return MagicMock()
-
-                mock_import.side_effect = import_side_effect
-
-                extractor = KeyBERTExtractor(verbose=False, model_tier="regular")
-
-                assert extractor.model_tier == "regular"
-                assert extractor.model_name == "BAAI/bge-small-en-v1.5"
+                # Should use single model name
+                assert extractor.verbose is False
+                # Model should be initialized with the configured model
                 mock_keybert_class.assert_called_once_with(model="BAAI/bge-small-en-v1.5")
-
-    def test_initialization_max_model(self):
-        """Test initialization with max model tier"""
-        mock_keybert_class = MagicMock()
-        mock_keybert_instance = MagicMock()
-        mock_keybert_class.return_value = mock_keybert_instance
-
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
-            with patch("builtins.__import__") as mock_import:
-
-                def import_side_effect(name, *args, **kwargs):
-                    if name == "keybert":
-                        module = MagicMock()
-                        module.KeyBERT = mock_keybert_class
-                        return module
-                    return MagicMock()
-
-                mock_import.side_effect = import_side_effect
-
-                extractor = KeyBERTExtractor(verbose=False, model_tier="max")
-
-                assert extractor.model_tier == "max"
-                assert extractor.model_name == "paraphrase-mpnet-base-v2"
-                mock_keybert_class.assert_called_once_with(model="paraphrase-mpnet-base-v2")
 
     def test_initialization_verbose_output(self, capsys):
         """Test verbose output during initialization"""
@@ -115,7 +57,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -127,11 +69,11 @@ class TestKeyBERTExtractorInitialization:
 
                 mock_import.side_effect = import_side_effect
 
-                KeyBERTExtractor(verbose=True, model_tier="fast")
+                KeyBERTExtractor(verbose=True)
 
                 captured = capsys.readouterr()
                 assert "Loading KeyBERT model" in captured.err
-                assert "fast" in captured.err
+                assert "BAAI/bge-small-en-v1.5" in captured.err
                 assert "Model loaded successfully" in captured.err
 
     def test_model_loading_failure(self):
@@ -139,7 +81,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_class = MagicMock()
         mock_keybert_class.side_effect = Exception("Model download failed")
 
-        with patch("cicada.keybert_extractor.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -152,25 +94,16 @@ class TestKeyBERTExtractorInitialization:
                 mock_import.side_effect = import_side_effect
 
                 with pytest.raises(RuntimeError, match="Failed to load KeyBERT model"):
-                    KeyBERTExtractor(verbose=False, model_tier="fast")
+                    KeyBERTExtractor(verbose=False)
 
 
 class TestCodeIdentifierExtraction:
     """Tests for code identifier extraction functionality"""
 
-    def _create_mock_extractor(self):
-        """Create a mock KeyBERTExtractor without initializing KeyBERT"""
-        extractor = KeyBERTExtractor.__new__(KeyBERTExtractor)
-        extractor.verbose = False
-        extractor.kw_model = MagicMock()
-        return extractor
-
     def test_extract_camel_case_identifiers(self):
         """Test extraction of camelCase identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The getUserData function retrieves user information"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "getUserData" in identifiers
         assert "get" in split_words
@@ -179,10 +112,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_pascal_case_identifiers(self):
         """Test extraction of PascalCase identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The UserController handles user operations"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "UserController" in identifiers
         assert "user" in split_words
@@ -190,10 +121,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_snake_case_identifiers(self):
         """Test extraction of snake_case identifiers"""
-        extractor = self._create_mock_extractor()
-
         text = "The get_user_data function is important"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "get_user_data" in identifiers
         assert "get" in split_words
@@ -202,10 +131,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_uppercase_acronyms(self):
         """Test extraction of all-uppercase acronyms"""
-        extractor = self._create_mock_extractor()
-
         text = "Using HTTP and API for the SQL database"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "HTTP" in identifiers
         assert "API" in identifiers
@@ -213,10 +140,8 @@ class TestCodeIdentifierExtraction:
 
     def test_extract_mixed_patterns(self):
         """Test extraction of mixed case patterns"""
-        extractor = self._create_mock_extractor()
-
         text = "HTTPServer handles requests using XMLParser and PostgreSQL"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         assert "HTTPServer" in identifiers
         assert "XMLParser" in identifiers
@@ -232,29 +157,23 @@ class TestCodeIdentifierExtraction:
 
     def test_identifiers_deduplication(self):
         """Test that duplicate identifiers are removed"""
-        extractor = self._create_mock_extractor()
-
         text = "getUserData uses getUserData to getUserData"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         # Should have only one instance of getUserData
         assert identifiers.count("getUserData") == 1
 
     def test_split_words_deduplication(self):
         """Test that duplicate split words are removed"""
-        extractor = self._create_mock_extractor()
-
         text = "getUserData and setUserData and UserModel"
-        identifiers, split_words = extractor.extract_code_identifiers(text)
+        identifiers, split_words = extract_code_identifiers(text)
 
         # "user" should appear only once in split_words despite multiple occurrences
         assert split_words.count("user") == 1
 
     def test_empty_text_returns_empty_lists(self):
         """Test that empty text returns empty lists"""
-        extractor = self._create_mock_extractor()
-
-        identifiers, split_words = extractor.extract_code_identifiers("")
+        identifiers, split_words = extract_code_identifiers("")
         assert identifiers == []
         assert split_words == []
 
@@ -350,9 +269,8 @@ class TestExtractKeywords:
 
         assert isinstance(result, dict)
         assert result["top_keywords"] == []
-        assert result["nouns"] == []
-        assert result["verbs"] == []
         assert result["code_identifiers"] == []
+        assert result["code_split_words"] == []
         assert result["stats"]["total_tokens"] == 0
 
     def test_extract_keywords_structure(self):
@@ -370,11 +288,9 @@ class TestExtractKeywords:
 
         assert isinstance(result, dict)
         assert "top_keywords" in result
-        assert "nouns" in result
-        assert "verbs" in result
-        assert "adjectives" in result
         assert "code_identifiers" in result
         assert "code_split_words" in result
+        assert "tf_scores" in result
         assert "stats" in result
 
     def test_extract_keywords_stats_calculation(self):
@@ -561,25 +477,3 @@ class TestExtractKeywords:
         # Verify KeyBERT was called with keyphrase_ngram_range=(1, 1)
         call_args = extractor.kw_model.extract_keywords.call_args
         assert call_args[1]["keyphrase_ngram_range"] == (1, 1)
-
-
-class TestModelTierConfiguration:
-    """Tests for model tier configuration"""
-
-    def test_model_tiers_defined(self):
-        """Test that all model tiers are properly defined"""
-        assert "fast" in KeyBERTExtractor.KEYBERT_MODELS
-        assert "regular" in KeyBERTExtractor.KEYBERT_MODELS
-        assert "max" in KeyBERTExtractor.KEYBERT_MODELS
-
-    def test_fast_model_configuration(self):
-        """Test fast model is configured correctly"""
-        assert KeyBERTExtractor.KEYBERT_MODELS["fast"] == "all-MiniLM-L6-v2"  # 80MB model
-
-    def test_regular_model_configuration(self):
-        """Test regular model is configured correctly"""
-        assert KeyBERTExtractor.KEYBERT_MODELS["regular"] == "BAAI/bge-small-en-v1.5"  # 133MB model
-
-    def test_max_model_configuration(self):
-        """Test max model is configured correctly"""
-        assert KeyBERTExtractor.KEYBERT_MODELS["max"] == "paraphrase-mpnet-base-v2"  # 420MB model

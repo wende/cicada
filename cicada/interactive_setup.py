@@ -12,8 +12,7 @@ except ImportError:
     TerminalMenu = None  # type: ignore
     has_terminal_menu = False
 
-from cicada.ascii_art import generate_gradient_ascii_art
-from cicada.colors import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED
+from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
 from cicada.setup import EditorType
 
 
@@ -22,7 +21,7 @@ def _text_based_setup() -> tuple[str, str]:
     Fallback text-based setup for terminals that don't support simple-term-menu.
 
     Returns:
-        tuple[str, str]: The selected extraction method and model tier
+        tuple[str, str]: The selected extraction and expansion methods
     """
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
@@ -33,7 +32,7 @@ def _text_based_setup() -> tuple[str, str]:
     print()
     print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
     print()
-    print("1. Lemminflect - Grammar-based keyword extraction (fast, proven)")
+    print("1. Regular - Term frequency-based extraction (fast, no ML)")
     print("2. KeyBERT - Semantic keyword extraction (AI embeddings)")
     print()
 
@@ -43,7 +42,7 @@ def _text_based_setup() -> tuple[str, str]:
             if not method_choice:
                 method_choice = "1"
             if method_choice in ("1", "2"):
-                method = "lemminflect" if method_choice == "1" else "bert"
+                method = "regular" if method_choice == "1" else "bert"
                 break
             print("Invalid choice. Please enter 1 or 2.")
         except (KeyboardInterrupt, EOFError):
@@ -51,36 +50,45 @@ def _text_based_setup() -> tuple[str, str]:
             print("Setup cancelled. Exiting...")
             sys.exit(1)
 
-    # For lemminflect, no tier selection - it's always the same
+    # Display info based on selection
     print()
-    if method == "lemminflect":
-        print(f"{BOLD}  What is Lemminflect?{RESET}")
-        print(f"   Lemminflect finds keywords using grammar rules + word importance{RESET}")
+    if method == "regular":
+        print(f"{BOLD}  What is Regular extraction?{RESET}")
+        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
+        print(f"   Fast, lightweight, no model downloads required{RESET}")
         print()
-        print(f"{GREEN}✓{RESET} Selected: LEMMINFLECT")
+        print(f"{GREEN}✓{RESET} Selected: REGULAR")
         print()
-        return ("lemminflect", "regular")
+    else:
+        print(f"{SELECTED}  What is KeyBERT?{RESET}")
+        print(
+            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
+        )
+        print()
+        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
+        print()
 
-    # For KeyBERT, ask for tier
-    print(f"{SELECTED}  What is KeyBERT?{RESET}")
-    print(f"{PRIMARY}   KeyBERT uses AI embeddings to find semantically similar keywords{RESET}")
+    # Step 2: Ask about keyword expansion (applies to both methods)
+    print(f"{BOLD}Step 2/2: Choose keyword expansion{RESET}")
+    print(
+        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
+    )
+    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
+    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
     print()
-    print("1. Fast (80MB, ~1s) - Recommended for bigger projects")
-    print("2. Regular (133MB, ~1.4s) - Better semantic understanding [recommended]")
-    print("3. Max (420MB, ~6.5s) - Highest quality embeddings")
-
-    print()
-    print(f"{BOLD}Step 2/2: Choose model tier{RESET}")
+    print("1. Lemmi only - Just inflections (fast, no downloads)")
+    print("2. GloVe + Lemmi - Semantic expansion (128MB download)")
+    print("3. FastText + Lemmi - Better rare words (958MB download)")
     print()
 
     while True:
         try:
-            tier_choice = input("Enter your choice (1, 2, or 3) [default: 2]: ").strip()
-            if not tier_choice:
-                tier_choice = "2"
-            if tier_choice in ("1", "2", "3"):
-                tier_map = {"1": "fast", "2": "regular", "3": "max"}
-                tier = tier_map[tier_choice]
+            expansion_choice = input("Enter your choice (1, 2, or 3) [default: 1]: ").strip()
+            if not expansion_choice:
+                expansion_choice = "1"
+            if expansion_choice in ("1", "2", "3"):
+                expansion_map = {"1": "lemmi", "2": "glove", "3": "fasttext"}
+                expansion_method = expansion_map[expansion_choice]
                 break
             print("Invalid choice. Please enter 1, 2, or 3.")
         except (KeyboardInterrupt, EOFError):
@@ -89,10 +97,15 @@ def _text_based_setup() -> tuple[str, str]:
             sys.exit(1)
 
     print()
-    print(f"{GREEN}✓{RESET} Selected: KeyBERT - {tier.capitalize()} model")
+    if expansion_method == "lemmi":
+        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
+    elif expansion_method == "glove":
+        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
+    else:  # fasttext
+        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
     print()
 
-    return ("bert", tier)
+    return (method, expansion_method)
 
 
 def show_first_time_setup() -> tuple[str, str]:
@@ -102,8 +115,8 @@ def show_first_time_setup() -> tuple[str, str]:
     Falls back to text-based input if the terminal doesn't support simple-term-menu.
 
     Returns:
-        tuple[str, str]: The selected extraction method and model tier
-                        e.g., ('lemminflect', 'regular') or ('bert', 'fast')
+        tuple[str, str]: The selected extraction and expansion methods
+                        e.g., ('regular', 'lemmi') or ('bert', 'glove')
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
@@ -123,7 +136,7 @@ def show_first_time_setup() -> tuple[str, str]:
     print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
 
     method_items = [
-        "Lemminflect - Grammar-based keyword extraction (fast, proven)",
+        "Regular - Term frequency-based extraction (fast, no ML)",
         "KeyBERT - Semantic keyword extraction (AI embeddings)",
     ]
 
@@ -157,38 +170,46 @@ def show_first_time_setup() -> tuple[str, str]:
         print("Setup cancelled. Exiting...")
         sys.exit(1)
 
-    method = "lemminflect" if method_index == 0 else "bert"
+    method = "regular" if method_index == 0 else "bert"
 
-    # For lemminflect, no tier selection - it's always the same
+    # Display info based on selection
     print()
-    if method == "lemminflect":
-        print(f"{BOLD}  What is Lemminflect?{RESET}")
-        print(f"   Lemminflect finds keywords using grammar rules + word importance{RESET}")
-        print(f'   Example: "We use Kubernetes for container orchestration"{RESET}')
-        print(f'   Output: "Kubernetes", "container", "orchestration"{RESET}')
+    if method == "regular":
+        print(f"{BOLD}  What is Regular extraction?{RESET}")
+        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
+        print(f"   Fast, lightweight, no model downloads required{RESET}")
         print()
-        print(f"{GREEN}✓{RESET} Selected: LEMMINFLECT")
+        print(f"{GREEN}✓{RESET} Selected: REGULAR")
         print()
-        return ("lemminflect", "regular")
+    else:
+        print(f"{SELECTED}  What is KeyBERT?{RESET}")
+        print(
+            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
+        )
+        print()
+        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
+        print()
 
-    # For KeyBERT, ask for tier
-    print(f"{SELECTED}  What is KeyBERT?{RESET}")
-    print(f"{PRIMARY}   KeyBERT uses AI embeddings to find semantically similar keywords{RESET}")
-    print(f'{PRIMARY}   Example: "We use Kubernetes for container orchestration"{RESET}')
-    print(f'{PRIMARY}   Output: "Kubernetes", "deployment", "microservices", "DevOps"{RESET}')
+    # Step 2: Ask about keyword expansion (applies to both methods)
+    print(f"{BOLD}Step 2/2: Choose keyword expansion{RESET}")
+    print(
+        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
+    )
+    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
+    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
     print()
-    tier_items = [
-        "Fast (80MB, ~1s) - Recommended for bigger projects",
-        "Regular [recommended] (133MB, ~1.4s) - Better semantic understanding",
-        "Max (420MB, ~6.5s) - Highest quality embeddings",
+
+    expansion_items = [
+        "Lemmi only - Just inflections (fast, no downloads)",
+        "GloVe + Lemmi - Semantic expansion (128MB download)",
+        "FastText + Lemmi - Better rare words (958MB download)",
     ]
-    print(f"{SELECTED}Step 2/2: Choose model tier\n")
 
     try:
         if TerminalMenu is None:
             return _text_based_setup()
-        tier_menu = TerminalMenu(
-            tier_items,
+        expansion_menu = TerminalMenu(
+            expansion_items,
             title="",
             menu_cursor="» ",
             menu_cursor_style=("fg_yellow", "bold"),
@@ -196,34 +217,38 @@ def show_first_time_setup() -> tuple[str, str]:
             cycle_cursor=True,
             clear_screen=False,
         )
-        tier_index = tier_menu.show()
+        expansion_index = expansion_menu.show()
     except (KeyboardInterrupt, EOFError):
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
         sys.exit(1)
     except Exception:
-        # Terminal doesn't support the menu - fall back to text-based
         print(
             f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
             file=sys.stderr,
         )
-        # Recreate the selection for model tier based on already selected method
         return _text_based_setup()
 
-    if tier_index is None:
+    if expansion_index is None:
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
         sys.exit(1)
 
-    tier_map = {0: "fast", 1: "regular", 2: "max"}
-    # Ensure tier_index is treated as int (TerminalMenu.show() returns int | tuple | None)
-    tier = tier_map[int(tier_index) if isinstance(tier_index, int) else tier_index[0]]
+    expansion_map = {0: "lemmi", 1: "glove", 2: "fasttext"}
+    # Cast to int to satisfy type checker (TerminalMenu.show() returns int | tuple)
+    idx = int(expansion_index) if isinstance(expansion_index, int) else expansion_index[0]
+    expansion_method = expansion_map[idx]
 
     print()
-    print(f"{GREEN}✓{RESET} Selected: KeyBERT - {tier.capitalize()} model")
+    if expansion_method == "lemmi":
+        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
+    elif expansion_method == "glove":
+        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
+    else:  # fasttext
+        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
     print()
 
-    return ("bert", tier)
+    return (method, expansion_method)
 
 
 def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
@@ -256,7 +281,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print()
     print(f"Let's set up Cicada for your editor and project.{RESET}")
     print()
-    print(f"{BOLD}Step 1/3: Choose your editor{RESET}")
+    print(f"{BOLD}Step 1/4: Choose your editor{RESET}")
 
     editor_items = [
         "Claude Code - AI-powered code editor",
@@ -321,16 +346,20 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         try:
             with open(config_path) as f:
                 existing_config = yaml.safe_load(f)
-                method = existing_config.get("keyword_extraction", {}).get("method", "lemminflect")
-                tier = existing_config.get("keyword_extraction", {}).get("tier", "regular")
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                expansion_method = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
 
             # Run setup with existing settings
             try:
                 setup(
                     cast(EditorType, editor),
                     repo_path,
-                    keyword_method=method,
-                    keyword_tier=tier,
+                    extraction_method=extraction_method,
+                    expansion_method=expansion_method,
                     index_exists=True,
                 )
             except Exception as e:
@@ -343,17 +372,28 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
             pass
 
     # Step 2: Choose keyword extraction method
-    print(f"{BOLD}Step 2/3: Choose extraction method{RESET}")
+    print(f"{BOLD}Step 2/4: Choose extraction method{RESET}")
 
     method_items = [
-        "Lemminflect - Grammar-based keyword extraction (fast, proven)",
+        "Regular - Term frequency-based extraction (fast, no ML)",
         "KeyBERT - Semantic keyword extraction (AI embeddings)",
     ]
 
     if has_terminal_menu:
         try:
             if TerminalMenu is None:
-                method, tier = show_first_time_setup()
+                extraction_method, expansion_method = show_first_time_setup()
+                # Text-based setup complete - call setup and return
+                try:
+                    setup(
+                        cast(EditorType, editor),
+                        repo_path,
+                        extraction_method=extraction_method,
+                        expansion_method=expansion_method,
+                    )
+                except Exception as e:
+                    print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
+                    sys.exit(1)
                 return
             method_menu = TerminalMenu(
                 method_items,
@@ -371,7 +411,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 print("Setup cancelled. Exiting...")
                 sys.exit(1)
 
-            method = "lemminflect" if method_index == 0 else "bert"
+            method = "regular" if method_index == 0 else "bert"
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
@@ -381,45 +421,87 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
                 file=sys.stderr,
             )
-            method, tier = show_first_time_setup()
+            extraction_method, expansion_method = show_first_time_setup()
+            try:
+                setup(
+                    cast(EditorType, editor),
+                    repo_path,
+                    extraction_method=extraction_method,
+                    expansion_method=expansion_method,
+                )
+            except Exception as e:
+                print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
+                sys.exit(1)
             return
     else:
-        method, tier = show_first_time_setup()
+        extraction_method, expansion_method = show_first_time_setup()
+        try:
+            setup(
+                cast(EditorType, editor),
+                repo_path,
+                extraction_method=extraction_method,
+                expansion_method=expansion_method,
+            )
+        except Exception as e:
+            print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
+            sys.exit(1)
         return
 
-    # For lemminflect, no tier selection needed - always uses default
-    if method == "lemminflect":
+    # For Regular extraction, no tier selection needed
+    if method == "regular":
         print()
-        print(f"{BOLD}  What is Lemminflect?{RESET}")
-        print(f"   Lemminflect finds keywords using grammar rules + word importance{RESET}")
+        print(f"{BOLD}  What is Regular extraction?{RESET}")
+        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
+        print(f"   Fast, lightweight, no model downloads required{RESET}")
         print()
-        print(f"{GREEN}✓{RESET} Selected: LEMMINFLECT")
+        print(f"{GREEN}✓{RESET} Selected: REGULAR")
         print()
-        tier = "regular"  # Default tier (not used for lemminflect, but needed for API)
     else:
-        # Step 3: Choose model tier (only for BERT)
+        # KeyBERT selected - single 133MB model
         print()
         print(f"{SELECTED}  What is KeyBERT?{RESET}")
         print(
-            f"{PRIMARY}   KeyBERT uses AI embeddings to find semantically similar keywords{RESET}"
+            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
         )
-
-        tier_items = [
-            "Fast (80MB, ~1s) - Recommended for bigger projects",
-            "Regular [recommended] (133MB, ~1.4s) - Better semantic understanding",
-            "Max (420MB, ~6.5s) - Highest quality embeddings",
-        ]
-
         print()
-        print(f"{BOLD}Step 3/3: Choose model tier{RESET}")
+        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
         print()
 
-        try:
-            if TerminalMenu is None:
-                method, tier = show_first_time_setup()
-                return
-            tier_menu = TerminalMenu(
-                tier_items,
+    # Step 3: Ask about keyword expansion (applies to both Regular and KeyBERT)
+    print(f"{BOLD}Step 3/4: Choose keyword expansion{RESET}")
+    print()
+    print(
+        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
+    )
+    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
+    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
+    print()
+
+    expansion_items = [
+        "Lemmi only - Just inflections (fast, no downloads)",
+        "GloVe + Lemmi - Semantic expansion (128MB download)",
+        "FastText + Lemmi - Better rare words (958MB download)",
+    ]
+
+    expansion_index = None  # Initialize to None
+    try:
+        if TerminalMenu is None:
+            extraction_method, expansion_method = show_first_time_setup()
+            # Text-based setup complete - call setup and return
+            try:
+                setup(
+                    cast(EditorType, editor),
+                    repo_path,
+                    extraction_method=extraction_method,
+                    expansion_method=expansion_method,
+                )
+            except Exception as e:
+                print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
+                sys.exit(1)
+            return
+        else:
+            expansion_menu = TerminalMenu(
+                expansion_items,
                 title="",
                 menu_cursor="» ",
                 menu_cursor_style=("fg_yellow", "bold"),
@@ -427,37 +509,65 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 cycle_cursor=True,
                 clear_screen=False,
             )
-            tier_index = tier_menu.show()
-        except (KeyboardInterrupt, EOFError):
-            print()
-            print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-            sys.exit(1)
-        except Exception:
-            print(
-                f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-                file=sys.stderr,
+            expansion_index = expansion_menu.show()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
+        sys.exit(1)
+    except Exception:
+        print(
+            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
+            file=sys.stderr,
+        )
+        extraction_method, expansion_method = show_first_time_setup()
+        # Text-based setup complete - call setup and return
+        try:
+            setup(
+                cast(EditorType, editor),
+                repo_path,
+                extraction_method=extraction_method,
+                expansion_method=expansion_method,
             )
-            method, tier = show_first_time_setup()
-            return
-
-        if tier_index is None:
-            print()
-            print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
+        except Exception as e:
+            print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
             sys.exit(1)
+        return
 
-        tier_map = {0: "fast", 1: "regular", 2: "max"}
-        tier = tier_map[int(tier_index) if isinstance(tier_index, int) else tier_index[0]]
+    # expansion_index is now guaranteed to be set (or we returned above)
+    if expansion_index is None:
+        print()
+        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
+        sys.exit(1)
 
-        print()
-        print(f"{GREEN}✓{RESET} Selected: KeyBERT - {tier.capitalize()} model")
-        print()
+    # Map method ("regular" or "bert") to extraction_method
+    extraction_method = method
+
+    # Map expansion_index to expansion_method
+    expansion_map = {0: "lemmi", 1: "glove", 2: "fasttext"}
+    # Cast to int to satisfy type checker (TerminalMenu.show() returns int | tuple)
+    idx = int(expansion_index) if isinstance(expansion_index, int) else expansion_index[0]
+    expansion_method = expansion_map[idx]
+
+    print()
+    if expansion_method == "lemmi":
+        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
+    elif expansion_method == "glove":
+        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
+    else:  # fasttext
+        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
+    print()
 
     # Run setup
     print(f"{BOLD}Running setup...{RESET}")
     print()
 
     try:
-        setup(cast(EditorType, editor), repo_path, keyword_method=method, keyword_tier=tier)
+        setup(
+            cast(EditorType, editor),
+            repo_path,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+        )
     except Exception as e:
         print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
         sys.exit(1)

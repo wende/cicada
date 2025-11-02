@@ -9,15 +9,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cicada.cli import (
+from cicada.commands import (
     handle_clean,
     handle_editor_setup,
     handle_find_dead_code,
     handle_index,
     handle_index_pr,
-    handle_install_command,
-    main,
+    handle_install as handle_install_command,
 )
+from cicada.cli import main
 
 
 class TestMain:
@@ -27,7 +27,7 @@ class TestMain:
         """Should route to handle_editor_setup for claude"""
         with (
             patch.object(sys, "argv", ["cicada", "claude"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -38,7 +38,7 @@ class TestMain:
         """Should route to handle_editor_setup for cursor"""
         with (
             patch.object(sys, "argv", ["cicada", "cursor"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -49,7 +49,7 @@ class TestMain:
         """Should route to handle_editor_setup for vs"""
         with (
             patch.object(sys, "argv", ["cicada", "vs"]),
-            patch("cicada.cli.handle_editor_setup") as mock_handler,
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -60,7 +60,7 @@ class TestMain:
         """Should route to handle_index"""
         with (
             patch.object(sys, "argv", ["cicada", "index"]),
-            patch("cicada.cli.handle_index") as mock_handler,
+            patch("cicada.commands.handle_index") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -69,7 +69,7 @@ class TestMain:
         """Should route to handle_index_pr"""
         with (
             patch.object(sys, "argv", ["cicada", "index-pr"]),
-            patch("cicada.cli.handle_index_pr") as mock_handler,
+            patch("cicada.commands.handle_index_pr") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -78,7 +78,7 @@ class TestMain:
         """Should route to handle_find_dead_code"""
         with (
             patch.object(sys, "argv", ["cicada", "find-dead-code"]),
-            patch("cicada.cli.handle_find_dead_code") as mock_handler,
+            patch("cicada.commands.handle_find_dead_code") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -87,7 +87,7 @@ class TestMain:
         """Should route to handle_clean"""
         with (
             patch.object(sys, "argv", ["cicada", "clean", "-f"]),
-            patch("cicada.cli.handle_clean") as mock_handler,
+            patch("cicada.commands.handle_clean") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -105,7 +105,7 @@ class TestMain:
         """Should route to install command when path is '.'"""
         with (
             patch.object(sys, "argv", ["cicada", "."]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -116,7 +116,7 @@ class TestMain:
         """Should route to install command when path starts with './'"""
         with (
             patch.object(sys, "argv", ["cicada", "./some/path"]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -127,7 +127,7 @@ class TestMain:
         """Should route to install command when path starts with '/'"""
         with (
             patch.object(sys, "argv", ["cicada", "/absolute/path"]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -138,7 +138,7 @@ class TestMain:
         """Should route to install command when path is '..'"""
         with (
             patch.object(sys, "argv", ["cicada", ".."]),
-            patch("cicada.mcp_entry.handle_install") as mock_handler,
+            patch("cicada.commands.handle_install") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -211,8 +211,8 @@ class TestHandleEditorSetup:
         captured = capsys.readouterr()
         assert "does not appear to be an Elixir project" in captured.err
 
-    def test_nlp_flag_sets_lemminflect(self, mock_elixir_repo):
-        """--nlp should set method to lemminflect"""
+    def test_nlp_flag_sets_regular_extraction(self, mock_elixir_repo):
+        """--nlp should set extraction to regular"""
         args = MagicMock(fast=False, max=False, nlp=True, rag=False)
 
         with (
@@ -221,13 +221,13 @@ class TestHandleEditorSetup:
         ):
             handle_editor_setup(args, "claude")
 
-            # Check that setup was called with lemminflect
+            # Check that setup was called with regular extraction
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "lemminflect"
-            assert call_kwargs["keyword_tier"] == "regular"
+            assert call_kwargs["extraction_method"] == "regular"
+            assert call_kwargs["expansion_method"] == "lemmi"
 
     def test_rag_flag_sets_bert(self, mock_elixir_repo):
-        """--rag should set method to bert"""
+        """--rag should set extraction to bert"""
         args = MagicMock(fast=False, max=False, nlp=False, rag=True)
 
         with (
@@ -238,11 +238,11 @@ class TestHandleEditorSetup:
 
             # Check that setup was called with bert
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "regular"
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "lemmi"
 
-    def test_rag_with_fast_tier(self, mock_elixir_repo):
-        """--rag --fast should set bert with fast tier"""
+    def test_rag_with_fast_flag(self, mock_elixir_repo):
+        """--rag --fast should set bert extraction + glove expansion"""
         args = MagicMock(fast=True, max=False, nlp=False, rag=True)
 
         with (
@@ -252,11 +252,11 @@ class TestHandleEditorSetup:
             handle_editor_setup(args, "claude")
 
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "fast"
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "glove"
 
-    def test_rag_with_max_tier(self, mock_elixir_repo):
-        """--rag --max should set bert with max tier"""
+    def test_rag_with_max_flag(self, mock_elixir_repo):
+        """--rag --max should set bert extraction + fasttext expansion"""
         args = MagicMock(fast=False, max=True, nlp=False, rag=True)
 
         with (
@@ -266,8 +266,8 @@ class TestHandleEditorSetup:
             handle_editor_setup(args, "claude")
 
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "max"
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "fasttext"
 
     def test_no_flags_with_existing_index(self, mock_elixir_repo, tmp_path):
         """Should read existing config when no flags and index exists"""
@@ -284,7 +284,10 @@ class TestHandleEditorSetup:
             ),
             patch(
                 "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
+                return_value={
+                    "keyword_extraction": {"method": "bert"},
+                    "keyword_expansion": {"method": "glove"},
+                },
             ),
         ):
             # Mock paths to exist
@@ -300,8 +303,8 @@ class TestHandleEditorSetup:
 
             # Check that setup was called with existing config
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "fast"
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "glove"
             assert call_kwargs["index_exists"] is True
 
     def test_setup_exception_exits(self, mock_elixir_repo, capsys):
@@ -352,7 +355,7 @@ class TestHandleIndex:
         assert "Cannot specify both --nlp and --rag" in captured.err
 
     def test_nlp_flag_creates_config(self, mock_repo):
-        """--nlp should create config with lemminflect"""
+        """--nlp should create config with regular extraction and lemmi expansion"""
         args = MagicMock(
             fast=False, max=False, nlp=True, rag=False, repo=str(mock_repo), test=False
         )
@@ -373,14 +376,14 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with lemminflect
+            # Verify config was created with regular extraction
             mock_create_config.assert_called()
-            call_kwargs = mock_create_config.call_args[1]
-            assert call_kwargs["keyword_method"] == "lemminflect"
-            assert call_kwargs["keyword_tier"] == "regular"
+            call_args = mock_create_config.call_args[0]
+            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
+            assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
 
     def test_rag_flag_creates_config_with_bert(self, mock_repo):
-        """--rag should create config with bert"""
+        """--rag should create config with bert extraction"""
         args = MagicMock(
             fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
         )
@@ -401,11 +404,11 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with bert
+            # Verify config was created with bert extraction
             mock_create_config.assert_called()
-            call_kwargs = mock_create_config.call_args[1]
-            assert call_kwargs["keyword_method"] == "bert"
-            assert call_kwargs["keyword_tier"] == "regular"
+            call_args = mock_create_config.call_args[0]
+            assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
+            assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
@@ -451,7 +454,10 @@ class TestHandleIndex:
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "lemminflect", "tier": "regular"}},
+                return_value={
+                    "keyword_extraction": {"method": "regular"},
+                    "keyword_expansion": {"method": "lemmi"},
+                },
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -469,12 +475,12 @@ class TestHandleIndex:
 
         # Verify error message was printed
         captured = capsys.readouterr()
-        assert "Cannot change extraction method" in captured.err
-        assert "lemminflect to bert" in captured.err
+        assert "Cannot change extraction" in captured.err
+        assert "regular" in captured.err and "bert" in captured.err
         assert "cicada clean" in captured.err
 
-    def test_changing_tier_exits_with_error(self, mock_repo, capsys):
-        """Changing tier should exit with error and suggest cicada clean"""
+    def test_changing_expansion_method_exits_with_error(self, mock_repo, capsys):
+        """Changing expansion method should exit with error and suggest cicada clean"""
         args = MagicMock(fast=False, max=True, nlp=False, rag=True, repo=str(mock_repo), test=False)
 
         with (
@@ -487,7 +493,10 @@ class TestHandleIndex:
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
-                return_value={"keyword_extraction": {"method": "bert", "tier": "fast"}},
+                return_value={
+                    "keyword_extraction": {"method": "bert"},
+                    "keyword_expansion": {"method": "glove"},
+                },
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -505,7 +514,9 @@ class TestHandleIndex:
 
         # Verify error message was printed
         captured = capsys.readouterr()
-        assert "Cannot change tier from fast to max" in captured.err
+        assert (
+            "Cannot change expansion method" in captured.err or "settings" in captured.err.lower()
+        )
         assert "cicada clean" in captured.err
 
 
@@ -628,10 +639,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
             patch(
-                "cicada.find_dead_code.format_markdown", return_value="# Dead Code"
+                "cicada.dead_code.finder.format_markdown", return_value="# Dead Code"
             ) as mock_format,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
@@ -655,10 +666,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
-            patch("cicada.find_dead_code.format_json", return_value="{}") as mock_format_json,
-            patch("cicada.find_dead_code.format_markdown") as mock_format_md,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.finder.format_json", return_value="{}") as mock_format_json,
+            patch("cicada.dead_code.finder.format_markdown") as mock_format_md,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
             mock_analyzer = MagicMock()

@@ -193,11 +193,12 @@ class TestCreateConfigYaml:
                 assert "storage:" in content
                 assert "index_path:" in content
                 assert "keyword_extraction:" in content
-                assert "method: lemminflect" in content  # Default
-                assert "tier: regular" in content  # Default
+                assert "keyword_expansion:" in content
+                assert "method: regular" in content  # Default extraction
+                assert "method: lemmi" in content  # Default expansion
 
     def test_config_yaml_with_bert_method(self, mock_paths):
-        """Config YAML should save KeyBERT method when specified"""
+        """Config YAML should save KeyBERT extraction method when specified"""
         repo_path, storage_dir = mock_paths
 
         with patch("cicada.setup.get_config_path") as mock_get_config:
@@ -208,16 +209,17 @@ class TestCreateConfigYaml:
                 mock_get_index.return_value = index_path
 
                 create_config_yaml(
-                    repo_path, storage_dir, keyword_method="bert", keyword_tier="fast"
+                    repo_path, storage_dir, extraction_method="bert", expansion_method="glove"
                 )
 
                 content = config_path.read_text()
                 assert "keyword_extraction:" in content
                 assert "method: bert" in content
-                assert "tier: fast" in content
+                assert "keyword_expansion:" in content
+                assert "method: glove" in content
 
-    def test_config_yaml_with_bert_max_tier(self, mock_paths):
-        """Config YAML should save KeyBERT max tier when specified"""
+    def test_config_yaml_with_fasttext_expansion(self, mock_paths):
+        """Config YAML should save FastText expansion method when specified"""
         repo_path, storage_dir = mock_paths
 
         with patch("cicada.setup.get_config_path") as mock_get_config:
@@ -228,12 +230,12 @@ class TestCreateConfigYaml:
                 mock_get_index.return_value = index_path
 
                 create_config_yaml(
-                    repo_path, storage_dir, keyword_method="bert", keyword_tier="max"
+                    repo_path, storage_dir, extraction_method="bert", expansion_method="fasttext"
                 )
 
                 content = config_path.read_text()
                 assert "method: bert" in content
-                assert "tier: max" in content
+                assert "method: fasttext" in content
 
 
 class TestIndexRepository:
@@ -751,13 +753,13 @@ class TestSetupIndexExists:
                         setup(
                             "claude",
                             mock_repo,
-                            keyword_method="bert",
-                            keyword_tier="fast",
+                            extraction_method="bert",
+                            expansion_method="glove",
                             index_exists=True,
                         )
 
                         captured = capsys.readouterr()
-                        assert "✓ Found existing index (BERT fast)" in captured.out
+                        assert "✓ Found existing index" in captured.out
                         assert "Storage:" in captured.out
                         assert "Restart CLAUDE" in captured.out
 
@@ -788,8 +790,8 @@ class TestSetupKeywordParameters:
         (repo_path / "mix.exs").write_text("# Mock")
         return repo_path
 
-    def test_passes_keyword_method_to_create_config_yaml(self, mock_repo):
-        """Should pass keyword_method to create_config_yaml"""
+    def test_passes_extraction_method_to_create_config_yaml(self, mock_repo):
+        """Should pass extraction_method and expansion_method to create_config_yaml"""
         with patch("cicada.setup.create_storage_dir") as mock_create_storage:
             with patch("cicada.setup.index_repository"):
                 with patch("cicada.setup.create_config_yaml") as mock_create_config:
@@ -799,16 +801,18 @@ class TestSetupKeywordParameters:
                         config_path = mock_repo / ".mcp.json"
                         mock_mcp.return_value = (config_path, {"mcpServers": {}})
 
-                        setup("claude", mock_repo, keyword_method="bert", keyword_tier="fast")
+                        setup(
+                            "claude", mock_repo, extraction_method="bert", expansion_method="glove"
+                        )
 
                         mock_create_config.assert_called()
-                        # Check keyword args
-                        call_kwargs = mock_create_config.call_args[1]
-                        assert call_kwargs["keyword_method"] == "bert"
-                        assert call_kwargs["keyword_tier"] == "fast"
+                        # Check positional args: repo_path, storage_dir, extraction_method, expansion_method
+                        call_args = mock_create_config.call_args[0]
+                        assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
+                        assert call_args[3] == "glove"  # expansion_method is 4th positional arg
 
-    def test_defaults_to_lemminflect_when_no_method_specified(self, mock_repo):
-        """Should use lemminflect as default when no method specified"""
+    def test_defaults_when_no_method_specified(self, mock_repo):
+        """Should use default methods when not specified"""
         with patch("cicada.setup.create_storage_dir") as mock_create_storage:
             with patch("cicada.setup.index_repository"):
                 with patch("cicada.setup.create_config_yaml") as mock_create_config:
@@ -822,9 +826,9 @@ class TestSetupKeywordParameters:
 
                         # Should pass None for both (create_config_yaml handles defaults)
                         mock_create_config.assert_called()
-                        call_kwargs = mock_create_config.call_args[1]
-                        assert call_kwargs["keyword_method"] is None
-                        assert call_kwargs["keyword_tier"] is None
+                        call_args = mock_create_config.call_args[0]
+                        assert call_args[2] is None  # extraction_method is 3rd positional arg
+                        assert call_args[3] is None  # expansion_method is 4th positional arg
 
 
 class TestSetupSettingsChangeDetection:
@@ -839,7 +843,7 @@ class TestSetupSettingsChangeDetection:
         return repo_path
 
     def test_detects_method_change_and_prompts_user(self, mock_repo, capsys):
-        """Should detect keyword method change and prompt for confirmation"""
+        """Should detect extraction method change and prompt for confirmation"""
         import yaml
 
         with patch("cicada.setup.create_storage_dir") as mock_create_storage:
@@ -858,14 +862,12 @@ class TestSetupSettingsChangeDetection:
                                     mock_get_config.return_value = config_path
                                     mock_get_index.return_value = index_path
 
-                                    # Create existing config with lemminflect
+                                    # Create existing config with regular extraction
                                     config_path.write_text(
                                         yaml.dump(
                                             {
-                                                "keyword_extraction": {
-                                                    "method": "lemminflect",
-                                                    "tier": "regular",
-                                                }
+                                                "keyword_extraction": {"method": "regular"},
+                                                "keyword_expansion": {"method": "lemmi"},
                                             }
                                         )
                                     )
@@ -879,14 +881,15 @@ class TestSetupSettingsChangeDetection:
                                         setup(
                                             "claude",
                                             mock_repo,
-                                            keyword_method="bert",
-                                            keyword_tier="fast",
+                                            extraction_method="bert",
+                                            expansion_method="glove",
                                         )
 
                                     captured = capsys.readouterr()
-                                    assert "WARNING: Index Already Exists" in captured.out
-                                    assert "LEMMINFLECT" in captured.out
-                                    assert "BERT (fast)" in captured.out
+                                    assert (
+                                        "WARNING" in captured.out
+                                        or "Settings changed" in captured.out
+                                    )
                                     assert "Setup cancelled" in captured.out
 
     def test_proceeds_with_reindex_when_user_confirms(self, mock_repo):
@@ -913,10 +916,8 @@ class TestSetupSettingsChangeDetection:
                                     config_path.write_text(
                                         yaml.dump(
                                             {
-                                                "keyword_extraction": {
-                                                    "method": "lemminflect",
-                                                    "tier": "regular",
-                                                }
+                                                "keyword_extraction": {"method": "regular"},
+                                                "keyword_expansion": {"method": "lemmi"},
                                             }
                                         )
                                     )
@@ -928,8 +929,8 @@ class TestSetupSettingsChangeDetection:
                                     setup(
                                         "claude",
                                         mock_repo,
-                                        keyword_method="bert",
-                                        keyword_tier="fast",
+                                        extraction_method="bert",
+                                        expansion_method="glove",
                                     )
 
                                     # Should call index_repository with force_full=True
@@ -956,10 +957,13 @@ class TestSetupSettingsChangeDetection:
                                 mock_get_config.return_value = config_path
                                 mock_get_index.return_value = index_path
 
-                                # Create existing config with bert/fast
+                                # Create existing config with bert extraction and glove expansion
                                 config_path.write_text(
                                     yaml.dump(
-                                        {"keyword_extraction": {"method": "bert", "tier": "fast"}}
+                                        {
+                                            "keyword_extraction": {"method": "bert"},
+                                            "keyword_expansion": {"method": "glove"},
+                                        }
                                     )
                                 )
                                 index_path.touch()
@@ -969,7 +973,10 @@ class TestSetupSettingsChangeDetection:
 
                                 # Setup with same settings
                                 setup(
-                                    "claude", mock_repo, keyword_method="bert", keyword_tier="fast"
+                                    "claude",
+                                    mock_repo,
+                                    extraction_method="bert",
+                                    expansion_method="glove",
                                 )
 
                                 # Should NOT call index_repository

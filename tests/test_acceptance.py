@@ -12,7 +12,7 @@ Author: Cursor(Auto)
 
 import pytest
 
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 # Import runner functions - these get coverage when tests run
 from tests.acceptance.runner import (

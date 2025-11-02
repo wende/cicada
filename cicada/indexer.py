@@ -35,31 +35,32 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
         repo_path: Path to the repository
 
     Returns:
-        tuple[str, str]: (method, tier) where method is 'lemminflect' or 'bert',
-                        and tier is 'fast', 'regular', or 'max'.
-                        Returns ('lemminflect', 'regular') as default if config not found.
+        tuple[str, str]: (extraction_method, expansion_method) where:
+                        - extraction_method is 'regular' or 'bert'
+                        - expansion_method is 'lemmi', 'glove', or 'fasttext'
+                        Returns ('regular', 'lemmi') as default if config not found.
     """
     try:
         import yaml
 
         config_path = get_config_path(repo_path)
         if not config_path.exists():
-            # Default to lemminflect if config doesn't exist
-            return ("lemminflect", "regular")
+            # Default to regular + lemmi if config doesn't exist
+            return ("regular", "lemmi")
 
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        if config and "keyword_extraction" in config:
-            method = config["keyword_extraction"].get("method", "lemminflect")
-            tier = config["keyword_extraction"].get("tier", "regular")
-            return (method, tier)
+        if config:
+            extraction_method = config.get("keyword_extraction", {}).get("method", "regular")
+            expansion_method = config.get("keyword_expansion", {}).get("method", "lemmi")
+            return (extraction_method, expansion_method)
 
-        # Default to lemminflect if keyword_extraction section not found
-        return ("lemminflect", "regular")
+        # Default to regular + lemmi if config sections not found
+        return ("regular", "lemmi")
     except Exception:
-        # If anything goes wrong, default to lemminflect
-        return ("lemminflect", "regular")
+        # If anything goes wrong, default to regular + lemmi
+        return ("regular", "lemmi")
 
 
 class ElixirIndexer:
@@ -67,6 +68,10 @@ class ElixirIndexer:
 
     # Progress reporting interval - report every N files processed
     PROGRESS_REPORT_INTERVAL = 10
+
+    # Keyword expansion parameters
+    DEFAULT_EXPANSION_TOP_N = 3
+    DEFAULT_EXPANSION_THRESHOLD = 0.7
 
     def __init__(self, verbose: bool = False):
         """Initialize the indexer with a parser."""
@@ -134,36 +139,45 @@ class ElixirIndexer:
             print(f"Indexing repository: {repo_path_obj}")
             if extract_keywords:
                 # Read and display keyword extraction config
-                method, tier = read_keyword_extraction_config(repo_path_obj)
-                print(f"Keyword extraction: {method.upper()} ({tier})")
+                extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
+                print(
+                    f"Keyword extraction: {extraction_method.upper()} + {expansion_method.upper()}"
+                )
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
         signal.signal(signal.SIGTERM, self._handle_interrupt)
         self._interrupted = False
 
-        # Initialize keyword extractor if requested
+        # Initialize keyword extractor and expander if requested
         keyword_extractor = None
+        keyword_expander = None
         if extract_keywords:
             try:
                 # Read keyword extraction config from config.yaml
-                method, tier = read_keyword_extraction_config(repo_path_obj)
+                extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
 
-                if method == "bert":
-                    # Initialize KeyBERT extractor
-                    from cicada.keybert_extractor import KeyBERTExtractor
+                # Initialize extraction method
+                if extraction_method == "bert":
+                    from cicada.extractors.keybert import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=self.verbose)
+                    keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
-                    # Initialize lemminflect extractor (default)
-                    from cicada.lightweight_keyword_extractor import (
-                        LightweightKeywordExtractor,
-                    )
+                    # Use regular (TF-based) extractor as default
+                    from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    keyword_extractor = LightweightKeywordExtractor(verbose=self.verbose)
+                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+
+                # Initialize expansion method
+                from cicada.keyword_expander import KeywordExpander
+
+                keyword_expander = KeywordExpander(
+                    expansion_type=expansion_method, verbose=self.verbose
+                )
+
             except Exception as e:
                 if self.verbose:
-                    print(f"Warning: Could not initialize keyword extractor: {e}")
+                    print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                     print("Continuing without keyword extraction...")
                 extract_keywords = False
 
@@ -193,13 +207,23 @@ class ElixirIndexer:
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
 
-                        # Extract keywords if enabled
+                        # Extract and expand keywords if enabled
                         module_keywords = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                module_keywords = keyword_extractor.extract_keywords_simple(
+                                # Step 1: Extract keywords
+                                extracted_keywords = keyword_extractor.extract_keywords_simple(
                                     module_data["moduledoc"], top_n=10
                                 )
+                                # Step 2: Expand keywords
+                                if keyword_expander and extracted_keywords:
+                                    module_keywords = keyword_expander.expand_keywords(
+                                        extracted_keywords,
+                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD
+                                    )
+                                else:
+                                    module_keywords = extracted_keywords
                             except Exception as e:
                                 keyword_extraction_failures += 1
                                 if self.verbose:
@@ -208,7 +232,7 @@ class ElixirIndexer:
                                         file=sys.stderr,
                                     )
 
-                        # Extract keywords from function docs
+                        # Extract and expand keywords from function docs
                         if keyword_extractor:
                             for func in functions:
                                 if func.get("doc"):
@@ -217,9 +241,22 @@ class ElixirIndexer:
                                         # Include function name in text for keyword extraction
                                         # This ensures the function name identifier gets 10x weight
                                         text_for_keywords = f"{func_name} {func['doc']}"
-                                        func_keywords = keyword_extractor.extract_keywords_simple(
-                                            text_for_keywords, top_n=10
+                                        # Step 1: Extract keywords
+                                        extracted_keywords = (
+                                            keyword_extractor.extract_keywords_simple(
+                                                text_for_keywords, top_n=10
+                                            )
                                         )
+                                        # Step 2: Expand keywords
+                                        if keyword_expander and extracted_keywords:
+                                            func_keywords = keyword_expander.expand_keywords(
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD
+                                            )
+                                        else:
+                                            func_keywords = extracted_keywords
+
                                         if func_keywords:
                                             func["keywords"] = func_keywords
                                     except Exception as e:
@@ -398,9 +435,9 @@ class ElixirIndexer:
 
         if self.verbose:
             # Read and display keyword extraction config
-            method, tier = read_keyword_extraction_config(repo_path_obj)
+            extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
             print(f"Performing incremental index of: {repo_path_obj}")
-            print(f"Keyword extraction: {method.upper()} ({tier})")
+            print(f"Keyword extraction: {extraction_method.upper()} + {expansion_method.upper()}")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -436,27 +473,34 @@ class ElixirIndexer:
         if files_to_process:
             print(f"\nProcessing {len(files_to_process)} changed file(s)...")
 
-        # Initialize keyword extractor if requested
+        # Initialize keyword extractor and expander if requested
         keyword_extractor = None
+        keyword_expander = None
         if extract_keywords:
             try:
                 # Read keyword extraction config from config.yaml
-                method, tier = read_keyword_extraction_config(repo_path_obj)
+                extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
 
-                if method == "bert":
-                    # Initialize KeyBERT extractor
-                    from cicada.keybert_extractor import KeyBERTExtractor
+                # Initialize extraction method
+                if extraction_method == "bert":
+                    from cicada.extractors.keybert import KeyBERTExtractor
 
-                    keyword_extractor = KeyBERTExtractor(model_tier=tier, verbose=self.verbose)
+                    keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
-                    # Initialize lemminflect extractor (default)
-                    from cicada.lightweight_keyword_extractor import (
-                        LightweightKeywordExtractor,
-                    )
+                    # Use regular (TF-based) extractor as default
+                    from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    keyword_extractor = LightweightKeywordExtractor(verbose=self.verbose)
+                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+
+                # Initialize expansion method
+                from cicada.keyword_expander import KeywordExpander
+
+                keyword_expander = KeywordExpander(
+                    expansion_type=expansion_method, verbose=self.verbose
+                )
+
             except Exception as e:
-                print(f"Warning: Could not initialize keyword extractor: {e}")
+                print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
 
@@ -480,26 +524,49 @@ class ElixirIndexer:
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
 
-                        # Extract keywords if enabled
+                        # Extract and expand keywords if enabled
                         module_keywords = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                module_keywords = keyword_extractor.extract_keywords_simple(
+                                # Step 1: Extract keywords
+                                extracted_keywords = keyword_extractor.extract_keywords_simple(
                                     module_data["moduledoc"], top_n=10
                                 )
+                                # Step 2: Expand keywords
+                                if keyword_expander and extracted_keywords:
+                                    module_keywords = keyword_expander.expand_keywords(
+                                        extracted_keywords,
+                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD
+                                    )
+                                else:
+                                    module_keywords = extracted_keywords
                             except Exception:
                                 keyword_extraction_failures += 1
 
-                        # Extract keywords from function docs
+                        # Extract and expand keywords from function docs
                         if keyword_extractor:
                             for func in functions:
                                 if func.get("doc"):
                                     try:
                                         func_name = func.get("name", "")
                                         text_for_keywords = f"{func_name} {func['doc']}"
-                                        func_keywords = keyword_extractor.extract_keywords_simple(
-                                            text_for_keywords, top_n=10
+                                        # Step 1: Extract keywords
+                                        extracted_keywords = (
+                                            keyword_extractor.extract_keywords_simple(
+                                                text_for_keywords, top_n=10
+                                            )
                                         )
+                                        # Step 2: Expand keywords
+                                        if keyword_expander and extracted_keywords:
+                                            func_keywords = keyword_expander.expand_keywords(
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD
+                                            )
+                                        else:
+                                            func_keywords = extracted_keywords
+
                                         if func_keywords:
                                             func["keywords"] = func_keywords
                                     except Exception:

@@ -4,6 +4,8 @@ Function extraction logic.
 Author: Cursor(Auto)
 """
 
+from cicada.utils import extract_text_from_node
+
 from .base import get_param_name
 
 
@@ -46,7 +48,7 @@ def _extract_impl_from_prev_sibling(node, source_code: bytes):
 
     for child in impl_call.children:
         if child.type == "identifier":
-            identifier_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
+            identifier_text = extract_text_from_node(child, source_code)
         elif child.type == "arguments":
             arguments_node = child
 
@@ -58,11 +60,11 @@ def _extract_impl_from_prev_sibling(node, source_code: bytes):
         for arg_child in arguments_node.children:
             if arg_child.type == "boolean":
                 # @impl true or @impl false
-                bool_text = source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+                bool_text = extract_text_from_node(arg_child, source_code)
                 return bool_text == "true"
             elif arg_child.type == "alias":
                 # @impl ModuleName
-                module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+                module_name = extract_text_from_node(arg_child, source_code)
                 return module_name
 
     # @impl without arguments defaults to true
@@ -90,7 +92,7 @@ def _find_functions_recursive(node, source_code: bytes, functions: list):
 
             # Check if this is a def or defp call
             if target and arguments:
-                target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
+                target_text = extract_text_from_node(target, source_code)
 
                 if target_text in ["def", "defp"]:
                     # Check if previous sibling is @impl
@@ -133,9 +135,7 @@ def _parse_function_definition(
             # Extract function name from call target
             for call_child in arg_child.children:
                 if call_child.type == "identifier":
-                    func_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    func_name = extract_text_from_node(call_child, source_code)
                 elif call_child.type == "arguments":
                     arg_names = _extract_argument_names(call_child, source_code)
                     arity = len(arg_names)
@@ -148,16 +148,14 @@ def _parse_function_definition(
                     # Extract function name and args from the call
                     for call_child in op_child.children:
                         if call_child.type == "identifier":
-                            func_name = source_code[
-                                call_child.start_byte : call_child.end_byte
-                            ].decode("utf-8")
+                            func_name = extract_text_from_node(call_child, source_code)
                         elif call_child.type == "arguments":
                             arg_names = _extract_argument_names(call_child, source_code)
                             arity = len(arg_names)
                     break
             break
         elif arg_child.type == "identifier":
-            func_name = source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+            func_name = extract_text_from_node(arg_child, source_code)
             arity = 0
             arg_names = []
             break
@@ -209,9 +207,7 @@ def _extract_guards(arguments_node, source_code: bytes) -> list[str]:
                 elif has_when:
                     # This is the guard expression node (comes after 'when')
                     # It's typically a binary_operator (like n < 0)
-                    guard_expr = source_code[op_child.start_byte : op_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    guard_expr = extract_text_from_node(op_child, source_code)
                     guards.append(guard_expr)
                     break
 

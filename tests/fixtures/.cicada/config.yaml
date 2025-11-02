@@ -1,5 +1,0 @@
-repository:
-  path: tests/fixtures/test_project
-
-storage:
-  index_path: tests/fixtures/.cicada/index.json

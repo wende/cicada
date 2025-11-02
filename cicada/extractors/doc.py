@@ -5,61 +5,14 @@ Documentation extraction logic.
 import textwrap
 
 from .base import extract_string_from_arguments
+from .common import _find_attribute_recursive
 
 
 def extract_docs(node, source_code: bytes) -> dict:
     """Extract all @doc attributes from a module body."""
     docs = {}
-    _find_docs_recursive(node, source_code, docs)
+    _find_attribute_recursive(node, source_code, docs, "doc", _parse_doc)
     return docs
-
-
-def _find_docs_recursive(node, source_code: bytes, docs: dict):
-    """Recursively find @doc declarations."""
-    # Look for unary_operator nodes (which represent @ attributes)
-    if node.type == "unary_operator":
-        operator = None
-        operand = None
-
-        for child in node.children:
-            if child.type == "@":
-                operator = child
-            elif child.type == "call":
-                operand = child
-
-        if operator and operand:
-            # Check if this is a doc attribute
-            for call_child in operand.children:
-                if call_child.type == "identifier":
-                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-
-                    if attr_name == "doc":
-                        # Extract the doc definition
-                        doc_info = _parse_doc(operand, source_code, node.start_point[0] + 1)
-                        if doc_info:
-                            # Store the entire doc_info dict (includes text and examples)
-                            docs[doc_info["line"]] = doc_info
-
-    # Recursively search children
-    for child in node.children:
-        # Don't recurse into nested defmodule or function definitions
-        if child.type == "call":
-            is_defmodule_or_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["defmodule", "def", "defp"]:
-                        is_defmodule_or_def = True
-                        break
-
-            if is_defmodule_or_def:
-                continue
-
-        _find_docs_recursive(child, source_code, docs)
 
 
 def _parse_doc(doc_node, source_code: bytes, line: int) -> dict | None:

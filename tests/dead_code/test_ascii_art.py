@@ -8,7 +8,7 @@ import re
 
 import pytest
 
-from cicada.ascii_art import (
+from cicada.format.ascii_art import (
     CICADA_ASCII_ART,
     CYAN,
     RESET,

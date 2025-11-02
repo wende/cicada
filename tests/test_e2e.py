@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from cicada.indexer import ElixirIndexer
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 
 @pytest.fixture

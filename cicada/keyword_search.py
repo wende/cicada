@@ -53,6 +53,40 @@ class KeywordSearcher:
         else:
             return document_info["function"]
 
+    def _create_document(
+        self, module_name: str, module_data: dict[str, Any], func: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        """Create a document for a module or function."""
+        if func:
+            if not func.get("keywords"):
+                return None
+            doc_keywords = [kw.lower() for kw in func["keywords"]]
+            full_name = f"{module_name}.{func['name']}/{func['arity']}"
+            return {
+                "type": "function",
+                "name": full_name,
+                "module": module_name,
+                "function": func["name"],
+                "arity": func["arity"],
+                "file": module_data["file"],
+                "line": func["line"],
+                "doc": func.get("doc"),
+                "keywords": doc_keywords,
+            }
+        else:
+            if not module_data.get("keywords"):
+                return None
+            doc_keywords = [kw.lower() for kw in module_data["keywords"]]
+            return {
+                "type": "module",
+                "name": module_name,
+                "module": module_name,
+                "file": module_data["file"],
+                "line": module_data["line"],
+                "doc": module_data.get("moduledoc"),
+                "keywords": doc_keywords,
+            }
+
     def _initialize_bm25(self) -> tuple:
         """
         Initialize BM25 calculator with all documents in the index.
@@ -67,58 +101,28 @@ class KeywordSearcher:
         # Collect all documents (modules and functions with keywords)
         for module_name, module_data in self.index.get("modules", {}).items():
             # Add module as a document
-            if module_data.get("keywords"):
-                doc_keywords = [kw.lower() for kw in module_data["keywords"]]
-                documents.append(doc_keywords)
-                document_map.append(
-                    {
-                        "type": "module",
-                        "name": module_name,
-                        "module": module_name,
-                        "file": module_data["file"],
-                        "line": module_data["line"],
-                        "doc": module_data.get("moduledoc"),
-                        "keywords": module_data["keywords"],
-                    }
-                )
+            doc = self._create_document(module_name, module_data)
+            if doc:
+                documents.append(doc["keywords"])
+                document_map.append(doc)
 
             # Add functions as documents
             for func in module_data.get("functions", []):
-                if func.get("keywords"):
-                    doc_keywords = [kw.lower() for kw in func["keywords"]]
-                    documents.append(doc_keywords)
-                    full_name = f"{module_name}.{func['name']}/{func['arity']}"
-                    document_map.append(
-                        {
-                            "type": "function",
-                            "name": full_name,
-                            "module": module_name,
-                            "function": func["name"],
-                            "arity": func["arity"],
-                            "file": module_data["file"],
-                            "line": func["line"],
-                            "doc": func.get("doc"),
-                            "keywords": func["keywords"],
-                        }
-                    )
+                doc = self._create_document(module_name, module_data, func)
+                if doc:
+                    documents.append(doc["keywords"])
+                    document_map.append(doc)
 
         # If no documents were created (no keywords extracted), create documents using identifier names
         if not documents:
             for module_name, module_data in self.index.get("modules", {}).items():
                 # Add module as a document using its name as keywords
                 module_keywords = split_identifier(module_name)
-                documents.append(module_keywords)
-                document_map.append(
-                    {
-                        "type": "module",
-                        "name": module_name,
-                        "module": module_name,
-                        "file": module_data["file"],
-                        "line": module_data["line"],
-                        "doc": module_data.get("moduledoc"),
-                        "keywords": module_keywords,
-                    }
-                )
+                module_data["keywords"] = module_keywords
+                doc = self._create_document(module_name, module_data)
+                if doc:
+                    documents.append(doc["keywords"])
+                    document_map.append(doc)
 
                 # Add functions as documents
                 for func in module_data.get("functions", []):
@@ -127,22 +131,11 @@ class KeywordSearcher:
                         func_keywords = [kw.lower() for kw in func["keywords"]]
                     else:
                         func_keywords = split_identifier(func["name"])
-
-                    documents.append(func_keywords)
-                    full_name = f"{module_name}.{func['name']}/{func['arity']}"
-                    document_map.append(
-                        {
-                            "type": "function",
-                            "name": full_name,
-                            "module": module_name,
-                            "function": func["name"],
-                            "arity": func["arity"],
-                            "file": module_data["file"],
-                            "line": func["line"],
-                            "doc": func.get("doc"),
-                            "keywords": func_keywords,
-                        }
-                    )
+                    func["keywords"] = func_keywords
+                    doc = self._create_document(module_name, module_data, func)
+                    if doc:
+                        documents.append(doc["keywords"])
+                        document_map.append(doc)
 
         # Initialize BM25 with all documents
         # Use b=0.4 (lower than default 0.75) to reduce length normalization penalty

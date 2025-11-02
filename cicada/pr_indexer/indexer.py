@@ -7,6 +7,8 @@ Fetches all PRs from a GitHub repository and builds an index mapping commits to 
 from pathlib import Path
 from typing import Any
 
+from cicada.utils import is_git_repository
+
 from .github_api_client import GitHubAPIClient
 from .line_mapper import LineMapper
 from .pr_index_builder import PRIndexBuilder
@@ -42,8 +44,7 @@ class PRIndexer:
 
     def _validate_git_repo(self):
         """Validate that the path is a git repository."""
-        git_dir = self.repo_path / ".git"
-        if not git_dir.exists():
+        if not is_git_repository(self.repo_path):
             raise ValueError(f"Not a git repository: {self.repo_path}")
 
     def fetch_all_prs(self, state: str = "all") -> list[dict[str, Any]]:
