@@ -11,7 +11,7 @@ import pytest
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 
 @pytest.mark.asyncio

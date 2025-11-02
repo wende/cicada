@@ -16,7 +16,7 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered keyword search with **15-25x faster** incremental indexing. [What's New →](#whats-new-in-v020)
+> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered semantic keyword search across the entire codebase. [What's New →](#whats-new-in-v020)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
@@ -61,73 +61,50 @@ Provides instant access to modules, functions, call sites, and PR attribution.
 
 ## What's New in v0.2.0
 
-### 🤖 Enhanced AI Keyword Extraction
+### 🤖 Enhanced AI Keyword Extraction and Expansion
 
-AI-powered semantic search is now production-ready with advanced NLP capabilities:
+AI-powered semantic search capabilities:
 
-- **BERT Integration**: KeyBERT-based keyword extraction for superior semantic understanding
+- **BERT Extraction**: KeyBERT-based keyword extraction for superior semantic understanding
+- **GloVE Expansion**: GloVe-based keyword expansion into terms of similar meaning and domain
 - **Configurable Model Tiers**: Choose between `fast`, `regular`, or `large` models to balance speed and accuracy
 - **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
-- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance
+- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance and TF scoring
 
-```bash
-# Index with enhanced AI keyword extraction
-cicada index --nlp --fast
+#### Keyword Expansion Example
 
-# Search by concept, not just exact names
-# AI will find: create_user, user_creation, new_user_account, etc.
-```
+**Input:** "Authenticates user's credentials"
 
-### ⚡ Incremental Indexing - Lightning Fast Updates
+| Fast (NLP) | Standard (AI) | Max (AI) |
+|-----------|--------------|----------|
+| auth_user (11.0) | auth_user (8.92) | auth_user (8.92) |
+| user (4.0) | user (1.98) | user (1.98) |
+| auth (3.0) | interface (1.41) | users (1.39) |
+| users (2.8) | users (1.39) | user2 (1.32) |
+| authenticates (1.0) | software (1.30) | user1 (1.30) |
+| credentials (1.0) | application (1.30) | userlist (1.29) |
+| | allows (1.30) | non-user (1.29) |
+| | interfaced (0.99) | non-users (0.90) |
+| | interfaces (0.99) | auth (0.90) |
+| | interfacing (0.99) | authenticates (0.72) |
+| | softwares (0.91) | credentials (0.68) |
+| | applications (0.91) | xauth (0.58) |
+| | auth (0.90) | authentication (0.53) |
+| | authenticates (0.72) | authentications (0.52) |
+| | credentials (0.68) | authentification (0.52) |
+| | | login (0.52) |
+| | | authenticate (0.51) |
+| | | authenticators (0.50) |
+| | | authenticator (0.50) |
 
-Say goodbye to slow reindexing! v0.2.0 introduces intelligent change detection that makes reindexing **15-25x faster**:
-
-- **🚀 15-25x Speedup**: Only processes files that actually changed (MD5 hash-based detection)
-- **💾 Interrupt Safety**: Ctrl-C gracefully saves progress - resume anytime without data loss
-- **🎯 Perfect for AI Search**: Keyword extraction drops from 48.7s to 2.1s for typical updates
-- **🔄 Zero Configuration**: Works automatically out of the box
-
-```bash
-# First run: full index + hash computation (~12s for 200 files)
-cicada index --nlp
-
-# Subsequent runs: lightning fast incremental updates
-# Changed 5 files? Only 2.1s instead of 48.7s!
-cicada index --nlp
-```
-
-**Performance Benchmark** (200-file Phoenix app, 5 files changed):
-
-| Operation | Before v0.2.0 | v0.2.0 Incremental | Speedup |
-|-----------|---------------|-------------------|---------|
-| Code indexing only | 12.3s | 0.8s | **15.4x faster** |
-| With AI keyword extraction | 48.7s | 2.1s | **23.2x faster** |
-
-### 🛡️ Production-Ready Features
+### ⚡ Incremental Indexing
+### 🛡️ QoL
 
 - **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
 - **Resume Capability**: Interrupted? Just run the same command again to continue
 - **Smart Merging**: Automatically merges incremental changes with existing index
-- **Backward Compatible**: Seamlessly upgrades from v0.1.x with no breaking changes
 
-### Migration from v0.1.x
-
-✅ **Zero Breaking Changes** - v0.2.0 is fully backward compatible
-✅ **Automatic Upgrade** - Just install and run `cicada index` as usual
-✅ **Graceful Fallback** - Missing hashes? Performs full index once automatically
-
-```bash
-# Update to v0.2.0
-uv tool install git+https://github.com/wende/cicada.git@latest --force
-
-# Run indexer - automatically enables incremental mode
-cicada index --nlp
-
-# Need to switch keyword extraction methods? Use --full for consistency
-cicada index --rag --fast --full
-```
-
-**[Read the complete incremental indexing guide →](docs/INCREMENTAL_INDEXING.md)**
+**[Read the complete changelog →](CHANGELOG.md)**
 
 ---
 
@@ -193,7 +170,7 @@ brew install node
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
-- `cicada index` - Re-index code with custom options (--nlp or --rag)
+- `cicada index` - Re-index code with custom options (--fast, --regular, or --max)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
 
@@ -411,9 +388,10 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 **`search_by_keywords`** (EXPERIMENTAL) - Semantic documentation search
 - Find code by concepts, not just names
 - Wildcard pattern matching (`create*`, `*_user`)
-- NLP-extracted keywords from docs
+- Filter results by type: modules only, functions only, or all
+- AI-extracted keywords from docs
 - Relevance scoring
-- Requires: Index built with `--nlp` or `--rag`
+- Requires: Index built with keyword extraction (--fast, --regular, or --max)
 
 **`find_dead_code`** - Identify potentially unused functions
 - Three confidence levels (high, medium, low)
@@ -449,8 +427,9 @@ cicada /path/to/other/project   # Setup in different directory
 **`cicada index`** - Index Elixir codebase
 ```bash
 cicada index                         # Index current directory
-cicada index --nlp                   # Use NLP keyword extraction (lemminflect)
-cicada index --rag                   # Use BERT-based keyword extraction
+cicada index --fast                  # Fast tier: Regular extraction + lemminflect (no downloads)
+cicada index --regular               # Regular tier: KeyBERT small + GloVe (128MB, default)
+cicada index --max                   # Max tier: KeyBERT large + FastText (958MB+)
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites

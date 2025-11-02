@@ -2,6 +2,8 @@
 Function call and value mention extraction logic.
 """
 
+from cicada.utils import extract_text_from_node, is_function_definition_call
+
 from .base import count_arguments
 
 
@@ -25,15 +27,7 @@ def _find_function_calls_recursive(node, source_code: bytes, calls: list):
 
     if node.type == "call":
         # Check if this is a function definition (def/defp)
-        is_function_def = False
-        for child in node.children:
-            if child.type == "identifier":
-                func_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
-                if func_text in ["def", "defp", "defmodule"]:
-                    is_function_def = True
-                    break
-
-        if is_function_def:
+        if is_function_definition_call(node, source_code):
             # Skip the arguments (which contain the function signature)
             # but still process the do_block to find calls within the function body
             for child in node.children:
@@ -74,16 +68,12 @@ def _parse_function_call(call_node, source_code: bytes) -> dict | None:
             # Extract module and function from dot
             for dot_child in child.children:
                 if dot_child.type == "alias":
-                    module_name = source_code[dot_child.start_byte : dot_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    module_name = extract_text_from_node(dot_child, source_code)
                 elif dot_child.type == "identifier":
-                    function_name = source_code[dot_child.start_byte : dot_child.end_byte].decode(
-                        "utf-8"
-                    )
+                    function_name = extract_text_from_node(dot_child, source_code)
         elif child.type == "identifier" and not has_dot:
             # Local function call
-            function_name = source_code[child.start_byte : child.end_byte].decode("utf-8")
+            function_name = extract_text_from_node(child, source_code)
         elif child.type == "arguments":
             arguments_node = child
 
@@ -141,7 +131,7 @@ def _find_value_mentions_recursive(node, source_code: bytes, value_mentions: lis
         # Skip if parent is a specific call type
 
         # Get the module name
-        module_name = source_code[node.start_byte : node.end_byte].decode("utf-8")
+        module_name = extract_text_from_node(node, source_code)
 
         # We need to check if this alias is part of a call with dot notation
         # If it has a dot parent, it's a module function call, not a value mention
@@ -156,9 +146,7 @@ def _find_value_mentions_recursive(node, source_code: bytes, value_mentions: lis
                     # Check if this is alias/import/require/use/defmodule
                     for child in current.children:
                         if child.type == "identifier":
-                            func_text = source_code[child.start_byte : child.end_byte].decode(
-                                "utf-8"
-                            )
+                            func_text = extract_text_from_node(child, source_code)
                             if func_text in [
                                 "alias",
                                 "import",

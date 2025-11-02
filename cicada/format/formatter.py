@@ -199,6 +199,264 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return json.dumps(error_result, indent=2)
 
     @staticmethod
+    def _format_remaining_code_sites(remaining_code, indent):
+        lines = []
+        grouped_remaining_code = CallSiteFormatter.group_by_caller(remaining_code)
+        remaining_code_count = sum(len(site["lines"]) for site in grouped_remaining_code)
+        lines.append(f"{indent}Code ({remaining_code_count}):")
+        for site in grouped_remaining_code:
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            line_list = ", ".join(f":{line}" for line in site["lines"])
+            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+        return lines
+
+    @staticmethod
+    def _format_test_sites_without_examples(test_sites, code_sites, indent):
+        lines = []
+        if code_sites:
+            lines.append("")  # Blank line between sections
+        # Group test sites by caller
+        grouped_test = CallSiteFormatter.group_by_caller(test_sites)
+        test_count = sum(len(site["lines"]) for site in grouped_test)
+        lines.append(f"{indent}Test ({test_count}):")
+        for site in grouped_test:
+            # Format calling location with function if available
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            # Show consolidated line numbers
+            line_list = ", ".join(f":{line}" for line in site["lines"])
+            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+        return lines
+
+    @staticmethod
+    def _format_code_sites_without_examples(code_sites, indent):
+        lines = []
+        # Group code sites by caller
+        grouped_code = CallSiteFormatter.group_by_caller(code_sites)
+        code_count = sum(len(site["lines"]) for site in grouped_code)
+        lines.append(f"{indent}Code ({code_count}):")
+        for site in grouped_code:
+            # Format calling location with function if available
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            # Show consolidated line numbers
+            line_list = ", ".join(f":{line}" for line in site["lines"])
+            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+        return lines
+
+    @staticmethod
+    def _format_remaining_test_sites(remaining_test, remaining_code, indent):
+        lines = []
+        if remaining_code:
+            lines.append("")
+        grouped_remaining_test = CallSiteFormatter.group_by_caller(remaining_test)
+        remaining_test_count = sum(len(site["lines"]) for site in grouped_remaining_test)
+        lines.append(f"{indent}Test ({remaining_test_count}):")
+        for site in grouped_remaining_test:
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            line_list = ", ".join(f":{line}" for line in site["lines"])
+            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+        return lines
+
+    @staticmethod
+    def _format_grouped_test_sites(grouped_test, indent):
+        lines = []
+        for site in grouped_test:
+            # Format calling location with function if available
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            # Show consolidated line numbers only if multiple lines
+            if len(site["lines"]) > 1:
+                line_list = ", ".join(f":{line}" for line in site["lines"])
+                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+            else:
+                lines.append(f"{indent}- {caller} at {site['file']}")
+
+            # Add the actual code lines if available
+            if site.get("code_lines"):
+                for code_entry in site["code_lines"]:
+                    # Properly indent each line of the code block
+                    code_lines = code_entry["code"].split("\n")
+                    for code_line in code_lines:
+                        lines.append(f"{indent}  {code_line}")
+        return lines
+
+    @staticmethod
+    def _format_grouped_code_sites(grouped_code, indent):
+        lines = []
+        for site in grouped_code:
+            # Format calling location with function if available
+            calling_func = site.get("calling_function")
+            if calling_func:
+                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            else:
+                caller = site["calling_module"]
+
+            # Show consolidated line numbers only if multiple lines
+            if len(site["lines"]) > 1:
+                line_list = ", ".join(f":{line}" for line in site["lines"])
+                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+            else:
+                lines.append(f"{indent}- {caller} at {site['file']}")
+
+            # Add the actual code lines if available
+            if site.get("code_lines"):
+                for code_entry in site["code_lines"]:
+                    # Properly indent each line of the code block
+                    code_lines = code_entry["code"].split("\n")
+                    for code_line in code_lines:
+                        lines.append(f"{indent}  {code_line}")
+        return lines
+
+    @staticmethod
+    def _format_remaining_call_sites(call_sites, call_sites_with_examples, indent):
+        lines = []
+        # Create a set of call sites that were shown with examples
+        shown_call_lines = set()
+        for site in call_sites_with_examples:
+            shown_call_lines.add((site["file"], site["line"]))
+
+        # Filter to get call sites not yet shown
+        remaining_call_sites = [
+            site for site in call_sites if (site["file"], site["line"]) not in shown_call_lines
+        ]
+
+        if remaining_call_sites:
+            # Separate into code and test
+            remaining_code = [s for s in remaining_call_sites if "test" not in s["file"].lower()]
+            remaining_test = [s for s in remaining_call_sites if "test" in s["file"].lower()]
+
+            lines.append("")
+            lines.append(f"{indent}Other Call Sites:")
+
+            if remaining_code:
+                lines.extend(ModuleFormatter._format_remaining_code_sites(remaining_code, indent))
+
+            if remaining_test:
+                lines.extend(
+                    ModuleFormatter._format_remaining_test_sites(
+                        remaining_test, remaining_code, indent
+                    )
+                )
+        return lines
+
+    @staticmethod
+    def _format_test_sites_with_examples(
+        test_sites_with_examples, code_sites_with_examples, indent
+    ):
+        lines = []
+        if code_sites_with_examples:
+            lines.append("")  # Blank line between sections
+        # Group test sites by caller
+        grouped_test = CallSiteFormatter.group_by_caller(test_sites_with_examples)
+        test_count = sum(len(site["lines"]) for site in grouped_test)
+        lines.append(f"{indent}Test ({test_count}):")
+        lines.extend(ModuleFormatter._format_grouped_test_sites(grouped_test, indent))
+        return lines
+
+    @staticmethod
+    def _format_code_sites_with_examples(code_sites_with_examples, indent):
+        lines = []
+        # Group code sites by caller
+        grouped_code = CallSiteFormatter.group_by_caller(code_sites_with_examples)
+        code_count = sum(len(site["lines"]) for site in grouped_code)
+        lines.append(f"{indent}Code ({code_count}):")
+        lines.extend(ModuleFormatter._format_grouped_code_sites(grouped_code, indent))
+        return lines
+
+    @staticmethod
+    def _format_call_sites_without_examples(call_sites, indent):
+        lines = []
+        # Separate into code and test call sites
+        code_sites = [s for s in call_sites if "test" not in s["file"].lower()]
+        test_sites = [s for s in call_sites if "test" in s["file"].lower()]
+
+        call_count = len(call_sites)
+        lines.append("")
+        lines.append(f"{indent}Called {call_count} times:")
+        lines.append("")
+
+        if code_sites:
+            lines.extend(ModuleFormatter._format_code_sites_without_examples(code_sites, indent))
+
+        if test_sites:
+            lines.extend(
+                ModuleFormatter._format_test_sites_without_examples(test_sites, code_sites, indent)
+            )
+        lines.append("")
+        return lines
+
+    @staticmethod
+    def _format_call_sites_with_examples(call_sites, call_sites_with_examples, indent):
+        lines = []
+        # Separate into code and test call sites WITH examples
+        code_sites_with_examples = [
+            s for s in call_sites_with_examples if "test" not in s["file"].lower()
+        ]
+        test_sites_with_examples = [
+            s for s in call_sites_with_examples if "test" in s["file"].lower()
+        ]
+
+        lines.append(f"{indent}Usage Examples:")
+
+        if code_sites_with_examples:
+            lines.extend(
+                ModuleFormatter._format_code_sites_with_examples(code_sites_with_examples, indent)
+            )
+
+        if test_sites_with_examples:
+            lines.extend(
+                ModuleFormatter._format_test_sites_with_examples(
+                    test_sites_with_examples, code_sites_with_examples, indent
+                )
+            )
+
+        lines.extend(
+            ModuleFormatter._format_remaining_call_sites(
+                call_sites, call_sites_with_examples, indent
+            )
+        )
+        return lines
+
+    @staticmethod
+    def _format_call_sites(call_sites, call_sites_with_examples, indent):
+        lines = []
+        # Check if we have usage examples (code lines)
+        has_examples = len(call_sites_with_examples) > 0
+
+        if has_examples:
+            lines.extend(
+                ModuleFormatter._format_call_sites_with_examples(
+                    call_sites, call_sites_with_examples, indent
+                )
+            )
+        else:
+            lines.extend(ModuleFormatter._format_call_sites_without_examples(call_sites, indent))
+        return lines
+
+    @staticmethod
     def format_function_results_markdown(function_name: str, results: list[dict[str, Any]]) -> str:
         """
         Format function search results as Markdown.
@@ -309,186 +567,9 @@ No functions matching `{function_name}` were found in the index.
             call_sites_with_examples = result.get("call_sites_with_examples", [])
 
             if call_sites:
-                # Check if we have usage examples (code lines)
-                has_examples = len(call_sites_with_examples) > 0
-
-                if has_examples:
-                    # Separate into code and test call sites WITH examples
-                    code_sites_with_examples = [
-                        s for s in call_sites_with_examples if "test" not in s["file"].lower()
-                    ]
-                    test_sites_with_examples = [
-                        s for s in call_sites_with_examples if "test" in s["file"].lower()
-                    ]
-
-                    lines.append(f"{indent}Usage Examples:")
-
-                    if code_sites_with_examples:
-                        # Group code sites by caller
-                        grouped_code = CallSiteFormatter.group_by_caller(code_sites_with_examples)
-                        code_count = sum(len(site["lines"]) for site in grouped_code)
-                        lines.append(f"{indent}Code ({code_count}):")
-                        for site in grouped_code:
-                            # Format calling location with function if available
-                            calling_func = site.get("calling_function")
-                            if calling_func:
-                                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                            else:
-                                caller = site["calling_module"]
-
-                            # Show consolidated line numbers only if multiple lines
-                            if len(site["lines"]) > 1:
-                                line_list = ", ".join(f":{line}" for line in site["lines"])
-                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-                            else:
-                                lines.append(f"{indent}- {caller} at {site['file']}")
-
-                            # Add the actual code lines if available
-                            if site.get("code_lines"):
-                                for code_entry in site["code_lines"]:
-                                    # Properly indent each line of the code block
-                                    code_lines = code_entry["code"].split("\n")
-                                    for code_line in code_lines:
-                                        lines.append(f"{indent}  {code_line}")
-
-                    if test_sites_with_examples:
-                        if code_sites_with_examples:
-                            lines.append("")  # Blank line between sections
-                        # Group test sites by caller
-                        grouped_test = CallSiteFormatter.group_by_caller(test_sites_with_examples)
-                        test_count = sum(len(site["lines"]) for site in grouped_test)
-                        lines.append(f"{indent}Test ({test_count}):")
-                        for site in grouped_test:
-                            # Format calling location with function if available
-                            calling_func = site.get("calling_function")
-                            if calling_func:
-                                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                            else:
-                                caller = site["calling_module"]
-
-                            # Show consolidated line numbers only if multiple lines
-                            if len(site["lines"]) > 1:
-                                line_list = ", ".join(f":{line}" for line in site["lines"])
-                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-                            else:
-                                lines.append(f"{indent}- {caller} at {site['file']}")
-
-                            # Add the actual code lines if available
-                            if site.get("code_lines"):
-                                for code_entry in site["code_lines"]:
-                                    # Properly indent each line of the code block
-                                    code_lines = code_entry["code"].split("\n")
-                                    for code_line in code_lines:
-                                        lines.append(f"{indent}  {code_line}")
-
-                    # Now show the remaining call sites (those without code examples)
-                    # Create a set of call sites that were shown with examples
-                    shown_call_lines = set()
-                    for site in call_sites_with_examples:
-                        shown_call_lines.add((site["file"], site["line"]))
-
-                    # Filter to get call sites not yet shown
-                    remaining_call_sites = [
-                        site
-                        for site in call_sites
-                        if (site["file"], site["line"]) not in shown_call_lines
-                    ]
-
-                    if remaining_call_sites:
-                        # Separate into code and test
-                        remaining_code = [
-                            s for s in remaining_call_sites if "test" not in s["file"].lower()
-                        ]
-                        remaining_test = [
-                            s for s in remaining_call_sites if "test" in s["file"].lower()
-                        ]
-
-                        lines.append("")
-                        lines.append(f"{indent}Other Call Sites:")
-
-                        if remaining_code:
-                            grouped_remaining_code = CallSiteFormatter.group_by_caller(
-                                remaining_code
-                            )
-                            remaining_code_count = sum(
-                                len(site["lines"]) for site in grouped_remaining_code
-                            )
-                            lines.append(f"{indent}Code ({remaining_code_count}):")
-                            for site in grouped_remaining_code:
-                                calling_func = site.get("calling_function")
-                                if calling_func:
-                                    caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                                else:
-                                    caller = site["calling_module"]
-
-                                line_list = ", ".join(f":{line}" for line in site["lines"])
-                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-
-                        if remaining_test:
-                            if remaining_code:
-                                lines.append("")
-                            grouped_remaining_test = CallSiteFormatter.group_by_caller(
-                                remaining_test
-                            )
-                            remaining_test_count = sum(
-                                len(site["lines"]) for site in grouped_remaining_test
-                            )
-                            lines.append(f"{indent}Test ({remaining_test_count}):")
-                            for site in grouped_remaining_test:
-                                calling_func = site.get("calling_function")
-                                if calling_func:
-                                    caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                                else:
-                                    caller = site["calling_module"]
-
-                                line_list = ", ".join(f":{line}" for line in site["lines"])
-                                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-                else:
-                    # Separate into code and test call sites
-                    code_sites = [s for s in call_sites if "test" not in s["file"].lower()]
-                    test_sites = [s for s in call_sites if "test" in s["file"].lower()]
-
-                    call_count = len(call_sites)
-                    lines.append("")
-                    lines.append(f"{indent}Called {call_count} times:")
-                    lines.append("")
-
-                    if code_sites:
-                        # Group code sites by caller
-                        grouped_code = CallSiteFormatter.group_by_caller(code_sites)
-                        code_count = sum(len(site["lines"]) for site in grouped_code)
-                        lines.append(f"{indent}Code ({code_count}):")
-                        for site in grouped_code:
-                            # Format calling location with function if available
-                            calling_func = site.get("calling_function")
-                            if calling_func:
-                                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                            else:
-                                caller = site["calling_module"]
-
-                            # Show consolidated line numbers
-                            line_list = ", ".join(f":{line}" for line in site["lines"])
-                            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-
-                    if test_sites:
-                        if code_sites:
-                            lines.append("")  # Blank line between sections
-                        # Group test sites by caller
-                        grouped_test = CallSiteFormatter.group_by_caller(test_sites)
-                        test_count = sum(len(site["lines"]) for site in grouped_test)
-                        lines.append(f"{indent}Test ({test_count}):")
-                        for site in grouped_test:
-                            # Format calling location with function if available
-                            calling_func = site.get("calling_function")
-                            if calling_func:
-                                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-                            else:
-                                caller = site["calling_module"]
-
-                            # Show consolidated line numbers
-                            line_list = ", ".join(f":{line}" for line in site["lines"])
-                            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-                lines.append("")
+                lines.extend(
+                    ModuleFormatter._format_call_sites(call_sites, call_sites_with_examples, indent)
+                )
             else:
                 lines.extend([f"{indent}*No call sites found*"])
 

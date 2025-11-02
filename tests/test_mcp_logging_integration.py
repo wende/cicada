@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 
 @pytest.fixture

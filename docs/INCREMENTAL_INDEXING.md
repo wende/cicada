@@ -49,17 +49,17 @@ cicada index --full
 
 ### Switching Keyword Extraction Methods
 
-When switching between keyword extraction methods (lemminflect vs BERT), you should use `--full` to ensure consistent keywords across all files:
+When switching between keyword extraction methods (token-based vs BERT), you should use `--full` to ensure consistent keywords across all files:
 
 ```bash
-# Initially indexed with lemminflect (default)
-cicada index --nlp
+# Initially indexed with token-based extraction (fast tier)
+cicada index --fast
 
 # Switching to BERT - use --full for consistency
-cicada index --rag --fast --full
+cicada index --max --full
 
-# Switching back to lemminflect with different model - use --full again
-cicada index --nlp --max --full
+# Switching to standard BERT with different model - use --full again
+cicada index --regular --full
 ```
 
 **Why use `--full`?**
@@ -136,7 +136,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada index --nlp  # or --rag
+cicada index  # or cicada index --fast, or cicada index --max
 ```
 
 The incremental indexing system will:
@@ -299,7 +299,7 @@ _handle_interrupt() called
 **During active development:**
 ```bash
 # Edit 2-3 files, reindex frequently
-cicada index --nlp  # ~1-2s instead of ~50s (only reprocesses changed files)
+cicada index  # ~1-2s instead of ~50s (only reprocesses changed files)
 ```
 
 **After git pull:**
@@ -353,14 +353,14 @@ priv/           # Private resources
 
 **Solution:**
 ```bash
-# Force full reindex
+# Force full reindex (with default BERT extraction)
 cicada index --full
 
-# With NLP keyword extraction
-cicada index --nlp --full
+# With fast token-based keyword extraction
+cicada index --fast --full
 
-# With BERT keyword extraction
-cicada index --rag --full
+# With BERT keyword extraction (max tier)
+cicada index --max --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -436,7 +436,7 @@ Add to your development workflow:
 git pull && cicada index
 
 # Before committing (reindex changed files)
-cicada index --nlp && git commit
+cicada index && git commit
 ```
 
 ### 2. CI/CD Integration
@@ -447,7 +447,7 @@ In your CI pipeline:
 # .github/workflows/ci.yml
 - name: Index codebase
   run: |
-    cicada index --nlp
+    cicada index
     # Run tests that depend on index
     pytest tests/
 ```
@@ -461,7 +461,7 @@ Create `.git/hooks/pre-commit`:
 ```bash
 #!/bin/bash
 # Reindex changed files before commit
-cicada index --nlp
+cicada index
 ```
 
 ### 4. Storage Location
@@ -484,7 +484,7 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada index --nlp --full  # or --rag --full
+cicada index --full  # or cicada index --max --full for BERT extraction
 ```
 
 This ensures:
@@ -591,7 +591,7 @@ MD5 collision probability is negligible for this use case:
 
 ## FAQ
 
-**Q: Does incremental indexing work with `--nlp` or `--rag`?**
+**Q: Does incremental indexing work with keyword extraction (`--fast`, `--regular`, `--max`)?**
 
 A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using keyword extraction.
 

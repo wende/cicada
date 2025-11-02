@@ -37,24 +37,21 @@ Quick test plan before merging to main.
 - [x] `cicada /path/to/other/project` - Setup in different directory
 
 ## Index - Basic
-- [x] `cicada index` - Interactive setup (no flags), choose nlp/rag, choose tier
+- [x] `cicada index` - Interactive setup (no flags), choose tier
 - [x] `cicada index .` - Uses centralized storage path
 
-## Index - NLP Mode
-- [x] `cicada index --nlp` - NLP with regular tier (default)
-
-## Index - RAG Mode
-- [x] `cicada index --rag` - RAG with regular tier (default)
-- [x] `cicada index --rag --fast` - RAG with fast tier
-- [x] `cicada index --rag --max` - RAG with max tier
+## Index - Tier Modes
+- [x] `cicada index --fast` - Fast tier: Regular extraction + lemminflect (no downloads)
+- [x] `cicada index --regular` - Regular tier: KeyBERT small + GloVe (128MB, default)
+- [x] `cicada index --max` - Max tier: KeyBERT large + FastText (958MB+)
 
 ## Index - Error Cases
-- [x] `cicada index --fast` - Should error: "requires --rag"
-- [x] `cicada index --max` - Should error: "requires --rag"
-- [x] `cicada index --nlp --rag` - Should error: "Cannot specify both"
+- [x] `cicada index --fast --regular` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --regular --max` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --fast --max` - Should error: "Cannot specify multiple tier flags"
 
 ## Index - Incremental
-- [x] Run `cicada index --nlp` twice - Second run should be faster (incremental)
+- [x] Run `cicada index --regular` twice - Second run should be faster (incremental)
 - [x] Modify 1-2 files, run again - Only changed files reprocessed
 - [x] Ctrl-C during indexing, run again - Resume from saved progress
 
@@ -76,7 +73,7 @@ Quick test plan before merging to main.
 - [ ] `search_module` - Find module by name
 - [ ] `search_function` - Find function with usage examples
 - [ ] `search_module_usage` - Track module dependencies
-- [ ] `search_by_keywords` - Semantic search (requires --nlp or --rag index)
+- [ ] `search_by_keywords` - Semantic search (requires index with keyword extraction)
 - [ ] `find_dead_code` - MCP tool version
 - [ ] `get_commit_history` - File history
 - [ ] `get_blame` - Line-by-line ownership

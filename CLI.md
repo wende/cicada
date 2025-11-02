@@ -49,11 +49,10 @@ uvx cicada-mcp install            # Same behavior via uvx
 cicada install --claude           # Skip editor selection, use Claude
 cicada install --cursor           # Skip editor selection, use Cursor
 cicada install --vs               # Skip editor selection, use VS Code
-cicada install --nlp              # Skip model selection, use Lemminflect
-cicada install --rag              # Skip model selection, use BERT (default tier)
-cicada install --rag --fast       # Use BERT fast tier
-cicada install --rag --max        # Use BERT max tier
-cicada install --claude --nlp     # Combine: Claude + Lemminflect
+cicada install --fast             # Fast tier: Regular extraction + lemminflect (no downloads)
+cicada install --regular          # Regular tier: KeyBERT small + GloVe (128MB, default)
+cicada install --max              # Max tier: KeyBERT large + FastText (958MB+)
+cicada install --claude --fast    # Combine: Claude + fast tier
 ```
 
 ### 3. Server Subcommand (Silent MCP Server)
@@ -84,9 +83,9 @@ cicada server --claude            # Create Claude config before starting
 cicada server --cursor            # Create Cursor config before starting
 cicada server --vs                # Create VS Code config before starting
 cicada server --claude --vs       # Create both configs before starting
-cicada server --nlp               # Force Lemminflect (if reindexing needed)
-cicada server --rag               # Force BERT (if reindexing needed)
-cicada server --rag --fast        # Force BERT fast tier
+cicada server --fast              # Fast tier (if reindexing needed)
+cicada server --regular           # Regular tier (if reindexing needed)
+cicada server --max               # Max tier (if reindexing needed)
 ```
 
 **Key Difference from Install:**
@@ -113,12 +112,11 @@ cicada cursor /path/to/project    # Setup for Cursor in specified dir
 
 **Options:**
 ```bash
-cicada claude --nlp               # Use Lemminflect
-cicada claude --rag               # Use BERT (default tier)
-cicada claude --rag --fast        # Use BERT fast tier
-cicada claude --rag --max         # Use BERT max tier
-cicada cursor --nlp               # Same for Cursor
-cicada vs --rag                   # Same for VS Code
+cicada claude --fast              # Fast tier: Regular extraction + lemminflect
+cicada claude --regular           # Regular tier: KeyBERT small + GloVe (default)
+cicada claude --max               # Max tier: KeyBERT large + FastText
+cicada cursor --fast              # Same for Cursor
+cicada vs --max                   # Same for VS Code
 ```
 
 ### 5. Other Commands (Unchanged)
@@ -265,12 +263,12 @@ def main():
 
 ### Interactive Mode (install)
 - Prompts user for model choice
-- Shows menu with Lemminflect and BERT options
+- Shows menu with fast, regular, and max tier options
 - Defaults to user selection
 
 ### Silent Mode (server)
-- Uses Lemminflect as default (fastest, no downloads)
-- Can be overridden with `--nlp` or `--rag` flags
+- Uses fast tier as default (fastest, no downloads)
+- Can be overridden with `--fast`, `--regular`, or `--max` flags
 - Never prompts
 
 ### Existing Index
@@ -300,14 +298,14 @@ cicada server                     # Error: Same (exits gracefully)
 
 ### Missing Dependencies
 ```bash
-cicada install --rag              # Downloads BERT model if needed
-cicada server --rag               # Downloads BERT model silently
+cicada install --regular          # Downloads KeyBERT + GloVe if needed (128MB)
+cicada server --max               # Downloads KeyBERT + FastText silently (958MB+)
 ```
 
 ### Conflicting Flags
 ```bash
-cicada install --nlp --rag        # Error: "Cannot specify both --nlp and --rag"
-cicada server --fast              # Error: "--fast requires --rag"
+cicada install --fast --max       # Error: "Cannot specify multiple tier flags"
+cicada install --regular --max    # Error: "Cannot specify multiple tier flags"
 ```
 
 ## Usage Examples
@@ -315,7 +313,7 @@ cicada server --fast              # Error: "--fast requires --rag"
 ### First-Time User (uvx)
 ```bash
 cd ~/my-elixir-project
-uvx cicada-mcp install            # Interactive setup, selects Claude + Lemminflect
+uvx cicada-mcp install            # Interactive setup, selects Claude + tier (fast/regular/max)
 # Restart Claude Code
 # Start using Cicada MCP tools
 ```
@@ -329,15 +327,15 @@ cicada install                    # Interactive setup
 
 ### Quick Setup for Specific Editor
 ```bash
-cicada claude                     # Setup for Claude (interactive model choice)
-cicada cursor --nlp               # Setup for Cursor with Lemminflect
-cicada vs --rag --fast            # Setup for VS Code with BERT fast
+cicada claude                     # Setup for Claude (interactive tier choice)
+cicada cursor --fast              # Setup for Cursor with fast tier
+cicada vs --max                   # Setup for VS Code with max tier
 ```
 
 ### Development/Testing (Server Mode)
 ```bash
 cicada server . --claude          # Start server, create Claude config, use defaults
-cicada server --claude --vs --nlp # Start server, create both configs, use Lemminflect
+cicada server --claude --vs --max # Start server, create both configs, use max tier
 ```
 
 ### MCP Client Integration
@@ -416,12 +414,12 @@ When MCP client starts `cicada-mcp`, it:
 
 - **`cicada/commands/__init__.py`** - Command handlers package
 - **`cicada/commands/install.py`** - Interactive install command handler
-  - Supports flags to skip prompts (--claude, --cursor, --vs, --nlp, --rag)
+  - Supports flags to skip prompts (--claude, --cursor, --vs, --fast, --regular, --max)
   - Falls back to interactive menus when flags not provided
 
 - **`cicada/commands/server.py`** - Silent server command handler
   - No prompts, uses defaults
-  - Auto-setup if needed (default to lemminflect)
+  - Auto-setup if needed (default to fast tier)
   - Supports multiple editor configs (--claude --cursor --vs)
 
 ### Files Modified

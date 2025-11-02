@@ -108,34 +108,32 @@ What would you like to do?
 
 ### Before This Feature
 ```bash
-# Initial index with spaCy
-$ cicada index --nlp --regular
+# Initial index with fast tier (token-based)
+$ cicada index --fast
 ✓ Indexing complete! Modules: 150
 
-# Later, switching to KeyBERT (SILENTLY creates inconsistent index)
-$ cicada index --rag --max
+# Later, switching to max tier BERT (SILENTLY creates inconsistent index)
+$ cicada index --max
 ✓ Processing 5 changed files...
 ✓ Index updated!
-# ⚠️  INDEX NOW INCONSISTENT: 145 modules use spaCy, 5 use KeyBERT
+# ⚠️  INDEX NOW INCONSISTENT: 145 modules use fast, 5 use max
 ```
 
 ### After This Feature
 ```bash
-# Initial index with spaCy
-$ cicada index --nlp --regular
+# Initial index with fast tier (token-based)
+$ cicada index --fast
 ✓ Indexing complete! Modules: 150
 
-# Later, switching to KeyBERT (PROMPTS USER)
-$ cicada index --rag --max
+# Later, switching to max tier BERT (PROMPTS USER)
+$ cicada index --max
 ⚠  Model Configuration Change Detected
 
   Previous configuration:
-    Method: SPACY
-    Model:  Regular
+    Tier: FAST (token-based)
 
   New configuration:
-    Method: BERT
-    Model:  Max
+    Tier: MAX (BERT large)
 
   Changing the model requires reindexing the entire codebase.
 
@@ -191,11 +189,11 @@ No changes to existing workflows. Users only see prompts when they change model 
 
 ```bash
 # Regular incremental indexing (no model change)
-$ cicada index --nlp --regular  # First time
-$ cicada index --nlp --regular  # Later - no prompt
+$ cicada index --regular  # First time
+$ cicada index --regular  # Later - no prompt
 
 # Changing model configuration
-$ cicada index --rag --max      # Prompt shown, user chooses
+$ cicada index --max      # Prompt shown, user chooses
 ```
 
 ## Benefits

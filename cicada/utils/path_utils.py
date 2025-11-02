@@ -124,6 +124,24 @@ def match_file_path(
     return bool(target_str.endswith(candidate_str))
 
 
+def is_git_repository(path: str | Path) -> bool:
+    """
+    Check if a path is a git repository.
+
+    Args:
+        path: Path to check
+
+    Returns:
+        True if the path is a git repository, False otherwise
+
+    Example:
+        is_git_repository('/repo') -> True
+        is_git_repository('/not/a/repo') -> False
+    """
+    git_dir = Path(path) / ".git"
+    return git_dir.exists()
+
+
 def find_repo_root(start_path: str | Path | None = None) -> Path | None:
     """
     Find the git repository root starting from a given path.

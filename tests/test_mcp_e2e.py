@@ -15,12 +15,10 @@ Test Categories:
 """
 
 import json
-
 import pytest
 import yaml
+from cicada.mcp.server import CicadaServer
 from mcp.types import TextContent
-
-from cicada.mcp_server import CicadaServer
 
 
 @pytest.fixture
@@ -166,7 +164,7 @@ end
 @pytest.fixture
 def e2e_server(sample_elixir_repo, tmp_path):
     """Create a fully initialized server with indexed repository."""
-    from cicada.languages.elixir.indexer import ElixirIndexer
+    from cicada.indexer import ElixirIndexer
 
     # Index the repository
     indexer = ElixirIndexer(verbose=False)
@@ -179,7 +177,6 @@ def e2e_server(sample_elixir_repo, tmp_path):
 
     # Create config
     config = {
-        "language": "elixir",
         "repository": {"path": str(sample_elixir_repo)},
         "storage": {"index_path": str(index_path)},
     }
@@ -559,6 +556,55 @@ class TestKeywordSearch:
         text = result[0].text
         assert "required" in text.lower()
 
+    @pytest.mark.asyncio
+    async def test_search_by_keywords_invalid_filter_type(self, e2e_server):
+        """Test keyword search with invalid filter_type parameter."""
+        result = await e2e_server.call_tool(
+            "search_by_keywords",
+            {"keywords": ["test"], "filter_type": "invalid_type"},
+        )
+
+        assert len(result) == 1
+        text = result[0].text
+        assert "filter_type" in text.lower()
+        assert "all" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_by_keywords_filter_modules(self, e2e_server):
+        """Test keyword search with modules-only filter."""
+        result = await e2e_server.call_tool(
+            "search_by_keywords",
+            {"keywords": ["authentication", "user"], "filter_type": "modules"},
+        )
+
+        assert len(result) == 1
+        text = result[0].text
+        assert text, "Response should not be empty"
+
+    @pytest.mark.asyncio
+    async def test_search_by_keywords_filter_functions(self, e2e_server):
+        """Test keyword search with functions-only filter."""
+        result = await e2e_server.call_tool(
+            "search_by_keywords",
+            {"keywords": ["authentication", "user"], "filter_type": "functions"},
+        )
+
+        assert len(result) == 1
+        text = result[0].text
+        assert text, "Response should not be empty"
+
+    @pytest.mark.asyncio
+    async def test_search_by_keywords_filter_all(self, e2e_server):
+        """Test keyword search with all-types filter (default)."""
+        result = await e2e_server.call_tool(
+            "search_by_keywords",
+            {"keywords": ["authentication", "user"], "filter_type": "all"},
+        )
+
+        assert len(result) == 1
+        text = result[0].text
+        assert text, "Response should not be empty"
+
 
 class TestDeadCodeAnalysis:
     """Test dead code detection functionality."""
@@ -724,7 +770,7 @@ end
         index_path = tmp_path / "empty_index.json"
 
         # Index it
-        from cicada.languages.elixir.indexer import ElixirIndexer
+        from cicada.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=False)
         index_result = indexer.index_repository(str(repo), str(index_path))
@@ -736,7 +782,6 @@ end
         ), "No modules were indexed"
 
         config = {
-            "language": "elixir",
             "repository": {"path": str(repo)},
             "storage": {"index_path": str(index_path)},
         }

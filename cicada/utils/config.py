@@ -81,21 +81,33 @@ class Config:
                 raise ConfigValidationError("Field 'keyword_extraction' must be a mapping/object")
 
             if "method" in kw and kw["method"] not in [
-                "lemminflect",
+                "regular",
                 "bert",
+                "lemminflect",  # Legacy support
                 "nltk",
                 "spacy",
                 "none",
             ]:
                 raise ConfigValidationError(
                     f"Invalid keyword_extraction.method: {kw['method']}. "
-                    "Must be one of: lemminflect, bert, nltk, spacy, none"
+                    "Must be one of: regular, bert, lemminflect, nltk, spacy, none"
                 )
 
-            if "tier" in kw and kw["tier"] not in ["fast", "regular", "max"]:
+        # Keyword expansion is optional, but if present, validate structure
+        if "keyword_expansion" in self.data:
+            kw_exp = self.data["keyword_expansion"]
+            if not isinstance(kw_exp, dict):
+                raise ConfigValidationError("Field 'keyword_expansion' must be a mapping/object")
+
+            if "method" in kw_exp and kw_exp["method"] not in [
+                "lemmi",
+                "glove",
+                "fasttext",
+                "none",
+            ]:
                 raise ConfigValidationError(
-                    f"Invalid keyword_extraction.tier: {kw['tier']}. "
-                    "Must be one of: fast, regular, max"
+                    f"Invalid keyword_expansion.method: {kw_exp['method']}. "
+                    "Must be one of: lemmi, glove, fasttext, none"
                 )
 
     @property
@@ -114,14 +126,19 @@ class Config:
         return self.data["storage"]["index_path"]
 
     @property
-    def keyword_method(self) -> str:
-        """Get the keyword extraction method (default: lemminflect)."""
-        return self.data.get("keyword_extraction", {}).get("method", "lemminflect")
+    def extraction_method(self) -> str:
+        """Get the keyword extraction method (default: regular)."""
+        # Support legacy 'method' field and new 'method' field
+        method = self.data.get("keyword_extraction", {}).get("method", "regular")
+        # Map legacy "lemminflect" to "regular"
+        if method == "lemminflect":
+            method = "regular"
+        return method
 
     @property
-    def keyword_tier(self) -> str:
-        """Get the keyword extraction tier (default: regular)."""
-        return self.data.get("keyword_extraction", {}).get("tier", "regular")
+    def expansion_method(self) -> str:
+        """Get the keyword expansion method (default: lemmi)."""
+        return self.data.get("keyword_expansion", {}).get("method", "lemmi")
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value by key."""
@@ -170,8 +187,8 @@ def create_default_config(
     language: str,
     repo_path: str | Path,
     index_path: str | Path,
-    keyword_method: str = "lemminflect",
-    keyword_tier: str = "regular",
+    extraction_method: str = "regular",
+    expansion_method: str = "lemmi",
 ) -> dict[str, Any]:
     """Create a default configuration dictionary.
 
@@ -179,8 +196,8 @@ def create_default_config(
         language: Programming language (e.g., 'elixir', 'python')
         repo_path: Path to the repository
         index_path: Path to store the index
-        keyword_method: Keyword extraction method
-        keyword_tier: Keyword extraction tier
+        extraction_method: Keyword extraction method ('regular' or 'bert')
+        expansion_method: Keyword expansion method ('lemmi', 'glove', or 'fasttext')
 
     Returns:
         A configuration dictionary
@@ -189,7 +206,8 @@ def create_default_config(
         "language": language,
         "repository": {"path": str(repo_path)},
         "storage": {"index_path": str(index_path)},
-        "keyword_extraction": {"method": keyword_method, "tier": keyword_tier},
+        "keyword_extraction": {"method": extraction_method},
+        "keyword_expansion": {"method": expansion_method},
     }
 
 

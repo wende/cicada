@@ -67,12 +67,14 @@ if keyword_method == "bert":
 ## Usage Example
 
 ```bash
-# Config file approach
-echo "keywords:\n  method: bert\n  bert_tier: fast" > .cicada/config.yml
-cicada index --rag --fast
+# Using fast tier (token-based extraction)
+cicada index --fast
 
-# CLI approach
-cicada index --rag --fast
+# Using max tier (BERT large model)
+cicada index --max
+
+# Using default (BERT small model)
+cicada index
 ```
 
 ## Differences from Lemminflect

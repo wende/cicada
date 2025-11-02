@@ -71,25 +71,25 @@ def create_keyword_extractor(method: str, tier: str, verbose: bool = False):
 
     if method == "bert":
         try:
-            from cicada.keybert_extractor import KeyBERTExtractor
+            from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
 
             if verbose:
-                print(f"  Using KeyBERT extractor ({tier} tier)", file=sys.stderr)
-            return KeyBERTExtractor(model_tier=tier, verbose=verbose)
+                print(f"  Using KeyBERT extractor", file=sys.stderr)
+            return KeyBERTExtractor(verbose=verbose)
         except ImportError:
             if verbose:
                 print(
-                    "  Warning: KeyBERT not available, falling back to lemminflect",
+                    "  Warning: KeyBERT not available, falling back to regular",
                     file=sys.stderr,
                 )
-            # Fall through to lemminflect
+            # Fall through to regular extractor
 
-    # Default: lemminflect (fast, lightweight, no external dependencies)
-    from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
+    # Default: regular (fast, lightweight, no external dependencies)
+    from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
 
     if verbose:
-        print(f"  Using lightweight extractor (lemminflect)", file=sys.stderr)
-    return LightweightKeywordExtractor(verbose=verbose)
+        print(f"  Using regular extractor (lemminflect)", file=sys.stderr)
+    return RegularKeywordExtractor(verbose=verbose)
 
 
 def get_keyword_extractor_from_config(repo_path: Path, verbose: bool = False):

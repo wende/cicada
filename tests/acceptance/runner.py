@@ -10,7 +10,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 # Default config path
 DEFAULT_CONFIG = "tests/fixtures/.cicada/config.yaml"

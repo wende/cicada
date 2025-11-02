@@ -20,9 +20,9 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from cicada.command_logger import get_logger
-from cicada.formatter import ModuleFormatter
+from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
-from cicada.mcp_tools import get_tool_definitions
+from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
 from cicada.utils import get_config_path, get_pr_index_path, load_index
 
@@ -347,6 +347,7 @@ class CicadaServer:
             return await self._get_file_pr_history(file_path)
         elif name == "search_by_keywords":
             keywords = arguments.get("keywords")
+            filter_type = arguments.get("filter_type", "all")
 
             if not keywords:
                 error_msg = "'keywords' is required"
@@ -356,7 +357,11 @@ class CicadaServer:
                 error_msg = "'keywords' must be a list of strings"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self._search_by_keywords(keywords)
+            if filter_type not in ("all", "modules", "functions"):
+                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self._search_by_keywords(keywords, filter_type)
         elif name == "find_dead_code":
             min_confidence = arguments.get("min_confidence", "high")
             output_format = arguments.get("format", "markdown")
@@ -1258,12 +1263,15 @@ class CicadaServer:
         result = "\n".join(lines)
         return [TextContent(type="text", text=result)]
 
-    async def _search_by_keywords(self, keywords: list[str]) -> list[TextContent]:
+    async def _search_by_keywords(
+        self, keywords: list[str], filter_type: str = "all"
+    ) -> list[TextContent]:
         """
         Search for modules and functions by keywords.
 
         Args:
             keywords: List of keywords to search for
+            filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
         Returns:
             TextContent with formatted search results
@@ -1274,22 +1282,23 @@ class CicadaServer:
         if not self._has_keywords:
             error_msg = (
                 "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada index --nlp   # NLP-based extraction (lemminflect)\n"
-                "  cicada index --rag   # BERT-based extraction\n\n"
+                "  cicada index           # Default: BERT + GloVe (regular tier)\n"
+                "  cicada index --fast    # Fast: Token-based + lemminflect\n"
+                "  cicada index --max     # Max: BERT + FastText\n\n"
                 "This will extract keywords from documentation for semantic search."
             )
             return [TextContent(type="text", text=error_msg)]
 
         # Perform the search
         searcher = KeywordSearcher(self.index)
-        results = searcher.search(keywords, top_n=5)
+        results = searcher.search(keywords, top_n=5, filter_type=filter_type)
 
         if not results:
             result = f"No results found for keywords: {', '.join(keywords)}"
             return [TextContent(type="text", text=result)]
 
         # Format results
-        from cicada.formatter import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(keywords, results)
 
@@ -1306,8 +1315,8 @@ class CicadaServer:
         Returns:
             TextContent with formatted dead code analysis
         """
-        from cicada.dead_code_analyzer import DeadCodeAnalyzer
-        from cicada.find_dead_code import (
+        from cicada.dead_code.analyzer import DeadCodeAnalyzer
+        from cicada.dead_code.finder import (
             filter_by_confidence,
             format_json,
             format_markdown,
@@ -1420,7 +1429,6 @@ def main():
     import sys
 
     # Accept optional positional argument for repo path
-    # Usage: cicada-server [repo_path]
     if len(sys.argv) > 1:
         repo_path = sys.argv[1]
         # Convert to absolute path
