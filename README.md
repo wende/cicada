@@ -66,14 +66,6 @@ AI-powered semantic search capabilities:
 - **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
 - **Improved Relevance Scoring**: Better ranking of search results by semantic relevance and TF scoring
 
-```bash
-# Index with enhanced AI keyword extraction
-cicada index --fast
-
-# Search by concept, not just exact names
-# AI will find: create_user, user_creation, new_user_account, etc.
-```
-
 #### Keyword Expansion Example
 
 **Input:** "Authenticates user's credentials"
