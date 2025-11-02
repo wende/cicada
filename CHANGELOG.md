@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-11-02
+
+### Added
+
+- **Result Type Filtering for `search_by_keywords`**
+  - New `filter_type` parameter: `'all'` (default), `'modules'`, or `'functions'`
+  - Allows users to filter semantic search results to only modules or only functions
+  - Useful for narrowing searches when looking for specific code patterns
+
+### Changed
+
+- Updated all user-facing documentation to use new CLI flag names (`--fast`, `--regular`, `--max`)
+  - Replaced outdated `--nlp` and `--rag` references across 5 documentation files
+  - Clarified extraction method names in INCREMENTAL_INDEXING.md, MODEL_CHANGE_DETECTION.md, CLI_MIGRATION.md, FEATURE_MODEL_TRACKING.md, and BERT_KEYWORD_EXTRACTOR.md
+
+### Fixed
+
+- Improved documentation consistency across all keyword extraction and model tier references
+
 ## [0.2.0] - 2025-11-01
 
 ### Added
