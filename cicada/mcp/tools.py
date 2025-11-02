@@ -225,7 +225,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Semantic search for code by concept/topic when exact names are unknown.\n\n"
                 "Search for modules and functions by keywords extracted from documentation. "
                 "Uses semantic similarity to find related functions even if they don't match the exact name.\n\n"
-                "Requires keywords in index (run 'cicada index --nlp' or 'cicada index --rag' first)."
+                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
             ),
             inputSchema={
                 "type": "object",

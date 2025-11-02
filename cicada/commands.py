@@ -10,6 +10,42 @@ import argparse
 import sys
 
 
+def validate_tier_flags(args) -> None:
+    """Validate that only one tier flag is specified.
+
+    Args:
+        args: Parsed command-line arguments with fast, regular, and max attributes
+
+    Raises:
+        SystemExit: If more than one tier flag is specified
+    """
+    tier_count = sum([args.fast, getattr(args, "regular", False), args.max])
+    if tier_count > 1:
+        print(
+            "Error: Can only specify one tier flag (--fast, --regular, or --max)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
+    """Map tier flags to extraction and expansion methods.
+
+    Args:
+        args: Parsed command-line arguments with fast, regular, and max attributes
+
+    Returns:
+        Tuple of (extraction_method, expansion_method), or (None, None) if no tier flag
+    """
+    if args.fast:
+        return "regular", "lemmi"
+    elif args.max:
+        return "bert", "fasttext"
+    elif getattr(args, "regular", False):
+        return "bert", "glove"
+    return None, None
+
+
 def get_argument_parser():
     parser = argparse.ArgumentParser(
         prog="cicada",
@@ -53,24 +89,19 @@ def get_argument_parser():
         help="Skip editor selection, use VS Code",
     )
     install_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Skip model selection, use Lemminflect",
-    )
-    install_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Skip model selection, use BERT (default tier)",
-    )
-    install_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use BERT fast tier (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion (no downloads)",
+    )
+    install_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (128MB, default)",
     )
     install_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use BERT max tier (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion (958MB+)",
     )
 
     server_parser = subparsers.add_parser(
@@ -100,24 +131,19 @@ def get_argument_parser():
         help="Create VS Code config before starting server",
     )
     server_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Force Lemminflect (if reindexing needed)",
-    )
-    server_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Force BERT (if reindexing needed)",
-    )
-    server_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Force BERT fast tier (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion (if reindexing needed)",
+    )
+    server_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (if reindexing needed)",
     )
     server_parser.add_argument(
         "--max",
         action="store_true",
-        help="Force BERT max tier (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion (if reindexing needed)",
     )
 
     claude_parser = subparsers.add_parser(
@@ -126,24 +152,19 @@ def get_argument_parser():
         description="One-command setup for Claude Code with keyword extraction",
     )
     claude_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Use NLP keyword extraction (lemminflect-based)",
-    )
-    claude_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
-    )
-    claude_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    claude_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
     )
     claude_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion",
     )
 
     cursor_parser = subparsers.add_parser(
@@ -152,24 +173,19 @@ def get_argument_parser():
         description="One-command setup for Cursor with keyword extraction",
     )
     cursor_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Use NLP keyword extraction (lemminflect-based)",
-    )
-    cursor_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
-    )
-    cursor_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    cursor_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
     )
     cursor_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion",
     )
 
     vs_parser = subparsers.add_parser(
@@ -178,24 +194,19 @@ def get_argument_parser():
         description="One-command setup for VS Code with keyword extraction",
     )
     vs_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Use NLP keyword extraction (lemminflect-based)",
-    )
-    vs_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
-    )
-    vs_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    vs_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
     )
     vs_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion",
     )
 
     index_parser = subparsers.add_parser(
@@ -210,29 +221,50 @@ def get_argument_parser():
         help="Path to the Elixir repository to index (default: current directory)",
     )
     index_parser.add_argument(
-        "--nlp",
-        action="store_true",
-        help="Use NLP keyword extraction (lemminflect-based)",
-    )
-    index_parser.add_argument(
-        "--rag",
-        action="store_true",
-        help="Use RAG-optimized keyword extraction (BERT-based embeddings)",
-    )
-    index_parser.add_argument(
         "--fast",
         action="store_true",
-        help="Use fast tier model (requires --rag)",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    index_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
     )
     index_parser.add_argument(
         "--max",
         action="store_true",
-        help="Use maximum quality tier model (requires --rag)",
+        help="Max tier: KeyBERT large + FastText expansion",
     )
     index_parser.add_argument(
         "--test",
         action="store_true",
         help="Start interactive keyword extraction test mode",
+    )
+    index_parser.add_argument(
+        "--test-expansion",
+        action="store_true",
+        help="Start interactive keyword expansion test mode",
+    )
+    index_parser.add_argument(
+        "--extraction-threshold",
+        type=float,
+        default=0.3,
+        metavar="SCORE",
+        help="Minimum score for keyword extraction (0.0-1.0). For KeyBERT: semantic similarity threshold. Default: 0.3",
+    )
+    index_parser.add_argument(
+        "--min-score",
+        type=float,
+        default=0.5,
+        metavar="SCORE",
+        help="Minimum score threshold for keywords (filters out low-scoring terms). Default: 0.5",
+    )
+    index_parser.add_argument(
+        "--expansion-threshold",
+        type=float,
+        default=0.2,
+        metavar="SCORE",
+        help="Minimum similarity score for keyword expansion (0.0-1.0, default: 0.2)",
     )
 
     index_pr_parser = subparsers.add_parser(
@@ -352,13 +384,8 @@ def handle_editor_setup(args, editor: str):
 
     from cicada.setup import EditorType, setup
 
-    if (args.fast or args.max) and not args.rag:
-        print("Error: --fast or --max requires --rag", file=sys.stderr)
-        sys.exit(1)
-
-    if args.nlp and args.rag:
-        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
-        sys.exit(1)
+    # Validate tier flags
+    validate_tier_flags(args)
 
     repo_path = Path.cwd()
 
@@ -372,20 +399,7 @@ def handle_editor_setup(args, editor: str):
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
-    extraction_method = None
-    expansion_method = None
-
-    if args.nlp:
-        extraction_method = "regular"
-        expansion_method = "lemmi"
-    elif args.rag:
-        extraction_method = "bert"
-        if args.fast:
-            expansion_method = "glove"
-        elif args.max:
-            expansion_method = "fasttext"
-        else:
-            expansion_method = "lemmi"
+    extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     if extraction_method is None and config_path.exists() and index_path.exists():
         import yaml
@@ -414,77 +428,83 @@ def handle_editor_setup(args, editor: str):
         sys.exit(1)
 
 
-def handle_index(args):
+def handle_index_test_mode(args):
+    """Handle interactive keyword extraction test mode."""
+    from cicada.keyword_test import run_keywords_interactive
+
+    # Validate tier flags
+    validate_tier_flags(args)
+
+    # Map tier to extraction method
+    # Note: The tier names here don't match the flag names (legacy behavior)
+    if args.fast:
+        method = "regular"
+        tier = "regular"
+    elif args.max:
+        method = "bert"
+        tier = "max"
+    else:  # --regular or no flag (default to regular)
+        method = "bert"
+        tier = "fast"
+
+    extraction_threshold = getattr(args, "extraction_threshold", None)
+    run_keywords_interactive(method=method, tier=tier, extraction_threshold=extraction_threshold)
+
+
+def handle_index_test_expansion_mode(args):
+    """Handle interactive keyword expansion test mode."""
+    from cicada.keyword_test import run_expansion_interactive
+
+    # Validate tier flags
+    validate_tier_flags(args)
+
+    # Map tier to extraction method and expansion type
+    # Note: The tier names here don't match the flag names (legacy behavior)
+    if args.fast:
+        extraction_method = "regular"
+        extraction_tier = "regular"
+        expansion_type = "lemmi"
+    elif args.max:
+        extraction_method = "bert"
+        extraction_tier = "max"
+        expansion_type = "fasttext"
+    else:  # --regular or no flag (default to regular)
+        extraction_method = "bert"
+        extraction_tier = "fast"
+        expansion_type = "glove"
+
+    extraction_threshold = getattr(args, "extraction_threshold", 0.3)
+    expansion_threshold = getattr(args, "expansion_threshold", 0.2)
+    min_score = getattr(args, "min_score", 0.5)
+    run_expansion_interactive(
+        expansion_type=expansion_type,
+        extraction_method=extraction_method,
+        extraction_tier=extraction_tier,
+        extraction_threshold=extraction_threshold,
+        expansion_threshold=expansion_threshold,
+        min_score=min_score,
+    )
+
+
+def handle_index_main(args):
+    """Handle main repository indexing."""
     from pathlib import Path
 
     from cicada.indexer import ElixirIndexer
-    from cicada.utils.storage import get_config_path
-    from cicada.version_check import check_for_updates
+    from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
-    check_for_updates()
-
-    if args.test:
-        if (args.fast or args.max) and not args.rag:
-            print("Error: --fast or --max requires --rag", file=sys.stderr)
-            sys.exit(1)
-
-        if args.nlp and args.rag:
-            print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
-            sys.exit(1)
-
-        if args.nlp:
-            method = "lemminflect"
-            tier = "regular"
-        elif args.rag:
-            method = "bert"
-            if args.fast:
-                tier = "fast"
-            elif args.max:
-                tier = "max"
-            else:
-                tier = "regular"
-        else:
-            method = "lemminflect"
-            tier = "regular"
-
-        from cicada.keyword_test import run_keywords_interactive
-
-        run_keywords_interactive(method=method, tier=tier)
-        return
-
-    if (args.fast or args.max) and not args.rag:
-        print("Error: --fast or --max requires --rag", file=sys.stderr)
-        sys.exit(1)
-
-    if args.nlp and args.rag:
-        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
-        sys.exit(1)
+    # Validate tier flags
+    validate_tier_flags(args)
 
     repo_path_obj = Path(args.repo).resolve()
     config_path = get_config_path(repo_path_obj)
-
-    from cicada.utils.storage import create_storage_dir, get_index_path
-
     storage_dir = create_storage_dir(repo_path_obj)
     index_path = get_index_path(repo_path_obj)
 
-    extraction_method = None
-    expansion_method = None
+    extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
-    if args.nlp or args.rag:
+    if extraction_method is not None:
         from cicada.setup import create_config_yaml
-
-        if args.nlp:
-            extraction_method = "regular"
-            expansion_method = "lemmi"
-        else:
-            extraction_method = "bert"
-            if args.fast:
-                expansion_method = "glove"
-            elif args.max:
-                expansion_method = "fasttext"
-            else:
-                expansion_method = "lemmi"
 
         if config_path.exists():
             import yaml
@@ -530,10 +550,13 @@ def handle_index(args):
 
         create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
     elif not config_path.exists():
-        print("Error: No keyword extraction method specified.", file=sys.stderr)
-        print("\nYou must specify either --nlp or --rag for keyword extraction:", file=sys.stderr)
-        print("  --nlp       Use NLP keyword extraction (lemminflect-based)", file=sys.stderr)
-        print("  --rag       Use RAG-optimized keyword extraction (BERT-based)", file=sys.stderr)
+        print("Error: No tier specified.", file=sys.stderr)
+        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+        print(
+            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)", file=sys.stderr
+        )
+        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
         print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
         sys.exit(2)
 
@@ -544,6 +567,20 @@ def handle_index(args):
         extract_keywords=True,
         force_full=False,
     )
+
+
+def handle_index(args):
+    """Route index command to appropriate handler based on mode."""
+    from cicada.version_check import check_for_updates
+
+    check_for_updates()
+
+    if getattr(args, "test", False):
+        handle_index_test_mode(args)
+    elif getattr(args, "test_expansion", False):
+        handle_index_test_expansion_mode(args)
+    else:
+        handle_index_main(args)
 
 
 def handle_index_pr(args):
@@ -645,7 +682,7 @@ def handle_install(args):
 
     Behavior:
     - INTERACTIVE: shows prompts and menus
-    - Can skip prompts with flags (--claude, --cursor, --vs, --nlp, --rag)
+    - Can skip prompts with flags (--claude, --cursor, --vs, --fast, --regular, --max)
     - Creates editor config and indexes repository
     """
     from pathlib import Path
@@ -663,14 +700,8 @@ def handle_install(args):
         print("(mix.exs not found)", file=sys.stderr)
         sys.exit(1)
 
-    # Validate flag combinations
-    if (args.fast or args.max) and not args.rag:
-        print("Error: --fast or --max requires --rag", file=sys.stderr)
-        sys.exit(1)
-
-    if args.nlp and args.rag:
-        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
-        sys.exit(1)
+    # Validate tier flags
+    validate_tier_flags(args)
 
     # Count editor flags
     editor_flags = [args.claude, args.cursor, args.vs]
@@ -690,21 +721,7 @@ def handle_install(args):
         editor = "vs"
 
     # Determine extraction and expansion methods from flags
-    extraction_method = None
-    expansion_method = None
-
-    if args.nlp:
-        extraction_method = "regular"
-        expansion_method = "lemmi"
-    elif args.rag:
-        extraction_method = "bert"
-        # Map tier flags to expansion methods
-        if args.fast:
-            expansion_method = "glove"  # GloVe (128MB)
-        elif args.max:
-            expansion_method = "fasttext"  # FastText (958MB)
-        else:
-            expansion_method = "lemmi"  # Default: lemmi only
+    extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     # Check if index already exists
     config_path = get_config_path(repo_path)
@@ -809,34 +826,14 @@ def handle_server(args):
         )
         sys.exit(1)
 
-    # Validate flag combinations
-    if (args.fast or args.max) and not args.rag:
-        print("Error: --fast or --max requires --rag", file=sys.stderr)
-        sys.exit(1)
-
-    if args.nlp and args.rag:
-        print("Error: Cannot specify both --nlp and --rag", file=sys.stderr)
-        sys.exit(1)
+    # Validate tier flags
+    validate_tier_flags(args)
 
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
     # Determine extraction and expansion methods
-    extraction_method = None
-    expansion_method = None
-
-    if args.nlp:
-        extraction_method = "regular"
-        expansion_method = "lemmi"
-    elif args.rag:
-        extraction_method = "bert"
-        # Map tier flags to expansion methods
-        if args.fast:
-            expansion_method = "glove"  # GloVe (128MB)
-        elif args.max:
-            expansion_method = "fasttext"  # FastText (958MB)
-        else:
-            expansion_method = "lemmi"  # Default: lemmi only
+    extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     # Check if setup is needed
     config_path = get_config_path(repo_path)
@@ -845,7 +842,7 @@ def handle_server(args):
 
     if needs_setup:
         # Silent setup with defaults
-        # If no method specified, default to regular + lemmi (fastest, no downloads)
+        # If no tier specified, default to fast tier (fastest, no downloads)
         if extraction_method is None:
             extraction_method = "regular"
             expansion_method = "lemmi"

@@ -66,6 +66,40 @@ AI-powered semantic search capabilities:
 - **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
 - **Improved Relevance Scoring**: Better ranking of search results by semantic relevance and TF scoring
 
+```bash
+# Index with enhanced AI keyword extraction
+cicada index --fast
+
+# Search by concept, not just exact names
+# AI will find: create_user, user_creation, new_user_account, etc.
+```
+
+#### Keyword Expansion Example
+
+**Input:** "Authenticates user's credentials"
+
+| Fast (NLP) | Standard (AI) | Max (AI) |
+|-----------|--------------|----------|
+| auth_user (11.0) | auth_user (8.92) | auth_user (8.92) |
+| user (4.0) | user (1.98) | user (1.98) |
+| auth (3.0) | interface (1.41) | users (1.39) |
+| users (2.8) | users (1.39) | user2 (1.32) |
+| authenticates (1.0) | software (1.30) | user1 (1.30) |
+| credentials (1.0) | application (1.30) | userlist (1.29) |
+| | allows (1.30) | non-user (1.29) |
+| | interfaced (0.99) | non-users (0.90) |
+| | interfaces (0.99) | auth (0.90) |
+| | interfacing (0.99) | authenticates (0.72) |
+| | softwares (0.91) | credentials (0.68) |
+| | applications (0.91) | xauth (0.58) |
+| | auth (0.90) | authentication (0.53) |
+| | authenticates (0.72) | authentications (0.52) |
+| | credentials (0.68) | authentification (0.52) |
+| | | login (0.52) |
+| | | authenticate (0.51) |
+| | | authenticators (0.50) |
+| | | authenticator (0.50) |
+
 ### ⚡ Incremental Indexing
 ### 🛡️ QoL
 

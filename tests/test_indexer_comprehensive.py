@@ -431,7 +431,7 @@ end
         assert "keywords" in index["modules"]["TestModule"]
         # Check that keywords were extracted (content may vary based on actual implementation)
         assert len(index["modules"]["TestModule"]["keywords"]) > 0
-        assert isinstance(index["modules"]["TestModule"]["keywords"], list)
+        assert isinstance(index["modules"]["TestModule"]["keywords"], dict)
 
         # Should print keyword extraction method
         captured = capsys.readouterr()

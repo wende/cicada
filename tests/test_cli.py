@@ -155,9 +155,9 @@ class TestHandleEditorSetup:
         (tmp_path / "mix.exs").write_text("# Mock mix file")
         return tmp_path
 
-    def test_requires_nlp_or_rag_for_fast(self, mock_elixir_repo, capsys):
-        """Should error if --fast used without --rag"""
-        args = MagicMock(fast=True, max=False, nlp=False, rag=False)
+    def test_cannot_specify_multiple_tiers(self, mock_elixir_repo, capsys):
+        """Should error if multiple tier flags specified"""
+        args = MagicMock(fast=True, max=True, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -167,39 +167,11 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "--fast or --max requires --rag" in captured.err
-
-    def test_requires_nlp_or_rag_for_max(self, mock_elixir_repo, capsys):
-        """Should error if --max used without --rag"""
-        args = MagicMock(fast=False, max=True, nlp=False, rag=False)
-
-        with (
-            patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            handle_editor_setup(args, "claude")
-
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        assert "--fast or --max requires --rag" in captured.err
-
-    def test_cannot_specify_both_nlp_and_rag(self, mock_elixir_repo, capsys):
-        """Should error if both --nlp and --rag specified"""
-        args = MagicMock(fast=False, max=False, nlp=True, rag=True)
-
-        with (
-            patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            handle_editor_setup(args, "claude")
-
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        assert "Cannot specify both --nlp and --rag" in captured.err
+        assert "Can only specify one tier flag" in captured.err
 
     def test_requires_elixir_project(self, tmp_path, capsys):
         """Should error if not an Elixir project"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=False)
+        args = MagicMock(fast=False, max=False, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=tmp_path),
@@ -211,9 +183,9 @@ class TestHandleEditorSetup:
         captured = capsys.readouterr()
         assert "does not appear to be an Elixir project" in captured.err
 
-    def test_nlp_flag_sets_regular_extraction(self, mock_elixir_repo):
-        """--nlp should set extraction to regular"""
-        args = MagicMock(fast=False, max=False, nlp=True, rag=False)
+    def test_fast_flag_sets_regular_extraction(self, mock_elixir_repo):
+        """--fast should set extraction to regular + lemmi expansion"""
+        args = MagicMock(fast=True, max=False, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -226,9 +198,9 @@ class TestHandleEditorSetup:
             assert call_kwargs["extraction_method"] == "regular"
             assert call_kwargs["expansion_method"] == "lemmi"
 
-    def test_rag_flag_sets_bert(self, mock_elixir_repo):
-        """--rag should set extraction to bert"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=True)
+    def test_regular_flag_sets_bert_glove(self, mock_elixir_repo):
+        """--regular should set extraction to bert + glove expansion"""
+        args = MagicMock(fast=False, max=False, regular=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -236,28 +208,14 @@ class TestHandleEditorSetup:
         ):
             handle_editor_setup(args, "claude")
 
-            # Check that setup was called with bert
-            call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "bert"
-            assert call_kwargs["expansion_method"] == "lemmi"
-
-    def test_rag_with_fast_flag(self, mock_elixir_repo):
-        """--rag --fast should set bert extraction + glove expansion"""
-        args = MagicMock(fast=True, max=False, nlp=False, rag=True)
-
-        with (
-            patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
-            patch("cicada.setup.setup") as mock_setup,
-        ):
-            handle_editor_setup(args, "claude")
-
+            # Check that setup was called with bert + glove
             call_kwargs = mock_setup.call_args[1]
             assert call_kwargs["extraction_method"] == "bert"
             assert call_kwargs["expansion_method"] == "glove"
 
-    def test_rag_with_max_flag(self, mock_elixir_repo):
-        """--rag --max should set bert extraction + fasttext expansion"""
-        args = MagicMock(fast=False, max=True, nlp=False, rag=True)
+    def test_max_flag_sets_bert_fasttext(self, mock_elixir_repo):
+        """--max should set extraction to bert + fasttext expansion"""
+        args = MagicMock(fast=False, max=True, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -271,7 +229,7 @@ class TestHandleEditorSetup:
 
     def test_no_flags_with_existing_index(self, mock_elixir_repo, tmp_path):
         """Should read existing config when no flags and index exists"""
-        args = MagicMock(fast=False, max=False, nlp=False, rag=False)
+        args = MagicMock(fast=False, max=False, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -309,7 +267,7 @@ class TestHandleEditorSetup:
 
     def test_setup_exception_exits(self, mock_elixir_repo, capsys):
         """Should exit with error if setup fails"""
-        args = MagicMock(fast=False, max=False, nlp=True, rag=False)
+        args = MagicMock(fast=True, max=False, regular=False)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -332,32 +290,15 @@ class TestHandleIndex:
         (tmp_path / "mix.exs").write_text("# Mock")
         return tmp_path
 
-    def test_requires_nlp_or_rag_for_fast(self, capsys):
-        """Should error if --fast used without --rag"""
-        args = MagicMock(fast=True, max=False, nlp=False, rag=False, repo=".")
-
-        with patch("cicada.version_check.check_for_updates"), pytest.raises(SystemExit) as exc_info:
-            handle_index(args)
-
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        assert "--fast or --max requires --rag" in captured.err
-
-    def test_cannot_specify_both_nlp_and_rag(self, capsys):
-        """Should error if both --nlp and --rag specified"""
-        args = MagicMock(fast=False, max=False, nlp=True, rag=True, repo=".")
-
-        with patch("cicada.version_check.check_for_updates"), pytest.raises(SystemExit) as exc_info:
-            handle_index(args)
-
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        assert "Cannot specify both --nlp and --rag" in captured.err
-
-    def test_nlp_flag_creates_config(self, mock_repo):
-        """--nlp should create config with regular extraction and lemmi expansion"""
+    def test_fast_flag_creates_config(self, mock_repo):
+        """--fast should create config with regular extraction and lemmi expansion"""
         args = MagicMock(
-            fast=False, max=False, nlp=True, rag=False, repo=str(mock_repo), test=False
+            fast=True,
+            max=False,
+            regular=False,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
         )
 
         with (
@@ -382,10 +323,15 @@ class TestHandleIndex:
             assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
             assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
 
-    def test_rag_flag_creates_config_with_bert(self, mock_repo):
-        """--rag should create config with bert extraction"""
+    def test_regular_flag_creates_config_with_bert_glove(self, mock_repo):
+        """--regular should create config with bert extraction and glove expansion"""
         args = MagicMock(
-            fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
+            fast=False,
+            max=False,
+            regular=True,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
         )
 
         with (
@@ -404,16 +350,21 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with bert extraction
+            # Verify config was created with bert + glove
             mock_create_config.assert_called()
             call_args = mock_create_config.call_args[0]
             assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
-            assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
+            assert call_args[3] == "glove"  # expansion_method is 4th positional arg
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
         args = MagicMock(
-            fast=False, max=False, nlp=False, rag=False, repo=str(mock_repo), test=False
+            fast=False,
+            max=False,
+            regular=False,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
         )
 
         with (
@@ -434,14 +385,20 @@ class TestHandleIndex:
 
         # Verify error message is shown
         captured = capsys.readouterr()
-        assert "No keyword extraction method specified" in captured.err
-        assert "--nlp" in captured.err
-        assert "--rag" in captured.err
+        assert "No tier specified" in captured.err
+        assert "--fast" in captured.err
+        assert "--regular" in captured.err
+        assert "--max" in captured.err
 
     def test_changing_method_exits_with_error(self, mock_repo, capsys):
         """Changing extraction method should exit with error and suggest cicada clean"""
         args = MagicMock(
-            fast=False, max=False, nlp=False, rag=True, repo=str(mock_repo), test=False
+            fast=False,
+            max=False,
+            regular=True,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
         )
 
         with (
@@ -481,7 +438,14 @@ class TestHandleIndex:
 
     def test_changing_expansion_method_exits_with_error(self, mock_repo, capsys):
         """Changing expansion method should exit with error and suggest cicada clean"""
-        args = MagicMock(fast=False, max=True, nlp=False, rag=True, repo=str(mock_repo), test=False)
+        args = MagicMock(
+            fast=False,
+            max=True,
+            regular=False,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
+        )
 
         with (
             patch("cicada.version_check.check_for_updates"),
