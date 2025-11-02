@@ -473,12 +473,6 @@ class TestCleanIndexOnly:
         captured = capsys.readouterr()
         assert "Removed Main index" in captured.out
 
-    def test_handles_permission_errors(self, tmp_path, capsys):
-        """Should handle permission errors gracefully"""
-        # Skip permission tests as they're platform-dependent and unreliable
-        # The error handling path is covered by integration tests
-        pytest.skip("Permission tests are platform-dependent and unreliable")
-
     def test_shows_success_message(self, tmp_path, capsys):
         """Should show success message after cleanup"""
         repo_path = tmp_path / "repo"
@@ -551,12 +545,6 @@ class TestCleanPrIndexOnly:
 
         captured = capsys.readouterr()
         assert "No PR index file found" in captured.out
-
-    def test_handles_permission_errors(self, tmp_path):
-        """Should exit with error code on permission errors"""
-        # Skip permission tests as they're platform-dependent and unreliable
-        # The error handling path is covered by integration tests
-        pytest.skip("Permission tests are platform-dependent and unreliable")
 
     def test_resolves_repo_path(self, tmp_path):
         """Should resolve repo path to absolute path"""
