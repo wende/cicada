@@ -25,6 +25,7 @@ from cicada.utils.hash_utils import (
     save_file_hashes,
 )
 from cicada.utils.storage import get_config_path
+from cicada.version_check import get_version_string, version_mismatch
 
 
 def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
@@ -367,6 +368,7 @@ class ElixirIndexer:
                 "total_modules": len(all_modules),
                 "total_functions": total_functions,
                 "repo_path": str(repo_path_obj),
+                "cicada_version": get_version_string(),
             },
         }
 
@@ -474,6 +476,20 @@ class ElixirIndexer:
                         f"Warning: Existing index is corrupted ({error}). Performing full reindex..."
                     )
                 existing_index = None
+
+        # Check for version mismatch - if cicada version differs, force full reindex
+        if existing_index:
+            stored_version = existing_index.get("metadata", {}).get("cicada_version")
+            current_version = get_version_string()
+            if version_mismatch(stored_version, current_version):
+                if self.verbose:
+                    print(
+                        f"Warning: Cicada version mismatch. "
+                        f"Index was built with {stored_version}, current version is {current_version}. "
+                        f"Performing full reindex..."
+                    )
+                existing_index = None
+                existing_hashes = {}
 
         # If no existing data, do full index
         if not existing_index or not existing_hashes:
@@ -712,6 +728,7 @@ class ElixirIndexer:
             "metadata": {
                 "indexed_at": datetime.now().isoformat(),
                 "repo_path": str(repo_path_obj),
+                "cicada_version": get_version_string(),
             },
         }
 

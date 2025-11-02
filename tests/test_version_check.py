@@ -10,8 +10,10 @@ import pytest
 from cicada.version_check import (
     check_for_updates,
     compare_versions,
+    extract_version_tag,
     get_current_version,
     get_latest_github_tag,
+    version_mismatch,
 )
 
 
@@ -121,6 +123,46 @@ class TestCompareVersions:
     def test_version_comparison(self, current, latest, expected):
         """Should correctly compare version strings"""
         assert compare_versions(current, latest) == expected
+
+
+class TestExtractVersionTag:
+    """Tests for extract_version_tag function"""
+
+    @pytest.mark.parametrize(
+        "version_string,expected",
+        [
+            ("0.2.2 (v0.2.2/0991325)", "0.2.2"),
+            ("0.2.1 (v0.2.1/478f5cd)", "0.2.1"),
+            ("0.2.2", "0.2.2"),
+            ("", ""),
+            ("1.0.0 (v1.0.0/abc1234)", "1.0.0"),
+        ],
+    )
+    def test_extract_version_tag(self, version_string, expected):
+        """Should extract pyproject version from version string"""
+        assert extract_version_tag(version_string) == expected
+
+
+class TestVersionMismatch:
+    """Tests for version_mismatch function"""
+
+    @pytest.mark.parametrize(
+        "stored_version,current_version,expected",
+        [
+            # Different major/minor versions - should trigger reindex
+            ("0.2.1 (v0.2.1/478f5cd)", "0.2.2 (v0.2.2/0991325)", True),
+            ("0.1.0", "0.2.0", True),
+            # Same version (ignore git hash/tag differences) - no reindex
+            ("0.2.2 (v0.2.2/0991325)", "0.2.2 (v0.2.2/different)", False),
+            ("0.2.2", "0.2.2 (v0.2.2/0991325)", False),
+            # Missing stored version - should trigger reindex
+            (None, "0.2.2 (v0.2.2/0991325)", True),
+            ("", "0.2.2 (v0.2.2/0991325)", True),
+        ],
+    )
+    def test_version_mismatch(self, stored_version, current_version, expected):
+        """Should detect version mismatches correctly"""
+        assert version_mismatch(stored_version, current_version) == expected
 
 
 class TestCheckForUpdates:

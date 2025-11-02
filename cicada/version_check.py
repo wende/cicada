@@ -188,6 +188,42 @@ def get_version_string() -> str:
     return version
 
 
+def extract_version_tag(version_string: str) -> str:
+    """
+    Extract the pyproject version tag from a version string.
+
+    Args:
+        version_string: Version string like "0.2.2" or "0.2.2 (v0.2.2/0991325)"
+
+    Returns:
+        Just the version tag (e.g., "0.2.2")
+    """
+    # Split on space and take the first part (before any git info in parentheses)
+    return version_string.split()[0] if version_string else ""
+
+
+def version_mismatch(stored_version: str | None, current_version: str | None) -> bool:
+    """
+    Check if the stored version differs from the current version.
+
+    Only compares version tags (pyproject version), ignoring git tags and commit hashes.
+
+    Args:
+        stored_version: Version string from index.json metadata
+        current_version: Current cicada version string
+
+    Returns:
+        True if versions differ (or if stored_version is missing), False if they match
+    """
+    if not stored_version:
+        return True
+
+    stored_tag = extract_version_tag(stored_version)
+    current_tag = extract_version_tag(current_version or get_version_string())
+
+    return stored_tag != current_tag
+
+
 def check_for_updates() -> None:
     """
     Check if there's a newer version available on GitHub.

@@ -274,11 +274,20 @@ def merge_indexes_incremental(
     if "modules" in new_index:
         merged["modules"].update(new_index["modules"])
 
+    # Preserve original cicada_version from old_index if it exists
+    original_version = None
+    if "metadata" in old_index:
+        original_version = old_index["metadata"].get("cicada_version")
+
     # Merge metadata - take from new_index if available, else old_index
     if "metadata" in new_index:
         merged["metadata"].update(new_index["metadata"])
     elif "metadata" in old_index:
         merged["metadata"].update(old_index["metadata"])
+
+    # Restore original version if it existed (don't overwrite with new version)
+    if original_version:
+        merged["metadata"]["cicada_version"] = original_version
 
     # Update module and function counts
     stats = get_index_stats(merged)
