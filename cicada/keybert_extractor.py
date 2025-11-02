@@ -4,7 +4,6 @@ Semantic keyword extraction using transformer-based embeddings
 """
 
 import os
-import re
 import sys
 from typing import Any
 
@@ -12,10 +11,13 @@ from typing import Any
 # Must be set before importing transformers/keybert
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import re
+
+from cicada.keyword_extractor import BaseKeywordExtractor
 from cicada.utils import split_camel_snake_case
 
 
-class KeyBERTExtractor:
+class KeyBERTExtractor(BaseKeywordExtractor):
     """Extract keywords from text using KeyBERT semantic analysis."""
 
     # Single model configuration
@@ -32,16 +34,7 @@ class KeyBERTExtractor:
     _KeyBERT: type | None = None
 
     def __init__(self, verbose: bool = False):
-        """
-        Initialize KeyBERT model.
-
-        Args:
-            verbose: If True, print status messages during initialization
-
-        Raises:
-            ImportError: If KeyBERT is not installed
-            RuntimeError: If model loading fails
-        """
+        super().__init__(verbose)
         self.verbose = verbose
 
         # Print message BEFORE the slow import
@@ -112,29 +105,6 @@ class KeyBERTExtractor:
             split_words.extend(words)
 
         return identifiers, list(set(split_words))
-
-    def extract_keywords_simple(self, text: str, top_n: int = 10) -> list[str]:
-        """
-        Extract keywords and return a simple list of keyword strings.
-
-        Args:
-            text: Input text to analyze
-            top_n: Number of top keywords to return
-
-        Returns:
-            List of keyword strings (e.g., ['authentication', 'user', 'validate'])
-        """
-        if not text or not text.strip():
-            return []
-
-        try:
-            results = self.extract_keywords(text, top_n=top_n)
-            # Extract just the keyword strings from top_keywords tuples
-            return [keyword for keyword, _ in results["top_keywords"]]
-        except Exception as e:
-            if self.verbose:
-                print(f"Warning: Keyword extraction failed: {e}", file=sys.stderr)
-            return []
 
     def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
         """

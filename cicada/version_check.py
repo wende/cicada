@@ -8,6 +8,28 @@ import subprocess
 from pathlib import Path
 
 
+def _run_git_command(args: list[str]) -> str | None:
+    """Run a git command and return the output."""
+    try:
+        package_root = Path(__file__).parent.parent
+        for cwd in [package_root, Path.cwd()]:
+            result = subprocess.run(
+                ["git"] + args,
+                capture_output=True,
+                text=True,
+                timeout=2,
+                cwd=cwd,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+
+        return None
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
+
+
 def get_git_tag() -> str | None:
     """
     Get the most recent git tag reachable from current commit.
@@ -28,24 +50,7 @@ def get_git_tag() -> str | None:
         pass
 
     # Fall back to git command (for development installs)
-    try:
-        package_root = Path(__file__).parent.parent
-        for cwd in [package_root, Path.cwd()]:
-            result = subprocess.run(
-                ["git", "describe", "--tags", "--abbrev=0"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                cwd=cwd,
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-
-        return None
-
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        return None
+    return _run_git_command(["describe", "--tags", "--abbrev=0"])
 
 
 def get_git_commit_hash(short: bool = True) -> str | None:
@@ -71,24 +76,11 @@ def get_git_commit_hash(short: bool = True) -> str | None:
         pass
 
     # Fall back to git command (for development installs)
-    try:
-        package_root = Path(__file__).parent.parent
-        for cwd in [package_root, Path.cwd()]:
-            result = subprocess.run(
-                ["git", "rev-parse", "--short" if short else "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                cwd=cwd,
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-
-        return None
-
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        return None
+    args = ["rev-parse"]
+    if short:
+        args.append("--short")
+    args.append("HEAD")
+    return _run_git_command(args)
 
 
 def get_current_version() -> str:

@@ -356,12 +356,14 @@ class TestStopwords:
 
     def test_stopwords_defined(self):
         """Test that stopwords set is defined."""
-        assert hasattr(LightweightKeywordExtractor, "STOPWORDS")
-        assert len(LightweightKeywordExtractor.STOPWORDS) > 0
+        extractor = LightweightKeywordExtractor()
+        assert hasattr(extractor, "STOPWORDS")
+        assert len(extractor.STOPWORDS) > 0
 
     def test_common_stopwords_present(self):
         """Test that common stopwords are in the set."""
-        stopwords = LightweightKeywordExtractor.STOPWORDS
+        extractor = LightweightKeywordExtractor()
+        stopwords = extractor.STOPWORDS
         assert "the" in stopwords
         assert "and" in stopwords
         assert "is" in stopwords
@@ -373,8 +375,9 @@ class TestCodePatterns:
 
     def test_code_patterns_defined(self):
         """Test that code patterns are defined."""
-        assert hasattr(LightweightKeywordExtractor, "CODE_PATTERNS")
-        assert len(LightweightKeywordExtractor.CODE_PATTERNS) > 0
+        extractor = LightweightKeywordExtractor()
+        assert hasattr(extractor, "CODE_PATTERNS")
+        assert len(extractor.CODE_PATTERNS) > 0
 
     def test_camel_case_pattern(self):
         """Test camelCase pattern matching."""

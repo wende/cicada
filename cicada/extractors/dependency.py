@@ -4,53 +4,47 @@ Dependency extraction logic (alias, import, require, use).
 Author: Cursor(Auto)
 """
 
+from .common import _find_nodes_recursive
+
 
 def extract_aliases(node, source_code: bytes) -> dict:
     """Extract all alias declarations from a module body."""
-    aliases = {}
+    aliases = []
     _find_aliases_recursive(node, source_code, aliases)
-    return aliases
+
+    result = {}
+    for alias in aliases:
+        if alias:
+            result.update(alias)
+    return result
 
 
-def _find_aliases_recursive(node, source_code: bytes, aliases: dict):
-    """Recursively find alias declarations."""
-    if node.type == "call":
-        target = None
-        arguments = None
+def _parse_alias_call(node, source_code: bytes) -> dict | None:
+    """Parse an alias call and return the alias information."""
+    target = None
+    arguments = None
 
-        for child in node.children:
-            if child.type == "identifier":
-                target = child
-            elif child.type == "arguments":
-                arguments = child
-
-        if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
-
-            if target_text == "alias":
-                # Parse the alias
-                alias_info = _parse_alias(arguments, source_code)
-                if alias_info:
-                    # alias_info is a dict of {short_name: full_name}
-                    aliases.update(alias_info)
-
-    # Recursively search children, but skip function bodies
     for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
+        if child.type == "identifier":
+            target = child
+        elif child.type == "arguments":
+            arguments = child
 
-            if is_function_def:
-                continue
+    if target and arguments:
+        target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
-        _find_aliases_recursive(child, source_code, aliases)
+        if target_text == "alias":
+            # Parse the alias
+            alias_info = _parse_alias(arguments, source_code)
+            if alias_info:
+                # alias_info is a dict of {short_name: full_name}
+                return alias_info
+    return None
+
+
+def _find_aliases_recursive(node, source_code: bytes, aliases: list):
+    """Recursively find alias declarations."""
+    _find_nodes_recursive(node, source_code, aliases, "call", _parse_alias_call)
 
 
 def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
@@ -132,153 +126,67 @@ def _parse_alias(arguments_node, source_code: bytes) -> dict | None:
 
 def extract_imports(node, source_code: bytes) -> list:
     """Extract all import declarations from a module body."""
+
     imports = []
-    _find_imports_recursive(node, source_code, imports)
+
+    _find_declarations_recursive(node, source_code, imports, "import")
+
     return imports
 
 
-def _find_imports_recursive(node, source_code: bytes, imports: list):
-    """Recursively find import declarations."""
-    if node.type == "call":
-        target = None
-        arguments = None
+def _parse_declaration_call(node, source_code: bytes, declaration_name: str) -> str | None:
+    """Parse a declaration call and return the module name."""
+    target = None
+    arguments = None
 
-        for child in node.children:
-            if child.type == "identifier":
-                target = child
-            elif child.type == "arguments":
-                arguments = child
-
-        if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
-
-            if target_text == "import":
-                # Parse the import - imports are simpler than aliases
-                # import MyModule or import MyModule, only: [func: 1]
-                for arg_child in arguments.children:
-                    if arg_child.type == "alias":
-                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
-                        imports.append(module_name)
-
-    # Recursively search children, but skip function bodies
     for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
+        if child.type == "identifier":
+            target = child
+        elif child.type == "arguments":
+            arguments = child
 
-            if is_function_def:
-                continue
+    if target and arguments:
+        target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
 
-        _find_imports_recursive(child, source_code, imports)
+        if target_text == declaration_name:
+            # Parse the declaration
+            for arg_child in arguments.children:
+                if arg_child.type == "alias":
+                    return source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+    return None
+
+
+def _find_declarations_recursive(
+    node, source_code: bytes, declarations: list, declaration_name: str
+):
+    """Recursively find declarations."""
+    _find_nodes_recursive(
+        node,
+        source_code,
+        declarations,
+        "call",
+        lambda n, s: _parse_declaration_call(n, s, declaration_name),
+    )
 
 
 def extract_requires(node, source_code: bytes) -> list:
     """Extract all require declarations from a module body."""
+
     requires = []
-    _find_requires_recursive(node, source_code, requires)
+
+    _find_declarations_recursive(node, source_code, requires, "require")
+
     return requires
-
-
-def _find_requires_recursive(node, source_code: bytes, requires: list):
-    """Recursively find require declarations."""
-    if node.type == "call":
-        target = None
-        arguments = None
-
-        for child in node.children:
-            if child.type == "identifier":
-                target = child
-            elif child.type == "arguments":
-                arguments = child
-
-        if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
-
-            if target_text == "require":
-                # Parse the require
-                for arg_child in arguments.children:
-                    if arg_child.type == "alias":
-                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
-                        requires.append(module_name)
-
-    # Recursively search children, but skip function bodies
-    for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
-
-            if is_function_def:
-                continue
-
-        _find_requires_recursive(child, source_code, requires)
 
 
 def extract_uses(node, source_code: bytes) -> list:
     """Extract all use declarations from a module body."""
+
     uses = []
-    _find_uses_recursive(node, source_code, uses)
+
+    _find_declarations_recursive(node, source_code, uses, "use")
+
     return uses
-
-
-def _find_uses_recursive(node, source_code: bytes, uses: list):
-    """Recursively find use declarations."""
-    if node.type == "call":
-        target = None
-        arguments = None
-
-        for child in node.children:
-            if child.type == "identifier":
-                target = child
-            elif child.type == "arguments":
-                arguments = child
-
-        if target and arguments:
-            target_text = source_code[target.start_byte : target.end_byte].decode("utf-8")
-
-            if target_text == "use":
-                # Parse the use
-                for arg_child in arguments.children:
-                    if arg_child.type == "alias":
-                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
-                        uses.append(module_name)
-
-    # Recursively search children, but skip function bodies
-    for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
-
-            if is_function_def:
-                continue
-
-        _find_uses_recursive(child, source_code, uses)
 
 
 def extract_behaviours(node, source_code: bytes) -> list:
@@ -288,62 +196,46 @@ def extract_behaviours(node, source_code: bytes) -> list:
     return behaviours
 
 
-def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
-    """Recursively find @behaviour declarations."""
-    if node.type == "unary_operator":
-        # Check if this is an @ operator with behaviour
-        is_at_operator = False
-        behaviour_call = None
+def _parse_behaviour_call(node, source_code: bytes) -> str | None:
+    """Parse a behaviour call and return the module name."""
+    # Check if this is an @ operator with behaviour
+    is_at_operator = False
+    behaviour_call = None
 
-        for child in node.children:
-            if child.type == "@":
-                is_at_operator = True
-            elif child.type == "call" and is_at_operator:
-                behaviour_call = child
-                break
-
-        if behaviour_call:
-            # Check if the call is "behaviour"
-            identifier_text = None
-            arguments_node = None
-
-            for child in behaviour_call.children:
-                if child.type == "identifier":
-                    identifier_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
-                elif child.type == "arguments":
-                    arguments_node = child
-
-            if identifier_text == "behaviour" and arguments_node:
-                # Extract the behaviour module name
-                for arg_child in arguments_node.children:
-                    if arg_child.type == "alias":
-                        # @behaviour ModuleName
-                        module_name = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
-                        behaviours.append(module_name)
-                    elif arg_child.type == "atom":
-                        # @behaviour :module_name
-                        atom_text = source_code[arg_child.start_byte : arg_child.end_byte].decode(
-                            "utf-8"
-                        )
-                        # Remove leading colon and convert to module format if needed
-                        behaviours.append(atom_text.lstrip(":"))
-
-    # Recursively search children, but skip function bodies
     for child in node.children:
-        if child.type == "call":
-            is_function_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
+        if child.type == "@":
+            is_at_operator = True
+        elif child.type == "call" and is_at_operator:
+            behaviour_call = child
+            break
+
+    if behaviour_call:
+        # Check if the call is "behaviour"
+        identifier_text = None
+        arguments_node = None
+
+        for child in behaviour_call.children:
+            if child.type == "identifier":
+                identifier_text = source_code[child.start_byte : child.end_byte].decode("utf-8")
+            elif child.type == "arguments":
+                arguments_node = child
+
+        if identifier_text == "behaviour" and arguments_node:
+            # Extract the behaviour module name
+            for arg_child in arguments_node.children:
+                if arg_child.type == "alias":
+                    # @behaviour ModuleName
+                    return source_code[arg_child.start_byte : arg_child.end_byte].decode("utf-8")
+                elif arg_child.type == "atom":
+                    # @behaviour :module_name
+                    atom_text = source_code[arg_child.start_byte : arg_child.end_byte].decode(
                         "utf-8"
                     )
-                    if target_text in ["def", "defp", "defmodule"]:
-                        is_function_def = True
-                        break
+                    # Remove leading colon and convert to module format if needed
+                    return atom_text.lstrip(":")
+    return None
 
-            if is_function_def:
-                continue
 
-        _find_behaviours_recursive(child, source_code, behaviours)
+def _find_behaviours_recursive(node, source_code: bytes, behaviours: list):
+    """Recursively find @behaviour declarations."""
+    _find_nodes_recursive(node, source_code, behaviours, "unary_operator", _parse_behaviour_call)

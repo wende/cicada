@@ -2,60 +2,14 @@
 Type spec extraction logic.
 """
 
+from .common import _find_attribute_recursive
+
 
 def extract_specs(node, source_code: bytes) -> dict:
     """Extract all @spec attributes from a module body."""
     specs = {}
-    _find_specs_recursive(node, source_code, specs)
+    _find_attribute_recursive(node, source_code, specs, "spec", _parse_spec)
     return specs
-
-
-def _find_specs_recursive(node, source_code: bytes, specs: dict):
-    """Recursively find @spec declarations."""
-    # Look for unary_operator nodes (which represent @ attributes)
-    if node.type == "unary_operator":
-        operator = None
-        operand = None
-
-        for child in node.children:
-            if child.type == "@":
-                operator = child
-            elif child.type == "call":
-                operand = child
-
-        if operator and operand:
-            # Check if this is a spec attribute
-            for call_child in operand.children:
-                if call_child.type == "identifier":
-                    attr_name = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-
-                    if attr_name == "spec":
-                        # Extract the spec definition
-                        spec_info = _parse_spec(operand, source_code)
-                        if spec_info:
-                            key = f"{spec_info['name']}/{spec_info['arity']}"
-                            specs[key] = spec_info
-
-    # Recursively search children
-    for child in node.children:
-        # Don't recurse into nested defmodule or function definitions
-        if child.type == "call":
-            is_defmodule_or_def = False
-            for call_child in child.children:
-                if call_child.type == "identifier":
-                    target_text = source_code[call_child.start_byte : call_child.end_byte].decode(
-                        "utf-8"
-                    )
-                    if target_text in ["defmodule", "def", "defp"]:
-                        is_defmodule_or_def = True
-                        break
-
-            if is_defmodule_or_def:
-                continue
-
-        _find_specs_recursive(child, source_code, specs)
 
 
 def _parse_spec(spec_node, source_code: bytes) -> dict | None:

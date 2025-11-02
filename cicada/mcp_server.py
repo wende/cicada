@@ -1420,7 +1420,6 @@ def main():
     import sys
 
     # Accept optional positional argument for repo path
-    # Usage: cicada-server [repo_path]
     if len(sys.argv) > 1:
         repo_path = sys.argv[1]
         # Convert to absolute path
