@@ -13,7 +13,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import re
 
-from cicada.keyword_extractor import BaseKeywordExtractor
+from cicada.extractors.keyword import BaseKeywordExtractor
 from cicada.utils import split_camel_snake_case
 
 

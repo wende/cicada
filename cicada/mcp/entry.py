@@ -48,7 +48,7 @@ def handle_default_server(args):
         repo_path = Path(args._server_path).resolve()
         os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
-    from cicada.mcp_server import async_main
+    from cicada.mcp.server import async_main
 
     asyncio.run(async_main())
 

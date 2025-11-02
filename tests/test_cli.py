@@ -639,10 +639,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
             patch(
-                "cicada.find_dead_code.format_markdown", return_value="# Dead Code"
+                "cicada.dead_code.finder.format_markdown", return_value="# Dead Code"
             ) as mock_format,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
@@ -666,10 +666,10 @@ class TestHandleFindDeadCode:
         with (
             patch("cicada.utils.get_index_path", return_value=mock_index_file),
             patch("cicada.utils.load_index") as mock_load,
-            patch("cicada.dead_code_analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
-            patch("cicada.find_dead_code.filter_by_confidence") as mock_filter,
-            patch("cicada.find_dead_code.format_json", return_value="{}") as mock_format_json,
-            patch("cicada.find_dead_code.format_markdown") as mock_format_md,
+            patch("cicada.dead_code.analyzer.DeadCodeAnalyzer") as mock_analyzer_class,
+            patch("cicada.dead_code.finder.filter_by_confidence") as mock_filter,
+            patch("cicada.dead_code.finder.format_json", return_value="{}") as mock_format_json,
+            patch("cicada.dead_code.finder.format_markdown") as mock_format_md,
         ):
             mock_load.return_value = {"modules": [], "functions": []}
             mock_analyzer = MagicMock()

@@ -402,24 +402,6 @@ class TestElixirIndexerKeywordExtraction:
     def test_index_with_keyword_extraction(self, tmp_path, monkeypatch, capsys):
         """Test indexing with keyword extraction enabled"""
 
-        # Mock the KeywordExtractor before importing
-        class MockKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                self.verbose = verbose
-                self.model_size = model_size
-
-            def extract_keywords_simple(self, text, top_n=10):
-                return ["keyword1", "keyword2", "keyword3"]
-
-        # Patch at the module level before creating indexer
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            MockKeywordExtractor,
-        )
-
         indexer = ElixirIndexer(verbose=True)
 
         # Create a test file with documentation
@@ -457,23 +439,6 @@ end
 
     def test_index_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when keyword extraction fails"""
-
-        # Mock the KeywordExtractor to raise exceptions
-        class MockKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                self.verbose = verbose
-
-            def extract_keywords_simple(self, text, top_n=10):
-                raise Exception("Keyword extraction failed")
-
-        # Patch at module level
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            MockKeywordExtractor,
-        )
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -876,19 +841,6 @@ class TestElixirIndexerAdditionalEdgeCases:
     def test_keyword_extractor_initialization_exception(self, tmp_path, monkeypatch, capsys):
         """Test handling of exception during KeywordExtractor initialization"""
 
-        # Mock KeywordExtractor to raise exception on init
-        class BrokenKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                raise RuntimeError("Failed to load keyword extractor")
-
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            BrokenKeywordExtractor,
-        )
-
         indexer = ElixirIndexer(verbose=True)
 
         test_file = tmp_path / "test.ex"
@@ -947,26 +899,6 @@ end
 
     def test_incremental_keyword_extraction_module_failure(self, tmp_path, monkeypatch, capsys):
         """Test incremental indexing with keyword extraction failure on module doc"""
-        call_count = [0]
-
-        class PartiallyBrokenKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                pass
-
-            def extract_keywords_simple(self, text, top_n=10):
-                call_count[0] += 1
-                # Fail on first call (module doc), succeed on second (function doc)
-                if call_count[0] == 1:
-                    raise Exception("Module keyword extraction failed")
-                return ["keyword"]
-
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            PartiallyBrokenKeywordExtractor,
-        )
 
         indexer = ElixirIndexer(verbose=True)
 
@@ -1008,9 +940,6 @@ end
 '''
         )
 
-        # Reset call count
-        call_count[0] = 0
-
         # Do incremental index with keyword extraction
         index = indexer.incremental_index_repository(
             str(tmp_path), str(output_path), extract_keywords=True
@@ -1025,26 +954,6 @@ end
 
     def test_incremental_keyword_extraction_function_failure(self, tmp_path, monkeypatch):
         """Test incremental indexing with keyword extraction failure on function doc"""
-        call_count = [0]
-
-        class PartiallyBrokenKeywordExtractor:
-            def __init__(self, verbose=False, model_size="small"):
-                pass
-
-            def extract_keywords_simple(self, text, top_n=10):
-                call_count[0] += 1
-                # Succeed on first call (module doc), fail on second (function doc)
-                if call_count[0] == 2:
-                    raise Exception("Function keyword extraction failed")
-                return ["keyword"]
-
-        import cicada.lightweight_keyword_extractor
-
-        monkeypatch.setattr(
-            cicada.lightweight_keyword_extractor,
-            "LightweightKeywordExtractor",
-            PartiallyBrokenKeywordExtractor,
-        )
 
         indexer = ElixirIndexer()
 
@@ -1078,9 +987,6 @@ defmodule TestModule2 do
 end
 '''
         )
-
-        # Reset call count
-        call_count[0] = 0
 
         # Do incremental index with keyword extraction
         index = indexer.incremental_index_repository(
@@ -1236,7 +1142,7 @@ end
         def mock_keybert_init(*args, **kwargs):
             raise Exception("Simulated extractor initialization failure")
 
-        monkeypatch.setattr("cicada.keybert_extractor.KeyBERTExtractor", mock_keybert_init)
+        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
 
         output_path = tmp_path / "index.json"
 
@@ -1285,7 +1191,7 @@ end
         )
 
         monkeypatch.setattr(
-            "cicada.lightweight_keyword_extractor.LightweightKeywordExtractor",
+            "cicada.extractors.keyword.RegularKeywordExtractor",
             lambda *args, **kwargs: mock_extractor,
         )
 
@@ -1341,7 +1247,7 @@ end
         mock_extractor.extract_keywords_simple = mock_extract
 
         monkeypatch.setattr(
-            "cicada.lightweight_keyword_extractor.LightweightKeywordExtractor",
+            "cicada.extractors.keyword.RegularKeywordExtractor",
             lambda *args, **kwargs: mock_extractor,
         )
 
@@ -1384,7 +1290,7 @@ end
         def mock_keybert_init(*args, **kwargs):
             raise RuntimeError("Simulated extractor initialization failure")
 
-        monkeypatch.setattr("cicada.keybert_extractor.KeyBERTExtractor", mock_keybert_init)
+        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
 
         # Should not crash, should show warning
         index = indexer.incremental_index_repository(

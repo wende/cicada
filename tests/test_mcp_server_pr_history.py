@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from cicada.mcp_server import CicadaServer
+from cicada.mcp.server import CicadaServer
 
 
 class TestFindPRForLine:
@@ -73,7 +73,7 @@ class TestFindPRForLine:
     @pytest.mark.asyncio
     async def test_finds_pr_with_mock(self, test_server_with_pr_index):
         """Should find PR using mocked PRFinder"""
-        with patch("cicada.mcp_server.PRFinder") as mock_finder_class:
+        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
             mock_finder = Mock()
             mock_finder.find_pr_for_line.return_value = {
                 "pr": {"number": 123, "title": "Test PR"},
@@ -454,7 +454,7 @@ class TestFindPRForLineNetworkFallback:
     @pytest.mark.asyncio
     async def test_network_fallback_finds_pr(self, test_server_with_pr_index):
         """Should suggest index update when network fallback finds PR"""
-        with patch("cicada.mcp_server.PRFinder") as mock_finder_class:
+        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
             # Index finder: commit but no PR
             mock_index_finder = Mock()
             mock_index_finder.find_pr_for_line.return_value = {
@@ -479,7 +479,7 @@ class TestFindPRForLineNetworkFallback:
     @pytest.mark.asyncio
     async def test_no_pr_in_both(self, test_server_with_pr_index):
         """Should not suggest update when commit truly has no PR"""
-        with patch("cicada.mcp_server.PRFinder") as mock_finder_class:
+        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
             mock_index_finder = Mock()
             mock_index_finder.find_pr_for_line.return_value = {
                 "pr": None,

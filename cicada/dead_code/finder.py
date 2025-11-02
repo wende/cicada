@@ -11,8 +11,9 @@ import argparse
 import json
 import sys
 
-from cicada.dead_code_analyzer import DeadCodeAnalyzer
 from cicada.utils import get_index_path, load_index
+
+from .analyzer import DeadCodeAnalyzer
 
 
 def format_markdown(results: dict) -> str:

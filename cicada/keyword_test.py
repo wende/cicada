@@ -30,11 +30,11 @@ def run_keywords_interactive(method: str = "lemminflect", tier: str = "regular")
     # Initialize keyword extractor
     try:
         if method == "bert":
-            from cicada.keybert_extractor import KeyBERTExtractor
+            from cicada.extractors.keybert import KeyBERTExtractor
 
             extractor = KeyBERTExtractor(verbose=True)
         else:
-            from cicada.regular_keyword_extractor import RegularKeywordExtractor
+            from cicada.extractors.keyword import RegularKeywordExtractor
 
             extractor = RegularKeywordExtractor(verbose=True)
         print()  # Add newline after initialization

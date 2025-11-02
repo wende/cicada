@@ -572,8 +572,8 @@ def handle_index_pr(args):
 
 
 def handle_find_dead_code(args):
-    from cicada.dead_code_analyzer import DeadCodeAnalyzer
-    from cicada.find_dead_code import filter_by_confidence, format_json, format_markdown
+    from cicada.dead_code.analyzer import DeadCodeAnalyzer
+    from cicada.dead_code.finder import filter_by_confidence, format_json, format_markdown
     from cicada.utils import get_index_path, load_index
 
     index_path = get_index_path(".")
@@ -882,6 +882,6 @@ def handle_server(args):
     os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
     # Start MCP server (silent)
-    from cicada.mcp_server import async_main
+    from cicada.mcp.server import async_main
 
     asyncio.run(async_main())

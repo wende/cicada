@@ -1,6 +1,5 @@
 import re
 import sys
-import warnings
 from collections import Counter
 from typing import Any
 
@@ -151,87 +150,6 @@ class BaseKeywordExtractor:
 
     def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
         raise NotImplementedError
-
-
-class LightweightKeywordExtractor(BaseKeywordExtractor):
-    """Extract keywords from text using lightweight lemmatization."""
-
-    def __init__(self, verbose: bool = False, model_size: str = "small"):
-        super().__init__(verbose)
-        self.model_size = model_size
-        self._lemminflect_loaded = False
-
-        if model_size != "small":
-            warnings.warn(
-                "The 'model_size' parameter is deprecated and ignored in LightweightKeywordExtractor. "
-                "The lightweight extractor does not use size-based models.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-    def _load_lemminflect(self):
-        if self._lemminflect_loaded:
-            return
-        try:
-            import lemminflect
-
-            self._lemminflect = lemminflect
-            self._lemminflect_loaded = True
-            if self.verbose:
-                print("✓ lemminflect loaded", file=sys.stderr)
-        except ImportError as e:
-            raise RuntimeError(
-                "lemminflect is required but not installed. "
-                "Please install it with: uv pip install lemminflect"
-            ) from e
-
-    def _lemmatize(self, word: str) -> str:
-        try:
-            for pos in ["VERB", "NOUN", "ADJ"]:
-                lemma = self._lemminflect.getLemma(word, upos=pos)
-                if lemma:
-                    return lemma[0].lower()
-            return word.lower()
-        except Exception:
-            return word.lower()
-
-    def extract_keywords(self, text: str, top_n: int = 15) -> dict[str, Any]:
-        if not text or not text.strip():
-            return {
-                "top_keywords": [],
-                "lemmatized_words": [],
-                "code_identifiers": [],
-                "code_split_words": [],
-                "tf_scores": {},
-                "stats": {
-                    "total_tokens": 0,
-                    "total_words": 0,
-                    "unique_words": 0,
-                },
-            }
-
-        self._load_lemminflect()
-        code_identifiers, code_split_words = self.extract_code_identifiers(text)
-        tokens = self._tokenize(text)
-        lemmatized_words = []
-        for word in tokens:
-            word_lower = word.lower()
-            if len(word) > 2 and word_lower not in self.STOPWORDS:
-                lemma = self._lemmatize(word)
-                lemmatized_words.append(lemma)
-
-        top_keywords, tf_scores, stats = self._extract_keywords(
-            lemmatized_words, code_identifiers, code_split_words, top_n
-        )
-
-        return {
-            "top_keywords": top_keywords,
-            "lemmatized_words": list(set(lemmatized_words))[:20],
-            "code_identifiers": code_identifiers,
-            "code_split_words": code_split_words,
-            "tf_scores": dict(sorted(tf_scores.items(), key=lambda x: x[1], reverse=True)[:10]),
-            "stats": stats,
-        }
 
 
 class RegularKeywordExtractor(BaseKeywordExtractor):
