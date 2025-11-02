@@ -111,9 +111,6 @@ def run_expansion_interactive(
             text = "\n".join(lines)
 
             if not text.strip():
-                if stdin_closed:
-                    print("\n👋 No more input available. Exiting.")
-                    return
                 print("\n⚠️  Empty input. Please enter some text.\n")
                 continue
 

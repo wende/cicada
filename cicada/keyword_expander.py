@@ -49,7 +49,6 @@ class KeywordExpander:
     # Expansion penalty multipliers (reduce noise from derived terms)
     INFLECTION_PENALTY = 0.7  # Penalty for morphological variations (run → runs, running)
     SEMANTIC_EXPANSION_PENALTY = 0.9  # Penalty for embedding-based similar words
-    TOP_N = 5  # Number of top expansions to consider
 
     def __init__(self, expansion_type: str = "lemmi", verbose: bool = False):
         """
@@ -339,7 +338,7 @@ class KeywordExpander:
                         )
 
                         # Filter by threshold and take top N
-                        for word, similarity_score in similar_words[: self.TOP_N]:
+                        for word, similarity_score in similar_words[:top_n]:
                             if similarity_score >= threshold:
                                 # Add the similar word
                                 word_lower = word.lower()
