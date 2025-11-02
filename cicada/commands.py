@@ -1,3 +1,11 @@
+"""
+CLI Command Handlers - Centralizes argparse logic and all CLI command handlers.
+
+This module defines the argument parser and individual handler functions for all
+Cicada CLI commands. It aims to consolidate command-line interface logic,
+making `cli.py` a thin entry point and `mcp_entry.py` focused solely on MCP server startup.
+"""
+
 import argparse
 import sys
 
@@ -394,9 +402,8 @@ def handle_editor_setup(args, editor: str):
                         "method", "lemmi"
                     )
                     index_exists = True
-            except Exception:
-                pass
-
+            except Exception as e:
+                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
     try:
         setup(
             cast(EditorType, editor),
@@ -522,8 +529,8 @@ def handle_index(args):
                         print("  cicada clean", file=sys.stderr)
                         print("\nThen run your index command again.", file=sys.stderr)
                         sys.exit(1)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
 
         create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
         config_exists = True
@@ -757,10 +764,8 @@ def handle_install(args):
                 expansion_method = existing_config.get("keyword_expansion", {}).get(
                     "method", "lemmi"
                 )
-        except Exception:
-            # If we can't read config, use defaults
-            extraction_method = "regular"
-            expansion_method = "lemmi"
+        except Exception as e:
+            print(f"Warning: Could not load existing config, using defaults: {e}", file=sys.stderr)
 
     # Run setup
     try:
