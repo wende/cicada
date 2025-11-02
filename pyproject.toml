@@ -90,6 +90,8 @@ omit = [
     "*/cli.py",
     "*/mcp/entry.py",
     "*/install.py",
+    # Keyword extraction test/example file
+    "cicada/keyword_test.py",
 ]
 branch = true
 
