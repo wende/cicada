@@ -56,24 +56,58 @@ CICADA is a Model Context Protocol (MCP) server that provides AI coding assistan
 
 ## What's New in v0.2.0
 
-### 🤖 Enhanced AI Keyword Extraction
+### 🤖 Enhanced AI Keyword Extraction and Expansion
 
-AI-powered semantic search is now production-ready with advanced NLP capabilities:
+AI-powered semantic search capabilities:
 
-- **BERT Integration**: KeyBERT-based keyword extraction for superior semantic understanding
+- **BERT Extraction**: KeyBERT-based keyword extraction for superior semantic understanding
+- **GloVE Expansion**: GloVe-based keyword expansion into terms of similar meaning and domain
 - **Configurable Model Tiers**: Choose between `fast`, `regular`, or `large` models to balance speed and accuracy
 - **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
-- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance
+- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance and TF scoring
 
 ```bash
 # Index with enhanced AI keyword extraction
-cicada index --nlp --fast
+cicada index --fast
 
 # Search by concept, not just exact names
 # AI will find: create_user, user_creation, new_user_account, etc.
 ```
 
+#### Keyword Expansion Example
+
+**Input:** "Authenticates user's credentials"
+
+| Fast (NLP) | Standard (AI) | Max (AI) |
+|-----------|--------------|----------|
+| auth_user (11.0) | auth_user (8.92) | auth_user (8.92) |
+| user (4.0) | user (1.98) | user (1.98) |
+| auth (3.0) | interface (1.41) | users (1.39) |
+| users (2.8) | users (1.39) | user2 (1.32) |
+| authenticates (1.0) | software (1.30) | user1 (1.30) |
+| credentials (1.0) | application (1.30) | userlist (1.29) |
+| | allows (1.30) | non-user (1.29) |
+| | interfaced (0.99) | non-users (0.90) |
+| | interfaces (0.99) | auth (0.90) |
+| | interfacing (0.99) | authenticates (0.72) |
+| | softwares (0.91) | credentials (0.68) |
+| | applications (0.91) | xauth (0.58) |
+| | auth (0.90) | authentication (0.53) |
+| | authenticates (0.72) | authentications (0.52) |
+| | credentials (0.68) | authentification (0.52) |
+| | | login (0.52) |
+| | | authenticate (0.51) |
+| | | authenticators (0.50) |
+| | | authenticator (0.50) |
+
 ### ⚡ Incremental Indexing
+### 🛡️ QoL
+
+- **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
+- **Resume Capability**: Interrupted? Just run the same command again to continue
+- **Smart Merging**: Automatically merges incremental changes with existing index
+
+**[Read the complete changelog →](CHANGELOG.md)**
 
 ---
 
