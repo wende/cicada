@@ -307,7 +307,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir") as mock_storage,
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer"),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer"),
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = False
@@ -319,9 +319,9 @@ class TestHandleIndex:
 
             # Verify config was created with regular extraction
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
-            assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["extraction_method"] == "regular"
+            assert call_kwargs["expansion_method"] == "lemmi"
 
     def test_regular_flag_creates_config_with_bert_glove(self, mock_repo):
         """--regular should create config with bert extraction and glove expansion"""
@@ -340,7 +340,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir") as mock_storage,
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer"),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer"),
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = False
@@ -352,9 +352,9 @@ class TestHandleIndex:
 
             # Verify config was created with bert + glove
             mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
-            assert call_args[3] == "glove"  # expansion_method is 4th positional arg
+            call_kwargs = mock_create_config.call_args[1]
+            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["expansion_method"] == "glove"
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
@@ -407,7 +407,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml"),
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.elixir.indexer.ElixirIndexer") as mock_indexer_class,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
@@ -453,7 +453,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml"),
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.elixir.indexer.ElixirIndexer") as mock_indexer_class,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",

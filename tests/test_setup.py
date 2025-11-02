@@ -154,6 +154,8 @@ class TestCreateConfigYaml:
         storage_dir = tmp_path / "storage"
         repo_path.mkdir()
         storage_dir.mkdir()
+        # Create marker file for language detection
+        (repo_path / "mix.exs").write_text("# Mock Elixir project")
         return repo_path, storage_dir
 
     def test_creates_config_file(self, mock_paths):
@@ -344,16 +346,17 @@ class TestSetupFunction:
             with patch("cicada.setup.index_repository"):
                 with patch("cicada.setup.create_config_yaml"):
                     with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
-                        with patch("pathlib.Path.cwd") as mock_cwd:
-                            with patch("builtins.open", mock_open()):
-                                mock_cwd.return_value = Path("/mock/cwd")
-                                config_path = Path("/mock/cwd/.mcp.json")
-                                mock_mcp.return_value = (config_path, {})
+                        with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                            with patch("pathlib.Path.cwd") as mock_cwd:
+                                with patch("builtins.open", mock_open()):
+                                    mock_cwd.return_value = Path("/mock/cwd")
+                                    config_path = Path("/mock/cwd/.mcp.json")
+                                    mock_mcp.return_value = (config_path, {})
 
-                                setup("claude", None)
+                                    setup("claude", None)
 
-                                # Should have resolved current directory
-                                mock_cwd.assert_called()
+                                    # Should have resolved current directory
+                                    mock_cwd.assert_called()
 
     def test_setup_all_three_editors(self, mock_repo):
         """Setup should work for all three editor types"""
@@ -595,6 +598,8 @@ class TestCreateConfigYamlVerbose:
         storage_dir = tmp_path / "storage"
         repo_path.mkdir()
         storage_dir.mkdir()
+        # Create marker file for language detection
+        (repo_path / "mix.exs").write_text("# Mock Elixir project")
         return repo_path, storage_dir
 
     def test_prints_message_when_verbose_true(self, mock_paths, capsys):
@@ -806,10 +811,10 @@ class TestSetupKeywordParameters:
                         )
 
                         mock_create_config.assert_called()
-                        # Check positional args: repo_path, storage_dir, extraction_method, expansion_method
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
-                        assert call_args[3] == "glove"  # expansion_method is 4th positional arg
+                        # Check keyword args: language, extraction_method, expansion_method
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["extraction_method"] == "bert"
+                        assert call_kwargs["expansion_method"] == "glove"
 
     def test_defaults_when_no_method_specified(self, mock_repo):
         """Should use default methods when not specified"""
@@ -826,9 +831,9 @@ class TestSetupKeywordParameters:
 
                         # Should pass None for both (create_config_yaml handles defaults)
                         mock_create_config.assert_called()
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] is None  # extraction_method is 3rd positional arg
-                        assert call_args[3] is None  # expansion_method is 4th positional arg
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["extraction_method"] is None
+                        assert call_kwargs["expansion_method"] is None
 
 
 class TestSetupSettingsChangeDetection:

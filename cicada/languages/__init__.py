@@ -32,7 +32,7 @@ class LanguageRegistry:
     def register_language(
         cls,
         language: str,
-        parser_class: str,
+        parser_class: str | None,
         indexer_class: str,
         config: LanguageConfig | None = None,
     ):
@@ -41,7 +41,7 @@ class LanguageRegistry:
 
         Args:
             language: Language identifier (e.g., 'elixir', 'python')
-            parser_class: Full import path to parser class (e.g., 'cicada.languages.elixir.parser.ElixirParser')
+            parser_class: Full import path to parser class (e.g., 'cicada.languages.elixir.parser.ElixirParser') or None if not needed
             indexer_class: Full import path to indexer class
             config: Optional LanguageConfig with default settings
         """

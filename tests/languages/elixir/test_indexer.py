@@ -1147,7 +1147,9 @@ end
         def mock_keybert_init(*args, **kwargs):
             raise Exception("Simulated extractor initialization failure")
 
-        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor", mock_keybert_init
+        )
 
         output_path = tmp_path / "index.json"
 
@@ -1198,7 +1200,7 @@ end
         )
 
         monkeypatch.setattr(
-            "cicada.extractors.keyword.RegularKeywordExtractor",
+            "cicada.languages.elixir.extractors.keyword.RegularKeywordExtractor",
             lambda *args, **kwargs: mock_extractor,
         )
 
@@ -1256,7 +1258,7 @@ end
         mock_extractor.extract_keywords_simple = mock_extract
 
         monkeypatch.setattr(
-            "cicada.extractors.keyword.RegularKeywordExtractor",
+            "cicada.languages.elixir.extractors.keyword.RegularKeywordExtractor",
             lambda *args, **kwargs: mock_extractor,
         )
 
@@ -1301,7 +1303,9 @@ end
         def mock_keybert_init(*args, **kwargs):
             raise RuntimeError("Simulated extractor initialization failure")
 
-        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
+        monkeypatch.setattr(
+            "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor", mock_keybert_init
+        )
 
         # Should not crash, should show warning
         index = indexer.incremental_index_repository(

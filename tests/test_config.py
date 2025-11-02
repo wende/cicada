@@ -19,7 +19,8 @@ def test_valid_config(tmp_path):
         "language": "elixir",
         "repository": {"path": "/path/to/repo"},
         "storage": {"index_path": "/path/to/index.json"},
-        "keyword_extraction": {"method": "lemminflect", "tier": "regular"},
+        "keyword_extraction": {"method": "regular"},
+        "keyword_expansion": {"method": "glove"},
     }
 
     with open(config_file, "w") as f:
@@ -29,8 +30,8 @@ def test_valid_config(tmp_path):
     assert config.language == "elixir"
     assert config.repo_path == "/path/to/repo"
     assert config.index_path == "/path/to/index.json"
-    assert config.keyword_method == "lemminflect"
-    assert config.keyword_tier == "regular"
+    assert config.extraction_method == "regular"
+    assert config.expansion_method == "glove"
 
 
 def test_missing_language_field(tmp_path):
@@ -160,19 +161,19 @@ def test_invalid_keyword_method(tmp_path):
 
 
 def test_invalid_keyword_tier(tmp_path):
-    """Test that invalid keyword extraction tier raises an error."""
+    """Test that invalid keyword expansion method raises an error."""
     config_file = tmp_path / "config.yaml"
     config_data = {
         "language": "elixir",
         "repository": {"path": "/path/to/repo"},
         "storage": {"index_path": "/path/to/index.json"},
-        "keyword_extraction": {"tier": "thorough"},
+        "keyword_expansion": {"method": "thorough"},
     }
 
     with open(config_file, "w") as f:
         yaml.dump(config_data, f)
 
-    with pytest.raises(ConfigValidationError, match="Invalid keyword_extraction.tier"):
+    with pytest.raises(ConfigValidationError, match="Invalid keyword_expansion.method"):
         load_config(config_file)
 
 
@@ -189,8 +190,8 @@ def test_optional_keyword_extraction(tmp_path):
         yaml.dump(config_data, f)
 
     config = load_config(config_file)
-    assert config.keyword_method == "lemminflect"  # Default
-    assert config.keyword_tier == "regular"  # Default
+    assert config.extraction_method == "regular"  # Default
+    assert config.expansion_method == "lemmi"  # Default
 
 
 def test_config_file_not_found():
@@ -225,15 +226,15 @@ def test_create_default_config():
         language="elixir",
         repo_path="/path/to/repo",
         index_path="/path/to/index.json",
-        keyword_method="nltk",
-        keyword_tier="thorough",
+        extraction_method="bert",
+        expansion_method="fasttext",
     )
 
     assert config_data["language"] == "elixir"
     assert config_data["repository"]["path"] == "/path/to/repo"
     assert config_data["storage"]["index_path"] == "/path/to/index.json"
-    assert config_data["keyword_extraction"]["method"] == "nltk"
-    assert config_data["keyword_extraction"]["tier"] == "thorough"
+    assert config_data["keyword_extraction"]["method"] == "bert"
+    assert config_data["keyword_expansion"]["method"] == "fasttext"
 
 
 def test_save_and_load_config(tmp_path):

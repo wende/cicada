@@ -181,12 +181,12 @@ class ElixirIndexer(BaseIndexer):
 
                 # Initialize extraction method
                 if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                    from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
 
                     keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
                     # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
+                    from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
@@ -559,12 +559,12 @@ class ElixirIndexer(BaseIndexer):
 
                 # Initialize extraction method
                 if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                    from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
 
                     keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
                     # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
+                    from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 

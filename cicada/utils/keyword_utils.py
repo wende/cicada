@@ -18,63 +18,72 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
         repo_path: Path to the repository
 
     Returns:
-        tuple[str, str]: (method, tier) where method is 'lemminflect' or 'bert',
-                        and tier is 'fast', 'regular', or 'max'.
-                        Returns ('lemminflect', 'regular') as default if config not found.
+        tuple[str, str]: (extraction_method, expansion_method) where:
+                        - extraction_method is 'regular' or 'bert'
+                        - expansion_method is 'lemmi', 'glove', or 'fasttext'
+                        Returns ('regular', 'lemmi') as default if config not found.
     """
     try:
         import yaml
 
         config_path = get_config_path(repo_path)
         if not config_path.exists():
-            # Default to lemminflect if config doesn't exist
-            return ("lemminflect", "regular")
+            # Default to regular + lemmi if config doesn't exist
+            return ("regular", "lemmi")
 
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        if config and "keyword_extraction" in config:
-            method = config["keyword_extraction"].get("method", "lemminflect")
-            tier = config["keyword_extraction"].get("tier", "regular")
-            return (method, tier)
+        if config:
+            extraction = config.get("keyword_extraction", {})
+            expansion = config.get("keyword_expansion", {})
 
-        # Default to lemminflect if keyword_extraction section not found
-        return ("lemminflect", "regular")
+            extraction_method = extraction.get("method", "regular")
+            expansion_method = expansion.get("method", "lemmi")
+
+            # Map legacy "lemminflect" to "regular"
+            if extraction_method == "lemminflect":
+                extraction_method = "regular"
+
+            return (extraction_method, expansion_method)
+
+        # Default to regular + lemmi if config empty
+        return ("regular", "lemmi")
     except Exception:
-        # If anything goes wrong, default to lemminflect
-        return ("lemminflect", "regular")
+        # If anything goes wrong, default to regular + lemmi
+        return ("regular", "lemmi")
 
 
-def create_keyword_extractor(method: str, tier: str, verbose: bool = False):
+def create_keyword_extractor(extraction_method: str, expansion_method: str, verbose: bool = False):
     """
-    Create a keyword extractor instance based on method and tier.
+    Create a keyword extractor instance based on extraction and expansion methods.
 
     This is a universal factory function that works for any language indexer.
 
     Args:
-        method: Extraction method ('lemminflect', 'bert', or 'none')
-        tier: Model tier ('fast', 'regular', or 'max')
+        extraction_method: Extraction method ('regular', 'bert', or 'none')
+        expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext')
         verbose: If True, print status messages
 
     Returns:
-        Keyword extractor instance (LightweightKeywordExtractor or KeyBERTExtractor),
-        or None if method is 'none'
+        Keyword extractor instance (RegularKeywordExtractor or KeyBERTExtractor),
+        or None if extraction_method is 'none'
 
     Example:
-        method, tier = read_keyword_extraction_config(repo_path)
-        extractor = create_keyword_extractor(method, tier, verbose=True)
+        extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
+        extractor = create_keyword_extractor(extraction_method, expansion_method, verbose=True)
         if extractor:
             keywords = extractor.extract_keywords_simple(text)
     """
-    if method == "none":
+    if extraction_method == "none":
         return None
 
-    if method == "bert":
+    if extraction_method == "bert":
         try:
             from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
 
             if verbose:
-                print(f"  Using KeyBERT extractor", file=sys.stderr)
+                print("  Using KeyBERT extractor", file=sys.stderr)
             return KeyBERTExtractor(verbose=verbose)
         except ImportError:
             if verbose:
@@ -88,7 +97,7 @@ def create_keyword_extractor(method: str, tier: str, verbose: bool = False):
     from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
 
     if verbose:
-        print(f"  Using regular extractor (lemminflect)", file=sys.stderr)
+        print("  Using regular extractor (lemminflect)", file=sys.stderr)
     return RegularKeywordExtractor(verbose=verbose)
 
 
@@ -110,9 +119,11 @@ def get_keyword_extractor_from_config(repo_path: Path, verbose: bool = False):
         if extract_keywords and extractor:
             keywords = extractor.extract_keywords_simple(text)
     """
-    method, tier = read_keyword_extraction_config(repo_path)
-    extract_keywords = method != "none"
+    extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
+    extract_keywords = extraction_method != "none"
     keyword_extractor = (
-        create_keyword_extractor(method, tier, verbose) if extract_keywords else None
+        create_keyword_extractor(extraction_method, expansion_method, verbose)
+        if extract_keywords
+        else None
     )
     return extract_keywords, keyword_extractor

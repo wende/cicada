@@ -545,7 +545,7 @@ def main():
 
     # Check if it's an Elixir or Python repository
     try:
-        language = detect_project_language(repo_path)
+        detect_project_language(repo_path)
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)

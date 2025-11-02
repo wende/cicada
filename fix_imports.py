@@ -53,6 +53,15 @@ IMPORT_REPLACEMENTS = [
         "from cicada.languages.elixir.extractors.spec import",
     ),
     (r"from cicada\.extractors\.doc import", "from cicada.languages.elixir.extractors.doc import"),
+    # Keyword extractor imports
+    (
+        r"from cicada\.extractors\.keyword import",
+        "from cicada.languages.elixir.extractors.keyword import",
+    ),
+    (
+        r"from cicada\.extractors\.keybert import",
+        "from cicada.languages.elixir.extractors.keybert import",
+    ),
     # General extractors import
     (r"from cicada\.extractors import", "from cicada.languages.elixir.extractors import"),
     (r"import cicada\.extractors", "import cicada.languages.elixir.extractors"),

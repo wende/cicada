@@ -108,6 +108,7 @@ def setup_test_environment():
 
     # Create config.yaml file
     config = {
+        "language": "elixir",
         "repository": {"path": "."},
         "storage": {"index_path": ".cicada/index.json"},
     }

@@ -177,7 +177,16 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["T201", "T203"]  # Allow print in tests
+"cicada/languages/scip/scip_pb2.py" = ["E501", "F", "UP", "A001"]  # Auto-generated protobuf
+"cicada/languages/scip/scip_pb2.pyi" = ["E501", "F", "UP", "A001", "A002", "I001"]  # Auto-generated protobuf
 
+
+
+[tool.pyright]
+exclude = [
+    "cicada/languages/scip/scip_pb2.py",
+    "cicada/languages/scip/scip_pb2.pyi",
+]
 
 
 [dependency-groups]

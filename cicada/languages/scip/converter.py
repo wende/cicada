@@ -8,6 +8,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from cicada.languages.scip import scip_pb2
 
@@ -272,7 +273,7 @@ class SCIPConverter:
         args = self._extract_args(symbol_info.symbol, doc)
 
         # Parse signature and docstring from documentation
-        signature, docstring = self._parse_signature_and_doc(symbol_info.documentation)
+        signature, docstring = self._parse_signature_and_doc(list(symbol_info.documentation))
 
         func_data = {
             "name": name,
@@ -459,7 +460,7 @@ class SCIPConverter:
                 if symbol_type in ("function", "method"):
                     total_functions += 1
 
-        metadata = {
+        metadata: dict[str, Any] = {
             "indexed_at": datetime.now().isoformat(),
             "language": "python",
             "version": "2.0",

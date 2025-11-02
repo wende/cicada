@@ -490,7 +490,7 @@ def handle_index_main(args):
     """Handle main repository indexing."""
     from pathlib import Path
 
-    from cicada.indexer import ElixirIndexer
+    from cicada.languages.elixir.indexer import ElixirIndexer
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
@@ -548,7 +548,12 @@ def handle_index_main(args):
             except Exception as e:
                 print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
 
-        create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
+        create_config_yaml(
+            repo_path_obj,
+            storage_dir,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+        )
     elif not config_path.exists():
         print("Error: No tier specified.", file=sys.stderr)
         print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
@@ -849,7 +854,11 @@ def handle_server(args):
 
         # Create config.yaml (silent)
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
 
         # Index repository (silent)

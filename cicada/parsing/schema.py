@@ -281,24 +281,25 @@ class UniversalIndexSchema:
             elif strict and not isinstance(metadata[field_name], expected_type):
                 actual_type = type(metadata[field_name]).__name__
                 errors.append(
-                    f"metadata.{field_name} must be {expected_type.__name__}, " f"got {actual_type}"
+                    f"metadata.{field_name} must be {expected_type.__name__}, got {actual_type}"
                 )
 
         # Optional but typed fields
-        if "language" in metadata and strict:
-            if not isinstance(metadata["language"], str):
-                errors.append("metadata.language must be a string")
+        if "language" in metadata and strict and not isinstance(metadata["language"], str):
+            errors.append("metadata.language must be a string")
 
-        if "version" in metadata and strict:
-            if not isinstance(metadata["version"], str):
-                errors.append("metadata.version must be a string")
+        if "version" in metadata and strict and not isinstance(metadata["version"], str):
+            errors.append("metadata.version must be a string")
 
         # Validate counts are non-negative
         if strict:
             for count_field in ["total_modules", "total_functions"]:
-                if count_field in metadata and isinstance(metadata[count_field], int):
-                    if metadata[count_field] < 0:
-                        errors.append(f"metadata.{count_field} must be non-negative")
+                if (
+                    count_field in metadata
+                    and isinstance(metadata[count_field], int)
+                    and metadata[count_field] < 0
+                ):
+                    errors.append(f"metadata.{count_field} must be non-negative")
 
         return errors
 
@@ -324,15 +325,22 @@ class UniversalIndexSchema:
                 )
 
         # Validate line number
-        if strict and "line" in module_data:
-            if isinstance(module_data["line"], int) and module_data["line"] <= 0:
-                errors.append(f"Module '{module_name}'.line must be positive")
+        if (
+            strict
+            and "line" in module_data
+            and isinstance(module_data["line"], int)
+            and module_data["line"] <= 0
+        ):
+            errors.append(f"Module '{module_name}'.line must be positive")
 
         # Validate optional list fields
         for list_field in ["calls", "dependencies"]:
-            if list_field in module_data and strict:
-                if not isinstance(module_data[list_field], list):
-                    errors.append(f"Module '{module_name}'.{list_field} must be a list")
+            if (
+                list_field in module_data
+                and strict
+                and not isinstance(module_data[list_field], list)
+            ):
+                errors.append(f"Module '{module_name}'.{list_field} must be a list")
 
         # Validate each function
         if "functions" in module_data and isinstance(module_data["functions"], list):
@@ -390,28 +398,28 @@ class UniversalIndexSchema:
         func_name = func_data.get("name", f"<unnamed at index {func_idx}>")
 
         # Validate arity matches args length
-        if "arity" in func_data and "args" in func_data:
-            if isinstance(func_data["arity"], int) and isinstance(func_data["args"], list):
-                if func_data["arity"] != len(func_data["args"]):
-                    errors.append(
-                        f"Module '{module_name}' function '{func_name}': "
-                        f"arity ({func_data['arity']}) does not match args length "
-                        f"({len(func_data['args'])})"
-                    )
+        if (
+            "arity" in func_data
+            and "args" in func_data
+            and isinstance(func_data["arity"], int)
+            and isinstance(func_data["args"], list)
+            and func_data["arity"] != len(func_data["args"])
+        ):
+            errors.append(
+                f"Module '{module_name}' function '{func_name}': "
+                f"arity ({func_data['arity']}) does not match args length "
+                f"({len(func_data['args'])})"
+            )
 
         # Validate arity is non-negative
-        if "arity" in func_data and isinstance(func_data["arity"], int):
-            if func_data["arity"] < 0:
-                errors.append(
-                    f"Module '{module_name}' function '{func_name}': " f"arity must be non-negative"
-                )
+        if "arity" in func_data and isinstance(func_data["arity"], int) and func_data["arity"] < 0:
+            errors.append(
+                f"Module '{module_name}' function '{func_name}': arity must be non-negative"
+            )
 
         # Validate line number is positive
-        if "line" in func_data and isinstance(func_data["line"], int):
-            if func_data["line"] <= 0:
-                errors.append(
-                    f"Module '{module_name}' function '{func_name}': " f"line must be positive"
-                )
+        if "line" in func_data and isinstance(func_data["line"], int) and func_data["line"] <= 0:
+            errors.append(f"Module '{module_name}' function '{func_name}': line must be positive")
 
         # Validate args are all strings
         if "args" in func_data and isinstance(func_data["args"], list):
@@ -423,37 +431,33 @@ class UniversalIndexSchema:
                     )
 
         # Validate type is known value (for common types)
-        if "type" in func_data and isinstance(func_data["type"], str):
-            known_types = {
-                "def",
-                "defp",
-                "defmacro",
-                "defmacrop",  # Elixir
-                "public",
-                "private",  # Python/generic
-                "function",
-                "method",  # Generic
-            }
+        if (
+            "type" in func_data
+            and isinstance(func_data["type"], str)
+            and not func_data["type"].strip()
+        ):
             # Don't enforce this strictly, just warn if it's completely empty
-            if not func_data["type"].strip():
-                errors.append(
-                    f"Module '{module_name}' function '{func_name}': " f"type cannot be empty"
-                )
+            errors.append(f"Module '{module_name}' function '{func_name}': type cannot be empty")
 
         # Validate optional fields if present
-        if "doc" in func_data and func_data["doc"] is not None:
-            if not isinstance(func_data["doc"], str):
-                errors.append(
-                    f"Module '{module_name}' function '{func_name}': "
-                    f"doc must be a string or null"
-                )
+        if (
+            "doc" in func_data
+            and func_data["doc"] is not None
+            and not isinstance(func_data["doc"], str)
+        ):
+            errors.append(
+                f"Module '{module_name}' function '{func_name}': doc must be a string or null"
+            )
 
-        if "keywords" in func_data and func_data["keywords"] is not None:
-            if not isinstance(func_data["keywords"], list):
-                errors.append(
-                    f"Module '{module_name}' function '{func_name}': "
-                    f"keywords must be a list or null"
-                )
+        if (
+            "keywords" in func_data
+            and func_data["keywords"] is not None
+            and not isinstance(func_data["keywords"], list)
+        ):
+            errors.append(
+                f"Module '{module_name}' function '{func_name}': "
+                f"keywords must be a list or null"
+            )
 
         return errors
 
@@ -482,25 +486,23 @@ class UniversalIndexSchema:
                 )
 
         # module is optional but should be string or None
-        if "module" in call_data and call_data["module"] is not None:
-            if not isinstance(call_data["module"], str):
-                errors.append(
-                    f"Module '{module_name}' call at index {call_idx}: "
-                    f"module must be a string or null"
-                )
+        if (
+            "module" in call_data
+            and call_data["module"] is not None
+            and not isinstance(call_data["module"], str)
+        ):
+            errors.append(
+                f"Module '{module_name}' call at index {call_idx}: "
+                f"module must be a string or null"
+            )
 
         # Validate constraints
-        if "arity" in call_data and isinstance(call_data["arity"], int):
-            if call_data["arity"] < 0:
-                errors.append(
-                    f"Module '{module_name}' call at index {call_idx}: "
-                    f"arity must be non-negative"
-                )
+        if "arity" in call_data and isinstance(call_data["arity"], int) and call_data["arity"] < 0:
+            errors.append(
+                f"Module '{module_name}' call at index {call_idx}: arity must be non-negative"
+            )
 
-        if "line" in call_data and isinstance(call_data["line"], int):
-            if call_data["line"] <= 0:
-                errors.append(
-                    f"Module '{module_name}' call at index {call_idx}: " f"line must be positive"
-                )
+        if "line" in call_data and isinstance(call_data["line"], int) and call_data["line"] <= 0:
+            errors.append(f"Module '{module_name}' call at index {call_idx}: line must be positive")
 
         return errors

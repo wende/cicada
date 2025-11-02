@@ -5,7 +5,7 @@ from pathlib import Path
 
 from cicada.languages.scip.reader import SCIPReader
 from cicada.languages.scip.converter import SCIPConverter
-from cicada.lightweight_keyword_extractor import LightweightKeywordExtractor
+from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
 
 
 @pytest.fixture
@@ -112,7 +112,7 @@ class TestKeywordExtraction:
         scip_index, repo_path = python_scip_index
 
         # Initialize with keyword extraction
-        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor = RegularKeywordExtractor(verbose=False)
         converter = SCIPConverter(extract_keywords=True, keyword_extractor=extractor, verbose=False)
         result = converter.convert(scip_index, repo_path)
 
@@ -138,7 +138,7 @@ class TestKeywordExtraction:
         scip_index, repo_path = typescript_scip_index
 
         # Initialize with keyword extraction
-        extractor = LightweightKeywordExtractor(verbose=False)
+        extractor = RegularKeywordExtractor(verbose=False)
         converter = SCIPConverter(extract_keywords=True, keyword_extractor=extractor, verbose=False)
         result = converter.convert(scip_index, repo_path)
 

@@ -99,8 +99,11 @@ def test_get_commit_history_with_limit(test_server):
 
     text = result[0].text
 
-    # Count how many commits are in the response by counting "## " (markdown headers for commits)
-    commit_count = text.count("## ") - 1  # Subtract 1 for the main title
+    # Count how many commits are in the response by counting "## N." patterns (commit headers)
+    import re
+
+    commit_headers = re.findall(r"^## \d+\.", text, re.MULTILINE)
+    commit_count = len(commit_headers)
 
     assert commit_count <= 2, f"Should have at most 2 commits, found {commit_count}"
 
