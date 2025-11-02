@@ -248,23 +248,23 @@ def get_argument_parser():
     index_parser.add_argument(
         "--extraction-threshold",
         type=float,
-        default=None,
+        default=0.3,
         metavar="SCORE",
-        help="Minimum score for keyword extraction (0.0-1.0). For KeyBERT: semantic similarity threshold",
+        help="Minimum score for keyword extraction (0.0-1.0). For KeyBERT: semantic similarity threshold. Default: 0.3",
     )
     index_parser.add_argument(
         "--min-score",
         type=float,
-        default=0.0,
+        default=0.5,
         metavar="SCORE",
-        help="Minimum score threshold for keywords (filters out low-scoring terms). Default: 0.0",
+        help="Minimum score threshold for keywords (filters out low-scoring terms). Default: 0.5",
     )
     index_parser.add_argument(
         "--expansion-threshold",
         type=float,
-        default=0.7,
+        default=0.2,
         metavar="SCORE",
-        help="Minimum similarity score for keyword expansion (0.0-1.0, default: 0.7)",
+        help="Minimum similarity score for keyword expansion (0.0-1.0, default: 0.2)",
     )
 
     index_pr_parser = subparsers.add_parser(
@@ -473,9 +473,9 @@ def handle_index_test_expansion_mode(args):
         extraction_tier = "fast"
         expansion_type = "glove"
 
-    extraction_threshold = getattr(args, "extraction_threshold", None)
-    expansion_threshold = getattr(args, "expansion_threshold", 0.7)
-    min_score = getattr(args, "min_score", 0.0)
+    extraction_threshold = getattr(args, "extraction_threshold", 0.3)
+    expansion_threshold = getattr(args, "expansion_threshold", 0.2)
+    min_score = getattr(args, "min_score", 0.5)
     run_expansion_interactive(
         expansion_type=expansion_type,
         extraction_method=extraction_method,

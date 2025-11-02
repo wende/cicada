@@ -71,7 +71,7 @@ class ElixirIndexer:
 
     # Keyword expansion parameters
     DEFAULT_EXPANSION_TOP_N = 3
-    DEFAULT_EXPANSION_THRESHOLD = 0.7
+    DEFAULT_EXPANSION_THRESHOLD = 0.2
 
     def __init__(self, verbose: bool = False):
         """Initialize the indexer with a parser."""

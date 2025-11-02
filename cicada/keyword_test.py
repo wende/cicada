@@ -11,9 +11,9 @@ def run_expansion_interactive(
     expansion_type: str = "lemmi",
     extraction_method: str = "regular",
     extraction_tier: str = "regular",
-    extraction_threshold: float | None = None,
-    expansion_threshold: float = 0.7,
-    min_score: float = 0.0,
+    extraction_threshold: float | None = 0.3,
+    expansion_threshold: float = 0.2,
+    min_score: float = 0.5,
 ):
     """
     Interactive keyword expansion testing mode.
@@ -24,9 +24,9 @@ def run_expansion_interactive(
         expansion_type: Expansion strategy ('lemmi', 'glove', or 'fasttext')
         extraction_method: Extraction method ('regular' or 'bert')
         extraction_tier: Model tier for extraction ('fast', 'regular', or 'max')
-        extraction_threshold: Minimum score for extraction (None = use defaults)
-        expansion_threshold: Minimum similarity score for expansion (default: 0.7)
-        min_score: Minimum score threshold for keywords (filters out low-scoring terms)
+        extraction_threshold: Minimum score for extraction (default: 0.3)
+        expansion_threshold: Minimum similarity score for expansion (default: 0.2)
+        min_score: Minimum score threshold for keywords (default: 0.5)
     """
     print(f"\n{'='*70}")
     print("🔄 Cicada Interactive Keyword Pipeline Test")
