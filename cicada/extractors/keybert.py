@@ -4,7 +4,9 @@ Semantic keyword extraction using transformer-based embeddings
 """
 
 import os
+import re
 import sys
+from collections import Counter
 from typing import Any
 
 # Disable tokenizers parallelism to avoid fork warnings
@@ -77,9 +79,6 @@ class KeyBERTExtractor(BaseKeywordExtractor):
         Returns:
             Dictionary mapping lowercase words to their raw frequency counts
         """
-        import re
-        from collections import Counter
-
         tokens = re.findall(r"\b[a-zA-Z][a-zA-Z0-9_]*\b", text.lower())
         term_freq = Counter(tokens)
         return dict(term_freq)

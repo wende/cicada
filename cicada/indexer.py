@@ -235,7 +235,10 @@ class ElixirIndexer:
                                     # Convert to dict: word -> max_score
                                     module_keywords = {}
                                     # When return_scores=True, expansion_result is a dict
-                                    assert isinstance(expansion_result, dict)
+                                    if not isinstance(expansion_result, dict):
+                                        raise TypeError(
+                                            "Expected dict from expand_keywords with return_scores=True"
+                                        )
                                     for item in expansion_result["words"]:
                                         word = item["word"]
                                         score = item["score"]
@@ -287,7 +290,10 @@ class ElixirIndexer:
                                             # Convert to dict: word -> max_score
                                             func_keywords = {}
                                             # When return_scores=True, expansion_result is a dict
-                                            assert isinstance(expansion_result, dict)
+                                            if not isinstance(expansion_result, dict):
+                                                raise TypeError(
+                                                    "Expected dict from expand_keywords with return_scores=True"
+                                                )
                                             for item in expansion_result["words"]:
                                                 word = item["word"]
                                                 score = item["score"]
@@ -594,7 +600,10 @@ class ElixirIndexer:
                                     # Convert to dict: word -> max_score
                                     module_keywords = {}
                                     # When return_scores=True, expansion_result is a dict
-                                    assert isinstance(expansion_result, dict)
+                                    if not isinstance(expansion_result, dict):
+                                        raise TypeError(
+                                            "Expected dict from expand_keywords with return_scores=True"
+                                        )
                                     for item in expansion_result["words"]:
                                         word = item["word"]
                                         score = item["score"]
@@ -639,7 +648,10 @@ class ElixirIndexer:
                                             # Convert to dict: word -> max_score
                                             func_keywords = {}
                                             # When return_scores=True, expansion_result is a dict
-                                            assert isinstance(expansion_result, dict)
+                                            if not isinstance(expansion_result, dict):
+                                                raise TypeError(
+                                                    "Expected dict from expand_keywords with return_scores=True"
+                                                )
                                             for item in expansion_result["words"]:
                                                 word = item["word"]
                                                 score = item["score"]
