@@ -277,23 +277,6 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return lines
 
     @staticmethod
-    def _format_remaining_code_sites(remaining_code, indent):
-        lines = []
-        grouped_remaining_code = CallSiteFormatter.group_by_caller(remaining_code)
-        remaining_code_count = sum(len(site["lines"]) for site in grouped_remaining_code)
-        lines.append(f"{indent}Code ({remaining_code_count}):")
-        for site in grouped_remaining_code:
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
-
-            line_list = ", ".join(f":{line}" for line in site["lines"])
-            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-        return lines
-
-    @staticmethod
     def _format_grouped_test_sites(grouped_test, indent):
         lines = []
         for site in grouped_test:
@@ -460,7 +443,6 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
     @staticmethod
     def _format_call_sites(call_sites, call_sites_with_examples, indent):
         lines = []
-        has_examples = len(call_sites_with_examples) > 0
         # Check if we have usage examples (code lines)
         has_examples = len(call_sites_with_examples) > 0
 

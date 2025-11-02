@@ -367,6 +367,11 @@ def handle_editor_setup(args, editor: str):
         print("(mix.exs not found)", file=sys.stderr)
         sys.exit(1)
 
+    from cicada.utils.storage import get_config_path, get_index_path
+
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+
     extraction_method = None
     expansion_method = None
 
@@ -382,35 +387,27 @@ def handle_editor_setup(args, editor: str):
         else:
             expansion_method = "lemmi"
 
-    index_exists = False
-    if extraction_method is None:
-        from cicada.utils.storage import get_config_path, get_index_path
+    if extraction_method is None and config_path.exists() and index_path.exists():
+        import yaml
 
-        config_path = get_config_path(repo_path)
-        index_path = get_index_path(repo_path)
-
-        if config_path.exists() and index_path.exists():
-            import yaml
-
-            try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    extraction_method = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
-                    )
-                    expansion_method = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
-                    )
-                    index_exists = True
-            except Exception as e:
-                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                expansion_method = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
+        except Exception as e:
+            print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
     try:
         setup(
             cast(EditorType, editor),
             repo_path,
             extraction_method=extraction_method,
             expansion_method=expansion_method,
-            index_exists=index_exists,
+            index_exists=config_path.exists() and index_path.exists(),
         )
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)
@@ -465,7 +462,6 @@ def handle_index(args):
 
     repo_path_obj = Path(args.repo).resolve()
     config_path = get_config_path(repo_path_obj)
-    config_exists = config_path.exists()
 
     from cicada.utils.storage import create_storage_dir, get_index_path
 
@@ -490,7 +486,7 @@ def handle_index(args):
             else:
                 expansion_method = "lemmi"
 
-        if config_exists:
+        if config_path.exists():
             import yaml
 
             try:
@@ -533,8 +529,7 @@ def handle_index(args):
                 print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
 
         create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
-        config_exists = True
-    elif not config_exists:
+    elif not config_path.exists():
         print("Error: No keyword extraction method specified.", file=sys.stderr)
         print("\nYou must specify either --nlp or --rag for keyword extraction:", file=sys.stderr)
         print("  --nlp       Use NLP keyword extraction (lemminflect-based)", file=sys.stderr)
