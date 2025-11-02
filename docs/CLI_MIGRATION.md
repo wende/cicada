@@ -59,7 +59,7 @@ cicada-index --spacy-model medium
 **After:**
 ```bash
 cicada index .
-cicada index --nlp  # or --rag for BERT-based extraction
+cicada index --fast  # Fast tier (token-based) or --regular (default), or --max (BERT large)
 ```
 
 Note: `--output` option has been removed. Index files are now stored in `~/.cicada/projects/<repo_hash>/index.json`.
@@ -122,20 +122,20 @@ cicada --use-uv
 ### Index Subcommand
 
 ```bash
-# Basic usage - NLP extraction
-cicada index --nlp
+# Default indexing (with BERT small model)
+cicada index
 
-# Basic usage - BERT extraction
-cicada index --rag
+# Fast tier (token-based extraction, no model downloads)
+cicada index --fast
+
+# Max tier (BERT large model for best quality)
+cicada index --max
 
 # Specify repository path
-cicada index /path/to/repo --nlp
+cicada index /path/to/repo
 
-# Use BERT with fast tier
-cicada index --rag --fast
-
-# Use BERT with max quality tier
-cicada index --rag --max
+# Force full reindex
+cicada index --full
 
 # Get help
 cicada index --help

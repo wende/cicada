@@ -2,7 +2,7 @@
 
 ## Overview
 
-When using CICADA with keyword extraction enabled (via `--nlp` or `--rag` flags), the system now tracks which model configuration was used to create the index. If you attempt to run an incremental index with a different model configuration, CICADA will detect this and prompt you to choose whether to proceed with a full reindex or keep the existing index.
+When using CICADA with keyword extraction enabled (via `--fast`, `--regular`, or `--max` flags), the system tracks which model configuration was used to create the index. If you attempt to run an incremental index with a different model configuration, CICADA will detect this and prompt you to choose whether to proceed with a full reindex or keep the existing index.
 
 ## Why This Matters
 
@@ -62,32 +62,32 @@ What would you like to do?
 
 ## Usage Examples
 
-### Example 1: Changing from spaCy to KeyBERT
+### Example 1: Changing from Fast to Max Tier
 
 ```bash
-# Initial indexing with spaCy
+# Initial indexing with fast model (token-based)
 cd my-elixir-project
-cicada index --nlp --regular
+cicada index --fast
 
-# Later, trying to switch to KeyBERT
-cicada index --rag --regular
+# Later, trying to upgrade to max quality (BERT-based)
+cicada index --max
 
 # CICADA will detect the change and prompt:
 # ⚠  Model Configuration Change Detected
-#   Previous: SPACY / Regular
-#   New: BERT / Regular
+#   Previous: Fast (token-based)
+#   New: Max (BERT-based)
 #
 # Choose: Continue or Abort
 ```
 
-### Example 2: Upgrading Model Tier
+### Example 2: Upgrading Model Quality
 
 ```bash
-# Initial indexing with fast model
-cicada index --nlp --fast
+# Initial indexing with regular model (default)
+cicada index
 
 # Later, upgrading to max quality
-cicada index --nlp --max
+cicada index --max
 
 # CICADA will detect the tier change and prompt
 ```
@@ -96,10 +96,10 @@ cicada index --nlp --max
 
 ```bash
 # Initial indexing
-cicada index --nlp --regular
+cicada index --regular
 
 # Later, running again with same config
-cicada index --nlp --regular
+cicada index --regular
 
 # No prompt - proceeds with incremental indexing normally
 ```
@@ -119,11 +119,9 @@ Both are kept in sync automatically.
 
 The following flags affect model configuration:
 
-- `--nlp`: Enable spaCy-based keyword extraction
-- `--rag`: Enable KeyBERT-based keyword extraction
-- `--fast`: Use fast tier model
-- `--regular`: Use regular tier model (default)
-- `--max`: Use maximum quality tier model
+- `--fast`: Fast tier - Token-based extraction with lemminflect (no model downloads)
+- `--regular`: Regular tier - KeyBERT small model + GloVe (default, ~128MB)
+- `--max`: Max tier - KeyBERT large model + FastText (~958MB+)
 
 ### Metadata Fields
 
