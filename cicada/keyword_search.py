@@ -195,7 +195,9 @@ class KeywordSearcher:
         """Check if any keywords contain wildcard patterns."""
         return any("*" in keyword for keyword in keywords)
 
-    def search(self, query_keywords: list[str], top_n: int = 5) -> list[dict[str, Any]]:
+    def search(
+        self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
+    ) -> list[dict[str, Any]]:
         """
         Search for modules and functions matching the given keywords.
 
@@ -207,6 +209,7 @@ class KeywordSearcher:
         Args:
             query_keywords: List of keywords to search for
             top_n: Maximum number of results to return
+            filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
         Returns:
             List of result dictionaries sorted by score (descending), each containing:
@@ -262,6 +265,12 @@ class KeywordSearcher:
                     result["doc"] = doc["doc"]
 
                 results.append(result)
+
+        # Apply type filter
+        if filter_type == "modules":
+            results = [r for r in results if r["type"] == "module"]
+        elif filter_type == "functions":
+            results = [r for r in results if r["type"] == "function"]
 
         # Sort by score (descending), then by name for stable results
         results.sort(key=lambda x: (-x["score"], x["name"]))

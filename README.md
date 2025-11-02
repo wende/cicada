@@ -364,6 +364,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 **`search_by_keywords`** (EXPERIMENTAL) - Semantic documentation search
 - Find code by concepts, not just names
 - Wildcard pattern matching (`create*`, `*_user`)
+- Filter results by type: modules only, functions only, or all
 - AI-extracted keywords from docs
 - Relevance scoring
 - Requires: Index built with keyword extraction (--fast, --regular, or --max)

@@ -345,6 +345,7 @@ class CicadaServer:
             return await self._get_file_pr_history(file_path)
         elif name == "search_by_keywords":
             keywords = arguments.get("keywords")
+            filter_type = arguments.get("filter_type", "all")
 
             if not keywords:
                 error_msg = "'keywords' is required"
@@ -354,7 +355,11 @@ class CicadaServer:
                 error_msg = "'keywords' must be a list of strings"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self._search_by_keywords(keywords)
+            if filter_type not in ("all", "modules", "functions"):
+                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self._search_by_keywords(keywords, filter_type)
         elif name == "find_dead_code":
             min_confidence = arguments.get("min_confidence", "high")
             output_format = arguments.get("format", "markdown")
@@ -1256,12 +1261,15 @@ class CicadaServer:
         result = "\n".join(lines)
         return [TextContent(type="text", text=result)]
 
-    async def _search_by_keywords(self, keywords: list[str]) -> list[TextContent]:
+    async def _search_by_keywords(
+        self, keywords: list[str], filter_type: str = "all"
+    ) -> list[TextContent]:
         """
         Search for modules and functions by keywords.
 
         Args:
             keywords: List of keywords to search for
+            filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
         Returns:
             TextContent with formatted search results
@@ -1281,7 +1289,7 @@ class CicadaServer:
 
         # Perform the search
         searcher = KeywordSearcher(self.index)
-        results = searcher.search(keywords, top_n=5)
+        results = searcher.search(keywords, top_n=5, filter_type=filter_type)
 
         if not results:
             result = f"No results found for keywords: {', '.join(keywords)}"

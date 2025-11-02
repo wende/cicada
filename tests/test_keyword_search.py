@@ -315,3 +315,50 @@ class TestKeywordSearcher:
             total = 3
             expected_confidence = (matched / total) * 100
             assert result["confidence"] == pytest.approx(expected_confidence, rel=0.1)
+
+    def test_filter_modules_only(self, sample_index):
+        """Test filtering to return only modules."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create", "user"], filter_type="modules", top_n=10)
+
+        # Should only return modules, no functions
+        assert all(r["type"] == "module" for r in results)
+        # Should include MyApp.User and MyApp.Post modules
+        assert any(r["name"] == "MyApp.User" for r in results)
+
+    def test_filter_functions_only(self, sample_index):
+        """Test filtering to return only functions."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create", "user"], filter_type="functions", top_n=10)
+
+        # Should only return functions, no modules
+        assert all(r["type"] == "function" for r in results)
+        # Should have function-specific fields
+        assert all("function" in r and "arity" in r for r in results)
+        # Should include create functions from both modules
+        assert any(r["name"] == "MyApp.User.create/1" for r in results)
+
+    def test_filter_all_default(self, sample_index):
+        """Test that filter_type='all' returns both modules and functions."""
+        searcher = KeywordSearcher(sample_index)
+        all_results = searcher.search(["create", "user"], filter_type="all", top_n=10)
+
+        # Should include both modules and functions
+        types = {r["type"] for r in all_results}
+        assert "module" in types and "function" in types
+
+    def test_filter_modules_no_results(self, sample_index):
+        """Test filter returns empty when searching for modules with function-only keywords."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["nonexistent_keyword"], filter_type="modules", top_n=10)
+
+        # Should return empty if no modules match
+        assert len(results) == 0
+
+    def test_filter_functions_no_results(self, sample_index):
+        """Test filter returns empty when no functions match."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["nonexistent_keyword"], filter_type="functions", top_n=10)
+
+        # Should return empty if no functions match
+        assert len(results) == 0

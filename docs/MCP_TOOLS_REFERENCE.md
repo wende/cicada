@@ -161,6 +161,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Extracts keywords from module and function documentation
 - Supports wildcard pattern matching
 - Performs semantic matching across codebase
+- Optionally filters results to show only modules or only functions
 
 **Key Features:**
 - Keyword-based semantic search
@@ -168,15 +169,21 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Documentation-based indexing
 - Match percentage scoring
 - Concept-driven discovery
+- Result type filtering (modules, functions, or all)
 - Markdown output format
 
-**Requirements:** Index built with keyword extraction: `cicada index --nlp` or `cicada index --rag`
+**Parameters:**
+- `keywords` (required) - List of keywords to search for
+- `filter_type` (optional) - Filter results: `'all'` (default), `'modules'`, or `'functions'`
+
+**Requirements:** Index built with keyword extraction: `cicada index --fast`, `cicada index --regular`, or `cicada index --max`
 
 **Best for:**
 - Finding code by topic or concept
 - Discovering functions related to domain terms
 - Exploring when exact names are unknown
 - Semantic pattern matching
+- Filtering search results to specific code types
 
 ---
 
@@ -230,5 +237,5 @@ All tools support flexible output formats:
 | `get_file_pr_history` | File path | PR list with reviews | File change history |
 | `get_commit_history` | File path ± function | Commits & evolution | Track modifications |
 | `get_blame` | File path & line range | Line-by-line authors | Code ownership |
-| `search_by_keywords` | Keywords ± patterns | Modules/functions | Semantic discovery |
+| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery |
 | `find_dead_code` | Index path (CLI) | Unused functions report | Code cleanup |
