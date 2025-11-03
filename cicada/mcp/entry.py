@@ -53,13 +53,52 @@ def handle_default_server(args):
     import os
     from pathlib import Path
 
+    # Determine repository path
+    repo_path = None
     if hasattr(args, "_server_path") and args._server_path:
         repo_path = Path(args._server_path).resolve()
         os.environ["CICADA_REPO_PATH"] = str(repo_path)
+    else:
+        repo_path = Path.cwd().resolve()
+
+    # Check if watch mode is requested
+    # Handle both cases: direct flag (--watch) and server subcommand (server --watch)
+    watch_enabled = False
+    if hasattr(args, "watch") and args.watch or "--watch" in sys.argv:
+        watch_enabled = True
+
+    # Start watch process if requested
+    if watch_enabled:
+        from cicada.utils.storage import get_config_path
+        from cicada.watch_manager import start_watch_process
+
+        # Determine tier from args if available
+        tier = "regular"
+        if hasattr(args, "fast") and args.fast:
+            tier = "fast"
+        elif hasattr(args, "max") and args.max:
+            tier = "max"
+
+        # Check if config exists to infer tier
+        config_path = get_config_path(repo_path)
+        if not (hasattr(args, "fast") or hasattr(args, "max")) and config_path.exists():
+            # Use existing config tier
+            pass  # tier remains "regular" as default
+
+        # Start the watch process
+        if not start_watch_process(repo_path, tier=tier, debounce=2.0):
+            print("Warning: Failed to start watch process", file=sys.stderr)
 
     from cicada.mcp.server import async_main
 
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    finally:
+        # Ensure watch process is stopped when server exits
+        if watch_enabled:
+            from cicada.watch_manager import stop_watch_process
+
+            stop_watch_process()
 
 
 if __name__ == "__main__":

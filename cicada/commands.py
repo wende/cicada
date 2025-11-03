@@ -145,6 +145,11 @@ def get_argument_parser():
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion (if reindexing needed)",
     )
+    server_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Start file watcher in a linked process for automatic reindexing",
+    )
 
     claude_parser = subparsers.add_parser(
         "claude",
@@ -209,6 +214,40 @@ def get_argument_parser():
         help="Max tier: KeyBERT large + FastText expansion",
     )
 
+    watch_parser = subparsers.add_parser(
+        "watch",
+        help="Watch for file changes and automatically reindex",
+        description="Watch Elixir source files for changes and trigger automatic incremental reindexing",
+    )
+    watch_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the Elixir repository to watch (default: current directory)",
+    )
+    watch_parser.add_argument(
+        "--debounce",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Debounce interval in seconds to wait after file changes before reindexing (default: 2.0)",
+    )
+    watch_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    watch_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    watch_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
     index_parser = subparsers.add_parser(
         "index",
         help="Index an Elixir repository to extract modules and functions",
@@ -265,6 +304,18 @@ def get_argument_parser():
         default=0.2,
         metavar="SCORE",
         help="Minimum similarity score for keyword expansion (0.0-1.0, default: 0.2)",
+    )
+    index_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Watch for file changes and automatically reindex (runs initial index first)",
+    )
+    index_parser.add_argument(
+        "--debounce",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
 
     index_pr_parser = subparsers.add_parser(
@@ -377,6 +428,8 @@ def handle_command(args):
         handle_editor_setup(args, "cursor")
     elif args.command == "vs":
         handle_editor_setup(args, "vs")
+    elif args.command == "watch":
+        handle_watch(args)
     elif args.command == "index":
         handle_index(args)
     elif args.command == "index-pr":
@@ -585,7 +638,11 @@ def handle_index_main(args):
 
 def handle_index(args):
     """Route index command to appropriate handler based on mode."""
+    from pathlib import Path
+
+    from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
+    from cicada.watcher import FileWatcher
 
     check_for_updates()
 
@@ -593,8 +650,112 @@ def handle_index(args):
         handle_index_test_mode(args)
     elif getattr(args, "test_expansion", False):
         handle_index_test_expansion_mode(args)
+    elif getattr(args, "watch", False):
+        # Handle watch mode
+        # Validate tier flags
+        validate_tier_flags(args)
+
+        # Resolve repository path
+        repo_path_obj = Path(args.repo).resolve()
+        config_path = get_config_path(repo_path_obj)
+
+        # Determine tier
+        tier = "regular"  # Default tier
+        if args.fast:
+            tier = "fast"
+        elif args.max:
+            tier = "max"
+
+        # Check if config exists when no tier is specified
+        if (
+            not (args.fast or args.max or getattr(args, "regular", False))
+            and not config_path.exists()
+        ):
+            print("Error: No tier specified and no existing config found.", file=sys.stderr)
+            print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+            print(
+                "  --fast      Fast tier: Regular extraction + lemmi expansion",
+                file=sys.stderr,
+            )
+            print(
+                "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+                file=sys.stderr,
+            )
+            print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+            print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
+            sys.exit(2)
+
+        # Create and start watcher
+        try:
+            watcher = FileWatcher(
+                repo_path=str(repo_path_obj),
+                debounce_seconds=args.debounce,
+                verbose=True,
+                tier=tier,
+            )
+            watcher.start_watching()
+        except KeyboardInterrupt:
+            print("\nWatch mode stopped by user.")
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
     else:
         handle_index_main(args)
+
+
+def handle_watch(args):
+    """Handle watch command for automatic reindexing on file changes."""
+    from pathlib import Path
+
+    from cicada.utils.storage import get_config_path
+    from cicada.version_check import check_for_updates
+    from cicada.watcher import FileWatcher
+
+    check_for_updates()
+
+    # Validate tier flags
+    validate_tier_flags(args)
+
+    # Resolve repository path
+    repo_path_obj = Path(args.repo).resolve()
+    config_path = get_config_path(repo_path_obj)
+
+    # Determine tier
+    tier = "regular"  # Default tier
+    if args.fast:
+        tier = "fast"
+    elif args.max:
+        tier = "max"
+
+    # Check if config exists when no tier is specified
+    if not (args.fast or args.max or getattr(args, "regular", False)) and not config_path.exists():
+        print("Error: No tier specified and no existing config found.", file=sys.stderr)
+        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+        print(
+            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+            file=sys.stderr,
+        )
+        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+        print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
+        sys.exit(2)
+
+    # Create and start watcher
+    try:
+        watcher = FileWatcher(
+            repo_path=str(repo_path_obj),
+            debounce_seconds=args.debounce,
+            verbose=True,
+            tier=tier,
+        )
+        watcher.start_watching()
+    except KeyboardInterrupt:
+        print("\nWatch mode stopped by user.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_index_pr(args):
@@ -908,7 +1069,30 @@ def handle_server(args):
     # Set environment variable for MCP server
     os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
+    # Start watch process if requested
+    watch_enabled = getattr(args, "watch", False)
+    if watch_enabled:
+        from cicada.watch_manager import start_watch_process
+
+        # Determine tier
+        tier = "regular"
+        if args.fast:
+            tier = "fast"
+        elif args.max:
+            tier = "max"
+
+        # Start the watch process
+        if not start_watch_process(repo_path, tier=tier, debounce=2.0):
+            print("Warning: Failed to start watch process", file=sys.stderr)
+
     # Start MCP server (silent)
     from cicada.mcp.server import async_main
 
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    finally:
+        # Ensure watch process is stopped when server exits
+        if watch_enabled:
+            from cicada.watch_manager import stop_watch_process
+
+            stop_watch_process()
