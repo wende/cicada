@@ -14,6 +14,15 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
     """
     Read keyword extraction configuration from config.yaml.
 
+    Supports both new and legacy config formats:
+    - New: keyword_extraction: {method: 'regular'|'bert'}, keyword_expansion: {method: 'lemmi'|'glove'|'fasttext'}
+    - Legacy: keyword_extraction: {method: 'lemminflect'|'bert', tier: 'fast'|'regular'|'max'}
+
+    Legacy tier mapping to new format:
+    - tier: 'fast'     → regular + lemmi
+    - tier: 'regular'  → bert + glove
+    - tier: 'max'      → bert + fasttext
+
     Args:
         repo_path: Path to the repository
 
@@ -38,10 +47,25 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
             extraction = config.get("keyword_extraction", {})
             expansion = config.get("keyword_expansion", {})
 
+            # Check for legacy tier-based config
+            # Old CLI had: --fast, --regular, --max which mapped to (method, tier)
+            tier = extraction.get("tier")
+            if tier:
+                # Legacy config uses tier to determine both extraction and expansion methods
+                tier_mapping = {
+                    "fast": ("regular", "lemmi"),
+                    "regular": ("bert", "glove"),
+                    "max": ("bert", "fasttext"),
+                }
+                if tier in tier_mapping:
+                    return tier_mapping[tier]
+                # If tier value is unrecognized, fall through to method-based logic
+
+            # New config format or legacy method-based config (without tier)
             extraction_method = extraction.get("method", "regular")
             expansion_method = expansion.get("method", "lemmi")
 
-            # Map legacy "lemminflect" to "regular"
+            # Map legacy "lemminflect" method to "regular"
             if extraction_method == "lemminflect":
                 extraction_method = "regular"
 
@@ -92,6 +116,11 @@ def create_keyword_extractor(extraction_method: str, expansion_method: str, verb
                     file=sys.stderr,
                 )
             # Fall through to regular extractor
+        except Exception as e:
+            if verbose:
+                print(f"  Warning: Could not initialize keyword extractor: {e}")
+                print("  Continuing without keyword extraction")
+            return None
 
     # Default: regular (fast, lightweight, no external dependencies)
     from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor

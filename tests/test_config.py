@@ -278,3 +278,56 @@ def test_config_dict_access():
     # Test get with default
     assert config.get("custom_field") == "custom_value"
     assert config.get("nonexistent", "default") == "default"
+
+
+def test_config_caching_staleness(tmp_path):
+    """Test that config changes are detected between multiple tool calls.
+
+    This edge case test verifies that config is not cached in a way that
+    would hide changes made between multiple indexing or tool calls.
+    See: https://github.com/anthropics/cicada/issues/XXX
+    """
+    config_file = tmp_path / "config.yaml"
+
+    # Initial config - fast tier
+    initial_config = {
+        "language": "elixir",
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(tmp_path / "index.json")},
+        "keyword_extraction": {"method": "regular"},
+        "keyword_expansion": {"method": "lemmi"},
+    }
+
+    with open(config_file, "w") as f:
+        yaml.dump(initial_config, f)
+
+    # Load config first time
+    config1 = load_config(config_file)
+    assert config1.extraction_method == "regular"
+    assert config1.expansion_method == "lemmi"
+
+    # Update config - max tier (simulating user running with --max flag)
+    updated_config = {
+        "language": "elixir",
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(tmp_path / "index.json")},
+        "keyword_extraction": {"method": "bert"},
+        "keyword_expansion": {"method": "fasttext"},
+    }
+
+    with open(config_file, "w") as f:
+        yaml.dump(updated_config, f)
+
+    # Load config second time - should see changes
+    config2 = load_config(config_file)
+    assert config2.extraction_method == "bert", (
+        "Config changes should be detected on reload. "
+        "If this fails, config may be cached inappropriately."
+    )
+    assert (
+        config2.expansion_method == "fasttext"
+    ), "Config expansion method should update when file changes."
+
+    # Verify they're different
+    assert config1.extraction_method != config2.extraction_method
+    assert config1.expansion_method != config2.expansion_method

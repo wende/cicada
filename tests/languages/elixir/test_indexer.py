@@ -1079,7 +1079,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_yaml_parsing_error_returns_default(self, tmp_path, monkeypatch):
         """Test that YAML parsing errors return default config"""
-        from cicada.languages.elixir.indexer import read_keyword_extraction_config
+        from cicada.utils.keyword_utils import read_keyword_extraction_config
 
         # Create a config file with invalid YAML
         config_path = tmp_path / "config.yaml"
@@ -1087,7 +1087,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
         # Mock get_config_path to return our invalid config
         monkeypatch.setattr(
-            "cicada.languages.elixir.indexer.get_config_path",
+            "cicada.utils.keyword_utils.get_config_path",
             lambda x: config_path,
         )
 
@@ -1098,13 +1098,13 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_general_exception_returns_default(self, tmp_path, monkeypatch):
         """Test that general exceptions return default config"""
-        from cicada.languages.elixir.indexer import read_keyword_extraction_config
+        from cicada.utils.keyword_utils import read_keyword_extraction_config
 
         # Mock get_config_path to raise an exception
         def mock_get_config_path(x):
             raise PermissionError("Permission denied")
 
-        monkeypatch.setattr("cicada.languages.elixir.indexer.get_config_path", mock_get_config_path)
+        monkeypatch.setattr("cicada.utils.keyword_utils.get_config_path", mock_get_config_path)
 
         # Should return defaults instead of crashing
         extraction_method, expansion_method = read_keyword_extraction_config(tmp_path)
@@ -1132,18 +1132,18 @@ end
 """
         )
 
-        # Create config for keyword extraction
+        # Create config for keyword extraction (bert method, no tier)
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: bert\n  tier: fast")
-
-        # Mock get_config_path
-        monkeypatch.setattr(
-            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        config_path.write_text(
+            "keyword_extraction:\n  method: bert\nkeyword_expansion:\n  method: glove"
         )
 
-        # Mock KeyBERT extractor to raise exception
+        # Mock get_config_path (now in utils.keyword_utils)
+        monkeypatch.setattr("cicada.utils.keyword_utils.get_config_path", lambda x: config_path)
+
+        # Mock KeyBERT extractor to raise exception (patch where it's defined)
         def mock_keybert_init(*args, **kwargs):
             raise Exception("Simulated extractor initialization failure")
 
@@ -1181,17 +1181,17 @@ end
 """
         )
 
-        # Create config for keyword extraction
+        # Create config for keyword extraction (regular method, no tier)
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
-
-        monkeypatch.setattr(
-            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        config_path.write_text(
+            "keyword_extraction:\n  method: regular\nkeyword_expansion:\n  method: lemmi"
         )
 
-        # Mock keyword extractor to raise exception
+        monkeypatch.setattr("cicada.utils.keyword_utils.get_config_path", lambda x: config_path)
+
+        # Mock keyword extractor to raise exception (patch where it's defined)
         from unittest.mock import Mock
 
         mock_extractor = Mock()
@@ -1232,15 +1232,15 @@ end
 """
         )
 
-        # Create config for keyword extraction
+        # Create config for keyword extraction (regular method, no tier)
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
-
-        monkeypatch.setattr(
-            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        config_path.write_text(
+            "keyword_extraction:\n  method: regular\nkeyword_expansion:\n  method: lemmi"
         )
+
+        monkeypatch.setattr("cicada.utils.keyword_utils.get_config_path", lambda x: config_path)
 
         # Mock keyword extractor to raise exception only for function extraction
         from unittest.mock import Mock
@@ -1289,17 +1289,17 @@ end
         # Now modify file
         test_file.write_text("defmodule TestModule, do: def updated_func(x), do: x * 2")
 
-        # Create config for keyword extraction
+        # Create config for keyword extraction (bert method, no tier)
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: bert\n  tier: regular")
-
-        monkeypatch.setattr(
-            "cicada.languages.elixir.indexer.get_config_path", lambda x: config_path
+        config_path.write_text(
+            "keyword_extraction:\n  method: bert\nkeyword_expansion:\n  method: glove"
         )
 
-        # Mock KeyBERT extractor to raise exception
+        monkeypatch.setattr("cicada.utils.keyword_utils.get_config_path", lambda x: config_path)
+
+        # Mock KeyBERT extractor to raise exception (patch where it's defined)
         def mock_keybert_init(*args, **kwargs):
             raise RuntimeError("Simulated extractor initialization failure")
 

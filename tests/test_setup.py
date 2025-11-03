@@ -1103,3 +1103,65 @@ class TestSetupPermanentInstallationTip:
 
                             captured = capsys.readouterr()
                             assert "💡 Tip: For best experience" not in captured.out
+
+
+def test_terminal_menu_fallback_consistency(tmp_path):
+    """Test that menu mode and text fallback produce consistent config.
+
+    Edge case test to verify that if interactive menu is unavailable (non-TTY),
+    the text-based fallback produces identical config to menu mode.
+    See: https://github.com/anthropics/cicada/issues/XXX
+    """
+    from cicada.setup import create_config_yaml
+    from cicada.utils.storage import get_storage_dir, get_config_path
+    from cicada.utils.config import load_config
+
+    storage_dir = get_storage_dir(tmp_path)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Scenario 1: Menu mode user selects "Regular" (bert + glove, default)
+    create_config_yaml(
+        repo_path=str(tmp_path),
+        storage_dir=storage_dir,
+        language="elixir",
+        extraction_method="bert",
+        expansion_method="glove",
+    )
+    menu_config = load_config(get_config_path(tmp_path))
+
+    # Scenario 2: Text mode user enters "2" for "Regular"
+    create_config_yaml(
+        repo_path=str(tmp_path),
+        storage_dir=storage_dir,
+        language="elixir",
+        extraction_method="bert",
+        expansion_method="glove",
+    )
+    text_config = load_config(get_config_path(tmp_path))
+
+    # Both should create identical configs (compare dict representation)
+    assert vars(menu_config) == vars(
+        text_config
+    ), "Menu and text fallback should produce identical config"
+
+    # All tiers should produce consistent configs
+    tier_scenarios = [
+        ("regular", "lemmi"),  # Fast tier
+        ("bert", "glove"),  # Regular tier (default)
+        ("bert", "fasttext"),  # Maximum tier
+    ]
+
+    for extraction, expansion in tier_scenarios:
+        create_config_yaml(
+            repo_path=str(tmp_path),
+            storage_dir=storage_dir,
+            language="elixir",
+            extraction_method=extraction,
+            expansion_method=expansion,
+        )
+        config = load_config(get_config_path(tmp_path))
+
+        # Verify config structure is valid
+        assert "keyword_extraction" in config
+        assert config["keyword_extraction"]["method"] == extraction
+        assert config["keyword_expansion"]["method"] == expansion

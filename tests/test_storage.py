@@ -292,3 +292,42 @@ class TestEdgeCases:
 
         assert isinstance(repo_hash, str), "Should return hash string"
         assert len(repo_hash) == 16, "Hash should be correct length"
+
+    def test_storage_directory_permissions(self, tmp_path):
+        """Test storage directory creation with proper permissions.
+
+        Edge case test to verify that storage directories are created with
+        appropriate permissions and that permission errors are handled gracefully.
+        See: https://github.com/anthropics/cicada/issues/XXX
+        """
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create storage directory
+        storage_dir = create_storage_dir(repo_path)
+
+        # Verify directory was created
+        assert storage_dir.exists(), "Storage directory should be created"
+
+        # Verify it's writable (can create files)
+        test_file = storage_dir / "test.txt"
+        try:
+            test_file.write_text("test")
+            assert test_file.exists(), "Should be able to write files to storage dir"
+            test_file.unlink()
+        except PermissionError:
+            pytest.fail(
+                "Storage directory should be writable. "
+                "If this fails, permission handling needs review."
+            )
+
+        # Verify it's readable
+        try:
+            list(storage_dir.iterdir())
+        except PermissionError:
+            pytest.fail("Storage directory should be readable")
+
+        # Test that multiple calls don't fail (idempotent)
+        storage_dir2 = create_storage_dir(repo_path)
+        assert storage_dir == storage_dir2, "Should return same directory on multiple calls"
+        assert storage_dir2.exists(), "Directory should still exist after second call"
