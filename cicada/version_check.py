@@ -5,42 +5,15 @@ Checks if a newer version of cicada is available on GitHub.
 """
 
 import subprocess
-from pathlib import Path
-
-
-def _run_git_command(args: list[str]) -> str | None:
-    """Run a git command and return the output."""
-    try:
-        package_root = Path(__file__).parent.parent
-        for cwd in [package_root, Path.cwd()]:
-            result = subprocess.run(
-                ["git"] + args,
-                capture_output=True,
-                text=True,
-                timeout=2,
-                cwd=cwd,
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-
-        return None
-
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        return None
 
 
 def get_git_tag() -> str | None:
     """
-    Get the most recent git tag reachable from current commit.
-
-    First tries to read from build-time generated _version_hash.py (for PyPI installs),
-    then falls back to git command (for development installs).
+    Get the most recent git tag from build-time generated file.
 
     Returns:
-        Git tag (e.g., "v0.2.0-rc1"), or None if no tags found
+        Git tag (e.g., "v0.2.0-rc1"), or None if not available
     """
-    # Try reading from build-time generated file first (for PyPI installs)
     try:
         from cicada._version_hash import GIT_TAG
 
@@ -49,24 +22,16 @@ def get_git_tag() -> str | None:
     except (ImportError, AttributeError):
         pass
 
-    # Fall back to git command (for development installs)
-    return _run_git_command(["describe", "--tags", "--abbrev=0"])
+    return None
 
 
-def get_git_commit_hash(short: bool = True) -> str | None:
+def get_git_commit_hash() -> str | None:
     """
-    Get the current git commit hash.
-
-    First tries to read from build-time generated _version_hash.py (for PyPI installs),
-    then falls back to git command (for development installs).
-
-    Args:
-        short: If True, return short hash (7 chars), else full hash
+    Get the current git commit hash from build-time generated file.
 
     Returns:
-        Git commit hash, or None if not available
+        Git commit hash (7-char short form), or None if not available
     """
-    # Try reading from build-time generated file first (for PyPI installs)
     try:
         from cicada._version_hash import GIT_HASH
 
@@ -75,12 +40,7 @@ def get_git_commit_hash(short: bool = True) -> str | None:
     except ImportError:
         pass
 
-    # Fall back to git command (for development installs)
-    args = ["rev-parse"]
-    if short:
-        args.append("--short")
-    args.append("HEAD")
-    return _run_git_command(args)
+    return None
 
 
 def get_current_version() -> str:
@@ -173,7 +133,7 @@ def get_version_string() -> str:
     """
     version = get_current_version()
     git_tag = get_git_tag()
-    commit_hash = get_git_commit_hash(short=True)
+    commit_hash = get_git_commit_hash()
 
     # Build git info string
     git_info_parts = []
@@ -186,6 +146,42 @@ def get_version_string() -> str:
         git_info = "/".join(git_info_parts)
         return f"{version} ({git_info})"
     return version
+
+
+def extract_version_tag(version_string: str) -> str:
+    """
+    Extract the pyproject version tag from a version string.
+
+    Args:
+        version_string: Version string like "0.2.2" or "0.2.2 (v0.2.2/0991325)"
+
+    Returns:
+        Just the version tag (e.g., "0.2.2")
+    """
+    # Split on space and take the first part (before any git info in parentheses)
+    return version_string.split()[0] if version_string else ""
+
+
+def version_mismatch(stored_version: str | None, current_version: str | None) -> bool:
+    """
+    Check if the stored version differs from the current version.
+
+    Only compares version tags (pyproject version), ignoring git tags and commit hashes.
+
+    Args:
+        stored_version: Version string from index.json metadata
+        current_version: Current cicada version string
+
+    Returns:
+        True if versions differ (or if stored_version is missing), False if they match
+    """
+    if not stored_version:
+        return True
+
+    stored_tag = extract_version_tag(stored_version)
+    current_tag = extract_version_tag(current_version or get_version_string())
+
+    return stored_tag != current_tag
 
 
 def check_for_updates() -> None:

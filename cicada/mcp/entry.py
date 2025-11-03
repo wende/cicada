@@ -17,6 +17,15 @@ def main():
         "clean",
     ]
 
+    # Handle --version/-v before parsing arguments
+    if len(sys.argv) > 1:
+        first_arg = sys.argv[1]
+        if first_arg in ("--version", "-v"):
+            from cicada.version_check import get_version_string
+
+            print(f"cicada-mcp {get_version_string()}")
+            sys.exit(0)
+
     server_path = None
     if (
         len(sys.argv) > 1

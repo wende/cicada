@@ -17,6 +17,7 @@ def main():
             "index-pr",
             "find-dead-code",
             "clean",
+            "dir",
         ]
         if first_arg in ("--version", "-v"):
             from cicada.version_check import get_version_string

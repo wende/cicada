@@ -151,8 +151,8 @@ class TestSCIPConverterEdgeCases:
     def test_keyword_extraction_with_exception(self, converter_with_keywords):
         """Should handle keyword extraction failures gracefully."""
         # Make extractor raise an exception
-        converter_with_keywords.keyword_extractor.extract_keywords_simple.side_effect = (
-            Exception("Extraction failed")
+        converter_with_keywords.keyword_extractor.extract_keywords_simple.side_effect = Exception(
+            "Extraction failed"
         )
 
         doc = scip_pb2.Document()

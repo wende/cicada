@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-11-03
+
+### Fixed
+
+- **CLAUDE.md Update Functionality**
+  - Restored `update_claude_md()` function that was removed when `install.py` was deleted
+  - Function now integrated into `cicada/setup.py` and called during Claude Code setup
+  - Auto-generates tool descriptions from `get_tool_definitions()` in `cicada/mcp/tools.py`
+  - Handles three cases: replaces existing `<cicada>` tags, skips if "cicada" already mentioned, or appends new section
+  - Added comprehensive test coverage (13 new tests in `tests/test_claude_md_update.py` and `tests/test_setup.py`)
+
+- **Version Tracking Improvements**
+  - Removed git command fallback from version_check functions for more reliable version detection
+  - Added cicada version tracking and mismatch detection between installed and available versions
+  - Fixed version reporting for `cicada-mcp` command to properly display version, tag, and commit hash
+
 ## [0.2.2] - 2025-11-02
 
 ### Added
