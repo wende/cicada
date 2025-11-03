@@ -146,8 +146,13 @@ class TestCreateKeywordExtractor:
         """Test that created extractor actually works."""
         extractor = create_keyword_extractor("regular", "lemmi", verbose=False)
         keywords = extractor.extract_keywords_simple("This is a test function for authentication")
-        assert isinstance(keywords, list)
+        assert isinstance(keywords, dict)
         assert len(keywords) > 0
+        # Verify it returns keyword -> score mappings
+        for keyword, score in keywords.items():
+            assert isinstance(keyword, str)
+            assert isinstance(score, (int, float))
+            assert score > 0
 
 
 class TestGetKeywordExtractorFromConfig:

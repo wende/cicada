@@ -120,11 +120,21 @@ class PythonSCIPIndexer(BaseIndexer):
             self._save_index(cicada_index, output_path)
 
             # 7. Build result summary
-            modules_count = len(cicada_index.get("modules", {}))
+            all_modules = cicada_index.get("modules", {})
+            modules_count = len(all_modules)
             functions_count = cicada_index.get("metadata", {}).get("total_functions", 0)
 
+            # Count files vs classes for better reporting
+            file_count = sum(1 for name in all_modules if name.startswith("_file_"))
+            class_count = modules_count - file_count
+
             if verbose or self.verbose:
-                print(f"  Indexed {modules_count} modules, {functions_count} functions")
+                if class_count > 0:
+                    print(
+                        f"  Indexed {file_count} files, {class_count} classes, {functions_count} functions"
+                    )
+                else:
+                    print(f"  Indexed {modules_count} modules, {functions_count} functions")
                 print(f"  Index saved to: {output_path}")
 
             return {

@@ -186,6 +186,13 @@ ignore = [
 exclude = [
     "cicada/languages/scip/scip_pb2.py",
     "cicada/languages/scip/scip_pb2.pyi",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    "build",
+    "dist",
+    "*.egg-info",
 ]
 
 

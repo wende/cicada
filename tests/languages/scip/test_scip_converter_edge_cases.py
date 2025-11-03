@@ -20,7 +20,7 @@ class TestSCIPConverterEdgeCases:
     def converter_with_keywords(self):
         """Create converter with keyword extraction."""
         mock_extractor = MagicMock()
-        mock_extractor.extract_keywords_simple.return_value = ["test", "keyword"]
+        mock_extractor.extract_keywords_simple.return_value = {"test": 0.8, "keyword": 0.7}
         return SCIPConverter(extract_keywords=True, keyword_extractor=mock_extractor)
 
     def test_get_symbol_type_with_short_symbol(self, converter):

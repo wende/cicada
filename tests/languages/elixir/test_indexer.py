@@ -789,7 +789,7 @@ class TestElixirIndexerIncrementalWithKeywords:
                 pass
 
             def extract_keywords_simple(self, text, top_n=10):
-                return ["keyword1", "keyword2"]
+                return {"keyword1": 0.8, "keyword2": 0.7}
 
         import cicada.languages.elixir.indexer
 
@@ -1253,7 +1253,7 @@ end
             # Fail on second call (function keyword extraction)
             if call_count[0] > 1:
                 raise Exception("Simulated function keyword extraction failure")
-            return ["keyword1", "keyword2"]
+            return {"keyword1": 0.8, "keyword2": 0.7}
 
         mock_extractor.extract_keywords_simple = mock_extract
 

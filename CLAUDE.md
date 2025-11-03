@@ -52,6 +52,42 @@ When creating a new release:
 
 **IMPORTANT: Cicada is an MCP tool for code analysis - USE IT ON ITSELF!**
 
+### Pytest Best Practices
+
+When writing or modifying pytest tests:
+
+1. **Never return values from test functions** - use `assert` statements instead
+   ```python
+   # ❌ BAD - returns a value
+   def test_example():
+       result = do_something()
+       return result  # pytest will warn about this
+
+   # ✅ GOOD - uses assert
+   def test_example():
+       result = do_something()
+       assert result is not None
+       assert result["key"] == "expected_value"
+   ```
+
+2. **Use pytest.skip() for skippable tests** - don't return early
+   ```python
+   # ❌ BAD - returns None
+   def test_optional_feature():
+       if not feature_available():
+           return None  # pytest will warn about this
+
+   # ✅ GOOD - uses pytest.skip()
+   def test_optional_feature():
+       if not feature_available():
+           pytest.skip("Feature not available")
+   ```
+
+3. **For hybrid script/test files** - separate concerns
+   - Test functions should only contain assertions
+   - Use `if __name__ == "__main__":` block for script-specific logic
+   - Don't return values from test functions that pytest will run
+
 When developing cicada features:
 
 1. **Always use cicada MCP tools to explore the cicada codebase:**
@@ -212,12 +248,12 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - use make to run tests
 
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir/Python code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - PREFERRED for Elixir/Python: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
-  - PREFERRED for Elixir/Python: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
-  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage` (Python MVP: limited support)
+  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
+  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
+  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
   - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
   - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
   - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
@@ -226,14 +262,16 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
 
   ### DO NOT use Grep for:
-  - ❌ Searching for module structure (Elixir/Python)
-  - ❌ Searching for function definitions (Elixir/Python)
-  - ❌ Searching for module imports/usage (Elixir/Python)
+  - ❌ Searching for module structure
+  - ❌ Searching for function definitions
+  - ❌ Searching for module imports/usage
 
   ### You can still use Grep for:
   - ✓ Non-code files (markdown, JSON, config)
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
+
 
 

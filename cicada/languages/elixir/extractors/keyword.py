@@ -92,16 +92,29 @@ class BaseKeywordExtractor:
 
         return re.findall(r"\b[a-zA-Z][a-zA-Z0-9_]*\b", text)
 
-    def extract_keywords_simple(self, text: str, top_n: int = 10) -> list[str]:
+    def extract_keywords_simple(self, text: str, top_n: int = 10) -> dict[str, float]:
+        """Extract keywords and return as {keyword: score} dict.
+
+        This is a convenience method that calls extract_keywords() and returns
+        only the keyword-score mapping, discarding other metadata like TF scores
+        and statistics.
+
+        Args:
+            text: Text to extract keywords from
+            top_n: Number of top keywords to return
+
+        Returns:
+            Dictionary mapping keywords to their relevance scores
+        """
         if not text or not text.strip():
-            return []
+            return {}
         try:
             results = self.extract_keywords(text, top_n=top_n)
-            return [keyword for keyword, _ in results["top_keywords"]]
+            return dict(results["top_keywords"])
         except Exception as e:
             if self.verbose:
                 print(f"Warning: Keyword extraction failed: {e}", file=sys.stderr)
-            return []
+            return {}
 
     def _extract_keywords(
         self,

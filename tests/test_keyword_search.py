@@ -17,7 +17,7 @@ class TestKeywordSearcher:
                     "file": "lib/my_app/user.ex",
                     "line": 1,
                     "moduledoc": "User management module",
-                    "keywords": ["user", "account", "profile"],
+                    "keywords": {"user": 0.9, "account": 0.8, "profile": 0.7},
                     "functions": [
                         {
                             "name": "create",
@@ -277,30 +277,33 @@ class TestKeywordSearcher:
         assert any("doc" in r and r["doc"] for r in results)
 
     def test_backward_compatibility_list_keywords(self):
-        """Test that indexes with keyword lists (not dicts) still work."""
+        """Test that indexes with keyword lists (not dicts) raise TypeError.
+
+        This test verifies that the old list format is no longer silently accepted.
+        Users must reindex their projects to use the new dict format with scores.
+        """
         index = {
             "modules": {
                 "TestModule": {
                     "file": "lib/test.ex",
                     "line": 1,
-                    "keywords": ["search", "find", "lookup"],  # List format
+                    "keywords": ["search", "find", "lookup"],  # Old list format
                     "functions": [
                         {
                             "name": "search",
                             "arity": 1,
                             "line": 10,
-                            "keywords": ["search", "query"],  # List format
+                            "keywords": ["search", "query"],  # Old list format
                         },
                     ],
                 }
             }
         }
 
-        searcher = KeywordSearcher(index)
-        results = searcher.search(["search"])
-
-        assert len(results) > 0
-        assert any("search" in r["name"].lower() for r in results)
+        # Should raise TypeError when trying to use list format
+        with pytest.raises(TypeError, match="keywords as list"):
+            searcher = KeywordSearcher(index)
+            searcher.search(["search"])
 
     def test_confidence_percentage(self, sample_index):
         """Test that confidence is calculated correctly."""

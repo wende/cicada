@@ -191,7 +191,9 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "does not appear to be an Elixir project" in captured.err
+        # Error message now includes both Python and Elixir markers
+        assert "Could not detect project language" in captured.err
+        assert "mix.exs" in captured.err
 
     def test_fast_flag_sets_regular_extraction(self, mock_elixir_repo):
         """--fast should set extraction to regular + lemmi expansion"""
@@ -492,6 +494,79 @@ class TestHandleIndex:
             "Cannot change expansion method" in captured.err or "settings" in captured.err.lower()
         )
         assert "cicada clean" in captured.err
+
+    def test_detects_elixir_and_uses_elixir_indexer(self, tmp_path, capsys):
+        """Should detect Elixir project and use ElixirIndexer"""
+        elixir_repo = tmp_path / "elixir_project"
+        elixir_repo.mkdir()
+        (elixir_repo / "mix.exs").write_text("# Elixir project")
+
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            repo=str(elixir_repo),
+            test=False,
+            test_expansion=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.storage.get_config_path") as mock_get_config,
+            patch("cicada.utils.storage.create_storage_dir"),
+            patch("cicada.utils.storage.get_index_path"),
+            patch("cicada.setup.create_config_yaml"),
+            patch("cicada.languages.elixir.indexer.ElixirIndexer") as mock_elixir_indexer,
+        ):
+            mock_config_path = MagicMock()
+            mock_config_path.exists.return_value = False
+            mock_get_config.return_value = mock_config_path
+
+            handle_index(args)
+
+            # Verify ElixirIndexer was used
+            mock_elixir_indexer.assert_called_once_with(verbose=True)
+            captured = capsys.readouterr()
+            assert "elixir repository" in captured.out.lower()
+
+    def test_detects_python_and_uses_python_indexer(self, tmp_path, capsys):
+        """Should detect Python project and use PythonSCIPIndexer"""
+        python_repo = tmp_path / "python_project"
+        python_repo.mkdir()
+        (python_repo / "pyproject.toml").write_text("# Python project")
+
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            repo=str(python_repo),
+            test=False,
+            test_expansion=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.storage.get_config_path") as mock_get_config,
+            patch("cicada.utils.storage.create_storage_dir"),
+            patch("cicada.utils.storage.get_index_path"),
+            patch("cicada.setup.create_config_yaml"),
+            patch("cicada.languages.python.indexer.PythonSCIPIndexer") as mock_python_indexer,
+        ):
+            mock_config_path = MagicMock()
+            mock_config_path.exists.return_value = False
+            mock_get_config.return_value = mock_config_path
+
+            # Mock successful indexing
+            mock_indexer = MagicMock()
+            mock_indexer.index_repository.return_value = {"success": True}
+            mock_python_indexer.return_value = mock_indexer
+
+            handle_index(args)
+
+            # Verify PythonSCIPIndexer was used
+            mock_python_indexer.assert_called_once_with(verbose=True)
+            captured = capsys.readouterr()
+            assert "python repository" in captured.out.lower()
 
 
 class TestHandleIndexPR:

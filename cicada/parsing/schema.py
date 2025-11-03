@@ -24,7 +24,7 @@ class FunctionData:
     signature: str  # Full function signature
     doc: str | None = None  # Documentation string
     spec: dict | None = None  # Type specification (language-specific format)
-    keywords: list[str] | None = None  # Extracted keywords for search
+    keywords: dict[str, float] | None = None  # Keyword -> relevance score mapping for search
     language_specific: dict[str, Any] = field(default_factory=dict)  # Extra language data
 
     def to_dict(self) -> dict:
@@ -88,7 +88,7 @@ class ModuleData:
     functions: list[dict] = field(default_factory=list)  # List of FunctionData dicts
     dependencies: list[dict] = field(default_factory=list)  # Imports/requires
     calls: list[dict] = field(default_factory=list)  # Function calls
-    keywords: list[str] | None = None  # Extracted keywords for search
+    keywords: dict[str, float] | None = None  # Keyword -> relevance score mapping for search
     language_specific: dict[str, Any] = field(default_factory=dict)  # Language-specific data
 
     # Computed fields (optional, can be calculated from functions)
@@ -452,11 +452,11 @@ class UniversalIndexSchema:
         if (
             "keywords" in func_data
             and func_data["keywords"] is not None
-            and not isinstance(func_data["keywords"], list)
+            and not isinstance(func_data["keywords"], dict)
         ):
             errors.append(
                 f"Module '{module_name}' function '{func_name}': "
-                f"keywords must be a list or null"
+                f"keywords must be a dict[str, float] or null"
             )
 
         return errors

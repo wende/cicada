@@ -120,17 +120,21 @@ class TestKeywordExtraction:
         assert "Calculator" in result["modules"]
         calc_module = result["modules"]["Calculator"]
         assert "keywords" in calc_module
-        assert isinstance(calc_module["keywords"], list)
+        assert isinstance(calc_module["keywords"], dict)
         assert len(calc_module["keywords"]) > 0
+        # Verify all scores are numeric
+        for keyword, score in calc_module["keywords"].items():
+            assert isinstance(keyword, str)
+            assert isinstance(score, (int, float))
 
         # Check functions have keywords
         functions = {f["name"]: f for f in calc_module["functions"]}
         assert "add" in functions
         add_func = functions["add"]
         assert "keywords" in add_func
-        assert isinstance(add_func["keywords"], list)
+        assert isinstance(add_func["keywords"], dict)
         # Should extract keywords like 'add', 'number', etc.
-        keywords_lower = [k.lower() for k in add_func["keywords"]]
+        keywords_lower = [k.lower() for k in add_func["keywords"].keys()]
         assert any(k in keywords_lower for k in ["add", "number"])
 
     def test_typescript_keyword_extraction(self, typescript_scip_index):
@@ -149,7 +153,7 @@ class TestKeywordExtraction:
         assert len(calc_module["keywords"]) > 0
 
         # Keywords should include relevant terms
-        keywords_lower = [k.lower() for k in calc_module["keywords"]]
+        keywords_lower = [k.lower() for k in calc_module["keywords"].keys()]
         assert any(k in keywords_lower for k in ["calculator", "arithmetic"])
 
     def test_keyword_extraction_disabled(self, python_scip_index):

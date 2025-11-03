@@ -202,18 +202,21 @@ class TestExtractKeywordsSimple:
         text = "This function validates user authentication credentials"
         keywords = extractor.extract_keywords_simple(text, top_n=10)
 
-        assert isinstance(keywords, list)
+        assert isinstance(keywords, dict)
         assert len(keywords) > 0
         assert "authentication" in keywords
         assert "user" in keywords
+        # Verify scores are present
+        assert isinstance(keywords["authentication"], (int, float))
+        assert isinstance(keywords["user"], (int, float))
 
     def test_extract_keywords_simple_empty_text(self):
         """Test extraction with empty text"""
         extractor = self._create_mock_extractor()
 
-        assert extractor.extract_keywords_simple("", top_n=5) == []
-        assert extractor.extract_keywords_simple("   ", top_n=5) == []
-        assert extractor.extract_keywords_simple(None, top_n=5) == []
+        assert extractor.extract_keywords_simple("", top_n=5) == {}
+        assert extractor.extract_keywords_simple("   ", top_n=5) == {}
+        assert extractor.extract_keywords_simple(None, top_n=5) == {}
 
     def test_extract_keywords_simple_top_n(self):
         """Test that top_n parameter is respected"""
@@ -237,7 +240,7 @@ class TestExtractKeywordsSimple:
         with patch.object(extractor, "extract_keywords", side_effect=Exception("Error")):
             result = extractor.extract_keywords_simple("test text", top_n=5)
 
-            assert result == []
+            assert result == {}
             captured = capsys.readouterr()
             assert "Warning: Keyword extraction failed" in captured.err
 
@@ -248,7 +251,7 @@ class TestExtractKeywordsSimple:
 
         with patch.object(extractor, "extract_keywords", side_effect=Exception("Error")):
             result = extractor.extract_keywords_simple("test text", top_n=5)
-            assert result == []
+            assert result == {}
 
 
 class TestExtractKeywords:
