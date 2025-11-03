@@ -309,6 +309,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -342,6 +343,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -409,6 +411,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -455,6 +458,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (

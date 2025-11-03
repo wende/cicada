@@ -52,6 +52,7 @@ dependencies = [
     "simple-term-menu>=1.6.0",
     "tomli>=2.0.0; python_version < '3.11'",
     "gensim>=4.4.0",
+    "watchdog>=3.0.0",
 ]
 
 [project.urls]
@@ -73,6 +74,7 @@ include = ["cicada*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+timeout = 5
 filterwarnings = [
     "ignore:Importing 'parser.split_arg_string' is deprecated.*:DeprecationWarning",
     "ignore:coroutine 'async_main' was never awaited:RuntimeWarning",
@@ -189,4 +191,5 @@ dev = [
     "pyrefly>=0.39.1",
     "vulture>=2.14",
     "ruff>=0.14.2",
+    "pytest-timeout>=2.4.0",
 ]
