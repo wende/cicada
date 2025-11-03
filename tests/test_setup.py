@@ -1098,3 +1098,116 @@ class TestSetupPermanentInstallationTip:
 
                             captured = capsys.readouterr()
                             assert "💡 Tip: For best experience" not in captured.out
+
+
+class TestUpdateClaudeMd:
+    """Tests for update_claude_md() function"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        (repo_path / "mix.exs").write_text("# Mock")
+        return repo_path
+
+    def test_setup_claude_calls_update_claude_md(self, mock_repo):
+        """Test that setup() calls update_claude_md() when editor is 'claude'"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.create_config_yaml"):
+                with patch("cicada.setup.index_repository"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch("cicada.setup.update_claude_md") as mock_update:
+                            config_path = mock_repo / ".mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            setup(
+                                "claude",
+                                mock_repo,
+                                extraction_method="regular",
+                                expansion_method="lemmi",
+                            )
+
+                            # Verify update_claude_md was called with correct repo_path
+                            mock_update.assert_called_once_with(mock_repo)
+
+    def test_setup_cursor_does_not_call_update_claude_md(self, mock_repo):
+        """Test that setup() does NOT call update_claude_md() when editor is 'cursor'"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.create_config_yaml"):
+                with patch("cicada.setup.index_repository"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch("cicada.setup.update_claude_md") as mock_update:
+                            cursor_config_dir = mock_repo / ".cursor"
+                            cursor_config_dir.mkdir()
+                            config_path = cursor_config_dir / "mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            setup(
+                                "cursor",
+                                mock_repo,
+                                extraction_method="regular",
+                                expansion_method="lemmi",
+                            )
+
+                            # Verify update_claude_md was NOT called
+                            mock_update.assert_not_called()
+
+    def test_setup_vs_does_not_call_update_claude_md(self, mock_repo):
+        """Test that setup() does NOT call update_claude_md() when editor is 'vs'"""
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.create_config_yaml"):
+                with patch("cicada.setup.index_repository"):
+                    with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                        with patch("cicada.setup.update_claude_md") as mock_update:
+                            vscode_config_dir = mock_repo / ".vscode"
+                            vscode_config_dir.mkdir()
+                            config_path = vscode_config_dir / "settings.json"
+                            mock_mcp.return_value = (config_path, {"mcp.servers": {}})
+
+                            setup(
+                                "vs",
+                                mock_repo,
+                                extraction_method="regular",
+                                expansion_method="lemmi",
+                            )
+
+                            # Verify update_claude_md was NOT called
+                            mock_update.assert_not_called()
+
+    def test_setup_claude_with_existing_index_calls_update_claude_md(self, mock_repo, tmp_path):
+        """Test that setup() calls update_claude_md() even when index_exists=True"""
+        storage_dir = tmp_path / ".cicada" / "projects" / "test_hash"
+        storage_dir.mkdir(parents=True)
+        (storage_dir / "index.json").write_text("{}")
+        (storage_dir / "config.yaml").write_text("repository:\n  path: /tmp/test\n")
+
+        with patch("cicada.setup.create_storage_dir", return_value=storage_dir):
+            with patch("cicada.setup.create_config_yaml"):
+                with patch(
+                    "cicada.setup.get_config_path", return_value=storage_dir / "config.yaml"
+                ):
+                    with patch(
+                        "cicada.setup.get_index_path", return_value=storage_dir / "index.json"
+                    ):
+                        with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
+                            config_path = mock_repo / ".mcp.json"
+                            mock_mcp.return_value = (config_path, {"mcpServers": {}})
+
+                            # Create CLAUDE.md
+                            claude_md = mock_repo / "CLAUDE.md"
+                            claude_md.write_text("# Project\n")
+
+                            # Call setup with index_exists=True
+                            setup(
+                                "claude",
+                                mock_repo,
+                                extraction_method="regular",
+                                expansion_method="lemmi",
+                                index_exists=True,
+                            )
+
+                            # Verify CLAUDE.md was updated
+                            content = claude_md.read_text()
+                            assert "<cicada>" in content
+                            assert "ALWAYS use cicada-mcp tools" in content

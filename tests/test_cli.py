@@ -11,6 +11,7 @@ import pytest
 
 from cicada.commands import (
     handle_clean,
+    handle_dir,
     handle_editor_setup,
     handle_find_dead_code,
     handle_index,
@@ -88,6 +89,15 @@ class TestMain:
         with (
             patch.object(sys, "argv", ["cicada", "clean", "-f"]),
             patch("cicada.commands.handle_clean") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+
+    def test_main_with_dir_subcommand(self):
+        """Should route to handle_dir"""
+        with (
+            patch.object(sys, "argv", ["cicada", "dir"]),
+            patch("cicada.commands.handle_dir") as mock_handler,
         ):
             main()
             mock_handler.assert_called_once()
@@ -692,3 +702,56 @@ class TestHandleClean:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "Clean failed" in captured.err
+
+
+class TestHandleDir:
+    """Tests for handle_dir function"""
+
+    def test_prints_storage_directory_with_default_repo(self, tmp_path, capsys):
+        """Should print storage directory path with default repo"""
+        args = MagicMock(repo=".")
+        expected_path = tmp_path / ".cicada"
+
+        with (
+            patch("pathlib.Path.resolve", return_value=tmp_path),
+            patch(
+                "cicada.utils.storage.get_storage_dir", return_value=expected_path
+            ) as mock_get_storage_dir,
+        ):
+            handle_dir(args)
+
+            mock_get_storage_dir.assert_called_once()
+            captured = capsys.readouterr()
+            assert str(expected_path) in captured.out
+
+    def test_prints_storage_directory_with_explicit_repo(self, tmp_path, capsys):
+        """Should print storage directory path with explicit repo path"""
+        repo_path = tmp_path / "test-repo"
+        args = MagicMock(repo=str(repo_path))
+        expected_path = tmp_path / ".cicada" / "project"
+
+        with (
+            patch("pathlib.Path.resolve", return_value=repo_path),
+            patch(
+                "cicada.utils.storage.get_storage_dir", return_value=expected_path
+            ) as mock_get_storage_dir,
+        ):
+            handle_dir(args)
+
+            mock_get_storage_dir.assert_called_once()
+            captured = capsys.readouterr()
+            assert str(expected_path) in captured.out
+
+    def test_exception_exits_with_error(self, capsys):
+        """Should exit with error if get_storage_dir fails"""
+        args = MagicMock(repo=".")
+
+        with (
+            patch("cicada.utils.storage.get_storage_dir", side_effect=Exception("Storage error")),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            handle_dir(args)
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Storage error" in captured.err

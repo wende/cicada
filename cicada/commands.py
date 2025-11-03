@@ -351,6 +351,18 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
+    dir_parser = subparsers.add_parser(
+        "dir",
+        help="Show the absolute path to the Cicada storage directory",
+        description="Display the absolute path to where Cicada stores configuration and indexes",
+    )
+    dir_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
     return parser
 
 
@@ -373,6 +385,8 @@ def handle_command(args):
         handle_find_dead_code(args)
     elif args.command == "clean":
         handle_clean(args)
+    elif args.command == "dir":
+        handle_dir(args)
     elif args.command is None:
         return False
     return True
@@ -673,6 +687,22 @@ def handle_clean(args):
             clean_repository(repo_path, force=args.force)
     except Exception as e:
         print(f"\nError: Cleanup failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_dir(args):
+    """Show the absolute path to the Cicada storage directory."""
+    from pathlib import Path
+
+    from cicada.utils.storage import get_storage_dir
+
+    repo_path = Path(args.repo).resolve()
+
+    try:
+        storage_dir = get_storage_dir(repo_path)
+        print(str(storage_dir))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

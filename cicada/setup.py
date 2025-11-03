@@ -251,6 +251,92 @@ def setup_multiple_editors(
                 print(f"⚠ Error creating {editor.upper()} config: {e}")
 
 
+def update_claude_md(repo_path: Path) -> None:
+    """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
+    import re
+
+    from cicada.mcp.tools import get_tool_definitions
+
+    claude_md_path = repo_path / "CLAUDE.md"
+
+    # Fail silently if CLAUDE.md doesn't exist
+    if not claude_md_path.exists():
+        return
+
+    # Auto-generate tool list from mcp/tools.py
+    tools = get_tool_definitions()
+    tool_list: list[str] = []
+
+    for tool in tools:
+        # Extract first sentence from description (up to first period or newline)
+        if tool.description:
+            desc = tool.description.split("\n")[0].strip()
+            if "." in desc:
+                desc = desc.split(".")[0] + "."
+            line = f"  - {desc} `mcp__cicada__{tool.name}`"
+            tool_list.append(line)
+
+    tool_list_str = "\n".join(tool_list)
+
+    # Identify the categories of tools
+    grep_antipatterns = [
+        "  - ❌ Searching for module structure",
+        "  - ❌ Searching for function definitions",
+        "  - ❌ Searching for module imports/usage",
+    ]
+    grep_antipatterns_str = "\n".join(grep_antipatterns)
+
+    instruction_content = f"""<cicada>
+  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+
+  ### Use cicada tools for:
+{tool_list_str}
+
+  ### DO NOT use Grep for:
+{grep_antipatterns_str}
+
+  ### You can still use Grep for:
+  - ✓ Non-code files (markdown, JSON, config)
+  - ✓ String literal searches
+  - ✓ Pattern matching in single line comments
+</cicada>
+"""
+
+    try:
+        # Read existing content
+        with open(claude_md_path) as f:
+            content = f.read()
+
+        # Pattern to find existing <cicada>...</cicada> tags
+        cicada_pattern = re.compile(r"<cicada>.*?</cicada>", re.DOTALL)
+
+        # Check if <cicada> tags exist
+        if cicada_pattern.search(content):
+            # Replace existing content between tags
+            new_content = cicada_pattern.sub(instruction_content, content)
+            with open(claude_md_path, "w") as f:
+                f.write(new_content)
+            print("✓ Updated <cicada> instructions in CLAUDE.md")
+        elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
+            # Content already mentions cicada, don't add duplication
+            # This handles cases where users manually added cicada instructions
+            print("✓ CLAUDE.md already mentions cicada, skipping update")
+        else:
+            # Append the instruction
+            with open(claude_md_path, "a") as f:
+                # Add newline if file doesn't end with one
+                if content and not content.endswith("\n"):
+                    f.write("\n")
+
+                f.write("\n")
+                f.write(instruction_content)
+
+            print("✓ Added cicada-mcp usage instructions to CLAUDE.md")
+    except Exception:
+        # Fail silently on any errors
+        pass
+
+
 def setup(
     editor: EditorType,
     repo_path: Path | None = None,
@@ -373,6 +459,10 @@ def setup(
         if should_index:
             index_repository(repo_path, force_full=force_full)
             print()
+
+    # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
+    if editor == "claude":
+        update_claude_md(repo_path)
 
     # Create MCP config for the editor
     config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
