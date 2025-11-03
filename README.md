@@ -361,7 +361,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 
 ### Advanced Features
 
-**`search_by_keywords`** (EXPERIMENTAL) - Semantic documentation search
+**`search_by_keywords`** (Beta) - Semantic documentation search
 - Find code by concepts, not just names
 - Wildcard pattern matching (`create*`, `*_user`)
 - Filter results by type: modules only, functions only, or all
@@ -440,7 +440,7 @@ cicada find-dead-code --index path/to/index.json
 ## Roadmap
 
 ### v0.2.0 (Released - October 2025) ✅
-- **Enhanced AI Keyword Extraction** - Production-ready semantic search
+- **Enhanced AI Keyword Extraction (Beta)** - Semantic search
   - BERT integration with KeyBERT for superior keyword extraction
   - Configurable model tiers (fast, regular, large)
   - Wildcard pattern support (`create*`, `*_user`)
