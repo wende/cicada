@@ -62,10 +62,7 @@ def handle_default_server(args):
         repo_path = Path.cwd().resolve()
 
     # Check if watch mode is requested
-    # Handle both cases: direct flag (--watch) and server subcommand (server --watch)
-    watch_enabled = False
-    if hasattr(args, "watch") and args.watch or "--watch" in sys.argv:
-        watch_enabled = True
+    watch_enabled = hasattr(args, "watch") and args.watch
 
     # Start watch process if requested
     if watch_enabled:
