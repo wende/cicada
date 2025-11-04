@@ -147,7 +147,7 @@ class TestSCIPConverter:
 
         occ2 = doc.occurrences.add()
         occ2.symbol = "scip-python python test 1.0 test/TestClass#test_method()."
-        occ2.range.extend([5, 4, 15])
+        occ2.range.extend([4, 4, 15])  # 0-indexed: line 4 -> 1-indexed: line 5
         occ2.symbol_roles = scip_pb2.SymbolRole.Definition
 
         occ3 = doc.occurrences.add()

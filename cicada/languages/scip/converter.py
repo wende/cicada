@@ -454,14 +454,15 @@ class SCIPConverter:
         Find the line number where a symbol is defined.
 
         Searches through document occurrences for the definition.
-        Returns the line number as-is from SCIP.
+        SCIP uses 0-indexed line numbers, so we add 1 to convert to 1-indexed.
         """
         for occurrence in doc.occurrences:
             # Check if this is the symbol and it's a definition (symbol_roles is a bitfield)
             if occurrence.symbol == symbol and (
                 occurrence.symbol_roles & scip_pb2.SymbolRole.Definition
             ):
-                return occurrence.range[0] if occurrence.range else 1
+                # Convert from 0-indexed to 1-indexed line numbers
+                return (occurrence.range[0] + 1) if occurrence.range else 1
 
         return 1  # Fallback to line 1
 
