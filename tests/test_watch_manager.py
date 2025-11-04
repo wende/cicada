@@ -73,6 +73,8 @@ class TestWatchProcessManager:
         """Test that start() creates a subprocess"""
         mock_process = Mock()
         mock_process.pid = 12345
+        # Mock poll() to return None (process is still running)
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         manager = WatchProcessManager(temp_repo, register_atexit=False)
@@ -96,6 +98,7 @@ class TestWatchProcessManager:
         """Test that fast tier is passed to the watch command"""
         mock_process = Mock()
         mock_process.pid = 12345
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         manager = WatchProcessManager(temp_repo, tier="fast")
@@ -110,6 +113,7 @@ class TestWatchProcessManager:
         """Test that max tier is passed to the watch command"""
         mock_process = Mock()
         mock_process.pid = 12345
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         manager = WatchProcessManager(temp_repo, tier="max")
@@ -124,10 +128,12 @@ class TestWatchProcessManager:
         """Test that start() returns False if process is already running"""
         mock_process = Mock()
         mock_process.pid = 12345
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         manager = WatchProcessManager(temp_repo, register_atexit=False)
-        manager.start()
+        result = manager.start()
+        assert result is True
 
         # Try to start again
         result = manager.start()
@@ -227,6 +233,7 @@ class TestGlobalWatchManager:
         """Test that start_watch_process creates and stores a manager"""
         mock_process = Mock()
         mock_process.pid = 12345
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         result = start_watch_process(temp_repo)
@@ -241,6 +248,7 @@ class TestGlobalWatchManager:
         """Test start_watch_process with custom parameters"""
         mock_process = Mock()
         mock_process.pid = 12345
+        mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
         result = start_watch_process(temp_repo, tier="fast", debounce=5.0)
@@ -272,3 +280,137 @@ class TestGlobalWatchManager:
         """Test that stop_watch_process is safe when no manager exists"""
         # Should not raise exception
         stop_watch_process()
+
+
+class TestWatchProcessErrorPaths:
+    """Tests for error paths in watch process management"""
+
+    @patch("subprocess.Popen")
+    def test_process_crashes_immediately(self, mock_popen, temp_repo):
+        """Test handling of process that crashes immediately after starting"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        # Simulate process crashing immediately (returncode set after brief delay)
+        mock_process.poll.return_value = 1  # Non-zero exit code
+        mock_process.returncode = 1
+        mock_popen.return_value = mock_process
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        result = manager.start()
+
+        # Should detect the crash and return False
+        assert result is False
+        assert manager.process is None
+
+    @patch("subprocess.Popen")
+    def test_process_crashes_with_zero_exit_code(self, mock_popen, temp_repo):
+        """Test handling of process that exits immediately with success code"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        # Process exits with 0 (success) but still shouldn't be considered running
+        mock_process.poll.return_value = 0
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        result = manager.start()
+
+        # Should detect the early exit and return False
+        assert result is False
+        assert manager.process is None
+
+    @patch("subprocess.Popen")
+    @patch("os.killpg")
+    @patch("os.getpgid")
+    def test_stop_with_process_already_gone(self, mock_getpgid, mock_killpg, mock_popen, temp_repo):
+        """Test stopping when process has already terminated"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        # Simulate process disappearing before killpg
+        mock_killpg.side_effect = ProcessLookupError("Process not found")
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager.start()
+
+        # Should handle the error gracefully
+        manager.stop()
+        assert manager.process is None
+
+    @patch("subprocess.Popen")
+    @patch("os.killpg")
+    @patch("os.getpgid")
+    def test_stop_with_permission_error(self, mock_getpgid, mock_killpg, mock_popen, temp_repo):
+        """Test stopping when permission is denied"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        # Simulate permission error
+        mock_killpg.side_effect = PermissionError("Permission denied")
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager.start()
+
+        # Should fall back to direct termination
+        manager.stop()
+        assert manager.process is None
+        # Should have called terminate as fallback
+        mock_process.terminate.assert_called()
+
+    @patch("subprocess.Popen")
+    @patch("os.killpg")
+    @patch("os.getpgid")
+    def test_stop_timeout_requires_force_kill(
+        self, mock_getpgid, mock_killpg, mock_popen, temp_repo
+    ):
+        """Test stopping when process doesn't terminate gracefully"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+        mock_getpgid.return_value = 12345
+
+        # Simulate timeout on wait
+        mock_process.wait.side_effect = [subprocess.TimeoutExpired("cmd", 5), None]
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager.start()
+        manager.stop()
+
+        # Should have called killpg twice (SIGTERM then SIGKILL)
+        assert mock_killpg.call_count == 2
+        assert manager.process is None
+
+    @patch("subprocess.Popen")
+    def test_stop_on_windows_without_killpg(self, mock_popen, temp_repo):
+        """Test stopping on platforms without killpg (e.g., Windows)"""
+        mock_process = Mock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager.start()
+
+        # Simulate Windows (no killpg)
+        with patch("os.killpg", create=False):
+            manager.stop()
+
+        # Should fall back to terminate()
+        mock_process.terminate.assert_called()
+        assert manager.process is None
+
+    @patch("subprocess.Popen")
+    def test_start_with_popen_oserror(self, mock_popen, temp_repo):
+        """Test starting when Popen raises OSError"""
+        mock_popen.side_effect = OSError("No such file or directory")
+
+        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        result = manager.start()
+
+        assert result is False
+        assert manager.process is None
