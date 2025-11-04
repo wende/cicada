@@ -328,6 +328,124 @@ def setup_multiple_editors(
                 print(f"⚠ Error creating {editor.upper()} config: {e}")
 
 
+def ensure_setup(
+    repo_path: Path,
+    editor: EditorType | None = None,
+    extraction_method: str | None = None,
+    expansion_method: str | None = None,
+    interactive: bool = True,
+    silent: bool = False,
+) -> tuple[str, str]:
+    """
+    Ensure the repository is properly set up (unified setup entry point).
+
+    This function provides a single entry point for all commands to ensure
+    a repository is set up with config.yaml and index.json. It handles three modes:
+
+    1. Interactive mode (interactive=True, silent=False):
+       - If config missing and no tier flags: show interactive menus
+       - If config exists: reuse existing settings
+       - Default behavior for `cicada install`
+
+    2. Non-interactive with flags (interactive=True/False, extraction_method provided):
+       - Use provided extraction/expansion methods
+       - Skip interactive menus
+       - Used when tier flags (--fast/--regular/--max) are provided
+
+    3. Silent mode (silent=True):
+       - Auto-use defaults (regular + lemmi)
+       - No output
+       - Used by MCP server background auto-setup
+
+    Args:
+        repo_path: Path to the repository
+        editor: Editor to configure (optional, for setting up MCP config)
+        extraction_method: Keyword extraction method ('regular' or 'bert'), None for auto-detect
+        expansion_method: Expansion method ('lemmi', 'glove', 'fasttext'), None for auto-detect
+        interactive: If True, show menus when settings missing (default: True)
+        silent: If True, use defaults and suppress output (default: False, for MCP server only)
+
+    Returns:
+        tuple[str, str]: Final (extraction_method, expansion_method) used
+
+    Raises:
+        SystemExit: If config missing, no flags provided, and not interactive/silent mode
+
+    Examples:
+        # Interactive setup (shows menus if needed)
+        ensure_setup(repo_path, editor="claude", interactive=True)
+
+        # With tier flags (no menus)
+        ensure_setup(repo_path, editor="claude", extraction_method="regular", expansion_method="lemmi")
+
+        # Silent mode (MCP server)
+        ensure_setup(repo_path, silent=True)
+    """
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+
+    # Check if config and index already exist
+    if config_path.exists() and index_path.exists():
+        # Config exists - read and return existing settings
+        import yaml
+
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
+
+            # If tier flags provided and different from existing, validate they match
+            # (setup() will handle the reindex confirmation prompt)
+            if extraction_method and expansion_method:
+                # Caller provided explicit settings - return those (setup will handle validation)
+                return (extraction_method, expansion_method)
+
+            # No tier flags - reuse existing settings
+            return (existing_extraction, existing_expansion)
+        except Exception as e:
+            if not silent:
+                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+            # Fall through to setup with provided or default settings
+
+    # Config doesn't exist - need to set up
+    # Determine extraction and expansion methods
+    if extraction_method and expansion_method:
+        # Explicit settings provided (from tier flags) - use them
+        return (extraction_method, expansion_method)
+    elif silent:
+        # Silent mode - use defaults
+        return ("regular", "lemmi")
+    elif interactive:
+        # Interactive mode - show menus
+        from cicada.interactive_setup import show_first_time_setup
+
+        if editor is None:
+            # Just return the methods - caller will handle editor selection
+            extraction, expansion = show_first_time_setup()
+            return (extraction, expansion)
+        else:
+            # Full setup with editor already known
+            extraction, expansion = show_first_time_setup()
+            return (extraction, expansion)
+    else:
+        # Non-interactive, no flags, not silent - error
+        print("Error: No tier specified.", file=sys.stderr)
+        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+        print(
+            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+            file=sys.stderr,
+        )
+        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+        print("\nRun 'cicada --help' for more information.", file=sys.stderr)
+        sys.exit(2)
+
+
 def update_claude_md(repo_path: Path) -> None:
     """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
     import re
@@ -451,6 +569,7 @@ def setup(
         # Determine method for display
         display_extraction = extraction_method if extraction_method else "regular"
         display_expansion = expansion_method if expansion_method else "lemmi"
+        print(f"Detected {language} project")
         print(
             f"✓ Found existing index ({display_extraction.upper()} + {display_expansion.upper()})"
         )
@@ -472,6 +591,7 @@ def setup(
         print(f"Cicada Setup for {editor.upper()}")
         print("=" * 60)
         print()
+        print(f"Detected language: {language}")
         print(f"Repository: {repo_path}")
         print(f"Storage: {storage_dir}")
         print()

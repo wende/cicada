@@ -396,41 +396,40 @@ def handle_editor_setup(args, editor: str):
     from pathlib import Path
     from typing import cast
 
-    from cicada.setup import EditorType, detect_project_language, setup
+    from cicada.setup import EditorType, detect_project_language, ensure_setup, setup
 
     # Validate tier flags
     validate_tier_flags(args)
 
     repo_path = Path.cwd()
 
-    # Validate project type
+    # Validate project type and show detected language
     try:
-        detect_project_language(repo_path)
+        language = detect_project_language(repo_path)
+        print(f"Detected {language} project")
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     from cicada.utils.storage import get_config_path, get_index_path
 
+    extraction_method, expansion_method = get_extraction_expansion_methods(args)
+
+    # Use ensure_setup to get extraction/expansion methods
+    # NEW: Now shows interactive menus if no config and no tier flags provided
+    extraction_method, expansion_method = ensure_setup(
+        repo_path,
+        editor=cast(EditorType, editor),
+        extraction_method=extraction_method,
+        expansion_method=expansion_method,
+        interactive=True,  # Allow interactive menus if no config and no flags
+        silent=False,
+    )
+
+    # Check if index exists for setup() parameter
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
-    extraction_method, expansion_method = get_extraction_expansion_methods(args)
-
-    if extraction_method is None and config_path.exists() and index_path.exists():
-        import yaml
-
-        try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
-        except Exception as e:
-            print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
     try:
         setup(
             cast(EditorType, editor),
@@ -506,7 +505,7 @@ def handle_index_main(args):
     """Handle main repository indexing."""
     from pathlib import Path
 
-    from cicada.setup import create_config_yaml, detect_project_language
+    from cicada.setup import create_config_yaml, detect_project_language, ensure_setup
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
@@ -527,49 +526,60 @@ def handle_index_main(args):
 
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
-    if extraction_method is not None:
-        if config_path.exists():
-            import yaml
+    # Check if user is trying to change existing settings (error out if they are)
+    if extraction_method is not None and config_path.exists():
+        import yaml
 
-            try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
-                    )
-                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
-                    )
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
 
-                    extraction_changed = existing_extraction != extraction_method
-                    expansion_changed = existing_expansion != expansion_method
+                extraction_changed = existing_extraction != extraction_method
+                expansion_changed = existing_expansion != expansion_method
 
-                    if extraction_changed or expansion_changed:
-                        if extraction_changed and expansion_changed:
-                            change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-                        elif extraction_changed:
-                            change_desc = (
-                                f"extraction from {existing_extraction} to {extraction_method}"
-                            )
-                        else:
-                            change_desc = (
-                                f"expansion from {existing_expansion} to {expansion_method}"
-                            )
-
-                        print(
-                            f"Error: Cannot change {change_desc}",
-                            file=sys.stderr,
+                if extraction_changed or expansion_changed:
+                    if extraction_changed and expansion_changed:
+                        change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
+                    elif extraction_changed:
+                        change_desc = (
+                            f"extraction from {existing_extraction} to {extraction_method}"
                         )
-                        print(
-                            "\nTo reindex with different settings, first run:",
-                            file=sys.stderr,
-                        )
-                        print("  cicada clean", file=sys.stderr)
-                        print("\nThen run your index command again.", file=sys.stderr)
-                        sys.exit(1)
-            except Exception as e:
-                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+                    else:
+                        change_desc = f"expansion from {existing_expansion} to {expansion_method}"
 
+                    print(
+                        f"Error: Cannot change {change_desc}",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "\nTo reindex with different settings, first run:",
+                        file=sys.stderr,
+                    )
+                    print("  cicada clean", file=sys.stderr)
+                    print("\nThen run your index command again.", file=sys.stderr)
+                    sys.exit(1)
+        except Exception as e:
+            print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+
+    # Use ensure_setup to get final extraction/expansion methods
+    # NEW: Now shows interactive menus if no config and no tier flags provided
+    extraction_method, expansion_method = ensure_setup(
+        repo_path_obj,
+        editor=None,
+        extraction_method=extraction_method,
+        expansion_method=expansion_method,
+        interactive=True,  # Allow interactive menus if no config and no flags
+        silent=False,
+    )
+
+    # Create config if needed
+    if not config_path.exists():
         create_config_yaml(
             repo_path_obj,
             storage_dir,
@@ -577,16 +587,6 @@ def handle_index_main(args):
             extraction_method=extraction_method,
             expansion_method=expansion_method,
         )
-    elif not config_path.exists():
-        print("Error: No tier specified.", file=sys.stderr)
-        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
-        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
-        print(
-            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)", file=sys.stderr
-        )
-        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
-        print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
-        sys.exit(2)
 
     # Use appropriate indexer based on detected language
     if language == "elixir":
@@ -751,16 +751,16 @@ def handle_install(args):
     """
     from pathlib import Path
 
-    from cicada.interactive_setup import show_first_time_setup
-    from cicada.setup import EditorType, detect_project_language, setup
+    from cicada.setup import EditorType, detect_project_language, ensure_setup, setup
     from cicada.utils import get_config_path, get_index_path
 
     # Determine repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
 
-    # Validate project type
+    # Validate project type and show detected language
     try:
-        detect_project_language(repo_path)
+        language = detect_project_language(repo_path)
+        print(f"Detected {language} project")
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -787,11 +787,6 @@ def handle_install(args):
 
     # Determine extraction and expansion methods from flags
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
-
-    # Check if index already exists
-    config_path = get_config_path(repo_path)
-    index_path = get_index_path(repo_path)
-    index_exists = config_path.exists() and index_path.exists()
 
     # If no flags provided, use full interactive setup
     if editor is None and extraction_method is None:
@@ -824,25 +819,21 @@ def handle_install(args):
         editor_map: tuple[EditorType, EditorType, EditorType] = ("claude", "cursor", "vs")
         editor = editor_map[menu_idx]
 
-    # If only editor flag provided (no model), prompt for model (unless index exists)
-    if extraction_method is None and not index_exists:
-        extraction_method, expansion_method = show_first_time_setup()
+    # Use ensure_setup to get extraction/expansion methods
+    # This handles: existing config detection, interactive menus if needed, tier flags
+    extraction_method, expansion_method = ensure_setup(
+        repo_path,
+        editor=editor,
+        extraction_method=extraction_method,
+        expansion_method=expansion_method,
+        interactive=True,  # Allow interactive menus if needed
+        silent=False,
+    )
 
-    # If index exists but no model flags, use existing settings
-    if extraction_method is None and index_exists:
-        import yaml
-
-        try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
-        except Exception as e:
-            print(f"Warning: Could not load existing config, using defaults: {e}", file=sys.stderr)
+    # Check if index exists for setup() parameter
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+    index_exists = config_path.exists() and index_path.exists()
 
     # Run setup
     try:

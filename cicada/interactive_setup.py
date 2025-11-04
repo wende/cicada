@@ -24,7 +24,7 @@ def _text_based_setup() -> tuple[str, str]:
         tuple[str, str]: The selected extraction and expansion methods
     """
     print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+    print(f"{SELECTED}🦗 Welcome to CICADA - Code Intelligence & Analysis{RESET}")
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"This is your first time running CICADA in this project.{RESET}")
@@ -127,7 +127,7 @@ def show_first_time_setup() -> tuple[str, str]:
 
     # Step 1: Choose extraction method
     print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+    print(f"{SELECTED}🦗 Welcome to CICADA - Code Intelligence & Analysis{RESET}")
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"This is your first time running CICADA in this project.{RESET}")
@@ -258,17 +258,17 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     This is the main entry point when running `cicada` with no arguments or a path.
 
     Args:
-        repo_path: Path to the Elixir repository. Defaults to current directory.
+        repo_path: Path to the repository. Defaults to current directory.
     """
-    from cicada.setup import setup
+    from cicada.setup import detect_project_language, setup
 
-    # Check if we're in an Elixir project
+    # Detect project language
     repo_path = Path.cwd() if repo_path is None else Path(repo_path).resolve()
-    if not (repo_path / "mix.exs").exists():
-        print(f"{PRIMARY}Error: {repo_path} does not appear to be an Elixir project{RESET}")
-        print(f"{GREY}(mix.exs not found){RESET}")
-        print()
-        print("Please run cicada from the root of an Elixir project.")
+    try:
+        language = detect_project_language(repo_path)
+        print(f"Detected {language} project")
+    except ValueError as e:
+        print(f"{PRIMARY}Error: {e}{RESET}")
         sys.exit(1)
 
     # Display ASCII art
@@ -276,7 +276,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     # Step 1: Choose editor
     print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+    print(f"{SELECTED}🦗 Welcome to CICADA - Code Intelligence & Analysis{RESET}")
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"Let's set up Cicada for your editor and project.{RESET}")
