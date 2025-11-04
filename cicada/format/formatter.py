@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cicada.format.template_renderer import TemplateRenderer
 from cicada.utils import CallSiteFormatter, FunctionGrouper, SignatureBuilder
 
 
@@ -24,15 +25,19 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_markdown(
-        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
+        module_name: str,
+        data: dict[str, Any],
+        private_functions: str = "exclude",
+        language: str = "elixir",
     ) -> str:
         """
-        Format module data as Markdown.
+        Format module data as Markdown using language-specific templates.
 
         Args:
             module_name: The name of the module
             data: The module data dictionary from the index
             private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+            language: Programming language for template selection (default: "elixir")
 
         Returns:
             Formatted Markdown string
@@ -50,12 +55,25 @@ class ModuleFormatter:
         public_count = len(public_grouped)
         private_count = len(private_grouped)
 
-        # Build the markdown output - compact format
-        lines = [
-            module_name,
-            "",
-            f"{data['file']}:{data['line']} • {public_count} public • {private_count} private",
-        ]
+        # Build the markdown output - compact format using template
+        renderer = TemplateRenderer(language)
+        try:
+            header = renderer.render(
+                "module_header",
+                module_name=module_name,
+                file=data["file"],
+                line=data["line"],
+                public_count=public_count,
+                private_count=private_count,
+            )
+            lines = header.split("\n")
+        except FileNotFoundError:
+            # Fallback to hardcoded format if template not found
+            lines = [
+                module_name,
+                "",
+                f"{data['file']}:{data['line']} • {public_count} public • {private_count} private",
+            ]
 
         # Add moduledoc if present (first paragraph only for brevity)
         if data.get("moduledoc"):
@@ -73,7 +91,7 @@ class ModuleFormatter:
             for (_, _), clauses in sorted(public_grouped.items(), key=lambda x: x[1][0]["line"]):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
-                func_sig = SignatureBuilder.build(func)
+                func_sig = SignatureBuilder.build(func, language=language)
                 lines.append(f"{func['line']:>5}: {func_sig}")
 
         # Show private functions (if private_functions == "include" or "only")
@@ -83,7 +101,7 @@ class ModuleFormatter:
             for (_, _), clauses in sorted(private_grouped.items(), key=lambda x: x[1][0]["line"]):
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
-                func_sig = SignatureBuilder.build(func)
+                func_sig = SignatureBuilder.build(func, language=language)
                 lines.append(f"{func['line']:>5}: {func_sig}")
 
         # Check if there are no functions to display based on the filter
@@ -101,15 +119,19 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_json(
-        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
+        module_name: str,
+        data: dict[str, Any],
+        private_functions: str = "exclude",
+        language: str = "elixir",
     ) -> str:
         """
-        Format module data as JSON.
+        Format module data as JSON using language-specific formatting.
 
         Args:
             module_name: The name of the module
             data: The module data dictionary from the index
             private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+            language: Programming language for formatting (default: "elixir")
 
         Returns:
             Formatted JSON string
@@ -132,7 +154,7 @@ class ModuleFormatter:
         # Compact function format - one entry per unique name/arity
         functions = [
             {
-                "signature": SignatureBuilder.build(clauses[0]),
+                "signature": SignatureBuilder.build(clauses[0], language=language),
                 "line": clauses[0]["line"],
                 "type": clauses[0]["type"],
             }
@@ -478,13 +500,16 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return lines
 
     @staticmethod
-    def format_function_results_markdown(function_name: str, results: list[dict[str, Any]]) -> str:
+    def format_function_results_markdown(
+        function_name: str, results: list[dict[str, Any]], language: str = "elixir"
+    ) -> str:
         """
-        Format function search results as Markdown.
+        Format function search results as Markdown using language-specific templates.
 
         Args:
             function_name: The searched function name
             results: List of function matches with module context
+            language: Programming language for template selection (default: "elixir")
 
         Returns:
             Formatted Markdown string
@@ -538,7 +563,7 @@ No functions matching `{function_name}` were found in the index.
             indent = ""
 
             # Add signature first (right after file path)
-            sig = SignatureBuilder.build(func)
+            sig = SignatureBuilder.build(func, language=language)
 
             # Skip the section header for single results
             if len(consolidated_results) == 1:
@@ -601,13 +626,16 @@ No functions matching `{function_name}` were found in the index.
         return "\n".join(lines)
 
     @staticmethod
-    def format_function_results_json(function_name: str, results: list[dict[str, Any]]) -> str:
+    def format_function_results_json(
+        function_name: str, results: list[dict[str, Any]], language: str = "elixir"
+    ) -> str:
         """
-        Format function search results as JSON.
+        Format function search results as JSON using language-specific formatting.
 
         Args:
             function_name: The searched function name
             results: List of function matches with module context
+            language: Programming language for formatting (default: "elixir")
 
         Returns:
             Formatted JSON string
@@ -628,7 +656,7 @@ No functions matching `{function_name}` were found in the index.
                 "function": result["function"]["name"],
                 "arity": result["function"]["arity"],
                 "full_name": f"{result['module']}.{result['function']['name']}/{result['function']['arity']}",
-                "signature": SignatureBuilder.build(result["function"]),
+                "signature": SignatureBuilder.build(result["function"], language=language),
                 "location": f"{result['file']}:{result['function']['line']}",
                 "type": result["function"]["type"],
                 "doc": result["function"].get("doc"),

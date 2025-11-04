@@ -1,0 +1,3 @@
+$file_path:$line
+$module_name.$func_name
+Type: $signature

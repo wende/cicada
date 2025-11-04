@@ -1,0 +1,1 @@
+def $func_name($args)$return_annotation

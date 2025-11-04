@@ -405,12 +405,15 @@ class CicadaServer:
         # Exact match lookup
         if module_name in self.index["modules"]:
             data = self.index["modules"][module_name]
+            language = self.config.get("language", "elixir")
 
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(module_name, data, private_functions)
+                result = ModuleFormatter.format_module_json(
+                    module_name, data, private_functions, language=language
+                )
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, private_functions
+                    module_name, data, private_functions, language=language
                 )
 
             return [TextContent(type="text", text=result)]
@@ -501,10 +504,15 @@ class CicadaServer:
                     )
 
         # Format results
+        language = self.config.get("language", "elixir")
         if output_format == "json":
-            result = ModuleFormatter.format_function_results_json(function_name, results)
+            result = ModuleFormatter.format_function_results_json(
+                function_name, results, language=language
+            )
         else:
-            result = ModuleFormatter.format_function_results_markdown(function_name, results)
+            result = ModuleFormatter.format_function_results_markdown(
+                function_name, results, language=language
+            )
 
         return [TextContent(type="text", text=result)]
 
@@ -1368,7 +1376,12 @@ def _auto_setup_if_needed():
     This enables zero-config MCP usage - just point the MCP config to cicada-server
     and it will index the repository on first run.
     """
-    from cicada.setup import create_config_yaml, detect_project_language, index_repository
+    from cicada.setup import (
+        create_config_yaml,
+        detect_project_language,
+        ensure_setup,
+        index_repository,
+    )
     from cicada.utils import (
         create_storage_dir,
         get_config_path,
@@ -1401,7 +1414,7 @@ def _auto_setup_if_needed():
         # Already set up, nothing to do
         return
 
-    # Setup needed - detect language and create storage/index (silent mode)
+    # Setup needed - use ensure_setup in silent mode (uses defaults: regular + lemmi)
     try:
         language = detect_project_language(repo_path)
     except ValueError as e:
@@ -1409,14 +1422,31 @@ def _auto_setup_if_needed():
         sys.exit(1)
 
     try:
+        # Get extraction/expansion methods (silent mode - uses defaults)
+        extraction_method, expansion_method = ensure_setup(
+            repo_path,
+            editor=None,
+            extraction_method=None,
+            expansion_method=None,
+            interactive=False,
+            silent=True,  # Use defaults, no output
+        )
+
         # Create storage directory
         storage_dir = create_storage_dir(repo_path)
 
+        # Create config.yaml (silent mode)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
+        )
+
         # Index repository (silent mode)
         index_repository(repo_path, language=language, verbose=False)
-
-        # Create config.yaml (silent mode)
-        create_config_yaml(repo_path, storage_dir, language=language, verbose=False)
 
     except Exception as e:
         print(f"Cicada auto-setup error: {e}", file=sys.stderr)

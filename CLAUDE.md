@@ -181,6 +181,119 @@ tests/
    - For non-SCIP languages: Create full parser/extractor implementation like Elixir
    - Add corresponding test directory in `tests/languages/<lang>/`
 
+## Template System for Language-Specific Formatting
+
+Cicada uses a language-specific template system to format code elements (signatures, module headers, etc.) appropriately for each programming language.
+
+### Architecture
+
+```
+cicada/format/
+├── template_renderer.py    # Template loading and rendering engine
+├── formatter.py            # Uses templates for output formatting
+└── templates/              # Language-specific templates
+    ├── elixir/
+    │   ├── signature.txt        # Function signature format
+    │   ├── module_header.txt    # Module info header
+    │   └── function_entry.txt   # Function display format
+    └── python/
+        ├── signature.txt
+        ├── module_header.txt
+        └── function_entry.txt
+```
+
+### How It Works
+
+1. **TemplateRenderer** (`cicada/format/template_renderer.py`):
+   - Loads templates from `cicada/format/templates/{language}/`
+   - Uses Python's built-in `string.Template` for variable substitution
+   - Caches templates for performance
+   - Falls back to Elixir templates if language-specific template not found
+
+2. **Template Variables**:
+   Templates use `$variable_name` syntax for substitution:
+
+   **signature.txt variables:**
+   - `$func_name` - Function name
+   - `$args` - Formatted arguments string
+   - `$return_annotation` - Return type annotation (language-specific format)
+
+   **module_header.txt variables:**
+   - `$module_name` - Module/file name
+   - `$file` - File path
+   - `$line` - Line number
+   - `$public_count` - Count of public functions
+   - `$private_count` - Count of private functions
+
+   **function_entry.txt variables:**
+   - `$file_path` - File path
+   - `$line` - Line number
+   - `$module_name` - Module name
+   - `$func_name` - Function name
+   - `$signature` - Full function signature
+
+### Examples
+
+**Elixir signature template:**
+```
+$func_name($args)$return_annotation
+```
+Result: `create_user(attrs: map, opts: keyword) :: {:ok, User.t()}`
+
+**Python signature template:**
+```
+def $func_name($args)$return_annotation
+```
+Result: `def create_user(attrs: dict, opts: dict) -> User:`
+
+### Adding Templates for a New Language
+
+1. **Create language directory:**
+   ```bash
+   mkdir -p cicada/format/templates/typescript
+   ```
+
+2. **Create template files** (at minimum: `signature.txt`, `module_header.txt`, `function_entry.txt`)
+
+3. **Write tests:**
+   - Add tests in `tests/format/test_language_formatting.py`
+   - Verify signature formatting is correct
+   - Test module and function formatting
+
+4. **No code changes needed** - The TemplateRenderer automatically detects new language templates
+
+### Template Development Guidelines
+
+- **Keep templates simple** - Complex logic belongs in the formatter, not templates
+- **Use consistent variable names** across languages for the same concept
+- **Test thoroughly** - Add integration tests for each new template
+- **Document template variables** - Comment what each variable represents
+- **Fallback behavior** - Templates fall back to Elixir format if not found
+
+### Integration Points
+
+The language parameter flows through the system:
+
+1. **MCP Server** (`cicada/mcp/server.py`):
+   ```python
+   language = self.config.get("language", "elixir")
+   result = ModuleFormatter.format_module_markdown(..., language=language)
+   ```
+
+2. **Formatter** (`cicada/format/formatter.py`):
+   ```python
+   def format_module_markdown(..., language: str = "elixir"):
+       renderer = TemplateRenderer(language)
+       header = renderer.render("module_header", ...)
+   ```
+
+3. **Signature Builder** (`cicada/utils/signature_builder.py`):
+   ```python
+   def build(func: dict, language: str = "elixir"):
+       renderer = TemplateRenderer(language)
+       return renderer.render("signature", ...)
+   ```
+
 ## Storage Structure
 
 As of the simplified setup workflow (PR #20), Cicada uses a centralized storage structure:
@@ -271,6 +384,7 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
 
 
 
