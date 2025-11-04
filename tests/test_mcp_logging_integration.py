@@ -49,6 +49,7 @@ def test_server(tmp_path, temp_log_dir, monkeypatch):
 
     # Create config
     config = {
+        "language": "elixir",
         "repository": {"path": str(tmp_path)},
         "storage": {"index_path": str(index_path)},
     }

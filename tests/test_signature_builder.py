@@ -1,7 +1,5 @@
 """Tests for SignatureBuilder utility."""
 
-import pytest
-
 from cicada.utils.signature_builder import SignatureBuilder
 
 

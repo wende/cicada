@@ -52,6 +52,7 @@ dependencies = [
     "simple-term-menu>=1.6.0",
     "tomli>=2.0.0; python_version < '3.11'",
     "gensim>=4.4.0",
+    "protobuf>=4.0.0",
 ]
 
 [project.urls]
@@ -176,7 +177,23 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["T201", "T203"]  # Allow print in tests
+"cicada/languages/scip/scip_pb2.py" = ["E501", "F", "UP", "A001"]  # Auto-generated protobuf
+"cicada/languages/scip/scip_pb2.pyi" = ["E501", "F", "UP", "A001", "A002", "I001"]  # Auto-generated protobuf
 
+
+
+[tool.pyright]
+exclude = [
+    "cicada/languages/scip/scip_pb2.py",
+    "cicada/languages/scip/scip_pb2.pyi",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+]
 
 
 [dependency-groups]
@@ -189,4 +206,5 @@ dev = [
     "pyrefly>=0.39.1",
     "vulture>=2.14",
     "ruff>=0.14.2",
+    "grpcio-tools>=1.50.0",
 ]

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 from cicada.mcp.server import CicadaServer
 
 
@@ -68,6 +68,7 @@ def test_mcp_server_initialization(index_path):
 
     # Create a temporary config for testing
     test_config = {
+        "language": "elixir",
         "repository": {"path": "/Users/wende/projects/ab"},
         "storage": {"index_path": index_path},
     }
@@ -98,6 +99,7 @@ def test_module_not_found():
     print("\nTesting module not found error...")
 
     test_config = {
+        "language": "elixir",
         "repository": {"path": "/Users/wende/projects/ab"},
         "storage": {"index_path": "data/test_e2e_index.json"},
     }

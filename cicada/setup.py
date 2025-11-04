@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 from cicada.utils import (
     create_storage_dir,
     get_config_path,
@@ -23,6 +23,44 @@ from cicada.utils import (
 )
 
 EditorType = Literal["claude", "cursor", "vs"]
+
+
+def detect_project_language(repo_path: Path) -> str:
+    """
+    Detect project language from marker files.
+
+    Args:
+        repo_path: Repository root path
+
+    Returns:
+        Language name ('elixir' or 'python')
+
+    Raises:
+        ValueError: If no recognized project type found
+    """
+    # Check for Python markers
+    python_markers = [
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+    ]
+
+    for marker in python_markers:
+        if (repo_path / marker).exists():
+            return "python"
+
+    # Check for Elixir marker
+    if (repo_path / "mix.exs").exists():
+        return "elixir"
+
+    # No recognized language
+    raise ValueError(
+        f"Could not detect project language in {repo_path}\n"
+        "Expected Python markers (pyproject.toml, setup.py, etc.) "
+        "or Elixir marker (mix.exs)"
+    )
 
 
 def _load_existing_config(config_path: Path) -> dict:
@@ -147,6 +185,7 @@ def get_mcp_config_for_editor(
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
+    language: str | None = None,
     extraction_method: str | None = None,
     expansion_method: str | None = None,
     verbose: bool = True,
@@ -157,12 +196,19 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
+        language: Programming language (e.g., 'elixir', 'python'). If None, auto-detect.
         extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
         expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
         verbose: If True, print success message. If False, silently create config.
     """
+    from cicada.utils.config import create_default_config, save_config
+
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
+
+    # Auto-detect language if not provided
+    if language is None:
+        language = detect_project_language(repo_path)
 
     # Default to regular extraction + lemmi expansion
     if extraction_method is None:
@@ -170,32 +216,33 @@ def create_config_yaml(
     if expansion_method is None:
         expansion_method = "lemmi"
 
-    config_content = f"""repository:
-  path: {repo_path}
+    # Create config using the centralized config module
+    config_data = create_default_config(
+        language=language,
+        repo_path=repo_path,
+        index_path=index_path,
+        extraction_method=extraction_method,
+        expansion_method=expansion_method,
+    )
 
-storage:
-  index_path: {index_path}
-
-keyword_extraction:
-  method: {extraction_method}
-
-keyword_expansion:
-  method: {expansion_method}
-"""
-
-    with open(config_path, "w") as f:
-        f.write(config_content)
+    save_config(config_data, config_path)
 
     if verbose:
         print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = True) -> None:
+def index_repository(
+    repo_path: Path,
+    language: str | None = None,
+    force_full: bool = False,
+    verbose: bool = True,
+) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        language: Language to index ('elixir' or 'python'). If None, auto-detect.
         force_full: If True, force full reindex instead of incremental
         verbose: Whether to print progress messages (default: True)
 
@@ -203,21 +250,51 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
         Exception: If indexing fails
     """
     try:
-        index_path = get_index_path(repo_path)
-        indexer = ElixirIndexer(verbose=verbose)
+        # Auto-detect language if not specified
+        if language is None:
+            language = detect_project_language(repo_path)
+            if verbose:
+                print(f"Detected {language} project")
 
-        # Use incremental indexing by default (unless force_full is True)
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            force_full=force_full,
-        )
+        index_path = get_index_path(repo_path)
+
+        # Get appropriate indexer for the language
+        if language == "elixir":
+            indexer = ElixirIndexer(verbose=verbose)
+            # Elixir supports incremental indexing
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                force_full=force_full,
+            )
+        elif language == "python":
+            # Lazy import to avoid protobuf version conflicts when not using Python
+            from cicada.languages.python.indexer import PythonSCIPIndexer
+
+            indexer = PythonSCIPIndexer(verbose=verbose)
+            # MVP: Python doesn't support incremental yet, always full index
+            result = indexer.index_repository(
+                repo_path=repo_path,
+                output_path=index_path,
+                force=True,
+                verbose=verbose,
+            )
+            if not result.get("success"):
+                errors = result.get("errors", ["Unknown error"])
+                raise Exception(f"Indexing failed: {'; '.join(errors)}")
+        else:
+            raise ValueError(f"Unsupported language: {language}")
+
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
             print(f"Error: Failed to index repository: {e}")
-            print("Please check that the repository contains valid Elixir files.")
+            if language == "elixir":
+                print("Please check that the repository contains valid Elixir files.")
+            elif language == "python":
+                print("Please check that the repository contains valid Python files.")
+                print("Note: Python indexing requires Node.js and npm.")
         raise
 
 
@@ -249,6 +326,118 @@ def setup_multiple_editors(
         except Exception as e:
             if verbose:
                 print(f"⚠ Error creating {editor.upper()} config: {e}")
+
+
+def ensure_setup(
+    repo_path: Path,
+    editor: EditorType | None = None,
+    extraction_method: str | None = None,
+    expansion_method: str | None = None,
+    interactive: bool = True,
+    silent: bool = False,
+) -> tuple[str, str]:
+    """
+    Ensure the repository is properly set up (unified setup entry point).
+
+    This function provides a single entry point for all commands to ensure
+    a repository is set up with config.yaml and index.json. It handles three modes:
+
+    1. Interactive mode (interactive=True, silent=False):
+       - If config missing and no tier flags: show interactive menus
+       - If config exists: reuse existing settings
+       - Default behavior for `cicada install`
+
+    2. Non-interactive with flags (interactive=True/False, extraction_method provided):
+       - Use provided extraction/expansion methods
+       - Skip interactive menus
+       - Used when tier flags (--fast/--regular/--max) are provided
+
+    3. Silent mode (silent=True):
+       - Auto-use defaults (regular + lemmi)
+       - No output
+       - Used by MCP server background auto-setup
+
+    Args:
+        repo_path: Path to the repository
+        editor: Editor to configure (optional, for setting up MCP config)
+        extraction_method: Keyword extraction method ('regular' or 'bert'), None for auto-detect
+        expansion_method: Expansion method ('lemmi', 'glove', 'fasttext'), None for auto-detect
+        interactive: If True, show menus when settings missing (default: True)
+        silent: If True, use defaults and suppress output (default: False, for MCP server only)
+
+    Returns:
+        tuple[str, str]: Final (extraction_method, expansion_method) used
+
+    Raises:
+        SystemExit: If config missing, no flags provided, and not interactive/silent mode
+
+    Examples:
+        # Interactive setup (shows menus if needed)
+        ensure_setup(repo_path, editor="claude", interactive=True)
+
+        # With tier flags (no menus)
+        ensure_setup(repo_path, editor="claude", extraction_method="regular", expansion_method="lemmi")
+
+        # Silent mode (MCP server)
+        ensure_setup(repo_path, silent=True)
+    """
+    config_path = get_config_path(repo_path)
+    index_path = get_index_path(repo_path)
+
+    # Check if config and index already exist
+    if config_path.exists() and index_path.exists():
+        # Config exists - read and return existing settings
+        import yaml
+
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                existing_extraction = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                existing_expansion = existing_config.get("keyword_expansion", {}).get(
+                    "method", "lemmi"
+                )
+
+            # If tier flags provided and different from existing, validate they match
+            # (setup() will handle the reindex confirmation prompt)
+            if extraction_method and expansion_method:
+                # Caller provided explicit settings - return those (setup will handle validation)
+                return (extraction_method, expansion_method)
+
+            # No tier flags - reuse existing settings
+            return (existing_extraction, existing_expansion)
+        except Exception as e:
+            if not silent:
+                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+            # Fall through to setup with provided or default settings
+
+    # Config doesn't exist - need to set up
+    # Determine extraction and expansion methods
+    if extraction_method and expansion_method:
+        # Explicit settings provided (from tier flags) - use them
+        return (extraction_method, expansion_method)
+    elif silent:
+        # Silent mode - use defaults
+        return ("regular", "lemmi")
+    elif interactive:
+        # Interactive mode - show menus
+        from cicada.interactive_setup import show_first_time_setup
+
+        extraction, expansion = show_first_time_setup()
+        return (extraction, expansion)
+    else:
+        # Non-interactive, no flags, not silent - error
+        print("Error: No tier specified.", file=sys.stderr)
+        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+        print(
+            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+            file=sys.stderr,
+        )
+        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+        print("\nRun 'cicada --help' for more information.", file=sys.stderr)
+        sys.exit(2)
 
 
 def update_claude_md(repo_path: Path) -> None:
@@ -359,6 +548,13 @@ def setup(
         repo_path = Path.cwd()
     repo_path = repo_path.resolve()
 
+    # Detect language
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
@@ -367,6 +563,7 @@ def setup(
         # Determine method for display
         display_extraction = extraction_method if extraction_method else "regular"
         display_expansion = expansion_method if expansion_method else "lemmi"
+        print(f"Detected {language} project")
         print(
             f"✓ Found existing index ({display_extraction.upper()} + {display_expansion.upper()})"
         )
@@ -375,7 +572,12 @@ def setup(
         force_full = False
         # Ensure config.yaml is up to date with current settings
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
     else:
         # Show full banner for new setup
@@ -383,6 +585,7 @@ def setup(
         print(f"Cicada Setup for {editor.upper()}")
         print("=" * 60)
         print()
+        print(f"Detected language: {language}")
         print(f"Repository: {repo_path}")
         print(f"Storage: {storage_dir}")
         print()
@@ -452,12 +655,17 @@ def setup(
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
 
         # Index repository if needed
         if should_index:
-            index_repository(repo_path, force_full=force_full)
+            index_repository(repo_path, language=language, force_full=force_full)
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
@@ -539,10 +747,11 @@ def main():
         print(f"Error: Path is not a directory: {repo_path}")
         sys.exit(1)
 
-    # Check if it's an Elixir repository
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project")
-        print("(mix.exs not found)")
+    # Check if it's an Elixir or Python repository
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
     # Run setup

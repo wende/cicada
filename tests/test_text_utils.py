@@ -1,7 +1,5 @@
 """Tests for text utility functions."""
 
-import pytest
-
 from cicada.utils.text_utils import split_camel_snake_case, split_identifier
 
 

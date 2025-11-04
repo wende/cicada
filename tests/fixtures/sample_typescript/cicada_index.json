@@ -1,0 +1,104 @@
+{
+  "modules": {
+    "Calculator": {
+      "file": "calculator.ts",
+      "line": 3,
+      "functions": [
+        {
+          "name": "`<constructor>`",
+          "arity": 1,
+          "args": [
+            "initialValue"
+          ],
+          "type": "public",
+          "line": 11,
+          "signature": "",
+          "doc": "```ts\nconstructor(initialValue?: number): Calculator\n```\nA simple calculator that performs basic arithmetic operations."
+        },
+        {
+          "name": "add",
+          "arity": 2,
+          "args": [
+            "x",
+            "y"
+          ],
+          "type": "public",
+          "line": 22,
+          "signature": "",
+          "doc": "```ts\n(method) add(x: number, y: number): number\n```\nAdd two numbers."
+        },
+        {
+          "name": "multiply",
+          "arity": 2,
+          "args": [
+            "x",
+            "y"
+          ],
+          "type": "public",
+          "line": 33,
+          "signature": "",
+          "doc": "```ts\n(method) multiply(x: number, y: number): number\n```\nMultiply two numbers."
+        },
+        {
+          "name": "_privateMethod",
+          "arity": 0,
+          "args": [],
+          "type": "private",
+          "line": 40,
+          "signature": "",
+          "doc": "```ts\n(method) _privateMethod(): string\n```\nPrivate method (should be marked as private in index)."
+        }
+      ],
+      "calls": [],
+      "dependencies": [],
+      "moduledoc": "```ts\nclass Calculator\n```\nA simple calculator that performs basic arithmetic operations.",
+      "total_functions": 4,
+      "public_functions": 3,
+      "private_functions": 1
+    },
+    "_file_calculator": {
+      "file": "calculator.ts",
+      "line": 1,
+      "functions": [
+        {
+          "name": "helperFunction",
+          "arity": 1,
+          "args": [
+            "data"
+          ],
+          "type": "public",
+          "line": 51,
+          "signature": "",
+          "doc": "```ts\nfunction helperFunction(data: any[]): number\n```\nTop-level function to process data."
+        },
+        {
+          "name": "_privateFunction",
+          "arity": 0,
+          "args": [],
+          "type": "private",
+          "line": 58,
+          "signature": "",
+          "doc": "```ts\nfunction _privateFunction(): void\n```\nPrivate function (not exported)."
+        }
+      ],
+      "calls": [],
+      "dependencies": [],
+      "total_functions": 2,
+      "public_functions": 1,
+      "private_functions": 1
+    }
+  },
+  "metadata": {
+    "indexed_at": "2025-11-02T20:17:33.702708",
+    "language": "python",
+    "version": "2.0",
+    "repo_path": "tests/fixtures/sample_typescript",
+    "total_modules": 2,
+    "total_functions": 6,
+    "scip_version": 0,
+    "tool_info": {
+      "name": "scip-typescript",
+      "version": "0.4.0"
+    }
+  }
+}

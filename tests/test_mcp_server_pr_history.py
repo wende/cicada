@@ -38,6 +38,7 @@ class TestFindPRForLine:
             json.dump(pr_index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -56,6 +57,7 @@ class TestFindPRForLine:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -100,6 +102,7 @@ class TestGetFunctionBlame:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": "/tmp"},
             "storage": {"index_path": str(index_path)},
         }
@@ -125,6 +128,7 @@ class TestGetFunctionBlame:
 
         (tmp_path / ".git").mkdir()
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -195,6 +199,7 @@ class TestGetFilePRHistory:
             json.dump(pr_index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -213,6 +218,7 @@ class TestGetFilePRHistory:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -273,6 +279,7 @@ class TestExtractCompleteCall:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -337,6 +344,7 @@ class TestGetCommitHistoryWithEvolution:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -442,6 +450,7 @@ class TestFindPRForLineNetworkFallback:
             json.dump(pr_index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
