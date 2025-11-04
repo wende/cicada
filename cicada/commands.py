@@ -406,6 +406,7 @@ def handle_editor_setup(args, editor: str):
     # Validate project type and show detected language
     try:
         language = detect_project_language(repo_path)
+        # Print provides user feedback about detected language (variable used for output only)
         print(f"Detected {language} project")
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -527,7 +528,7 @@ def handle_index_main(args):
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     # Check if user is trying to change existing settings (error out if they are)
-    if extraction_method is not None and config_path.exists():
+    if (extraction_method is not None or expansion_method is not None) and config_path.exists():
         import yaml
 
         try:
@@ -760,6 +761,7 @@ def handle_install(args):
     # Validate project type and show detected language
     try:
         language = detect_project_language(repo_path)
+        # Print provides user feedback about detected language (variable used for output only)
         print(f"Detected {language} project")
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)

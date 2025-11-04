@@ -414,18 +414,22 @@ def ensure_setup(
 
     # Config doesn't exist - need to set up
     # Determine extraction and expansion methods
+    final_extraction: str
+    final_expansion: str
+
     if extraction_method and expansion_method:
         # Explicit settings provided (from tier flags) - use them
-        return (extraction_method, expansion_method)
+        final_extraction = extraction_method
+        final_expansion = expansion_method
     elif silent:
         # Silent mode - use defaults
-        return ("regular", "lemmi")
+        final_extraction = "regular"
+        final_expansion = "lemmi"
     elif interactive:
         # Interactive mode - show menus
         from cicada.interactive_setup import show_first_time_setup
 
-        extraction, expansion = show_first_time_setup()
-        return (extraction, expansion)
+        final_extraction, final_expansion = show_first_time_setup()
     else:
         # Non-interactive, no flags, not silent - error
         print("Error: No tier specified.", file=sys.stderr)
@@ -438,6 +442,25 @@ def ensure_setup(
         print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
         print("\nRun 'cicada --help' for more information.", file=sys.stderr)
         sys.exit(2)
+
+    # Create config file before returning (ensure config exists as promised by function name)
+    storage_dir = create_storage_dir(repo_path)
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError:
+        # If language detection fails, let create_config_yaml handle it
+        language = None
+
+    create_config_yaml(
+        repo_path,
+        storage_dir,
+        language=language,
+        extraction_method=final_extraction,
+        expansion_method=final_expansion,
+        verbose=not silent,
+    )
+
+    return (final_extraction, final_expansion)
 
 
 def update_claude_md(repo_path: Path) -> None:
