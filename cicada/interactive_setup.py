@@ -341,17 +341,10 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     if config_path.exists() and index_path.exists():
         # Index exists - use existing settings, don't show model selection
-        import yaml
+        from cicada.utils import read_keyword_extraction_config
 
         try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
+            extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
 
             # Run setup with existing settings
             try:

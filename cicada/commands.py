@@ -416,17 +416,10 @@ def handle_editor_setup(args, editor: str):
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     if extraction_method is None and config_path.exists() and index_path.exists():
-        import yaml
+        from cicada.utils import read_keyword_extraction_config
 
         try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
+            extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
         except Exception as e:
             print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
     try:
@@ -521,44 +514,39 @@ def handle_index_main(args):
         from cicada.setup import create_config_yaml
 
         if config_path.exists():
-            import yaml
+            from cicada.utils import read_keyword_extraction_config
 
             try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
-                    )
-                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
-                    )
+                existing_extraction, existing_expansion = read_keyword_extraction_config(
+                    repo_path_obj
+                )
 
-                    extraction_changed = existing_extraction != extraction_method
-                    expansion_changed = existing_expansion != expansion_method
+                extraction_changed = existing_extraction != extraction_method
+                expansion_changed = existing_expansion != expansion_method
 
-                    if extraction_changed or expansion_changed:
-                        if extraction_changed and expansion_changed:
-                            change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-                        elif extraction_changed:
-                            change_desc = (
-                                f"extraction from {existing_extraction} to {extraction_method}"
-                            )
-                        else:
-                            change_desc = (
-                                f"expansion from {existing_expansion} to {expansion_method}"
-                            )
-
-                        print(
-                            f"Error: Cannot change {change_desc}",
-                            file=sys.stderr,
+                if extraction_changed or expansion_changed:
+                    if extraction_changed and expansion_changed:
+                        change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
+                    elif extraction_changed:
+                        change_desc = (
+                            f"extraction from {existing_extraction} to {extraction_method}"
                         )
-                        print(
-                            "\nTo reindex with different settings, first run:",
-                            file=sys.stderr,
+                    else:
+                        change_desc = (
+                            f"expansion from {existing_expansion} to {expansion_method}"
                         )
-                        print("  cicada clean", file=sys.stderr)
-                        print("\nThen run your index command again.", file=sys.stderr)
-                        sys.exit(1)
+
+                    print(
+                        f"Error: Cannot change {change_desc}",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "\nTo reindex with different settings, first run:",
+                        file=sys.stderr,
+                    )
+                    print("  cicada clean", file=sys.stderr)
+                    print("\nThen run your index command again.", file=sys.stderr)
+                    sys.exit(1)
             except Exception as e:
                 print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
 
@@ -795,17 +783,10 @@ def handle_install(args):
 
     # If index exists but no model flags, use existing settings
     if extraction_method is None and index_exists:
-        import yaml
+        from cicada.utils import read_keyword_extraction_config
 
         try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
+            extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
         except Exception as e:
             print(f"Warning: Could not load existing config, using defaults: {e}", file=sys.stderr)
 

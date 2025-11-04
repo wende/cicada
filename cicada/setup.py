@@ -394,58 +394,51 @@ def setup(
         force_full = False
 
         if config_path.exists() and index_path.exists():
-            import yaml
+            from cicada.utils import read_keyword_extraction_config
 
             try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
+                existing_extraction, existing_expansion = read_keyword_extraction_config(repo_path)
+
+                # Determine new methods (default to regular + lemmi if not specified)
+                new_extraction = extraction_method if extraction_method else "regular"
+                new_expansion = expansion_method if expansion_method else "lemmi"
+
+                # Check if settings changed
+                settings_changed = (existing_extraction != new_extraction) or (
+                    existing_expansion != new_expansion
+                )
+
+                if settings_changed:
+                    print("=" * 60)
+                    print("⚠️  WARNING: Index Already Exists")
+                    print("=" * 60)
+                    print()
+                    print(
+                        f"This repository already has an index with {existing_extraction.upper()} + {existing_expansion.upper()}."
                     )
-                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
+                    print(
+                        f"You are now switching to {new_extraction.upper()} + {new_expansion.upper()}."
                     )
-
-                    # Determine new methods (default to regular + lemmi if not specified)
-                    new_extraction = extraction_method if extraction_method else "regular"
-                    new_expansion = expansion_method if expansion_method else "lemmi"
-
-                    # Check if settings changed
-                    settings_changed = (existing_extraction != new_extraction) or (
-                        existing_expansion != new_expansion
+                    print()
+                    print(
+                        "This will require reindexing the ENTIRE codebase, which may take several minutes."
                     )
+                    print()
 
-                    if settings_changed:
-                        print("=" * 60)
-                        print("⚠️  WARNING: Index Already Exists")
-                        print("=" * 60)
-                        print()
-                        print(
-                            f"This repository already has an index with {existing_extraction.upper()} + {existing_expansion.upper()}."
-                        )
-                        print(
-                            f"You are now switching to {new_extraction.upper()} + {new_expansion.upper()}."
-                        )
-                        print()
-                        print(
-                            "This will require reindexing the ENTIRE codebase, which may take several minutes."
-                        )
-                        print()
-
-                        # Ask for confirmation
-                        response = input("Do you want to continue? [y/N]: ").strip().lower()
-                        if response not in ("y", "yes"):
-                            print("\nSetup cancelled.")
-                            sys.exit(0)
-                        print()
-                        force_full = True  # Force full reindex when settings change
-                    else:
-                        # Settings unchanged - just use existing index
-                        print(
-                            f"✓ Using existing index ({existing_extraction.upper()} + {existing_expansion.upper()})"
-                        )
-                        print()
-                        should_index = False
+                    # Ask for confirmation
+                    response = input("Do you want to continue? [y/N]: ").strip().lower()
+                    if response not in ("y", "yes"):
+                        print("\nSetup cancelled.")
+                        sys.exit(0)
+                    print()
+                    force_full = True  # Force full reindex when settings change
+                else:
+                    # Settings unchanged - just use existing index
+                    print(
+                        f"✓ Using existing index ({existing_extraction.upper()} + {existing_expansion.upper()})"
+                    )
+                    print()
+                    should_index = False
             except Exception:
                 # If we can't read the config, just proceed with indexing
                 pass

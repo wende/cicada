@@ -6,6 +6,7 @@ code duplication and improve maintainability.
 """
 
 from .call_site_formatter import CallSiteFormatter
+from .config_utils import read_keyword_extraction_config
 from .function_grouper import FunctionGrouper
 from .index_utils import (
     load_index,
@@ -54,4 +55,5 @@ __all__ = [
     "get_pr_index_path",
     "extract_text_from_node",
     "is_function_definition_call",
+    "read_keyword_extraction_config",
 ]
