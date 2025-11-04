@@ -424,14 +424,8 @@ def ensure_setup(
         # Interactive mode - show menus
         from cicada.interactive_setup import show_first_time_setup
 
-        if editor is None:
-            # Just return the methods - caller will handle editor selection
-            extraction, expansion = show_first_time_setup()
-            return (extraction, expansion)
-        else:
-            # Full setup with editor already known
-            extraction, expansion = show_first_time_setup()
-            return (extraction, expansion)
+        extraction, expansion = show_first_time_setup()
+        return (extraction, expansion)
     else:
         # Non-interactive, no flags, not silent - error
         print("Error: No tier specified.", file=sys.stderr)
