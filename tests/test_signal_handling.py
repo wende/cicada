@@ -4,7 +4,7 @@ Tests for signal handling in indexer.
 
 import signal
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 
 
 def test_graceful_interrupt_sets_flag(tmp_path):

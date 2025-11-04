@@ -19,6 +19,7 @@ async def test_test_files_filter(tmp_path):
     """Test the test_files_only parameter in search_function."""
     # Load test index
     import json
+
     import yaml
 
     with open("data/test_index.json") as f:
@@ -30,6 +31,7 @@ async def test_test_files_filter(tmp_path):
         json.dump(test_index, f)
 
     config = {
+        "language": "elixir",
         "repository": {"path": str(tmp_path)},
         "storage": {"index_path": str(index_path)},
     }

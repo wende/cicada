@@ -22,9 +22,9 @@ fi
 # Generate index for test fixtures
 echo "Generating index for $FIXTURE_DIR..."
 if command -v uv >/dev/null 2>&1; then
-    uv run python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json
+    uv run python -m cicada.languages.elixir.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --full
 else
-    python -m cicada.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json
+    python -m cicada.languages.elixir.indexer "$FIXTURE_DIR" --output tests/fixtures/.cicada/index.json --full
 fi
 echo "✓ Test fixtures generated successfully"
 
@@ -32,10 +32,16 @@ echo "✓ Test fixtures generated successfully"
 echo "Creating config for test fixtures..."
 mkdir -p tests/fixtures/.cicada
 cat > tests/fixtures/.cicada/config.yaml << EOF
+language: elixir
+
 repository:
   path: $FIXTURE_DIR
 
 storage:
   index_path: tests/fixtures/.cicada/index.json
+
+keyword_extraction:
+  method: lemminflect
+  tier: regular
 EOF
 echo "✓ Config created for test fixtures"

@@ -56,13 +56,15 @@ class KeywordSearcher:
         if not module_data.get("keywords"):
             return None
 
-        # Keywords can be either dict {word: score} or list [words]
-        # If list, convert to dict with uniform scores
+        # Keywords must be a dict {word: score}
         keywords_dict = module_data["keywords"]
-        if isinstance(keywords_dict, list):
-            keywords_dict = {kw.lower(): 1.0 for kw in keywords_dict}
-        else:
-            keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
+        if not isinstance(keywords_dict, dict):
+            raise TypeError(
+                f"Module '{module_name}' has keywords as {type(keywords_dict).__name__}, "
+                f"expected dict with scores. Keywords: {keywords_dict}"
+            )
+
+        keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
 
         return {
             "type": "module",
@@ -81,13 +83,15 @@ class KeywordSearcher:
         if not func.get("keywords"):
             return None
 
-        # Keywords can be either dict {word: score} or list [words]
-        # If list, convert to dict with uniform scores
+        # Keywords must be a dict {word: score}
         keywords_dict = func["keywords"]
-        if isinstance(keywords_dict, list):
-            keywords_dict = {kw.lower(): 1.0 for kw in keywords_dict}
-        else:
-            keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
+        if not isinstance(keywords_dict, dict):
+            raise TypeError(
+                f"Function '{module_name}.{func['name']}/{func['arity']}' has keywords as {type(keywords_dict).__name__}, "
+                f"expected dict with scores. Keywords: {keywords_dict}"
+            )
+
+        keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
 
         full_name = f"{module_name}.{func['name']}/{func['arity']}"
 

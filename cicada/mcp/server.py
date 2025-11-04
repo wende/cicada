@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
-Cicada MCP Server - Elixir Module Search.
+Cicada MCP Server - Multi-Language Code Search.
 
-Provides an MCP tool to search for Elixir modules and their functions.
+Provides MCP tools to search for modules, functions, and code across
+multiple programming languages (currently Elixir, with Python planned).
 
 Author: Cursor(Auto)
 """
@@ -14,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-import yaml
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
@@ -28,7 +28,7 @@ from cicada.utils import get_config_path, get_pr_index_path, load_index
 
 
 class CicadaServer:
-    """MCP server for Elixir module search."""
+    """MCP server for multi-language code search and analysis."""
 
     def __init__(self, config_path: str | None = None):
         """
@@ -103,7 +103,9 @@ class CicadaServer:
         return str(config_path)
 
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration from YAML file."""
+        """Load and validate configuration from YAML file."""
+        from cicada.utils.config import load_config
+
         config_file = Path(config_path)
         if not config_file.exists():
             raise FileNotFoundError(
@@ -114,9 +116,9 @@ class CicadaServer:
                 f"  cicada vs      # For VS Code"
             )
 
-        with open(config_file) as f:
-            data = yaml.safe_load(f)
-            return data if isinstance(data, dict) else {}
+        # Use centralized config module for validation
+        config = load_config(config_file)
+        return config.data
 
     def _load_index(self) -> dict[str, Any]:
         """Load the index from JSON file."""
@@ -1366,7 +1368,7 @@ def _auto_setup_if_needed():
     This enables zero-config MCP usage - just point the MCP config to cicada-server
     and it will index the repository on first run.
     """
-    from cicada.setup import create_config_yaml, index_repository
+    from cicada.setup import create_config_yaml, detect_project_language, index_repository
     from cicada.utils import (
         create_storage_dir,
         get_config_path,
@@ -1399,13 +1401,11 @@ def _auto_setup_if_needed():
         # Already set up, nothing to do
         return
 
-    # Setup needed - create storage and index (silent mode)
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
+    # Setup needed - detect language and create storage/index (silent mode)
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -1413,10 +1413,10 @@ def _auto_setup_if_needed():
         storage_dir = create_storage_dir(repo_path)
 
         # Index repository (silent mode)
-        index_repository(repo_path, verbose=False)
+        index_repository(repo_path, language=language, verbose=False)
 
         # Create config.yaml (silent mode)
-        create_config_yaml(repo_path, storage_dir, verbose=False)
+        create_config_yaml(repo_path, storage_dir, language=language, verbose=False)
 
     except Exception as e:
         print(f"Cicada auto-setup error: {e}", file=sys.stderr)
