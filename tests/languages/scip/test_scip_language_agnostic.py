@@ -46,9 +46,7 @@ def typescript_calculator_index(fixtures_dir):
 class TestLanguageAgnosticStructure:
     """Test that Python and TypeScript produce identical index structures."""
 
-    def test_top_level_keys_identical(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_top_level_keys_identical(self, python_calculator_index, typescript_calculator_index):
         """Test that top-level index structure is identical across languages."""
         python_keys = set(python_calculator_index.keys())
         typescript_keys = set(typescript_calculator_index.keys())
@@ -65,9 +63,7 @@ class TestLanguageAgnosticStructure:
         assert "modules" in python_keys
         assert "metadata" in python_keys
 
-    def test_module_structure_identical(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_module_structure_identical(self, python_calculator_index, typescript_calculator_index):
         """Test that module dictionaries have identical field structures."""
         # Both should have Calculator class
         assert "Calculator" in python_calculator_index["modules"]
@@ -83,8 +79,12 @@ class TestLanguageAgnosticStructure:
         # Core fields must be identical
         core_fields = {"file", "line", "functions"}
 
-        assert core_fields.issubset(py_fields), f"Python missing core fields: {core_fields - py_fields}"
-        assert core_fields.issubset(ts_fields), f"TypeScript missing core fields: {core_fields - ts_fields}"
+        assert core_fields.issubset(
+            py_fields
+        ), f"Python missing core fields: {core_fields - py_fields}"
+        assert core_fields.issubset(
+            ts_fields
+        ), f"TypeScript missing core fields: {core_fields - ts_fields}"
 
         # Optional fields should be consistent (if one has it, other should too)
         optional_fields = {"moduledoc", "keywords", "dependencies", "calls"}
@@ -162,9 +162,7 @@ class TestLanguageAgnosticStructure:
 class TestLanguageAgnosticTypes:
     """Test that field types are identical across languages."""
 
-    def test_function_type_field_values(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_function_type_field_values(self, python_calculator_index, typescript_calculator_index):
         """Test that 'type' field uses same values (public/private) for both languages."""
         py_calc = python_calculator_index["modules"]["Calculator"]
         ts_calc = typescript_calculator_index["modules"]["Calculator"]
@@ -200,9 +198,7 @@ class TestLanguageAgnosticTypes:
             forbidden_types
         ), f"TypeScript leaking Elixir types: {ts_types & forbidden_types}"
 
-    def test_arity_field_type(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_arity_field_type(self, python_calculator_index, typescript_calculator_index):
         """Test that arity is always an integer in both languages."""
         py_calc = python_calculator_index["modules"]["Calculator"]
         ts_calc = typescript_calculator_index["modules"]["Calculator"]
@@ -221,9 +217,7 @@ class TestLanguageAgnosticTypes:
                 func["arity"], int
             ), f"TypeScript function {func['name']} has non-int arity: {type(func['arity'])}"
 
-    def test_line_numbers_type(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_line_numbers_type(self, python_calculator_index, typescript_calculator_index):
         """Test that line numbers are always integers in both languages."""
         # Check Python
         for module_name, module_data in python_calculator_index["modules"].items():
@@ -303,12 +297,8 @@ class TestLanguageAgnosticBehavior:
         ts_calc = typescript_calculator_index["modules"]["Calculator"]
 
         # Both should have signatures
-        py_with_sig = [
-            f for f in py_calc["functions"] if "signature" in f and f["signature"]
-        ]
-        ts_with_sig = [
-            f for f in ts_calc["functions"] if "signature" in f and f["signature"]
-        ]
+        py_with_sig = [f for f in py_calc["functions"] if "signature" in f and f["signature"]]
+        ts_with_sig = [f for f in ts_calc["functions"] if "signature" in f and f["signature"]]
 
         assert len(py_with_sig) > 0, "Python should have function signatures"
         assert len(ts_with_sig) > 0, "TypeScript should have function signatures"
@@ -356,9 +346,7 @@ class TestNoLanguageLeakage:
         for module_name, module_data in typescript_calculator_index["modules"].items():
             module_fields = set(module_data.keys())
             leaked = module_fields.intersection(forbidden_fields)
-            assert (
-                not leaked
-            ), f"TypeScript module {module_name} has Elixir fields: {leaked}"
+            assert not leaked, f"TypeScript module {module_name} has Elixir fields: {leaked}"
 
     def test_no_python_concepts_in_typescript(self, typescript_calculator_index):
         """Test that TypeScript doesn't get Python-specific fields."""
@@ -445,16 +433,12 @@ class TestIdempotency:
 class TestCrossLanguageComparison:
     """Test specific Calculator implementations match across languages."""
 
-    def test_both_have_calculator_class(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_both_have_calculator_class(self, python_calculator_index, typescript_calculator_index):
         """Test that both languages successfully index the Calculator class."""
         assert "Calculator" in python_calculator_index["modules"]
         assert "Calculator" in typescript_calculator_index["modules"]
 
-    def test_both_have_add_method(
-        self, python_calculator_index, typescript_calculator_index
-    ):
+    def test_both_have_add_method(self, python_calculator_index, typescript_calculator_index):
         """Test that both have add() method."""
         py_calc = python_calculator_index["modules"]["Calculator"]
         ts_calc = typescript_calculator_index["modules"]["Calculator"]
@@ -480,7 +464,5 @@ class TestCrossLanguageComparison:
 
         # TypeScript has constructor or `<constructor>`
         ts_funcs = {f["name"] for f in ts_calc["functions"]}
-        has_constructor = any(
-            "constructor" in name.lower() for name in ts_funcs
-        )
+        has_constructor = any("constructor" in name.lower() for name in ts_funcs)
         assert has_constructor, f"TypeScript should have constructor, got: {ts_funcs}"

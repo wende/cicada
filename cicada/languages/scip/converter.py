@@ -17,7 +17,11 @@ class SCIPConverter:
     """Convert SCIP Index to Cicada's UniversalIndexSchema."""
 
     def __init__(
-        self, extract_keywords: bool = False, keyword_extractor=None, verbose: bool = False
+        self,
+        extract_keywords: bool = False,
+        keyword_extractor=None,
+        extract_references: bool = True,
+        verbose: bool = False,
     ):
         """
         Initialize SCIP converter.
@@ -25,10 +29,12 @@ class SCIPConverter:
         Args:
             extract_keywords: If True, extract keywords from documentation
             keyword_extractor: Keyword extractor instance (LightweightKeywordExtractor or KeyBERTExtractor)
+            extract_references: If True, extract call sites and references from SCIP occurrences (default: True)
             verbose: If True, print progress messages
         """
         self.extract_keywords = extract_keywords
         self.keyword_extractor = keyword_extractor
+        self.extract_references = extract_references
         self.verbose = verbose
 
     def convert(self, scip_index: scip_pb2.Index, repo_path: Path) -> dict:
@@ -131,6 +137,11 @@ class SCIPConverter:
         modules = {}
         file_path = doc.relative_path
 
+        # Extract call sites if enabled
+        call_sites_by_function = {}
+        if self.extract_references:
+            call_sites_by_function = self._extract_call_sites(doc)
+
         # Separate symbols by type
         classes = []
         functions = []
@@ -161,10 +172,11 @@ class SCIPConverter:
                 "file": file_path,
                 "line": self._get_definition_line(class_info.symbol, doc),
                 "functions": [
-                    self._convert_function(method, doc, symbol_map) for method in class_methods
+                    self._convert_function(method, doc, symbol_map, call_sites_by_function)
+                    for method in class_methods
                 ],
-                "calls": [],  # MVP: Skip call extraction
-                "dependencies": [],  # MVP: Skip dependency extraction
+                "calls": [],  # Module-level calls (not extracted yet)
+                "dependencies": [],  # Module-level dependencies (not extracted yet)
             }
 
             # Add documentation if available
@@ -208,9 +220,12 @@ class SCIPConverter:
             module_data = {
                 "file": file_path,
                 "line": 1,
-                "functions": [self._convert_function(func, doc, symbol_map) for func in functions],
-                "calls": [],
-                "dependencies": [],
+                "functions": [
+                    self._convert_function(func, doc, symbol_map, call_sites_by_function)
+                    for func in functions
+                ],
+                "calls": [],  # Module-level calls (not extracted yet)
+                "dependencies": [],  # Module-level dependencies (not extracted yet)
                 "total_functions": len(functions),
                 "public_functions": sum(1 for f in functions if not self._is_private(f.symbol)),
                 "private_functions": sum(1 for f in functions if self._is_private(f.symbol)),
@@ -255,8 +270,12 @@ class SCIPConverter:
         return "", full_doc.strip()
 
     def _convert_function(
-        self, symbol_info: scip_pb2.SymbolInformation, doc, symbol_map: dict
-    ) -> dict:
+        self,
+        symbol_info: scip_pb2.SymbolInformation,
+        doc,
+        symbol_map: dict,
+        call_sites: dict[str, list[dict]] | None = None,
+    ) -> dict[str, Any]:
         """
         Convert SymbolInformation to FunctionData dict.
 
@@ -264,6 +283,7 @@ class SCIPConverter:
             symbol_info: SCIP SymbolInformation for function/method
             doc: Parent document
             symbol_map: Symbol lookup map for finding parameters
+            call_sites: Dict mapping function symbol to list of call sites
 
         Returns:
             FunctionData dict
@@ -275,13 +295,19 @@ class SCIPConverter:
         # Parse signature and docstring from documentation
         signature, docstring = self._parse_signature_and_doc(list(symbol_info.documentation))
 
-        func_data = {
+        func_data: dict[str, Any] = {
             "name": name,
             "arity": len(args),
             "args": args,
             "type": "private" if is_private else "public",
             "line": self._get_definition_line(symbol_info.symbol, doc),
         }
+
+        # Add call sites if available
+        if call_sites and symbol_info.symbol in call_sites:
+            func_data["calls"] = call_sites[symbol_info.symbol]
+        else:
+            func_data["calls"] = []
 
         # Add signature if extracted
         if signature:
@@ -428,6 +454,7 @@ class SCIPConverter:
         Find the line number where a symbol is defined.
 
         Searches through document occurrences for the definition.
+        Returns the line number as-is from SCIP.
         """
         for occurrence in doc.occurrences:
             # Check if this is the symbol and it's a definition (symbol_roles is a bitfield)
@@ -437,6 +464,148 @@ class SCIPConverter:
                 return occurrence.range[0] if occurrence.range else 1
 
         return 1  # Fallback to line 1
+
+    def _find_enclosing_function(self, doc: scip_pb2.Document, line: int) -> str | None:
+        """
+        Find which function/method contains the given line number.
+
+        Args:
+            doc: SCIP Document
+            line: Line number to check
+
+        Returns:
+            Symbol of the enclosing function, or None if not in a function
+        """
+        # Build a list of function definitions with their ranges
+        function_ranges = []
+
+        for occurrence in doc.occurrences:
+            # Only look at definitions
+            if not (occurrence.symbol_roles & scip_pb2.SymbolRole.Definition):
+                continue
+
+            # Check if this is a function or method
+            symbol_type = self._get_symbol_type(occurrence.symbol)
+            if symbol_type not in ("function", "method"):
+                continue
+
+            # Get the function's range (convert from 0-indexed to 1-indexed)
+            # enclosing_range format: [start_line, start_col, end_line, end_col]
+            if occurrence.enclosing_range and len(occurrence.enclosing_range) >= 3:
+                start_line = occurrence.enclosing_range[0] + 1
+                end_line = occurrence.enclosing_range[2] + 1  # Use index 2, not 1!
+                function_ranges.append((start_line, end_line, occurrence.symbol))
+            elif occurrence.range:
+                # If no enclosing_range, use the definition line as a start point
+                # This is less accurate but better than nothing
+                start_line = occurrence.range[0] + 1
+                # Assume function ends at end of file (we'll refine this later)
+                function_ranges.append((start_line, float("inf"), occurrence.symbol))
+
+        # Find the most specific (smallest) function that contains this line
+        best_match = None
+        best_range_size = float("inf")
+
+        for start, end, symbol in function_ranges:
+            if start <= line <= end:
+                range_size = end - start
+                if range_size < best_range_size:
+                    best_match = symbol
+                    best_range_size = range_size
+
+        return best_match
+
+    def _extract_call_sites(self, doc: scip_pb2.Document) -> dict[str, list[dict]]:
+        """
+        Extract call sites from SCIP occurrences.
+
+        Parses SCIP occurrences with ReadAccess role to find where functions are called.
+        Maps each call back to the function that contains it.
+
+        Args:
+            doc: SCIP Document
+
+        Returns:
+            Dict mapping function symbol → list of call site dicts.
+            Each call site dict contains:
+                - callee: Symbol being called
+                - file: File containing the call
+                - line: Line number of the call
+        """
+        call_sites = {}
+
+        for occurrence in doc.occurrences:
+            # Filter for ReadAccess (0x8) - indicates usage/call
+            # Skip definitions (0x1) and other roles
+            if not (occurrence.symbol_roles & scip_pb2.SymbolRole.ReadAccess):
+                continue
+
+            # Skip if this is also a definition (e.g., function parameter definitions)
+            if occurrence.symbol_roles & scip_pb2.SymbolRole.Definition:
+                continue
+
+            # Only include function/method calls (symbols ending with "().")
+            # This filters out type references (ending with "#"), parameters (ending with ")"),
+            # and module imports (ending with ":")
+            if not occurrence.symbol.endswith("()."):
+                continue
+
+            # Get call location
+            callee_symbol = occurrence.symbol
+            # Convert from 0-indexed to 1-indexed line numbers
+            call_line = (occurrence.range[0] + 1) if occurrence.range else 0
+
+            if call_line == 0:
+                continue  # Skip invalid line numbers
+
+            # Find which function contains this call
+            caller_symbol = self._find_enclosing_function(doc, call_line)
+
+            if not caller_symbol:
+                # Call is at module level (not inside a function)
+                # Skip for now - could track module-level calls in future
+                continue
+
+            # Create call site record
+            call_site = {
+                "callee": callee_symbol,
+                "file": doc.relative_path,
+                "line": call_line,
+            }
+
+            # Add to the caller's call list
+            call_sites.setdefault(caller_symbol, []).append(call_site)
+
+        return call_sites
+
+    def _detect_language(self, scip_index: scip_pb2.Index) -> str:
+        """
+        Detect language from SCIP metadata.
+
+        Args:
+            scip_index: SCIP Index
+
+        Returns:
+            Language name (e.g., "python", "typescript", "go")
+        """
+        # Option 1: Check the first document's language field
+        if scip_index.documents:
+            for doc in scip_index.documents:
+                if doc.language:
+                    return doc.language
+
+        # Option 2: Parse from tool_info name (e.g., "scip-python" → "python")
+        if scip_index.metadata and scip_index.metadata.tool_info:
+            tool_name = scip_index.metadata.tool_info.name
+            if tool_name:
+                # Extract language from tool name
+                # Examples: "scip-python" → "python", "scip-typescript" → "typescript"
+                if tool_name.startswith("scip-"):
+                    return tool_name[5:]  # Remove "scip-" prefix
+                return tool_name
+
+        # Fallback to unknown
+        return "unknown"
 
     def _build_metadata(
         self, scip_index: scip_pb2.Index, repo_path: Path, total_modules: int
@@ -462,7 +631,7 @@ class SCIPConverter:
 
         metadata: dict[str, Any] = {
             "indexed_at": datetime.now().isoformat(),
-            "language": "python",
+            "language": self._detect_language(scip_index),
             "version": "2.0",
             "repo_path": str(repo_path),
             "total_modules": total_modules,

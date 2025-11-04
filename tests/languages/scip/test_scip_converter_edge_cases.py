@@ -285,7 +285,8 @@ class TestSCIPConverterEdgeCases:
         assert metadata["tool_info"]["name"] == ""  # Empty string default
         assert metadata["tool_info"]["version"] == ""
         assert metadata["total_modules"] == 3
-        assert metadata["language"] == "python"
+        # Language is "unknown" when no metadata exists (language-agnostic converter)
+        assert metadata["language"] == "unknown"
 
     def test_convert_function_without_documentation(self, converter):
         """Should handle functions without documentation."""

@@ -1,6 +1,10 @@
 /**
  * A simple calculator that performs basic arithmetic operations.
  */
+
+import * as operations from "./operations";
+import { chainAdd, formatResult } from "./utils";
+
 export class Calculator {
   private value: number;
 
@@ -14,25 +18,56 @@ export class Calculator {
   }
 
   /**
-   * Add two numbers.
+   * Add two numbers using operations module.
    *
    * @param x - First number
    * @param y - Second number
    * @returns Sum of x and y
    */
   add(x: number, y: number): number {
-    return x + y;
+    return operations.add(x, y); // Cross-file call
   }
 
   /**
-   * Multiply two numbers.
+   * Multiply two numbers using operations module.
    *
    * @param x - First number
    * @param y - Second number
    * @returns Product of x and y
    */
   multiply(x: number, y: number): number {
-    return x * y;
+    return operations.multiply(x, y); // Cross-file call
+  }
+
+  /**
+   * Divide x by y.
+   *
+   * @param x - Numerator
+   * @param y - Denominator
+   * @returns Result of division
+   */
+  divide(x: number, y: number): number {
+    return operations.divide(x, y); // Cross-file call
+  }
+
+  /**
+   * Sum a list of numbers using utils module.
+   *
+   * @param numbers - Array of numbers
+   * @returns Sum of all numbers
+   */
+  sumList(numbers: number[]): number {
+    return chainAdd(numbers); // Cross-file call to utils
+  }
+
+  /**
+   * Format a value using utils module.
+   *
+   * @param value - Number to format
+   * @returns Formatted string
+   */
+  formatValue(value: number): string {
+    return formatResult(value); // Cross-file call to utils
   }
 
   /**

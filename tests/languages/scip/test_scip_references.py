@@ -141,10 +141,32 @@ class TestCrossFileReferences:
 
     def test_call_sites_cross_file_references(self, python_index):
         """Test tracking calls from module A to module B."""
-        # Would need a multi-file fixture for this
-        # Test structure is ready for when we add it
+        # Calculator.add() should call operations.add()
+        # This is a cross-file reference
 
-        pytest.skip("Multi-file test fixture not yet created")
+        calc = python_index["modules"].get("Calculator")
+        if not calc:
+            pytest.skip("Calculator module not found")
+
+        # Find add method
+        add_func = None
+        for func in calc.get("functions", []):
+            if func["name"] == "add":
+                add_func = func
+                break
+
+        assert add_func is not None, "Calculator.add() method not found"
+        assert "calls" in add_func, "No calls field in add() method"
+
+        # Should have at least one call to operations.add
+        calls = add_func["calls"]
+        assert len(calls) > 0, "add() should make at least one call"
+
+        # Check that at least one call is to operations module
+        callee_symbols = [c.get("callee", "") for c in calls]
+        assert any(
+            "operations" in sym for sym in callee_symbols
+        ), f"Expected call to operations module, got: {callee_symbols}"
 
     def test_call_sites_filter_by_caller(self, python_index):
         """Test getting all calls FROM a specific function."""

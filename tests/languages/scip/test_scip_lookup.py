@@ -43,7 +43,7 @@ class TestModuleLookup:
         assert result is not None
         assert result["file"].endswith("calculator.py")
         assert "line" in result
-        assert result["line"] == 7  # class Calculator: line
+        assert result["line"] == 11  # class Calculator: line (updated for imports)
 
     def test_lookup_class_by_name(self, python_index):
         """Test finding a class specifically (same as module lookup for SCIP)."""
@@ -200,8 +200,8 @@ class TestLocationLookup:
 
     def test_lookup_by_location(self, python_index):
         """Test reverse lookup: given file/line, find what's defined there."""
-        # Look up line 7 in calculator.py (Calculator class definition)
-        result = lookup_by_location(python_index, "calculator.py", 7)
+        # Look up line 11 in calculator.py (Calculator class definition)
+        result = lookup_by_location(python_index, "calculator.py", 11)
 
         assert result is not None
         assert result["type"] in ["module", "class"]

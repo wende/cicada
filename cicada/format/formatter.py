@@ -37,9 +37,10 @@ class ModuleFormatter:
         Returns:
             Formatted Markdown string
         """
-        # Group functions by type (def = public, defp = private)
-        public_funcs = [f for f in data["functions"] if f["type"] == "def"]
-        private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
+        # Group functions by type (def/public = public, defp/private = private)
+        # Support both Elixir ("def", "defp") and SCIP ("public", "private") formats
+        public_funcs = [f for f in data["functions"] if f["type"] in ("def", "public")]
+        private_funcs = [f for f in data["functions"] if f["type"] in ("defp", "private")]
 
         # Group by name/arity to deduplicate function clauses
         public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
@@ -114,12 +115,13 @@ class ModuleFormatter:
             Formatted JSON string
         """
         # Filter functions based on private_functions parameter
+        # Support both Elixir ("def", "defp") and SCIP ("public", "private") formats
         if private_functions == "exclude":
             # Only public functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "def"]
+            filtered_funcs = [f for f in data["functions"] if f["type"] in ("def", "public")]
         elif private_functions == "only":
             # Only private functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "defp"]
+            filtered_funcs = [f for f in data["functions"] if f["type"] in ("defp", "private")]
         else:  # "include"
             # All functions
             filtered_funcs = data["functions"]
@@ -148,6 +150,25 @@ class ModuleFormatter:
             "functions": functions,
         }
         return json.dumps(result, indent=2)
+
+    @staticmethod
+    def format_module(
+        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
+    ) -> str:
+        """
+        Format module data as Markdown (alias for format_module_markdown).
+
+        This method exists for backward compatibility with code expecting format_module().
+
+        Args:
+            module_name: The name of the module
+            data: The module data dictionary from the index
+            private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+
+        Returns:
+            Formatted Markdown string
+        """
+        return ModuleFormatter.format_module_markdown(module_name, data, private_functions)
 
     @staticmethod
     def format_error_markdown(module_name: str, total_modules: int) -> str:

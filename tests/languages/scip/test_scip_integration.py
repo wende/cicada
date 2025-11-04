@@ -60,7 +60,7 @@ class TestSCIPIntegration:
         assert "file" in calc
         assert calc["file"].endswith("calculator.py")
         assert "line" in calc
-        assert calc["line"] == 7  # Class definition line
+        assert calc["line"] == 11  # Class definition line (updated for imports)
 
         # Verify functions extracted
         assert "functions" in calc
@@ -81,11 +81,13 @@ class TestSCIPIntegration:
         converter = SCIPConverter()
         result = converter.convert(scip_index, repo_path)
 
-        # This should not raise - if it does, schema validation failed
-        validated = UniversalIndexSchema.validate(result, strict=True)
+        # Create schema instance and validate
+        schema = UniversalIndexSchema.from_dict(result)
+        is_valid, errors = schema.validate(strict=True)
 
-        assert validated is not None
-        assert validated["modules"] == result["modules"]
+        # Should be valid with no errors
+        assert is_valid, f"Schema validation failed: {errors}"
+        assert len(errors) == 0
 
     def test_index_preserves_keyword_scores(self, python_scip_index):
         """Test that keyword extraction produces dict with scores, not uniform values."""
@@ -196,7 +198,7 @@ class TestSCIPIntegration:
 
         # Module should have line number
         assert "line" in calc
-        assert calc["line"] == 7  # class Calculator: line
+        assert calc["line"] == 11  # class Calculator: line (updated for imports)
 
         # All functions should have line numbers
         for func in calc["functions"]:
