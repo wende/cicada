@@ -38,14 +38,9 @@ class ElixirFileEventHandler(FileSystemEventHandler):
         """
         super().__init__()
         self.watcher = watcher
-        self.excluded_dirs = {
-            "deps",
-            "_build",
-            "node_modules",
-            ".git",
-            "assets",
-            "priv",
-        }
+        # Reuse excluded_dirs from ElixirIndexer to avoid duplication
+        from cicada.indexer import ElixirIndexer
+        self.excluded_dirs = ElixirIndexer(verbose=False).excluded_dirs
 
     def _is_elixir_file(self, path: str) -> bool:
         """Check if the path is an Elixir source file."""
