@@ -10,6 +10,13 @@ import argparse
 import sys
 from pathlib import Path
 
+# Import tier resolution functions from centralized module
+from cicada.tier import (
+    determine_tier,
+    get_extraction_expansion_methods,
+    validate_tier_flags,
+)
+
 # Default debounce interval for watch mode (in seconds)
 DEFAULT_WATCH_DEBOUNCE = 2.0
 
@@ -592,47 +599,36 @@ def handle_editor_setup(args, editor: str):
 def handle_index_test_mode(args):
     """Handle interactive keyword extraction test mode."""
     from cicada.keyword_test import run_keywords_interactive
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Map tier to extraction method
-    # Note: The tier names here don't match the flag names (legacy behavior)
-    if args.fast:
-        method = "regular"
-        tier = "regular"
-    elif args.max:
-        method = "bert"
-        tier = "max"
-    else:  # --regular or no flag (default to regular)
-        method = "bert"
-        tier = "fast"
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
+
+    # Convert tier to extraction method
+    extraction_method, _ = tier_to_methods(tier_name)
 
     extraction_threshold = getattr(args, "extraction_threshold", None)
-    run_keywords_interactive(method=method, tier=tier, extraction_threshold=extraction_threshold)
+    run_keywords_interactive(
+        method=extraction_method, tier=tier_name, extraction_threshold=extraction_threshold
+    )
 
 
 def handle_index_test_expansion_mode(args):
     """Handle interactive keyword expansion test mode."""
     from cicada.keyword_test import run_expansion_interactive
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Map tier to extraction method and expansion type
-    # Note: The tier names here don't match the flag names (legacy behavior)
-    if args.fast:
-        extraction_method = "regular"
-        extraction_tier = "regular"
-        expansion_type = "lemmi"
-    elif args.max:
-        extraction_method = "bert"
-        extraction_tier = "max"
-        expansion_type = "fasttext"
-    else:  # --regular or no flag (default to regular)
-        extraction_method = "bert"
-        extraction_tier = "fast"
-        expansion_type = "glove"
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
+
+    # Convert tier to extraction method and expansion type
+    extraction_method, expansion_type = tier_to_methods(tier_name)
 
     extraction_threshold = getattr(args, "extraction_threshold", 0.3)
     expansion_threshold = getattr(args, "expansion_threshold", 0.2)
@@ -640,7 +636,7 @@ def handle_index_test_expansion_mode(args):
     run_expansion_interactive(
         expansion_type=expansion_type,
         extraction_method=extraction_method,
-        extraction_tier=extraction_tier,
+        extraction_tier=tier_name,
         extraction_threshold=extraction_threshold,
         expansion_threshold=expansion_threshold,
         min_score=min_score,
