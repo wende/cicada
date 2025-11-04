@@ -13,7 +13,7 @@ class TestTemplateRenderer:
         """Test initialization with a valid language."""
         renderer = TemplateRenderer("python")
         assert renderer.language == "python"
-        assert renderer.template_dir.exists()
+        assert renderer.languages_dir.exists()
 
     def test_init_with_uppercase_language(self):
         """Test that language is normalized to lowercase."""

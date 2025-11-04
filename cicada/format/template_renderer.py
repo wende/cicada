@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class TemplateRenderer:
     """Renders language-specific templates for code formatting.
 
-    This class loads template files from cicada/format/templates/{language}/
+    This class loads template files from cicada/languages/{language}/format/
     and renders them using Python's string.Template for variable substitution.
 
     If a template is not found for the specified language, it falls back to
@@ -22,7 +22,7 @@ class TemplateRenderer:
 
     Attributes:
         language: The programming language (e.g., "python", "elixir")
-        template_dir: Path to the templates directory
+        languages_dir: Path to the languages directory
         _template_cache: Cache of loaded Template objects
 
     Example:
@@ -42,13 +42,14 @@ class TemplateRenderer:
             language: The programming language (e.g., "python", "elixir")
         """
         self.language = language.lower()
-        self.template_dir = Path(__file__).parent / "templates"
+        # Navigate from cicada/format/ to cicada/languages/
+        self.languages_dir = Path(__file__).parent.parent / "languages"
         self._template_cache: dict[str, Template] = {}
 
-        # Validate that the template directory exists
-        if not self.template_dir.exists():
+        # Validate that the languages directory exists
+        if not self.languages_dir.exists():
             logger.warning(
-                f"Template directory not found: {self.template_dir}. "
+                f"Languages directory not found: {self.languages_dir}. "
                 "Templates will not be available."
             )
 
@@ -142,7 +143,7 @@ class TemplateRenderer:
                 f"Template '{template_name}' not found for language '{self.language}' "
                 f"at {template_path}. Falling back to Elixir template."
             )
-            fallback_path = self.template_dir / "elixir" / f"{template_name}.txt"
+            fallback_path = self.languages_dir / "elixir" / "format" / f"{template_name}.txt"
 
             if fallback_path.exists():
                 template_content = fallback_path.read_text()
@@ -167,7 +168,7 @@ class TemplateRenderer:
         Returns:
             Path to the template file
         """
-        return self.template_dir / self.language / f"{template_name}.txt"
+        return self.languages_dir / self.language / "format" / f"{template_name}.txt"
 
     def clear_cache(self):
         """Clear the template cache.
@@ -196,13 +197,13 @@ class TemplateRenderer:
         Returns:
             List of template names (without .txt extension)
         """
-        language_dir = self.template_dir / self.language
+        format_dir = self.languages_dir / self.language / "format"
 
-        if not language_dir.exists():
+        if not format_dir.exists():
             return []
 
         templates = []
-        for template_file in language_dir.glob("*.txt"):
+        for template_file in format_dir.glob("*.txt"):
             templates.append(template_file.stem)
 
         return sorted(templates)

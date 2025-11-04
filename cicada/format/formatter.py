@@ -24,6 +24,32 @@ class ModuleFormatter:
         return CallSiteFormatter.group_by_caller(call_sites)
 
     @staticmethod
+    def _format_doc_preview(doc: str, max_lines: int = 3) -> str:
+        """Extract first N lines of documentation as a preview.
+
+        Args:
+            doc: Full documentation string
+            max_lines: Maximum number of lines to include (default: 3)
+
+        Returns:
+            Formatted doc preview with triple quotes
+        """
+        if not doc:
+            return "*No documentation*"
+
+        doc_lines = doc.strip().split("\n")[:max_lines]
+        if len(doc_lines) == 0:
+            return "*No documentation*"
+
+        # Format with triple quotes
+        formatted = '"""' + "\n" + "\n".join(doc_lines)
+        # Add ellipsis if there are more lines
+        if len(doc.strip().split("\n")) > max_lines:
+            formatted += "\n..."
+        formatted += '\n"""'
+        return formatted
+
+    @staticmethod
     def format_module_markdown(
         module_name: str,
         data: dict[str, Any],
@@ -92,7 +118,16 @@ class ModuleFormatter:
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
                 func_sig = SignatureBuilder.build(func, language=language)
+
+                # Extract first 3 lines of doc as preview
+                doc_preview = ""
+                if func.get("doc"):
+                    doc_lines = func["doc"].strip().split("\n")[:3]
+                    doc_preview = "\n        ".join(doc_lines)  # Indent continuation lines
+
                 lines.append(f"{func['line']:>5}: {func_sig}")
+                if doc_preview:
+                    lines.append(f"        {doc_preview}")
 
         # Show private functions (if private_functions == "include" or "only")
         if private_grouped and private_functions in ["include", "only"]:
@@ -102,7 +137,16 @@ class ModuleFormatter:
                 # Use the first clause for display (they all have same name/arity)
                 func = clauses[0]
                 func_sig = SignatureBuilder.build(func, language=language)
+
+                # Extract first 3 lines of doc as preview
+                doc_preview = ""
+                if func.get("doc"):
+                    doc_lines = func["doc"].strip().split("\n")[:3]
+                    doc_preview = "\n        ".join(doc_lines)  # Indent continuation lines
+
                 lines.append(f"{func['line']:>5}: {func_sig}")
+                if doc_preview:
+                    lines.append(f"        {doc_preview}")
 
         # Check if there are no functions to display based on the filter
         has_functions_to_show = (private_functions != "only" and public_grouped) or (
@@ -567,20 +611,38 @@ No functions matching `{function_name}` were found in the index.
 
             # Skip the section header for single results
             if len(consolidated_results) == 1:
-                lines.extend(
-                    [
-                        f"{file_path}:{func['line']}",
-                        f"{module_name}.{func['name']}/{func['arity']}",
-                        f"Type: {sig}",
-                    ]
+                # Use language-specific template for function entry
+                renderer = TemplateRenderer(language)
+                func_entry = renderer.render(
+                    "function_entry",
+                    file_path=file_path,
+                    line=func["line"],
+                    module_name=module_name,
+                    func_name=func["name"],
+                    arity=func["arity"],
+                    signature=sig,
                 )
+                lines.extend([func_entry])
+
+                # Add doc preview after template
+                if func.get("doc"):
+                    doc_preview = ModuleFormatter._format_doc_preview(func["doc"])
+                    lines.extend(["Documentation: " + doc_preview])
             else:
+                # Use language-specific template for function entry header
+                renderer = TemplateRenderer(language)
+                # For multi-results, show module.func_name format based on language
+                if language == "python":
+                    func_header = f"{module_name}.{func['name']}"
+                else:  # elixir and others
+                    func_header = f"{module_name}.{func['name']}/{func['arity']}"
+
                 lines.extend(
                     [
                         "",
                         "---",
                         "",
-                        f"{module_name}.{func['name']}/{func['arity']}",
+                        func_header,
                     ]
                 )
                 lines.append(f"{file_path}:{func['line']} • {func['type']}")
@@ -650,12 +712,20 @@ No functions matching `{function_name}` were found in the index.
 
         formatted_results = []
         for result in results:
+            # Format full_name based on language
+            if language == "python":
+                full_name = f"{result['module']}.{result['function']['name']}"
+            else:  # elixir and others
+                full_name = (
+                    f"{result['module']}.{result['function']['name']}/{result['function']['arity']}"
+                )
+
             func_entry = {
                 "module": result["module"],
                 "moduledoc": result.get("moduledoc"),
                 "function": result["function"]["name"],
                 "arity": result["function"]["arity"],
-                "full_name": f"{result['module']}.{result['function']['name']}/{result['function']['arity']}",
+                "full_name": full_name,
                 "signature": SignatureBuilder.build(result["function"], language=language),
                 "location": f"{result['file']}:{result['function']['line']}",
                 "type": result["function"]["type"],

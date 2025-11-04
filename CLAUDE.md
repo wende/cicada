@@ -205,7 +205,7 @@ cicada/format/
 ### How It Works
 
 1. **TemplateRenderer** (`cicada/format/template_renderer.py`):
-   - Loads templates from `cicada/format/templates/{language}/`
+   - Loads templates from `cicada/languages/{language}/format/`
    - Uses Python's built-in `string.Template` for variable substitution
    - Caches templates for performance
    - Falls back to Elixir templates if language-specific template not found
@@ -250,7 +250,7 @@ Result: `def create_user(attrs: dict, opts: dict) -> User:`
 
 1. **Create language directory:**
    ```bash
-   mkdir -p cicada/format/templates/typescript
+   mkdir -p cicada/languages/typescript/format
    ```
 
 2. **Create template files** (at minimum: `signature.txt`, `module_header.txt`, `function_entry.txt`)

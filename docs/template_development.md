@@ -12,7 +12,7 @@ Cicada uses a template-based system to format code elements (function signatures
 
 1. **Create the language directory:**
    ```bash
-   mkdir -p cicada/format/templates/typescript
+   mkdir -p cicada/languages/typescript/format
    ```
 
 2. **Create the required template files:**
@@ -317,7 +317,7 @@ function $func_name($args)$return_annotation
 **Error:** `FileNotFoundError: Template 'signature' not found for language 'typescript'`
 
 **Solution:**
-1. Verify the template file exists: `cicada/format/templates/typescript/signature.txt`
+1. Verify the template file exists: `cicada/languages/typescript/format/signature.txt`
 2. Check file permissions (must be readable)
 3. Ensure filename is exactly `signature.txt` (not `Signature.txt` or `signature.txt.template`)
 
@@ -443,6 +443,6 @@ Type: $signature
 
 ## Questions?
 
-- Check existing templates in `cicada/format/templates/`
+- Check existing templates in `cicada/languages/*/format/`
 - Review tests in `tests/format/test_template_renderer.py`
 - See CLAUDE.md for architecture overview
