@@ -127,46 +127,13 @@ class WatchProcessManager:
         try:
             print(f"Stopping watch process (PID: {self.process.pid})...", file=sys.stderr)
 
-            # Platform-aware process termination
-            # Try graceful shutdown first with SIGTERM
-            try:
-                # Use process group termination on Unix-like systems
-                if hasattr(os, "killpg") and hasattr(os, "getpgid"):
-                    try:
-                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-                    except (ProcessLookupError, PermissionError, AttributeError):
-                        # Process already gone, can't signal, or no process group
-                        # Fall back to direct termination
-                        self.process.terminate()
-                else:
-                    # Windows or other platforms without killpg - use direct termination
-                    self.process.terminate()
-            except (ProcessLookupError, PermissionError):
-                # Process already gone or can't signal
-                pass
-
-            # Wait up to 5 seconds for graceful shutdown
-            try:
-                self.process.wait(timeout=5)
+            # Try graceful termination first (SIGTERM)
+            if self._terminate_process(signal.SIGTERM):
                 print("Watch process stopped gracefully", file=sys.stderr)
-            except subprocess.TimeoutExpired:
-                # Force kill if it doesn't stop gracefully
+            else:
+                # Force kill if graceful termination timed out (SIGKILL)
                 print("Watch process didn't stop gracefully, forcing...", file=sys.stderr)
-                try:
-                    # Try process group kill first on Unix-like systems
-                    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
-                        try:
-                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-                        except (ProcessLookupError, PermissionError, AttributeError):
-                            # Fall back to direct kill
-                            self.process.kill()
-                    else:
-                        # Windows or other platforms
-                        self.process.kill()
-                except (ProcessLookupError, PermissionError):
-                    # Process already gone
-                    pass
-                self.process.wait()
+                self._terminate_process(signal.SIGKILL, force=True)
                 print("Watch process killed", file=sys.stderr)
 
         except Exception as e:
@@ -174,6 +141,56 @@ class WatchProcessManager:
             print(f"Error stopping watch process: {e}", file=sys.stderr)
         finally:
             self.process = None
+
+    def _terminate_process(self, sig: signal.Signals, force: bool = False) -> bool:
+        """
+        Terminate the process using the specified signal.
+
+        This method handles platform differences (Unix vs Windows) and gracefully
+        falls back if process group operations aren't available or fail.
+
+        Args:
+            sig: Signal to send (SIGTERM for graceful, SIGKILL for force)
+            force: If True, waits indefinitely; if False, times out after 5 seconds
+
+        Returns:
+            True if process terminated successfully within timeout, False otherwise
+        """
+        assert self.process is not None, "Cannot terminate a None process"
+
+        try:
+            # Try process group termination on Unix-like systems
+            if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                try:
+                    os.killpg(os.getpgid(self.process.pid), sig)
+                except (ProcessLookupError, PermissionError, AttributeError):
+                    # Fall back to direct process termination
+                    if sig == signal.SIGTERM:
+                        self.process.terminate()
+                    else:
+                        self.process.kill()
+            else:
+                # Windows or platforms without killpg - use direct termination
+                if sig == signal.SIGTERM:
+                    self.process.terminate()
+                else:
+                    self.process.kill()
+        except (ProcessLookupError, PermissionError):
+            # Process already gone - consider this success
+            return True
+
+        # Wait for process to exit
+        if not force:
+            # Graceful termination with timeout
+            try:
+                self.process.wait(timeout=5)
+                return True
+            except subprocess.TimeoutExpired:
+                return False
+        else:
+            # Force kill - wait without timeout
+            self.process.wait()
+            return True
 
     def _cleanup(self) -> None:
         """Cleanup handler registered with atexit."""

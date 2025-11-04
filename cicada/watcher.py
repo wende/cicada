@@ -180,9 +180,29 @@ class FileWatcher:
             print("\n\nInitial indexing interrupted. Exiting...")
             return
         except Exception as e:
-            print(f"\nError during initial indexing: {e}")
-            print("Continuing to watch mode anyway...")
-            print()
+            # Check if an index already exists
+            if index_path.exists():
+                print("\n" + "=" * 70)
+                print("WARNING: Initial indexing failed!")
+                print("=" * 70)
+                print(f"Error: {e}")
+                print("\nAn existing index was found, so watch mode will continue.")
+                print("However, the index may be outdated. Consider running:")
+                print(f"  cicada index {self.repo_path}")
+                print("=" * 70)
+                print()
+                logger.exception("Initial indexing failed")
+            else:
+                print("\n" + "=" * 70)
+                print("ERROR: Initial indexing failed and no existing index found!")
+                print("=" * 70)
+                print(f"Error: {e}")
+                print("\nWatch mode cannot start without an index.")
+                print("Please fix the error and try again, or run:")
+                print(f"  cicada index {self.repo_path}")
+                print("=" * 70)
+                logger.exception("Initial indexing failed")
+                sys.exit(1)
 
         # Set up file system observer
         event_handler = ElixirFileEventHandler(self)
@@ -194,7 +214,7 @@ class FileWatcher:
         self.running = True
 
         print("=" * 70)
-        print("👀 Watching for changes to Elixir files (.ex, .exs)")
+        print("Watching for changes to Elixir files (.ex, .exs)")
         print("=" * 70)
         print("Press Ctrl-C to stop")
         print()
@@ -264,7 +284,7 @@ class FileWatcher:
             self.debounce_timer = None
 
         print("\n" + "=" * 70)
-        print("📝 File changes detected - reindexing...")
+        print("File changes detected - reindexing...")
         print("=" * 70)
         print()
 
@@ -281,13 +301,13 @@ class FileWatcher:
                 )
                 print()
                 print("=" * 70)
-                print("✅ Reindexing complete!")
+                print("Reindexing complete!")
                 print("=" * 70)
                 print()
         except Exception as e:
             print()
             print("=" * 70)
-            print(f"❌ Error during reindexing: {e}")
+            print(f"Error during reindexing: {e}")
             print("=" * 70)
             print("Continuing to watch for changes...")
             print()
