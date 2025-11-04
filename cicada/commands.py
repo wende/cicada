@@ -528,15 +528,13 @@ def handle_editor_setup(args, editor: str):
 def handle_index_test_mode(args):
     """Handle interactive keyword extraction test mode."""
     from cicada.keyword_test import run_keywords_interactive
-    from cicada.tier import get_tier_from_args, tier_to_methods
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Get tier from args (use centralized logic)
-    tier_name = get_tier_from_args(args)
-    if tier_name is None:
-        tier_name = "regular"  # Default to regular
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
 
     # Convert tier to extraction method
     extraction_method, _ = tier_to_methods(tier_name)
@@ -550,15 +548,13 @@ def handle_index_test_mode(args):
 def handle_index_test_expansion_mode(args):
     """Handle interactive keyword expansion test mode."""
     from cicada.keyword_test import run_expansion_interactive
-    from cicada.tier import get_tier_from_args, tier_to_methods
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Get tier from args (use centralized logic)
-    tier_name = get_tier_from_args(args)
-    if tier_name is None:
-        tier_name = "regular"  # Default to regular
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
 
     # Convert tier to extraction method and expansion type
     extraction_method, expansion_type = tier_to_methods(tier_name)
