@@ -137,10 +137,12 @@ class SCIPConverter:
         modules = {}
         file_path = doc.relative_path
 
-        # Extract call sites if enabled
+        # Extract call sites and dependencies if enabled
         call_sites_by_function = {}
+        dependencies = []
         if self.extract_references:
             call_sites_by_function = self._extract_call_sites(doc)
+            dependencies = self._extract_dependencies(doc)
 
         # Separate symbols by type
         classes = []
@@ -176,7 +178,7 @@ class SCIPConverter:
                     for method in class_methods
                 ],
                 "calls": [],  # Module-level calls (not extracted yet)
-                "dependencies": [],  # Module-level dependencies (not extracted yet)
+                "dependencies": dependencies,
             }
 
             # Add documentation if available
@@ -225,7 +227,7 @@ class SCIPConverter:
                     for func in functions
                 ],
                 "calls": [],  # Module-level calls (not extracted yet)
-                "dependencies": [],  # Module-level dependencies (not extracted yet)
+                "dependencies": dependencies,
                 "total_functions": len(functions),
                 "public_functions": sum(1 for f in functions if not self._is_private(f.symbol)),
                 "private_functions": sum(1 for f in functions if self._is_private(f.symbol)),
@@ -578,6 +580,161 @@ class SCIPConverter:
             call_sites.setdefault(caller_symbol, []).append(call_site)
 
         return call_sites
+
+    def _extract_dependencies(self, doc: scip_pb2.Document) -> list[dict]:
+        """
+        Extract module dependencies (imports) from SCIP occurrences.
+
+        In SCIP, import statements are represented as ReadAccess occurrences
+        at the top of the file. We identify them by:
+        1. ReadAccess role (indicates usage/reference)
+        2. Early line numbers (typically lines 1-20 for imports)
+        3. Module symbols (ending with ":") or imported function/class symbols
+
+        Args:
+            doc: SCIP Document
+
+        Returns:
+            List of dependency dicts, each containing:
+                - module: Name of the imported module
+                - symbols: List of imported symbols (if any)
+                - line: Line number of the import statement
+        """
+        dependencies = []
+        seen_imports = set()  # Track what we've already added
+
+        # Group occurrences by line number to handle multi-symbol imports
+        imports_by_line = {}
+
+        for occurrence in doc.occurrences:
+            # Filter for ReadAccess (0x8) - indicates usage/reference
+            if not (occurrence.symbol_roles & scip_pb2.SymbolRole.ReadAccess):
+                continue
+
+            # Skip if this is a definition (e.g., local variable definitions)
+            if occurrence.symbol_roles & scip_pb2.SymbolRole.Definition:
+                continue
+
+            # Get line number (convert from 0-indexed to 1-indexed)
+            line = (occurrence.range[0] + 1) if occurrence.range else 0
+            if line == 0:
+                continue
+
+            # Focus on early lines where imports typically occur
+            # This helps distinguish imports from regular function calls
+            # Most Python files have imports in the first 10-15 lines
+            if line > 15:
+                break  # SCIP occurrences are sorted by line number
+
+            symbol = occurrence.symbol
+
+            # Extract module name from symbol
+            # SCIP symbols look like: "scip-python python pkg version module/path:""
+            # or "scip-python python pkg version module/function()."
+            module_name = self._extract_module_from_symbol(symbol)
+
+            # Skip builtins and standard library internals
+            if module_name and not self._is_builtin_module(module_name):
+                # Check if this is a module import (ends with ":")
+                is_module_import = symbol.endswith(":")
+
+                if is_module_import:
+                    # This is a module-level import: "import foo" or "from foo import ..."
+                    if module_name not in seen_imports:
+                        dependencies.append(
+                            {
+                                "module": module_name,
+                                "symbols": [],
+                                "line": line,
+                            }
+                        )
+                        seen_imports.add(module_name)
+                else:
+                    # This is a symbol import: "from foo import bar"
+                    # Group by line number to collect all symbols from same import
+                    if line not in imports_by_line:
+                        imports_by_line[line] = {
+                            "module": module_name,
+                            "symbols": [],
+                            "line": line,
+                        }
+
+                    # Extract symbol name
+                    symbol_name = self._extract_name(symbol)
+                    if symbol_name and symbol_name not in imports_by_line[line]["symbols"]:
+                        imports_by_line[line]["symbols"].append(symbol_name)
+
+        # Add symbol imports to dependencies
+        for _line, import_data in imports_by_line.items():
+            module_name = import_data["module"]
+            # Only add if we have symbols and module not already added as bare import
+            if import_data["symbols"] and module_name not in seen_imports:
+                dependencies.append(import_data)
+                seen_imports.add(module_name)
+
+        return dependencies
+
+    def _extract_module_from_symbol(self, symbol: str) -> str | None:
+        """
+        Extract module name from SCIP symbol.
+
+        Examples:
+            "scip-python python pkg 1.0 operations/__init__:" -> "operations"
+            "scip-python python pkg 1.0 utils/chain_add()." -> "utils"
+            "scip-python python pkg 1.0 typing/List." -> "typing"
+
+        Args:
+            symbol: SCIP symbol string
+
+        Returns:
+            Module name, or None if can't be extracted
+        """
+        parts = symbol.split()
+        if len(parts) < 5:
+            return None
+
+        descriptor = " ".join(parts[4:])
+
+        # Remove trailing markers
+        descriptor = descriptor.rstrip(":.#")
+
+        # Handle __init__: case (module import)
+        if descriptor.endswith("/__init__"):
+            descriptor = descriptor[: -len("/__init__")]
+
+        # Get the module part
+        if "/" in descriptor:
+            # For "utils/chain_add" -> "utils"
+            # For "typing/List" -> "typing"
+            module_path = descriptor.split("/")[0]
+            return module_path
+        elif descriptor:
+            # For "operations" (after __init__ removal) -> "operations"
+            return descriptor
+
+        return None
+
+    def _is_builtin_module(self, module_name: str) -> bool:
+        """
+        Check if a module is a Python builtin or should be excluded.
+
+        Args:
+            module_name: Name of the module
+
+        Returns:
+            True if module should be excluded from dependencies
+        """
+        # Python builtins and internal modules to exclude
+        excluded = {
+            "builtins",
+            "__builtins__",
+            "__future__",
+            "sys",
+            "os",  # Can be configurable
+            # Add more as needed
+        }
+
+        return module_name in excluded
 
     def _detect_language(self, scip_index: scip_pb2.Index) -> str:
         """

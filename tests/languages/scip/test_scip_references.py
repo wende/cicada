@@ -191,32 +191,66 @@ class TestDependencyExtraction:
 
     def test_dependency_extraction_from_imports(self, python_index):
         """Test that import statements are extracted as dependencies."""
-        # Current fixture doesn't have imports, but structure is ready
+        # Calculator class has imports: typing, operations, utils
+        calc = python_index["modules"].get("Calculator")
+        assert calc is not None, "Calculator module not found"
 
-        # Dependencies should be in metadata or per-module
-        if "dependencies" in python_index.get("metadata", {}):
-            deps = python_index["metadata"]["dependencies"]
-            assert isinstance(deps, list)
+        # Check that dependencies field exists and is a list
+        assert "dependencies" in calc, "No dependencies field in Calculator module"
+        deps = calc["dependencies"]
+        assert isinstance(deps, list), "Dependencies should be a list"
 
-        pytest.skip("No imports in current fixture")
+        # Should have at least 2 dependencies (operations, utils)
+        # typing might be excluded as stdlib
+        assert len(deps) > 0, "Should have at least one dependency"
+
+        # Check that dependency structure is correct
+        for dep in deps:
+            assert "module" in dep, "Dependency should have 'module' field"
+            assert "line" in dep, "Dependency should have 'line' field"
+            assert isinstance(dep["module"], str), "Module name should be a string"
+            assert isinstance(dep["line"], int), "Line should be an integer"
 
     def test_dependency_includes_imported_symbols(self, python_index):
         """Test that we track what symbols were imported."""
-        # from math import sqrt
-        # Should track: source=math, symbol=sqrt
+        # Calculator imports specific symbols: from utils import chain_add, format_result
+        calc = python_index["modules"].get("Calculator")
+        assert calc is not None
 
-        pytest.skip("No imports in current fixture")
+        deps = calc.get("dependencies", [])
+
+        # Find utils dependency
+        utils_dep = next((d for d in deps if d.get("module") == "utils"), None)
+
+        # If we're tracking symbol-level imports, they should be in the 'symbols' field
+        # For now, we just check that the module is tracked
+        assert utils_dep is not None, "Should track utils as a dependency"
 
     def test_dependency_includes_source_module(self, python_index):
         """Test that we track where imports come from."""
-        # import os
-        # Should track: source=os
+        # Calculator imports operations module
+        calc = python_index["modules"].get("Calculator")
+        assert calc is not None
 
-        pytest.skip("No imports in current fixture")
+        deps = calc.get("dependencies", [])
+        module_names = [d.get("module") for d in deps]
+
+        # Should track operations as a dependency
+        assert "operations" in module_names, "Should track operations module import"
 
     def test_dependency_line_numbers(self, python_index):
         """Test that import statement locations are tracked."""
-        pytest.skip("No imports in current fixture")
+        calc = python_index["modules"].get("Calculator")
+        assert calc is not None
+
+        deps = calc.get("dependencies", [])
+        assert len(deps) > 0, "Should have dependencies"
+
+        # All dependencies should have line numbers
+        for dep in deps:
+            assert "line" in dep, "Dependency should include line number"
+            assert dep["line"] > 0, "Line number should be positive"
+            assert dep["line"] < 20, "Import lines should be at top of file"
 
 
 class TestReferenceRoles:
