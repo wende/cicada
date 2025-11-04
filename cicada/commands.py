@@ -8,6 +8,7 @@ making `cli.py` a thin entry point and `mcp_entry.py` focused solely on MCP serv
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def validate_tier_flags(args) -> None:
@@ -44,6 +45,102 @@ def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
     elif getattr(args, "regular", False):
         return "bert", "glove"
     return None, None
+
+
+def determine_tier(args, config_path: "Path | None" = None) -> str:
+    """Determine indexing tier from args or existing config.
+
+    Args:
+        args: Parsed command-line arguments with fast, regular, and max attributes
+        config_path: Optional path to existing config file
+
+    Returns:
+        Tier string: "fast", "regular", or "max"
+    """
+    if args.fast:
+        return "fast"
+    elif args.max:
+        return "max"
+    elif getattr(args, "regular", False):
+        return "regular"
+
+    # If no tier flag specified, try to load from existing config
+    if config_path and config_path.exists():
+        import yaml
+
+        try:
+            with open(config_path) as f:
+                existing_config = yaml.safe_load(f)
+                extraction_method = existing_config.get("keyword_extraction", {}).get(
+                    "method", "regular"
+                )
+                if extraction_method == "regular":
+                    return "fast"
+                elif extraction_method == "bert":
+                    expansion_method = existing_config.get("keyword_expansion", {}).get(
+                        "method", "glove"
+                    )
+                    return "max" if expansion_method == "fasttext" else "regular"
+        except Exception:
+            pass
+
+    # Default to regular tier
+    return "regular"
+
+
+def _setup_and_start_watcher(args, repo_path_str: str) -> None:
+    """Shared logic for starting file watcher.
+
+    Args:
+        args: Parsed command-line arguments
+        repo_path_str: Path to the repository as a string
+
+    Raises:
+        SystemExit: If configuration is invalid or watcher fails to start
+    """
+    from pathlib import Path
+
+    from cicada.utils.storage import get_config_path
+    from cicada.watcher import FileWatcher
+
+    # Validate tier flags
+    validate_tier_flags(args)
+
+    # Resolve repository path
+    repo_path_obj = Path(repo_path_str).resolve()
+    config_path = get_config_path(repo_path_obj)
+
+    # Determine tier using helper
+    tier = determine_tier(args, config_path)
+
+    # Check if config exists when no tier is specified
+    if not (args.fast or args.max or getattr(args, "regular", False)) and not config_path.exists():
+        print("Error: No tier specified and no existing config found.", file=sys.stderr)
+        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+        print(
+            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+            file=sys.stderr,
+        )
+        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+        print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
+        sys.exit(2)
+
+    # Create and start watcher
+    try:
+        watcher = FileWatcher(
+            repo_path=str(repo_path_obj),
+            debounce_seconds=getattr(args, "debounce", 2.0),
+            verbose=True,
+            tier=tier,
+        )
+        watcher.start_watching()
+    except KeyboardInterrupt:
+        print("\nWatch mode stopped by user.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def get_argument_parser():
@@ -638,11 +735,7 @@ def handle_index_main(args):
 
 def handle_index(args):
     """Route index command to appropriate handler based on mode."""
-    from pathlib import Path
-
-    from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
-    from cicada.watcher import FileWatcher
 
     check_for_updates()
 
@@ -651,111 +744,20 @@ def handle_index(args):
     elif getattr(args, "test_expansion", False):
         handle_index_test_expansion_mode(args)
     elif getattr(args, "watch", False):
-        # Handle watch mode
-        # Validate tier flags
-        validate_tier_flags(args)
-
-        # Resolve repository path
-        repo_path_obj = Path(args.repo).resolve()
-        config_path = get_config_path(repo_path_obj)
-
-        # Determine tier
-        tier = "regular"  # Default tier
-        if args.fast:
-            tier = "fast"
-        elif args.max:
-            tier = "max"
-
-        # Check if config exists when no tier is specified
-        if (
-            not (args.fast or args.max or getattr(args, "regular", False))
-            and not config_path.exists()
-        ):
-            print("Error: No tier specified and no existing config found.", file=sys.stderr)
-            print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
-            print(
-                "  --fast      Fast tier: Regular extraction + lemmi expansion",
-                file=sys.stderr,
-            )
-            print(
-                "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
-                file=sys.stderr,
-            )
-            print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
-            print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
-            sys.exit(2)
-
-        # Create and start watcher
-        try:
-            watcher = FileWatcher(
-                repo_path=str(repo_path_obj),
-                debounce_seconds=args.debounce,
-                verbose=True,
-                tier=tier,
-            )
-            watcher.start_watching()
-        except KeyboardInterrupt:
-            print("\nWatch mode stopped by user.")
-            sys.exit(0)
-        except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
+        # Handle watch mode using shared logic
+        _setup_and_start_watcher(args, args.repo)
     else:
         handle_index_main(args)
 
 
 def handle_watch(args):
     """Handle watch command for automatic reindexing on file changes."""
-    from pathlib import Path
-
-    from cicada.utils.storage import get_config_path
     from cicada.version_check import check_for_updates
-    from cicada.watcher import FileWatcher
 
     check_for_updates()
 
-    # Validate tier flags
-    validate_tier_flags(args)
-
-    # Resolve repository path
-    repo_path_obj = Path(args.repo).resolve()
-    config_path = get_config_path(repo_path_obj)
-
-    # Determine tier
-    tier = "regular"  # Default tier
-    if args.fast:
-        tier = "fast"
-    elif args.max:
-        tier = "max"
-
-    # Check if config exists when no tier is specified
-    if not (args.fast or args.max or getattr(args, "regular", False)) and not config_path.exists():
-        print("Error: No tier specified and no existing config found.", file=sys.stderr)
-        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
-        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
-        print(
-            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
-            file=sys.stderr,
-        )
-        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
-        print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
-        sys.exit(2)
-
-    # Create and start watcher
-    try:
-        watcher = FileWatcher(
-            repo_path=str(repo_path_obj),
-            debounce_seconds=args.debounce,
-            verbose=True,
-            tier=tier,
-        )
-        watcher.start_watching()
-    except KeyboardInterrupt:
-        print("\nWatch mode stopped by user.")
-        sys.exit(0)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Use shared watcher setup logic
+    _setup_and_start_watcher(args, args.repo)
 
 
 def handle_index_pr(args):
@@ -1074,12 +1076,8 @@ def handle_server(args):
     if watch_enabled:
         from cicada.watch_manager import start_watch_process
 
-        # Determine tier
-        tier = "regular"
-        if args.fast:
-            tier = "fast"
-        elif args.max:
-            tier = "max"
+        # Determine tier using helper
+        tier = determine_tier(args, config_path)
 
         # Start the watch process
         if not start_watch_process(repo_path, tier=tier, debounce=2.0):

@@ -11,6 +11,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,16 @@ class WatchProcessManager:
                 start_new_session=True,
             )
 
+            # Verify the process actually started and didn't crash immediately
+            time.sleep(0.1)  # Brief delay to allow process to crash if it's going to
+            if self.process.poll() is not None:
+                print(
+                    f"Watch process exited immediately with code {self.process.returncode}",
+                    file=sys.stderr,
+                )
+                self.process = None
+                return False
+
             # Register cleanup handler (unless disabled for testing)
             if self._register_atexit and not self._cleanup_registered:
                 atexit.register(self._cleanup)
@@ -116,13 +127,23 @@ class WatchProcessManager:
         try:
             print(f"Stopping watch process (PID: {self.process.pid})...", file=sys.stderr)
 
+            # Platform-aware process termination
             # Try graceful shutdown first with SIGTERM
             try:
-                # Send SIGTERM to the process group
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                # Use process group termination on Unix-like systems
+                if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                    except (ProcessLookupError, PermissionError, AttributeError):
+                        # Process already gone, can't signal, or no process group
+                        # Fall back to direct termination
+                        self.process.terminate()
+                else:
+                    # Windows or other platforms without killpg - use direct termination
+                    self.process.terminate()
             except (ProcessLookupError, PermissionError):
-                # Process already gone or can't signal - try direct termination
-                self.process.terminate()
+                # Process already gone or can't signal
+                pass
 
             # Wait up to 5 seconds for graceful shutdown
             try:
@@ -132,9 +153,19 @@ class WatchProcessManager:
                 # Force kill if it doesn't stop gracefully
                 print("Watch process didn't stop gracefully, forcing...", file=sys.stderr)
                 try:
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    # Try process group kill first on Unix-like systems
+                    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                        try:
+                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        except (ProcessLookupError, PermissionError, AttributeError):
+                            # Fall back to direct kill
+                            self.process.kill()
+                    else:
+                        # Windows or other platforms
+                        self.process.kill()
                 except (ProcessLookupError, PermissionError):
-                    self.process.kill()
+                    # Process already gone
+                    pass
                 self.process.wait()
                 print("Watch process killed", file=sys.stderr)
 
