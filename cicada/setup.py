@@ -33,7 +33,7 @@ def detect_project_language(repo_path: Path) -> str:
         repo_path: Repository root path
 
     Returns:
-        Language name ('elixir' or 'python')
+        Language name ('elixir', 'python', or 'ruby')
 
     Raises:
         ValueError: If no recognized project type found
@@ -51,6 +51,17 @@ def detect_project_language(repo_path: Path) -> str:
         if (repo_path / marker).exists():
             return "python"
 
+    # Check for Ruby markers
+    ruby_markers = [
+        "Gemfile",
+        ".ruby-version",
+        "Rakefile",
+    ]
+
+    for marker in ruby_markers:
+        if (repo_path / marker).exists():
+            return "ruby"
+
     # Check for Elixir marker
     if (repo_path / "mix.exs").exists():
         return "elixir"
@@ -58,7 +69,8 @@ def detect_project_language(repo_path: Path) -> str:
     # No recognized language
     raise ValueError(
         f"Could not detect project language in {repo_path}\n"
-        "Expected Python markers (pyproject.toml, setup.py, etc.) "
+        "Expected Python markers (pyproject.toml, setup.py, etc.), "
+        "Ruby markers (Gemfile, .ruby-version, etc.), "
         "or Elixir marker (mix.exs)"
     )
 
@@ -283,6 +295,21 @@ def index_repository(
             if not result.get("success"):
                 errors = result.get("errors", ["Unknown error"])
                 raise Exception(f"Indexing failed: {'; '.join(errors)}")
+        elif language == "ruby":
+            # Lazy import to avoid protobuf version conflicts when not using Ruby
+            from cicada.languages.ruby.indexer import RubySCIPIndexer
+
+            indexer = RubySCIPIndexer(verbose=verbose)
+            # MVP: Ruby doesn't support incremental yet, always full index
+            result = indexer.index_repository(
+                repo_path=repo_path,
+                output_path=index_path,
+                force=True,
+                verbose=verbose,
+            )
+            if not result.get("success"):
+                errors = result.get("errors", ["Unknown error"])
+                raise Exception(f"Indexing failed: {'; '.join(errors)}")
         else:
             raise ValueError(f"Unsupported language: {language}")
 
@@ -295,6 +322,10 @@ def index_repository(
             elif language == "python":
                 print("Please check that the repository contains valid Python files.")
                 print("Note: Python indexing requires Node.js and npm.")
+            elif language == "ruby":
+                print("Please check that the repository contains valid Ruby files.")
+                print("Note: Ruby indexing requires Ruby and the scip-ruby gem.")
+                print("For best results, add Sorbet type annotations to your code.")
         raise
 
 
