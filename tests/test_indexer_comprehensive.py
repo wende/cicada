@@ -1075,7 +1075,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_yaml_parsing_error_returns_default(self, tmp_path, monkeypatch):
         """Test that YAML parsing errors return default config"""
-        from cicada.indexer import read_keyword_extraction_config
+        from cicada.tier import read_keyword_extraction_config
         from cicada.utils.storage import get_config_path
 
         # Create a config file with invalid YAML
@@ -1095,7 +1095,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_general_exception_returns_default(self, tmp_path, monkeypatch):
         """Test that general exceptions return default config"""
-        from cicada.indexer import read_keyword_extraction_config
+        from cicada.tier import read_keyword_extraction_config
 
         # Mock get_config_path to raise an exception
         def mock_get_config_path(x):

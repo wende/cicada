@@ -66,7 +66,8 @@ def handle_default_server(args):
 
     # Start watch process if requested
     if watch_enabled:
-        from cicada.commands import DEFAULT_WATCH_DEBOUNCE, determine_tier
+        from cicada.commands import DEFAULT_WATCH_DEBOUNCE
+        from cicada.tier import determine_tier
         from cicada.watch_manager import start_watch_process
 
         # Determine tier from args or existing config (pass repo_path instead of config_path)
