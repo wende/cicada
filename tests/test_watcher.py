@@ -13,7 +13,7 @@ from cicada.watcher import ElixirFileEventHandler, FileWatcher
 
 # Mark all tests in this module to run serially in their own xdist group
 # This prevents interference with parallel test execution
-pytestmark = pytest.mark.xdist_group(name="watch_tests")
+pytestmark = pytest.mark.xdist_group(name="file_watcher_tests")
 
 
 @pytest.fixture

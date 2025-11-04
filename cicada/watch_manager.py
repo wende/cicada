@@ -44,7 +44,7 @@ class WatchProcessManager:
         self.repo_path = Path(repo_path).resolve()
         self.tier = tier
         self.debounce = debounce
-        self.process: subprocess.Popen | None = None
+        self.process: subprocess.Popen[bytes] | None = None
         self._cleanup_registered = False
         self._register_atexit = register_atexit
 
