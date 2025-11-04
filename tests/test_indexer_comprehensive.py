@@ -1150,7 +1150,7 @@ end
         index = indexer.index_repository(str(tmp_path), str(output_path), extract_keywords=True)
 
         captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor" in captured.out
+        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
         assert "Continuing without keyword extraction" in captured.out
 
         # Index should still be created
@@ -1298,7 +1298,7 @@ end
         )
 
         captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor" in captured.out
+        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
 
         # Index should still be updated
         assert index is not None

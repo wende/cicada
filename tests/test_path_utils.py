@@ -460,21 +460,20 @@ class TestEnsureGitignoreHasCicada:
 
     def test_fails_silently_on_read_permission_error(self, tmp_path):
         """Test that function fails silently on read permission error"""
+        from unittest.mock import patch, mock_open
+
         gitignore_path = tmp_path / ".gitignore"
         gitignore_path.write_text("*.log\n")
 
-        # Make file unreadable (won't work on Windows)
-        import os
-        import stat
+        # Mock open() to raise PermissionError when accessing .gitignore
+        def mock_open_with_error(path, *args, **kwargs):
+            if ".gitignore" in str(path):
+                raise PermissionError(f"Permission denied: {path}")
+            return mock_open(read_data="*.log\n")(*args, **kwargs)
 
-        if os.name != "nt":  # Skip on Windows
-            gitignore_path.chmod(0o000)
-
+        with patch("builtins.open", side_effect=mock_open_with_error):
             result = ensure_gitignore_has_cicada(tmp_path)
             assert result is False
-
-            # Restore permissions for cleanup
-            gitignore_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
     def test_adds_cicada_when_only_in_comment(self, tmp_path):
         """Test that function adds .cicada/ when it's only mentioned in comments"""
