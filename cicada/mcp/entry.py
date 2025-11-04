@@ -69,21 +69,13 @@ def handle_default_server(args):
 
     # Start watch process if requested
     if watch_enabled:
+        from cicada.commands import determine_tier
         from cicada.utils.storage import get_config_path
         from cicada.watch_manager import start_watch_process
 
-        # Determine tier from args if available
-        tier = "regular"
-        if hasattr(args, "fast") and args.fast:
-            tier = "fast"
-        elif hasattr(args, "max") and args.max:
-            tier = "max"
-
-        # Check if config exists to infer tier
+        # Determine tier from args or existing config
         config_path = get_config_path(repo_path)
-        if not (hasattr(args, "fast") or hasattr(args, "max")) and config_path.exists():
-            # Use existing config tier
-            pass  # tier remains "regular" as default
+        tier = determine_tier(args, config_path)
 
         # Start the watch process
         if not start_watch_process(repo_path, tier=tier, debounce=2.0):
