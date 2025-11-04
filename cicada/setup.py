@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages.elixir.indexer import ElixirIndexer
 from cicada.utils import (
     create_storage_dir,
     get_config_path,
@@ -23,6 +23,56 @@ from cicada.utils import (
 )
 
 EditorType = Literal["claude", "cursor", "vs"]
+
+
+def detect_project_language(repo_path: Path) -> str:
+    """
+    Detect project language from marker files.
+
+    Args:
+        repo_path: Repository root path
+
+    Returns:
+        Language name ('elixir', 'python', or 'ruby')
+
+    Raises:
+        ValueError: If no recognized project type found
+    """
+    # Check for Python markers
+    python_markers = [
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+    ]
+
+    for marker in python_markers:
+        if (repo_path / marker).exists():
+            return "python"
+
+    # Check for Ruby markers
+    ruby_markers = [
+        "Gemfile",
+        ".ruby-version",
+        "Rakefile",
+    ]
+
+    for marker in ruby_markers:
+        if (repo_path / marker).exists():
+            return "ruby"
+
+    # Check for Elixir marker
+    if (repo_path / "mix.exs").exists():
+        return "elixir"
+
+    # No recognized language
+    raise ValueError(
+        f"Could not detect project language in {repo_path}\n"
+        "Expected Python markers (pyproject.toml, setup.py, etc.), "
+        "Ruby markers (Gemfile, .ruby-version, etc.), "
+        "or Elixir marker (mix.exs)"
+    )
 
 
 def _load_existing_config(config_path: Path) -> dict:
@@ -147,6 +197,7 @@ def get_mcp_config_for_editor(
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
+    language: str | None = None,
     extraction_method: str | None = None,
     expansion_method: str | None = None,
     verbose: bool = True,
@@ -157,12 +208,19 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
+        language: Programming language (e.g., 'elixir', 'python'). If None, auto-detect.
         extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
         expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
         verbose: If True, print success message. If False, silently create config.
     """
+    from cicada.utils.config import create_default_config, save_config
+
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
+
+    # Auto-detect language if not provided
+    if language is None:
+        language = detect_project_language(repo_path)
 
     # Default to regular extraction + lemmi expansion
     if extraction_method is None:
@@ -170,32 +228,33 @@ def create_config_yaml(
     if expansion_method is None:
         expansion_method = "lemmi"
 
-    config_content = f"""repository:
-  path: {repo_path}
+    # Create config using the centralized config module
+    config_data = create_default_config(
+        language=language,
+        repo_path=repo_path,
+        index_path=index_path,
+        extraction_method=extraction_method,
+        expansion_method=expansion_method,
+    )
 
-storage:
-  index_path: {index_path}
-
-keyword_extraction:
-  method: {extraction_method}
-
-keyword_expansion:
-  method: {expansion_method}
-"""
-
-    with open(config_path, "w") as f:
-        f.write(config_content)
+    save_config(config_data, config_path)
 
     if verbose:
         print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = True) -> None:
+def index_repository(
+    repo_path: Path,
+    language: str | None = None,
+    force_full: bool = False,
+    verbose: bool = True,
+) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        language: Language to index ('elixir' or 'python'). If None, auto-detect.
         force_full: If True, force full reindex instead of incremental
         verbose: Whether to print progress messages (default: True)
 
@@ -203,21 +262,70 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
         Exception: If indexing fails
     """
     try:
-        index_path = get_index_path(repo_path)
-        indexer = ElixirIndexer(verbose=verbose)
+        # Auto-detect language if not specified
+        if language is None:
+            language = detect_project_language(repo_path)
+            if verbose:
+                print(f"Detected {language} project")
 
-        # Use incremental indexing by default (unless force_full is True)
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            force_full=force_full,
-        )
+        index_path = get_index_path(repo_path)
+
+        # Get appropriate indexer for the language
+        if language == "elixir":
+            indexer = ElixirIndexer(verbose=verbose)
+            # Elixir supports incremental indexing
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                force_full=force_full,
+            )
+        elif language == "python":
+            # Lazy import to avoid protobuf version conflicts when not using Python
+            from cicada.languages.python.indexer import PythonSCIPIndexer
+
+            indexer = PythonSCIPIndexer(verbose=verbose)
+            # MVP: Python doesn't support incremental yet, always full index
+            result = indexer.index_repository(
+                repo_path=repo_path,
+                output_path=index_path,
+                force=True,
+                verbose=verbose,
+            )
+            if not result.get("success"):
+                errors = result.get("errors", ["Unknown error"])
+                raise Exception(f"Indexing failed: {'; '.join(errors)}")
+        elif language == "ruby":
+            # Lazy import to avoid protobuf version conflicts when not using Ruby
+            from cicada.languages.ruby.indexer import RubySCIPIndexer
+
+            indexer = RubySCIPIndexer(verbose=verbose)
+            # MVP: Ruby doesn't support incremental yet, always full index
+            result = indexer.index_repository(
+                repo_path=repo_path,
+                output_path=index_path,
+                force=True,
+                verbose=verbose,
+            )
+            if not result.get("success"):
+                errors = result.get("errors", ["Unknown error"])
+                raise Exception(f"Indexing failed: {'; '.join(errors)}")
+        else:
+            raise ValueError(f"Unsupported language: {language}")
+
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
             print(f"Error: Failed to index repository: {e}")
-            print("Please check that the repository contains valid Elixir files.")
+            if language == "elixir":
+                print("Please check that the repository contains valid Elixir files.")
+            elif language == "python":
+                print("Please check that the repository contains valid Python files.")
+                print("Note: Python indexing requires Node.js and npm.")
+            elif language == "ruby":
+                print("Please check that the repository contains valid Ruby files.")
+                print("Note: Ruby indexing requires Ruby and the scip-ruby gem.")
+                print("For best results, add Sorbet type annotations to your code.")
         raise
 
 
@@ -359,6 +467,13 @@ def setup(
         repo_path = Path.cwd()
     repo_path = repo_path.resolve()
 
+    # Detect language
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
 
@@ -375,7 +490,12 @@ def setup(
         force_full = False
         # Ensure config.yaml is up to date with current settings
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
     else:
         # Show full banner for new setup
@@ -452,12 +572,17 @@ def setup(
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
 
         # Index repository if needed
         if should_index:
-            index_repository(repo_path, force_full=force_full)
+            index_repository(repo_path, language=language, force_full=force_full)
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
@@ -539,10 +664,11 @@ def main():
         print(f"Error: Path is not a directory: {repo_path}")
         sys.exit(1)
 
-    # Check if it's an Elixir repository
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project")
-        print("(mix.exs not found)")
+    # Check if it's an Elixir or Python repository
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
     # Run setup

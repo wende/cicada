@@ -49,7 +49,7 @@ def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
 def get_argument_parser():
     parser = argparse.ArgumentParser(
         prog="cicada",
-        description="Cicada - AI-powered Elixir code analysis and search",
+        description="Cicada - AI-powered code analysis and search",
         epilog="Run 'cicada <command> --help' for more information on a command.",
     )
     parser.add_argument(
@@ -71,7 +71,7 @@ def get_argument_parser():
         "repo",
         nargs="?",
         default=None,
-        help="Path to Elixir repository (default: current directory)",
+        help="Path to repository (default: current directory)",
     )
     install_parser.add_argument(
         "--claude",
@@ -113,7 +113,7 @@ def get_argument_parser():
         "repo",
         nargs="?",
         default=None,
-        help="Path to Elixir repository (default: current directory)",
+        help="Path to repository (default: current directory)",
     )
     server_parser.add_argument(
         "--claude",
@@ -211,14 +211,14 @@ def get_argument_parser():
 
     index_parser = subparsers.add_parser(
         "index",
-        help="Index an Elixir repository to extract modules and functions",
-        description="Index current Elixir repository to extract modules and functions",
+        help="Index a repository to extract modules and functions",
+        description="Index current repository to extract modules and functions (auto-detects language)",
     )
     index_parser.add_argument(
         "repo",
         nargs="?",
         default=".",
-        help="Path to the Elixir repository to index (default: current directory)",
+        help="Path to the repository to index (default: current directory)",
     )
     index_parser.add_argument(
         "--fast",
@@ -286,8 +286,8 @@ def get_argument_parser():
 
     dead_code_parser = subparsers.add_parser(
         "find-dead-code",
-        help="Find potentially unused public functions in Elixir codebase",
-        description="Find potentially unused public functions in Elixir codebase",
+        help="Find potentially unused public functions",
+        description="Find potentially unused public functions in the codebase",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Confidence Levels:
@@ -396,16 +396,18 @@ def handle_editor_setup(args, editor: str):
     from pathlib import Path
     from typing import cast
 
-    from cicada.setup import EditorType, setup
+    from cicada.setup import EditorType, detect_project_language, setup
 
     # Validate tier flags
     validate_tier_flags(args)
 
     repo_path = Path.cwd()
 
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
+    # Validate project type
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     from cicada.utils.storage import get_config_path, get_index_path
@@ -504,7 +506,7 @@ def handle_index_main(args):
     """Handle main repository indexing."""
     from pathlib import Path
 
-    from cicada.indexer import ElixirIndexer
+    from cicada.setup import create_config_yaml, detect_project_language
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
@@ -515,11 +517,17 @@ def handle_index_main(args):
     storage_dir = create_storage_dir(repo_path_obj)
     index_path = get_index_path(repo_path_obj)
 
+    # Detect project language
+    try:
+        language = detect_project_language(repo_path_obj)
+        print(f"Indexing {language} repository: {repo_path_obj}")
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     if extraction_method is not None:
-        from cicada.setup import create_config_yaml
-
         if config_path.exists():
             import yaml
 
@@ -562,7 +570,13 @@ def handle_index_main(args):
             except Exception as e:
                 print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
 
-        create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
+        create_config_yaml(
+            repo_path_obj,
+            storage_dir,
+            language=language,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+        )
     elif not config_path.exists():
         print("Error: No tier specified.", file=sys.stderr)
         print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
@@ -574,13 +588,33 @@ def handle_index_main(args):
         print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
         sys.exit(2)
 
-    indexer = ElixirIndexer(verbose=True)
-    indexer.incremental_index_repository(
-        str(repo_path_obj),
-        str(index_path),
-        extract_keywords=True,
-        force_full=False,
-    )
+    # Use appropriate indexer based on detected language
+    if language == "elixir":
+        from cicada.languages.elixir.indexer import ElixirIndexer
+
+        indexer = ElixirIndexer(verbose=True)
+        indexer.incremental_index_repository(
+            str(repo_path_obj),
+            str(index_path),
+            extract_keywords=True,
+            force_full=False,
+        )
+    elif language == "python":
+        from cicada.languages.python.indexer import PythonSCIPIndexer
+
+        indexer = PythonSCIPIndexer(verbose=True)
+        result = indexer.index_repository(
+            repo_path=repo_path_obj,
+            output_path=index_path,
+            force=True,
+            verbose=True,
+        )
+        if not result.get("success"):
+            errors = result.get("errors", ["Unknown error"])
+            raise Exception(f"Indexing failed: {'; '.join(errors)}")
+    else:
+        print(f"Error: Unsupported language: {language}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_index(args):
@@ -718,16 +752,17 @@ def handle_install(args):
     from pathlib import Path
 
     from cicada.interactive_setup import show_first_time_setup
-    from cicada.setup import EditorType, setup
+    from cicada.setup import EditorType, detect_project_language, setup
     from cicada.utils import get_config_path, get_index_path
 
     # Determine repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
 
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
+    # Validate project type
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Validate tier flags
@@ -840,6 +875,7 @@ def handle_server(args):
     from cicada.setup import (
         EditorType,
         create_config_yaml,
+        detect_project_language,
         index_repository,
         setup_multiple_editors,
     )
@@ -848,12 +884,11 @@ def handle_server(args):
     # Determine repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
 
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
+    # Validate project type
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Validate tier flags
@@ -879,7 +914,11 @@ def handle_server(args):
 
         # Create config.yaml (silent)
         create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+            repo_path,
+            storage_dir,
+            extraction_method=extraction_method,
+            expansion_method=expansion_method,
+            verbose=False,
         )
 
         # Index repository (silent)

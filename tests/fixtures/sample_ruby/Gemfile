@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+ruby ">= 2.7.0"
+
+gem "sorbet-runtime"
+
+group :development do
+  gem "sorbet", require: false
+  gem "scip-ruby", require: false
+end

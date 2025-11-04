@@ -164,7 +164,7 @@ end
 @pytest.fixture
 def e2e_server(sample_elixir_repo, tmp_path):
     """Create a fully initialized server with indexed repository."""
-    from cicada.indexer import ElixirIndexer
+    from cicada.languages.elixir.indexer import ElixirIndexer
 
     # Index the repository
     indexer = ElixirIndexer(verbose=False)
@@ -177,6 +177,7 @@ def e2e_server(sample_elixir_repo, tmp_path):
 
     # Create config
     config = {
+        "language": "elixir",
         "repository": {"path": str(sample_elixir_repo)},
         "storage": {"index_path": str(index_path)},
     }
@@ -770,7 +771,7 @@ end
         index_path = tmp_path / "empty_index.json"
 
         # Index it
-        from cicada.indexer import ElixirIndexer
+        from cicada.languages.elixir.indexer import ElixirIndexer
 
         indexer = ElixirIndexer(verbose=False)
         index_result = indexer.index_repository(str(repo), str(index_path))
@@ -782,6 +783,7 @@ end
         ), "No modules were indexed"
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(repo)},
             "storage": {"index_path": str(index_path)},
         }

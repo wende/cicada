@@ -27,6 +27,7 @@ class TestGetFunctionBlameFormatting:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -153,6 +154,7 @@ class TestGetFilePRHistoryFormatting:
             json.dump(pr_index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }

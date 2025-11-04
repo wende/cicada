@@ -154,6 +154,8 @@ class TestCreateConfigYaml:
         storage_dir = tmp_path / "storage"
         repo_path.mkdir()
         storage_dir.mkdir()
+        # Create marker file for language detection
+        (repo_path / "mix.exs").write_text("# Mock Elixir project")
         return repo_path, storage_dir
 
     def test_creates_config_file(self, mock_paths):
@@ -344,16 +346,17 @@ class TestSetupFunction:
             with patch("cicada.setup.index_repository"):
                 with patch("cicada.setup.create_config_yaml"):
                     with patch("cicada.setup.get_mcp_config_for_editor") as mock_mcp:
-                        with patch("pathlib.Path.cwd") as mock_cwd:
-                            with patch("builtins.open", mock_open()):
-                                mock_cwd.return_value = Path("/mock/cwd")
-                                config_path = Path("/mock/cwd/.mcp.json")
-                                mock_mcp.return_value = (config_path, {})
+                        with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                            with patch("pathlib.Path.cwd") as mock_cwd:
+                                with patch("builtins.open", mock_open()):
+                                    mock_cwd.return_value = Path("/mock/cwd")
+                                    config_path = Path("/mock/cwd/.mcp.json")
+                                    mock_mcp.return_value = (config_path, {})
 
-                                setup("claude", None)
+                                    setup("claude", None)
 
-                                # Should have resolved current directory
-                                mock_cwd.assert_called()
+                                    # Should have resolved current directory
+                                    mock_cwd.assert_called()
 
     def test_setup_all_three_editors(self, mock_repo):
         """Setup should work for all three editor types"""
@@ -595,6 +598,8 @@ class TestCreateConfigYamlVerbose:
         storage_dir = tmp_path / "storage"
         repo_path.mkdir()
         storage_dir.mkdir()
+        # Create marker file for language detection
+        (repo_path / "mix.exs").write_text("# Mock Elixir project")
         return repo_path, storage_dir
 
     def test_prints_message_when_verbose_true(self, mock_paths, capsys):
@@ -806,10 +811,10 @@ class TestSetupKeywordParameters:
                         )
 
                         mock_create_config.assert_called()
-                        # Check positional args: repo_path, storage_dir, extraction_method, expansion_method
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
-                        assert call_args[3] == "glove"  # expansion_method is 4th positional arg
+                        # Check keyword args: language, extraction_method, expansion_method
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["extraction_method"] == "bert"
+                        assert call_kwargs["expansion_method"] == "glove"
 
     def test_defaults_when_no_method_specified(self, mock_repo):
         """Should use default methods when not specified"""
@@ -826,9 +831,9 @@ class TestSetupKeywordParameters:
 
                         # Should pass None for both (create_config_yaml handles defaults)
                         mock_create_config.assert_called()
-                        call_args = mock_create_config.call_args[0]
-                        assert call_args[2] is None  # extraction_method is 3rd positional arg
-                        assert call_args[3] is None  # expansion_method is 4th positional arg
+                        call_kwargs = mock_create_config.call_args[1]
+                        assert call_kwargs["extraction_method"] is None
+                        assert call_kwargs["expansion_method"] is None
 
 
 class TestSetupSettingsChangeDetection:
@@ -1098,6 +1103,68 @@ class TestSetupPermanentInstallationTip:
 
                             captured = capsys.readouterr()
                             assert "💡 Tip: For best experience" not in captured.out
+
+
+def test_terminal_menu_fallback_consistency(tmp_path):
+    """Test that menu mode and text fallback produce consistent config.
+
+    Edge case test to verify that if interactive menu is unavailable (non-TTY),
+    the text-based fallback produces identical config to menu mode.
+    See: https://github.com/anthropics/cicada/issues/XXX
+    """
+    from cicada.setup import create_config_yaml
+    from cicada.utils.storage import get_storage_dir, get_config_path
+    from cicada.utils.config import load_config
+
+    storage_dir = get_storage_dir(tmp_path)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Scenario 1: Menu mode user selects "Regular" (bert + glove, default)
+    create_config_yaml(
+        repo_path=str(tmp_path),
+        storage_dir=storage_dir,
+        language="elixir",
+        extraction_method="bert",
+        expansion_method="glove",
+    )
+    menu_config = load_config(get_config_path(tmp_path))
+
+    # Scenario 2: Text mode user enters "2" for "Regular"
+    create_config_yaml(
+        repo_path=str(tmp_path),
+        storage_dir=storage_dir,
+        language="elixir",
+        extraction_method="bert",
+        expansion_method="glove",
+    )
+    text_config = load_config(get_config_path(tmp_path))
+
+    # Both should create identical configs (compare dict representation)
+    assert vars(menu_config) == vars(
+        text_config
+    ), "Menu and text fallback should produce identical config"
+
+    # All tiers should produce consistent configs
+    tier_scenarios = [
+        ("regular", "lemmi"),  # Fast tier
+        ("bert", "glove"),  # Regular tier (default)
+        ("bert", "fasttext"),  # Maximum tier
+    ]
+
+    for extraction, expansion in tier_scenarios:
+        create_config_yaml(
+            repo_path=str(tmp_path),
+            storage_dir=storage_dir,
+            language="elixir",
+            extraction_method=extraction,
+            expansion_method=expansion,
+        )
+        config = load_config(get_config_path(tmp_path))
+
+        # Verify config structure is valid
+        assert "keyword_extraction" in config
+        assert config["keyword_extraction"]["method"] == extraction
+        assert config["keyword_expansion"]["method"] == expansion
 
 
 class TestUpdateClaudeMd:

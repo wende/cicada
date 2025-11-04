@@ -25,6 +25,7 @@ class TestServerInitialization:
     def test_init_index_not_found(self, tmp_path):
         """Should raise FileNotFoundError when index doesn't exist"""
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(tmp_path / "nonexistent.json")},
         }
@@ -49,6 +50,7 @@ class TestServerInitialization:
             pr_index_path.write_text(pr_index_content)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -83,6 +85,7 @@ class TestToolInputValidation:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -157,6 +160,7 @@ class TestResolveFileToModule:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -221,6 +225,7 @@ class TestSearchModuleUsage:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -261,6 +266,7 @@ class TestListTools:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -313,6 +319,7 @@ class TestUnknownTool:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }
@@ -357,6 +364,7 @@ class TestAddCodeExamples:
             json.dump(index, f)
 
         config = {
+            "language": "elixir",
             "repository": {"path": str(tmp_path)},
             "storage": {"index_path": str(index_path)},
         }

@@ -108,6 +108,7 @@ def setup_test_environment():
 
     # Create config.yaml file
     config = {
+        "language": "elixir",
         "repository": {"path": "."},
         "storage": {"index_path": ".cicada/index.json"},
     }
@@ -141,3 +142,18 @@ def mock_home_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: mock_home)
 
     return mock_home
+
+
+@pytest.fixture(scope="session")
+def fixtures_dir():
+    """
+    Return the path to the test fixtures directory.
+
+    This fixture can be used by all tests to access test fixtures
+    without hardcoding relative paths.
+
+    Usage:
+        def test_something(fixtures_dir):
+            sample_file = fixtures_dir / "sample.ex"
+    """
+    return Path(__file__).parent / "fixtures"
