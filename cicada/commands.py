@@ -10,6 +10,9 @@ import argparse
 import sys
 from pathlib import Path
 
+# Default debounce interval for watch mode (in seconds)
+DEFAULT_WATCH_DEBOUNCE = 2.0
+
 
 def validate_tier_flags(args) -> None:
     """Validate that only one tier flag is specified.
@@ -47,16 +50,17 @@ def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
     return None, None
 
 
-def determine_tier(args, config_path: "Path | None" = None) -> str:
+def determine_tier(args, repo_path: "Path | None" = None) -> str:
     """Determine indexing tier from args or existing config.
 
     Args:
         args: Parsed command-line arguments with fast, regular, and max attributes
-        config_path: Optional path to existing config file
+        repo_path: Optional repository path to read config from
 
     Returns:
         Tier string: "fast", "regular", or "max"
     """
+    # Check args first
     if args.fast:
         return "fast"
     elif args.max:
@@ -65,24 +69,17 @@ def determine_tier(args, config_path: "Path | None" = None) -> str:
         return "regular"
 
     # If no tier flag specified, try to load from existing config
-    if config_path and config_path.exists():
-        import yaml
+    # Reuse existing read_keyword_extraction_config instead of duplicating logic
+    if repo_path is not None:
+        from cicada.indexer import read_keyword_extraction_config
 
-        try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                if extraction_method == "regular":
-                    return "fast"
-                elif extraction_method == "bert":
-                    expansion_method = existing_config.get("keyword_expansion", {}).get(
-                        "method", "glove"
-                    )
-                    return "max" if expansion_method == "fasttext" else "regular"
-        except Exception:
-            pass
+        extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
+
+        # Convert methods to tier
+        if extraction_method == "regular":
+            return "fast"
+        elif extraction_method == "bert":
+            return "max" if expansion_method == "fasttext" else "regular"
 
     # Default to regular tier
     return "regular"
@@ -110,8 +107,8 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     repo_path_obj = Path(repo_path_str).resolve()
     config_path = get_config_path(repo_path_obj)
 
-    # Determine tier using helper
-    tier = determine_tier(args, config_path)
+    # Determine tier using helper (pass repo_path instead of config_path)
+    tier = determine_tier(args, repo_path_obj)
 
     # Check if config exists when no tier is specified
     if not (args.fast or args.max or getattr(args, "regular", False)) and not config_path.exists():
@@ -130,7 +127,7 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     try:
         watcher = FileWatcher(
             repo_path=str(repo_path_obj),
-            debounce_seconds=getattr(args, "debounce", 2.0),
+            debounce_seconds=getattr(args, "debounce", DEFAULT_WATCH_DEBOUNCE),
             verbose=True,
             tier=tier,
         )
@@ -1076,11 +1073,11 @@ def handle_server(args):
     if watch_enabled:
         from cicada.watch_manager import start_watch_process
 
-        # Determine tier using helper
-        tier = determine_tier(args, config_path)
+        # Determine tier using helper (pass repo_path instead of config_path)
+        tier = determine_tier(args, repo_path)
 
         # Start the watch process
-        if not start_watch_process(repo_path, tier=tier, debounce=2.0):
+        if not start_watch_process(repo_path, tier=tier, debounce=DEFAULT_WATCH_DEBOUNCE):
             print("Warning: Failed to start watch process", file=sys.stderr)
 
     # Start MCP server (silent)

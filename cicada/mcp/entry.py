@@ -66,16 +66,14 @@ def handle_default_server(args):
 
     # Start watch process if requested
     if watch_enabled:
-        from cicada.commands import determine_tier
-        from cicada.utils.storage import get_config_path
+        from cicada.commands import DEFAULT_WATCH_DEBOUNCE, determine_tier
         from cicada.watch_manager import start_watch_process
 
-        # Determine tier from args or existing config
-        config_path = get_config_path(repo_path)
-        tier = determine_tier(args, config_path)
+        # Determine tier from args or existing config (pass repo_path instead of config_path)
+        tier = determine_tier(args, repo_path)
 
         # Start the watch process
-        if not start_watch_process(repo_path, tier=tier, debounce=2.0):
+        if not start_watch_process(repo_path, tier=tier, debounce=DEFAULT_WATCH_DEBOUNCE):
             print("Warning: Failed to start watch process", file=sys.stderr)
 
     from cicada.mcp.server import async_main
