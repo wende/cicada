@@ -127,6 +127,7 @@ class TestSearchModulePRHints:
                             "line": 10,
                             "doc": "Creates a user",
                             "visibility": "public",
+                            "type": "def",
                         }
                     ],
                     "public_functions": 1,
@@ -254,6 +255,7 @@ class TestSearchFunctionPRHints:
                             "line": 10,
                             "doc": "Creates a user",
                             "visibility": "public",
+                            "type": "def",
                         }
                     ],
                     "calls": [],
@@ -349,6 +351,7 @@ class TestSearchFunctionPRHints:
                             "line": 10,
                             "doc": "Creates a user",
                             "visibility": "public",
+                            "type": "def",
                         }
                     ],
                     "calls": [],
@@ -395,6 +398,7 @@ class TestSearchFunctionPRHints:
                             "line": 10,
                             "doc": "Creates a user",
                             "visibility": "public",
+                            "type": "def",
                         }
                     ],
                     "calls": [],
