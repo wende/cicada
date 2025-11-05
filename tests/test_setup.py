@@ -431,15 +431,15 @@ class TestErrorHandling:
                         config_path = mock_repo / ".mcp.json"
                         mock_mcp.return_value = (config_path, {})
 
-                        # Make directory read-only
-                        mock_repo.chmod(0o444)
+                        # Mock Path.write_text to raise PermissionError (works even as root)
+                        def mock_write_text(*args, **kwargs):
+                            raise PermissionError(f"Permission denied: {config_path}")
 
-                        try:
-                            with pytest.raises(PermissionError):
-                                setup("claude", mock_repo)
-                        finally:
-                            # Restore permissions for cleanup
-                            mock_repo.chmod(0o755)
+                        with (
+                            patch.object(type(config_path), "write_text", side_effect=mock_write_text),
+                            pytest.raises(PermissionError),
+                        ):
+                            setup("claude", mock_repo)
 
     def test_config_path_returns_tuple(self, mock_repo, tmp_path):
         """get_mcp_config_for_editor should return tuple"""
@@ -508,18 +508,16 @@ class TestLoadExistingConfig:
         config_path = mock_repo / ".mcp.json"
         config_path.write_text("{}")
 
-        # Make file unreadable
-        config_path.chmod(0o000)
+        # Mock Path.read_text to raise PermissionError (works even as root)
+        def mock_read_text(*args, **kwargs):
+            raise PermissionError(f"Permission denied: {config_path}")
 
-        try:
+        with patch.object(type(config_path), "read_text", side_effect=mock_read_text):
             result = _load_existing_config(config_path)
 
             assert result == {}
             captured = capsys.readouterr()
             assert "Warning: Could not read config file" in captured.out
-        finally:
-            # Restore permissions for cleanup
-            config_path.chmod(0o644)
 
 
 class TestBuildServerConfig:
