@@ -73,3 +73,6 @@ scip_doc/
 /*_test.json
 /python_*.json
 /typescript_*.json
+
+# Backup files
+*.bak
