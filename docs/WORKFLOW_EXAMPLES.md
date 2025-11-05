@@ -2,6 +2,13 @@
 
 These examples show how to chain tools together to understand and modify your codebase effectively.
 
+## Pro Tips
+
+- 🔍 **Don't know exact names?** → Use `search_by_features` with concepts like "authentication", "api key storage", "tab navigation"
+- 📖 **Understanding "why"?** → Combine code search with `get_file_pr_history` to see design discussions
+- 🎯 **Wildcards work!** → In `search_by_features`, use patterns like `create*`, `*_user`, or `validate_*`
+- 🔗 **Chain tools together** → `search_by_features` → `search_function` → `get_file_pr_history` gives you the full picture
+
 ## Example 1: Adding a New Feature
 
 **User Request:** "Add API key management to the user settings page"

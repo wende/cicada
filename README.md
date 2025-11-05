@@ -6,7 +6,7 @@
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-*Coding Agents search blindly. Give them understanding.*
+*Coding Agents search blindly. Be their guide.*
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -115,67 +115,28 @@ AI-powered semantic search capabilities:
 
 ## Installation
 
+**Install uv:** `curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`
+
 ### Recommended: Permanent Installation
 
-**Installing UV:**
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# or: brew install uv
-```
-
-**Install Cicada permanently for best experience:**
-
-```bash
-# Step 1: Install once
 uv tool install cicada-mcp
-
-# Step 2: Setup in each project (one command per project)
 cd /path/to/your/elixir/project
 cicada claude  # or: cicada cursor, cicada vs
 ```
 
-**That's it!** The setup command:
-- Indexes your codebase with keyword extraction
-- Stores all files in `~/.cicada/projects/<hash>/` (outside your repo)
-- Creates only an MCP config file in your repo (`.mcp.json` for Claude Code)
-- Configures the MCP server automatically
+**That's it!** Restart your editor and start coding.
 
-**After setup:**
-1. Restart your editor
-2. Start coding with AI-powered Elixir intelligence!
+> **Available commands:** `cicada [claude|cursor|vs]`, `cicada index`, `cicada index-pr`, `cicada find-dead-code`
 
-**Available commands after installation:**
-- `cicada [claude|cursor|vs]` - One-command setup per project
-- `cicada-mcp` - MCP server (auto-started by editor)
-- `cicada index` - Re-index code with custom options (--fast, --regular, or --max)
-- `cicada index-pr` - Index pull requests for PR attribution
-- `cicada find-dead-code` - Find potentially unused functions
-
-### Try Before Installing
-
-Want to test Cicada first? Use `uvx` for a quick trial:
+### Try Before Installing (uvx)
 
 ```bash
 cd /path/to/your/elixir/project
-
-# For Claude Code
-uvx --from cicada-mcp cicada claude
-
-# For Cursor
-uvx --from cicada-mcp cicada cursor
-
-# For VS Code
-uvx --from cicada-mcp cicada vs
+uvx --from cicada-mcp cicada claude  # or: cursor, vs
 ```
 
-**Note:** `uvx` is perfect for trying Cicada, but **permanent installation is recommended** because:
-- ✅ Faster MCP server startup (no temporary environment creation)
-- ✅ Access to all CLI commands (`cicada index`, `cicada index-pr`)
-- ✅ Fine-tuned keyword extraction with lemminflect or BERT models
-- ✅ PR indexing features
-- ✅ Custom re-indexing options
-
-Once you're convinced, install permanently with `uv tool install` above!
+> **Note:** Permanent installation is faster and provides access to all CLI features.
 
 ### Quick Setup for Cursor and Claude Code
 
@@ -285,13 +246,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 | "When was `validate_email` created?" | `get_commit_history` | Function evolution over time |
 | "What code might be unused?" | `find_dead_code` | Identify cleanup candidates |
 
-**Pro Tips:**
-- 🔍 **Don't know exact names?** → Use `search_by_features` with concepts like "authentication", "api key storage", "tab navigation"
-- 📖 **Understanding "why"?** → Combine code search with `get_file_pr_history` to see design discussions
-- 🎯 **Wildcards work!** → In `search_by_features`, use patterns like `create*`, `*_user`, or `validate_*`
-- 🔗 **Chain tools together** → `search_by_features` → `search_function` → `get_file_pr_history` gives you the full picture
-
-**Want to see these tools in action?** Check out our [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) showing real-world scenarios like adding features, debugging issues, refactoring safely, and learning new codebases.
+**Want to see these tools in action?** Check out our [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios like adding features, debugging issues, refactoring safely, and learning new codebases.
 
 ### Core Search Tools
 
@@ -437,7 +392,7 @@ cicada find-dead-code --index path/to/index.json
 - Git blame integration
 
 **Developer Experience:**
-- Incremental indexing (15-25x faster reindexing)
+- Incremental indexing for faster reindexing
 - Interrupt-safe with graceful Ctrl-C handling
 - Multiple AI model tiers (fast, regular, max)
 - Wildcard patterns and relevance scoring
@@ -446,8 +401,6 @@ cicada find-dead-code --index path/to/index.json
 ### 🚀 Coming Soon
 
 - **Multi-language support** - Python and TypeScript planned
-- **Enhanced search** - BM25 ranking, improved relevance
-- **Performance optimizations** - Directory tree hashing, caching for large codebases
 
 ---
 
