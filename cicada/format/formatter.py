@@ -69,7 +69,7 @@ class ModuleFormatter:
             lines.append(
                 f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)"
             )
-            lines.append("   Run: cicada index")
+            lines.append("   Please ask the user to run: cicada index")
 
         # Add PR context if available
         if pr_info:
@@ -191,7 +191,15 @@ class ModuleFormatter:
         similarities = []
         query_lower = query.lower()
 
+        # Early exit for exact match
         for name in all_names:
+            if query_lower == name.lower():
+                return [(name, 1.0)]
+
+        # Limit search space for very large indices to prevent performance issues
+        search_names = all_names[:500] if len(all_names) > 500 else all_names
+
+        for name in search_names:
             # Calculate similarity score
             similarity = SequenceMatcher(None, query_lower, name.lower()).ratio()
 
@@ -247,8 +255,16 @@ class ModuleFormatter:
         lines.extend([
             "## Try:",
             "",
-            f"  • Wildcard search: search_module('*{module_name.split('.')[-1]}*')",
-            f"  • Semantic search: search_by_features(['{module_name.split('.')[-1].lower()}'])",
+        ])
+
+        # Add wildcard and semantic search suggestions if module_name is valid
+        if module_name and module_name.strip():
+            last_component = module_name.split('.')[-1] if '.' in module_name else module_name
+            if last_component and last_component.strip():
+                lines.append(f"  • Wildcard search: search_module('*{last_component}*')")
+                lines.append(f"  • Semantic search: search_by_features(['{last_component.lower()}'])")
+
+        lines.extend([
             "  • Check exact spelling and capitalization (module names are case-sensitive)",
             "",
             f"Total modules in index: **{total_modules}**",
@@ -588,7 +604,7 @@ class ModuleFormatter:
         if staleness_info and staleness_info.get("is_stale"):
             lines = [
                 f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)",
-                "   Run: cicada index",
+                "   Please ask the user to run: cicada index",
                 "",
             ]
         else:

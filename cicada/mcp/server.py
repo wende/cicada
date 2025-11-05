@@ -202,6 +202,7 @@ class CicadaServer:
         """
         try:
             import os
+            import random
             from datetime import datetime
 
             # Get index file path and modification time
@@ -216,19 +217,22 @@ class CicadaServer:
             repo_path = Path(self.config.get("repository", {}).get("path", "."))
 
             # Check a sample of indexed files to see if any are newer than the index
+            # Use random sampling for better coverage
             max_files_to_check = 50
-            checked = 0
+            all_modules = list(self.index.get("modules", {}).values())
+
+            if len(all_modules) > max_files_to_check:
+                modules_to_check = random.sample(all_modules, max_files_to_check)
+            else:
+                modules_to_check = all_modules
+
             newest_file_mtime = 0
 
-            for module_data in self.index.get("modules", {}).values():
-                if checked >= max_files_to_check:
-                    break
-
+            for module_data in modules_to_check:
                 file_path = repo_path / module_data["file"]
                 if file_path.exists():
                     file_mtime = os.path.getmtime(file_path)
                     newest_file_mtime = max(newest_file_mtime, file_mtime)
-                    checked += 1
 
             # Check if any files are newer than the index
             is_stale = newest_file_mtime > index_mtime
@@ -249,8 +253,14 @@ class CicadaServer:
                 }
 
             return None
-        except Exception:
-            # If we can't check staleness, just return None
+        except (OSError, IOError, KeyError) as e:
+            # Expected errors - file permissions, disk issues, config issues
+            # Silently ignore these as staleness check is non-critical
+            return None
+        except Exception as e:
+            # Unexpected error - log for debugging but don't break functionality
+            import sys
+            print(f"Warning: Unexpected error checking index staleness: {e}", file=sys.stderr)
             return None
 
     async def list_tools(self) -> list[Tool]:
