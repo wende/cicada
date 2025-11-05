@@ -6,7 +6,7 @@
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-*Coding Agents search blindly. Be their guide.*
+*Coding Agents search blindly. Give them understanding.*
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -16,7 +16,7 @@
 [![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered semantic keyword search across the entire codebase. [What's New →](#whats-new-in-v020)
+> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered codebase understanding - find code by concepts, not just names. [What's New →](#whats-new-in-v020)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
@@ -32,7 +32,7 @@
 
 ## Overview
 
-CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with deep code intelligence. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, and PR attribution.
+CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with **deep codebase understanding**. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, PR attribution, and the context behind code decisions.
 
 <div align="center">
   <table>
@@ -105,12 +105,13 @@ AI-powered semantic search capabilities:
 
 ### Key Features
 
-- **AST-aware code search** - Find function definitions with full signatures, types, and documentation—no implementation bloat
+- **Codebase understanding, not just search** - Find code by concepts ("authentication", "api keys") when you don't know exact names
+- **AST-aware function discovery** - View function definitions with full signatures, types, and documentation—no implementation bloat
 - **Intelligent call site tracking** - Resolve aliases and track where functions are actually invoked across the codebase
-- **PR attribution & review context** - Discover which pull request introduced any line and view historical code review discussions inline
-- **Function evolution tracking** - See when functions were created, how often they’re modified, and their complete git history
+- **PR attribution & review context** - Discover *why* code exists: view the pull request discussions and design decisions behind any line
+- **Function evolution tracking** - See when functions were created, how often they're modified, and their complete git history
 - **Semantic module analysis** - Understand module dependencies, imports, and relationships beyond text matching
-- **MCP integration** - Provide AI coding assistants with structured code intelligence, not raw text
+- **MCP integration** - Provide AI coding assistants with structured context and understanding, not raw text
 
 ## Installation
 
@@ -227,52 +228,6 @@ cicada index-pr .
 
 ## Configuration
 
-### Automatic Configuration
-
-The new simplified workflow stores all generated files outside your repository:
-
-**Storage Structure:**
-```
-~/.cicada/
-  projects/
-    <repo-hash>/
-      config.yaml    # MCP server configuration
-      index.json     # Code index with keywords
-      pr_index.json  # PR attribution data (optional)
-      hashes.json    # For incremental indexing
-```
-
-**Your Repository (Clean!):**
-```
-your-project/
-  .mcp.json        # Only this file is added (for Claude Code)
-  # or .cursor/mcp.json for Cursor
-  # or .vscode/settings.json for VS Code
-```
-
-**Generated MCP Config (Claude Code example):**
-```json
-{
-  "mcpServers": {
-    "cicada": {
-      "command": "cicada-mcp",
-      "env": {
-        "CICADA_REPO_PATH": "/path/to/project",
-        "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"
-      }
-    }
-  }
-}
-```
-
-✅ Fast startup, no paths, portable!
-
-**Migration tip from v0.1.x:** If you have the old Python-based config, run:
-```bash
-uv tool install git+https://github.com/wende/cicada.git@v0.2.0 --force
-cicada claude  # Re-run to get optimized config
-```
-
 ### Re-indexing
 
 After code changes, re-run the setup command:
@@ -300,10 +255,8 @@ cicada index-pr .
 
 # Or with uvx
 uvx --from cicada-mcp cicada-index-pr .
-```
 
 # Clean rebuild (re-index everything from scratch)
-```
 cicada index-pr . --clean
 ```
 
@@ -654,74 +607,35 @@ cicada find-dead-code --index path/to/index.json
 
 ---
 
-## Roadmap
+## What's Available & What's Coming
 
-### v0.2.0 (Released - October 2025) ✅
-- **Enhanced AI Keyword Extraction (Beta)** - Semantic search
-  - BERT integration with KeyBERT for superior keyword extraction
-  - Configurable model tiers (fast, regular, large)
-  - Wildcard pattern support (`create*`, `*_user`)
-  - Improved relevance scoring
-- **Incremental Indexing** - 15-25x faster reindexing
-  - MD5-based change detection
-  - Processes only modified files
-  - Interrupt-safe with graceful Ctrl-C handling
-  - Resume capability for interrupted indexes
-- **Production Hardening**
-  - Signal handlers (SIGINT, SIGTERM)
-  - Partial progress saving
-  - Automatic hash storage and management
+### ✅ Current Features (v0.2.0)
 
-### v0.1.1 (Released - October 2025) ✅
-- Module and function search
-- Call site tracking with alias resolution
-- PR attribution via git blame + GitHub
-- PR review comments with line mapping
+**Codebase Understanding:**
+- Semantic search by concepts and features (Beta) - find code when you don't know exact names
+- Module and function discovery with full signatures and type specs
+- Call site tracking with intelligent alias resolution
+- Dead code detection with confidence levels
+
+**Git Context & History:**
+- PR attribution - discover which PR introduced any line
+- PR review comments with line numbers
 - File PR history with descriptions
-- GraphQL-based PR indexing (30x faster)
-- Function usage examples with code snippets
-- Git commit history tracking with precise function tracking
-- Function evolution metadata (creation, modifications, frequency)
-- Git blame integration with line-by-line authorship
-- Test file filtering
-- Multiple output formats (markdown, JSON)
-- Intelligent .mcp.json auto-configuration
-- `uv tool install` support
-- **Automatic version update checking** - Notifies users when newer versions are available
-- **NLP Keyword search** (EXPERIMENTAL) - Basic semantic search across documentation
+- Function evolution tracking
+- Git blame integration
 
-### v0.3 (Potential Future Enhancements)
-- Enhanced keyword search with BM25 ranking
-- Directory tree hashing for faster change detection
-- Caching optimizations for large codebases
+**Developer Experience:**
+- Incremental indexing (15-25x faster reindexing)
+- Interrupt-safe with graceful Ctrl-C handling
+- Multiple AI model tiers (fast, regular, max)
+- Wildcard patterns and relevance scoring
+- Multiple output formats (Markdown, JSON)
 
-### Long Term (Stretch Goals)
-- Multi-language support (Python, TypeScript)
-- Semantic code search
-- Real-time incremental indexing
-- Web UI for exploration
+### 🚀 Coming Soon
 
-### Out of Scope (Non-Goals)
-These features are explicitly **not planned**:
-- Fuzzy search / "did you mean" suggestions (grep is sufficient)
-- Function similarity algorithms or recommendations
-- Confidence scoring systems
-- Multi-repository support (single repo focus)
-- Alternative function suggestions (bang/non-bang variants)
-
----
-
-## Design Decisions
-
-CICADA prioritizes simplicity and reliability over complexity:
-
-### Intentional Constraints
-- **Exact name matching only** - Use grep/ripgrep for fuzzy searches; keeping CICADA focused
-- **Direct call tracking** - Tracks explicit function calls; comprehensive call graphs add complexity without enough value
-- **Manual documentation search** - Documentation indexing planned for v0.1
-- **No AI/ML features** - No similarity algorithms, confidence scoring, or recommendations; deterministic results only
-
-These are deliberate design choices to keep CICADA fast, predictable, and maintainable.
+- **Multi-language support** - Python and TypeScript planned
+- **Enhanced search** - BM25 ranking, improved relevance
+- **Performance optimizations** - Directory tree hashing, caching for large codebases
 
 ---
 
