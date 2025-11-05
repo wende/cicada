@@ -413,6 +413,17 @@ class CicadaServer:
                     module_name, data, private_functions
                 )
 
+            # Add PR hints if module found and PR index is available
+            if self.pr_index and output_format == "markdown":
+                file_path = data["file"]
+                pr_count = self._count_prs_for_file(file_path)
+
+                if pr_count > 0:
+                    plural = "PR" if pr_count == 1 else "PRs"
+                    result += "\n\n---\n\n"
+                    result += f"💡 **Context available:** This file has {pr_count} {plural} with review comments.\n\n"
+                    result += f"Use `get_file_pr_history(\"{file_path}\")` to see design discussions and decisions."
+
             return [TextContent(type="text", text=result)]
 
         # Module not found
@@ -505,6 +516,25 @@ class CicadaServer:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(function_name, results)
+
+        # Add PR hints if results were found and PR index is available
+        if results and self.pr_index and output_format == "markdown":
+            # Get unique files from all results
+            files_with_prs = set()
+            for res in results:
+                file_path = res["file"]
+                pr_count = self._count_prs_for_file(file_path)
+                if pr_count > 0:
+                    files_with_prs.add((file_path, pr_count))
+
+            # Add hint if any files have PR history
+            if files_with_prs:
+                result += "\n\n---\n\n"
+                result += "💡 **Context available:**\n\n"
+                for file_path, pr_count in sorted(files_with_prs):
+                    plural = "PR" if pr_count == 1 else "PRs"
+                    result += f"- `{file_path}` has {pr_count} {plural} with review comments\n"
+                result += f"\nUse `get_file_pr_history(\"<file_path>\")` to see design discussions and decisions."
 
         return [TextContent(type="text", text=result)]
 
@@ -1156,6 +1186,37 @@ class CicadaServer:
         except Exception as e:
             error_msg = f"Error getting blame information: {str(e)}"
             return [TextContent(type="text", text=error_msg)]
+
+    def _count_prs_for_file(self, file_path: str) -> int:
+        """
+        Count the number of PRs that modified a specific file.
+
+        Args:
+            file_path: Path to the file (relative to repo root or absolute)
+
+        Returns:
+            Number of PRs that modified the file, or 0 if none or PR index unavailable
+        """
+        if not self.pr_index:
+            return 0
+
+        # Normalize file path
+        repo_path = Path(self.config.get("repository", {}).get("path", "."))
+        file_path_obj = Path(file_path)
+
+        if file_path_obj.is_absolute():
+            try:
+                file_path_obj = file_path_obj.relative_to(repo_path)
+            except ValueError:
+                return 0
+
+        file_path_str = str(file_path_obj)
+
+        # Look up PRs that touched this file
+        file_to_prs = self.pr_index.get("file_to_prs", {})
+        pr_numbers = file_to_prs.get(file_path_str, [])
+
+        return len(pr_numbers)
 
     async def _get_file_pr_history(self, file_path: str) -> list[TextContent]:
         """
