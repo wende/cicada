@@ -91,9 +91,9 @@ class TestAcceptanceShellScripts:
         assert len(result.stdout) > 0
         assert "add_numbers" in result.stdout
 
-    def test_search_by_keywords_script_runs(self, scripts_dir):
-        """Test that search_by_keywords.sh can execute without errors"""
-        script = scripts_dir / "search_by_keywords.sh"
+    def test_search_by_features_script_runs(self, scripts_dir):
+        """Test that search_by_features.sh can execute without errors"""
+        script = scripts_dir / "search_by_features.sh"
         assert script.exists(), f"Script not found: {script}"
 
         result = subprocess.run(
