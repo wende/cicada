@@ -124,12 +124,26 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
   - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
   - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
+  - **PREFERRED when you DON'T KNOW EXACT NAMES**: Search by concepts and features. `mcp__cicada__search_by_features` (use this instead of guessing names!)
   - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
   - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
   - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
-  - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
-  - Semantic search for code by concept/topic when exact names are unknown. `mcp__cicada__search_by_keywords`
+  - **HIGHLY RECOMMENDED for understanding "why"**: Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
   - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
+
+  ### Example Workflows:
+
+  **Finding code without knowing names:**
+  User: "Add API key management"
+  1. `search_by_features(["api key", "storage", "encryption"])` - Find relevant code
+  2. `get_file_pr_history(...)` - Understand security approach
+  3. `search_function("encrypt*")` - Find implementation details
+
+  **Understanding why code exists:**
+  User: "Why does auth work this way?"
+  1. `search_by_features(["authentication"])` - Find auth code
+  2. `get_file_pr_history("lib/app/auth.ex")` - Read PR discussions
+  3. `get_commit_history(...)` - See evolution over time
 
   ### DO NOT use Grep for:
   - ❌ Searching for module structure

@@ -277,8 +277,8 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 | "Find all functions in UserAuth module" | `search_module` | You know the exact module name |
 | "Where is `create_user/2` defined?" | `search_function` | You know the exact function name |
 | "Where is `authenticate` called?" | `search_function` | Shows call sites with context |
-| "Find code related to API keys" | `search_by_keywords` | Conceptual search when you don't know exact names |
-| "How does authentication work?" | `search_by_keywords` → `get_file_pr_history` | Find relevant code, then understand design decisions |
+| "Find code related to API keys" | `search_by_features` | Conceptual search when you don't know exact names |
+| "How does authentication work?" | `search_by_features` → `get_file_pr_history` | Find relevant code, then understand design decisions |
 | "Which modules use `Repo`?" | `search_module_usage` | Track dependencies and imports |
 | "Who wrote this line?" | `find_pr_for_line` | Line-level attribution |
 | "Why was this function built this way?" | `get_file_pr_history` | View PR discussions and review comments |
@@ -286,10 +286,10 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 | "What code might be unused?" | `find_dead_code` | Identify cleanup candidates |
 
 **Pro Tips:**
-- 🔍 **Don't know exact names?** → Use `search_by_keywords` with concepts like "authentication", "api key storage", "tab navigation"
+- 🔍 **Don't know exact names?** → Use `search_by_features` with concepts like "authentication", "api key storage", "tab navigation"
 - 📖 **Understanding "why"?** → Combine code search with `get_file_pr_history` to see design discussions
-- 🎯 **Wildcards work!** → In `search_by_keywords`, use patterns like `create*`, `*_user`, or `validate_*`
-- 🔗 **Chain tools together** → `search_by_keywords` → `search_function` → `get_file_pr_history` gives you the full picture
+- 🎯 **Wildcards work!** → In `search_by_features`, use patterns like `create*`, `*_user`, or `validate_*`
+- 🔗 **Chain tools together** → `search_by_features` → `search_function` → `get_file_pr_history` gives you the full picture
 
 ### Core Search Tools
 
@@ -338,7 +338,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 
 ### Advanced Features
 
-**`search_by_keywords`** (Beta) - Search code by concepts and features
+**`search_by_features`** (Beta) - Search code by concepts and features
 - **🎯 Perfect for: "I don't know the exact name"** - Search by what code does, not what it's called
 - Find code related to concepts like "authentication", "api key storage", "email validation"
 - Wildcard pattern matching (`create*`, `*_user`, `validate_*`)
@@ -374,7 +374,7 @@ These examples show how to chain tools together to understand and modify your co
 
 ```
 Step 1: Find how API keys are currently handled
-→ search_by_keywords("api key storage encryption")
+→ search_by_features("api key storage encryption")
    Found: App.Vault.encrypt/1, App.Credentials schema
 
 Step 2: Understand the security approach
@@ -384,7 +384,7 @@ Step 2: Understand the security approach
    💬 @reviewer: "Never store in session, always in DB"
 
 Step 3: Find the user settings LiveView
-→ search_by_keywords("user settings liveview")
+→ search_by_features("user settings liveview")
    Found: AppWeb.UserSettingsLive
 
 Step 4: See how existing tabs are implemented
@@ -406,7 +406,7 @@ Step 5: Find where Vault is already used
 
 ```
 Step 1: Find authentication-related code
-→ search_by_keywords("password reset authentication")
+→ search_by_features("password reset authentication")
    Found: Auth.reset_password/2, UserAuth.verify_credentials/2
 
 Step 2: Check the password reset function
@@ -507,7 +507,7 @@ Step 4: Double-check it's really unused
 
 ```
 Step 1: Find authentication-related code
-→ search_by_keywords("authentication login session")
+→ search_by_features("authentication login session")
    Found modules: App.Auth, AppWeb.UserAuth, AppWeb.AuthController
    Found functions: authenticate/2, verify_credentials/2, create_session/2
 
@@ -544,11 +544,11 @@ Step 5: Check for gotchas in commit history
 
 ### Key Takeaways
 
-1. **Start broad, then narrow:** Use `search_by_keywords` to find relevant code, then `search_function` for details
+1. **Start broad, then narrow:** Use `search_by_features` to find relevant code, then `search_function` for details
 2. **Always check PR history:** `get_file_pr_history` reveals *why* code exists and design decisions
 3. **Verify before refactoring:** Use `search_function` to find all call sites before renaming
 4. **Chain tools together:** Each tool provides context for the next step
-5. **When stuck:** Try `search_by_keywords` with different concepts - it's more powerful than you think!
+5. **When stuck:** Try `search_by_features` with different concepts - it's more powerful than you think!
 
 ---
 

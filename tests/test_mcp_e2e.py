@@ -354,7 +354,7 @@ class TestToolIntegration:
         assert "find_pr_for_line" in tool_names
 
         # Verify analysis tools
-        assert "search_by_keywords" in tool_names
+        assert "search_by_features" in tool_names
         assert "find_dead_code" in tool_names
         assert "get_file_pr_history" in tool_names
 
@@ -524,10 +524,10 @@ class TestKeywordSearch:
     """Test keyword search functionality."""
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_without_index(self, e2e_server):
+    async def test_search_by_features_without_index(self, e2e_server):
         """Test keyword search when keywords are not indexed."""
         result = await e2e_server.call_tool(
-            "search_by_keywords", {"keywords": ["authentication", "user"]}
+            "search_by_features", {"keywords": ["authentication", "user"]}
         )
 
         assert len(result) == 1
@@ -539,28 +539,28 @@ class TestKeywordSearch:
         ), "Response too short to be meaningful (should explain missing keywords or provide results)"
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_invalid_input(self, e2e_server):
+    async def test_search_by_features_invalid_input(self, e2e_server):
         """Test keyword search with invalid input."""
-        result = await e2e_server.call_tool("search_by_keywords", {"keywords": "not_a_list"})
+        result = await e2e_server.call_tool("search_by_features", {"keywords": "not_a_list"})
 
         assert len(result) == 1
         text = result[0].text
         assert "must be a list" in text.lower()
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_empty_list(self, e2e_server):
+    async def test_search_by_features_empty_list(self, e2e_server):
         """Test keyword search with empty keywords list."""
-        result = await e2e_server.call_tool("search_by_keywords", {"keywords": []})
+        result = await e2e_server.call_tool("search_by_features", {"keywords": []})
 
         assert len(result) == 1
         text = result[0].text
         assert "required" in text.lower()
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_invalid_filter_type(self, e2e_server):
+    async def test_search_by_features_invalid_filter_type(self, e2e_server):
         """Test keyword search with invalid filter_type parameter."""
         result = await e2e_server.call_tool(
-            "search_by_keywords",
+            "search_by_features",
             {"keywords": ["test"], "filter_type": "invalid_type"},
         )
 
@@ -570,10 +570,10 @@ class TestKeywordSearch:
         assert "all" in text.lower()
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_filter_modules(self, e2e_server):
+    async def test_search_by_features_filter_modules(self, e2e_server):
         """Test keyword search with modules-only filter."""
         result = await e2e_server.call_tool(
-            "search_by_keywords",
+            "search_by_features",
             {"keywords": ["authentication", "user"], "filter_type": "modules"},
         )
 
@@ -582,10 +582,10 @@ class TestKeywordSearch:
         assert text, "Response should not be empty"
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_filter_functions(self, e2e_server):
+    async def test_search_by_features_filter_functions(self, e2e_server):
         """Test keyword search with functions-only filter."""
         result = await e2e_server.call_tool(
-            "search_by_keywords",
+            "search_by_features",
             {"keywords": ["authentication", "user"], "filter_type": "functions"},
         )
 
@@ -594,10 +594,10 @@ class TestKeywordSearch:
         assert text, "Response should not be empty"
 
     @pytest.mark.asyncio
-    async def test_search_by_keywords_filter_all(self, e2e_server):
+    async def test_search_by_features_filter_all(self, e2e_server):
         """Test keyword search with all-types filter (default)."""
         result = await e2e_server.call_tool(
-            "search_by_keywords",
+            "search_by_features",
             {"keywords": ["authentication", "user"], "filter_type": "all"},
         )
 

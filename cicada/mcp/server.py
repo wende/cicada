@@ -343,7 +343,7 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self._get_file_pr_history(file_path)
-        elif name == "search_by_keywords":
+        elif name == "search_by_features":
             keywords = arguments.get("keywords")
             filter_type = arguments.get("filter_type", "all")
 
