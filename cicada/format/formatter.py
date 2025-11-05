@@ -9,6 +9,7 @@ supporting both Markdown and JSON output formats.
 import argparse
 import json
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,11 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_markdown(
-        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
+        module_name: str,
+        data: dict[str, Any],
+        private_functions: str = "exclude",
+        pr_info: dict | None = None,
+        staleness_info: dict | None = None,
     ) -> str:
         """
         Format module data as Markdown.
@@ -33,6 +38,8 @@ class ModuleFormatter:
             module_name: The name of the module
             data: The module data dictionary from the index
             private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+            pr_info: Optional PR context (number, title, comment_count)
+            staleness_info: Optional staleness info (is_stale, age_str)
 
         Returns:
             Formatted Markdown string
@@ -55,6 +62,25 @@ class ModuleFormatter:
             "",
             f"{data['file']}:{data['line']} • {public_count} public • {private_count} private",
         ]
+
+        # Add staleness warning if applicable
+        if staleness_info and staleness_info.get("is_stale"):
+            lines.append("")
+            lines.append(
+                f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)"
+            )
+            lines.append("   Run: cicada index")
+
+        # Add PR context if available
+        if pr_info:
+            lines.append("")
+            lines.append(
+                f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+            )
+            if pr_info['comment_count'] > 0:
+                lines.append(
+                    f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{data['file']}\")"
+                )
 
         # Add moduledoc if present (first paragraph only for brevity)
         if data.get("moduledoc"):
@@ -150,33 +176,85 @@ class ModuleFormatter:
         return json.dumps(result, indent=2)
 
     @staticmethod
-    def format_error_markdown(module_name: str, total_modules: int) -> str:
+    def _find_similar_names(query: str, all_names: list[str], max_suggestions: int = 5) -> list[tuple[str, float]]:
         """
-        Format error message as Markdown.
+        Find similar names using fuzzy matching.
+
+        Args:
+            query: The query string to match
+            all_names: List of all available names
+            max_suggestions: Maximum number of suggestions to return
+
+        Returns:
+            List of (name, similarity_score) tuples, sorted by similarity
+        """
+        similarities = []
+        query_lower = query.lower()
+
+        for name in all_names:
+            # Calculate similarity score
+            similarity = SequenceMatcher(None, query_lower, name.lower()).ratio()
+
+            # Boost score for substring matches
+            if query_lower in name.lower():
+                similarity = max(similarity, 0.7)
+
+            # Boost score for partial component matches (e.g., "User" matches "MyApp.User")
+            query_parts = query.split('.')
+            name_parts = name.split('.')
+            if any(qpart.lower() in name.lower() for qpart in query_parts):
+                similarity = max(similarity, 0.6)
+
+            similarities.append((name, similarity))
+
+        # Sort by similarity (descending) and return top matches above threshold
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        return [(name, score) for name, score in similarities[:max_suggestions] if score > 0.4]
+
+    @staticmethod
+    def format_error_markdown(
+        module_name: str, total_modules: int, available_modules: list[str] | None = None
+    ) -> str:
+        """
+        Format error message as Markdown with suggestions.
 
         Args:
             module_name: The queried module name
             total_modules: Total number of modules in the index
+            available_modules: Optional list of all available module names for suggestions
 
         Returns:
             Formatted Markdown error message
         """
-        return f"""# Module Not Found
+        lines = [
+            "❌ Module Not Found",
+            "",
+            f"**Query:** `{module_name}`",
+            "",
+        ]
 
-**Query:** `{module_name}`
+        # Add "did you mean" suggestions if available
+        if available_modules:
+            suggestions = ModuleFormatter._find_similar_names(module_name, available_modules, max_suggestions=3)
+            if suggestions:
+                lines.append("## Did you mean?")
+                lines.append("")
+                for name, _score in suggestions:
+                    lines.append(f"  • `{name}`")
+                lines.append("")
 
-The module `{module_name}` was not found in the index.
+        # Add alternative search strategies
+        lines.extend([
+            "## Try:",
+            "",
+            f"  • Wildcard search: search_module('*{module_name.split('.')[-1]}*')",
+            f"  • Semantic search: search_by_features(['{module_name.split('.')[-1].lower()}'])",
+            "  • Check exact spelling and capitalization (module names are case-sensitive)",
+            "",
+            f"Total modules in index: **{total_modules}**",
+        ])
 
-## Suggestions
-
-- Verify the exact module name as it appears in the code
-- Check that the module is part of the indexed codebase
-- Total modules available in index: **{total_modules}**
-
-## Note
-
-Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not `myapp.user`).
-"""
+        return "\n".join(lines)
 
     @staticmethod
     def format_error_json(module_name: str, total_modules: int) -> str:
@@ -457,29 +535,37 @@ Module names are case-sensitive and must match exactly (e.g., `MyApp.User`, not 
         return lines
 
     @staticmethod
-    def format_function_results_markdown(function_name: str, results: list[dict[str, Any]]) -> str:
+    def format_function_results_markdown(
+        function_name: str, results: list[dict[str, Any]], staleness_info: dict | None = None
+    ) -> str:
         """
         Format function search results as Markdown.
 
         Args:
             function_name: The searched function name
             results: List of function matches with module context
+            staleness_info: Optional staleness info (is_stale, age_str)
 
         Returns:
             Formatted Markdown string
         """
         if not results:
-            return f"""# Function Not Found
+            # Extract just the function name without module/arity for suggestions
+            func_only = function_name.split('.')[-1].split('/')[0]
+
+            return f"""❌ Function Not Found
 
 **Query:** `{function_name}`
 
-No functions matching `{function_name}` were found in the index.
+## Try:
 
-## Suggestions
+  • Search without arity: `{func_only}` (if you used /{'{arity}'})
+  • Search without module: `{func_only}` (searches all modules)
+  • Wildcard search: `*{func_only}*` or `{func_only}*`
+  • Semantic search: search_by_features(['{func_only.lower()}'])
+  • Check spelling (function names are case-sensitive)
 
-- Verify the function name spelling
-- Try searching without arity (e.g., 'create_user' instead of 'create_user/2')
-- Check that the function is part of the indexed codebase
+💡 Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
 """
 
         # Group results by (module, name, arity) to consolidate function clauses
@@ -498,20 +584,31 @@ No functions matching `{function_name}` were found in the index.
         # Convert back to list
         consolidated_results = list(grouped_results.values())
 
+        # Add staleness warning at the top if applicable
+        if staleness_info and staleness_info.get("is_stale"):
+            lines = [
+                f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)",
+                "   Run: cicada index",
+                "",
+            ]
+        else:
+            lines = []
+
         # For single results (e.g., MFA search), use simpler header
         if len(consolidated_results) == 1:
-            lines = ["---"]
+            lines.append("---")
         else:
-            lines = [
+            lines.extend([
                 f"Functions matching {function_name}",
                 "",
                 f"Found {len(consolidated_results)} match(es):",
-            ]
+            ])
 
         for result in consolidated_results:
             module_name = result["module"]
             func = result["function"]
             file_path = result["file"]
+            pr_info = result.get("pr_info")
 
             # No indentation for single results
             indent = ""
@@ -528,6 +625,17 @@ No functions matching `{function_name}` were found in the index.
                         f"Type: {sig}",
                     ]
                 )
+
+                # Add PR context for single results
+                if pr_info:
+                    lines.append("")
+                    lines.append(
+                        f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+                    )
+                    if pr_info['comment_count'] > 0:
+                        lines.append(
+                            f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
+                        )
             else:
                 lines.extend(
                     [
@@ -539,6 +647,17 @@ No functions matching `{function_name}` were found in the index.
                 )
                 lines.append(f"{file_path}:{func['line']} • {func['type']}")
                 lines.extend(["", "Signature:", "", f"{sig}"])
+
+                # Add PR context for multi-result format
+                if pr_info:
+                    lines.append("")
+                    lines.append(
+                        f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+                    )
+                    if pr_info['comment_count'] > 0:
+                        lines.append(
+                            f"💬 {pr_info['comment_count']} review comment(s) available"
+                        )
 
             # Add documentation if present
             if func.get("doc"):
