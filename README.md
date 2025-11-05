@@ -303,6 +303,7 @@ uvx --from cicada-mcp cicada-index-pr .
 ```
 
 # Clean rebuild (re-index everything from scratch)
+```
 cicada index-pr . --clean
 ```
 
