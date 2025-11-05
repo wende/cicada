@@ -356,7 +356,7 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
 @pytest.mark.asyncio
 async def test_keyword_search_basic(server):
     """Test basic keyword search functionality."""
-    result = await server._search_by_features(["add"])
+    result = await server._search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     assert "add" in text.lower()
@@ -366,7 +366,7 @@ async def test_keyword_search_basic(server):
 @pytest.mark.asyncio
 async def test_keyword_search_multiple_keywords(server):
     """Test keyword search with multiple keywords."""
-    result = await server._search_by_features(["add", "number"])
+    result = await server._search_by_keywords(["add", "number"])
     assert len(result) > 0
     text = result[0].text
     # Should find results matching these keywords
@@ -378,7 +378,7 @@ async def test_keyword_search_multiple_keywords(server):
 @pytest.mark.asyncio
 async def test_keyword_search_with_bm25_scoring(server):
     """Test that BM25 scoring is applied in keyword search results."""
-    result = await server._search_by_features(["add"])
+    result = await server._search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Check for BM25 score in output
@@ -390,7 +390,7 @@ async def test_keyword_search_with_bm25_scoring(server):
 @pytest.mark.asyncio
 async def test_keyword_search_identifier_boost(server):
     """Test that identifier names are prioritized in keyword search."""
-    result = await server._search_by_features(["add"])
+    result = await server._search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Should find functions with "add" in their name
@@ -401,7 +401,7 @@ async def test_keyword_search_identifier_boost(server):
 @pytest.mark.asyncio
 async def test_keyword_search_no_results(server):
     """Test keyword search with keywords that have no matches."""
-    result = await server._search_by_features(["xyzabc123nonexistent"])
+    result = await server._search_by_keywords(["xyzabc123nonexistent"])
     assert len(result) > 0
     text = result[0].text
     # Should show empty results or no results message
@@ -411,7 +411,7 @@ async def test_keyword_search_no_results(server):
 @pytest.mark.asyncio
 async def test_keyword_search_json_format(server):
     """Test keyword search with JSON output format."""
-    result = await server._search_by_features(["add"])
+    result = await server._search_by_keywords(["add"])
     # Keyword search only supports markdown format
     # But verify it returns proper results
     assert len(result) > 0
@@ -422,7 +422,7 @@ async def test_keyword_search_json_format(server):
 @pytest.mark.asyncio
 async def test_keyword_search_matched_keywords_display(server):
     """Test that matched keywords are displayed in results."""
-    result = await server._search_by_features(["add"])
+    result = await server._search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Should show which keywords matched

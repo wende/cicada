@@ -45,7 +45,7 @@ async def search_function(
 async def search_by_features(*keywords: str) -> str:
     """Search by keywords and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
-    result = await server._search_by_features(list(keywords))
+    result = await server._search_by_keywords(list(keywords))
     return result[0].text if result else f"No results found for keywords: {', '.join(keywords)}"
 
 
