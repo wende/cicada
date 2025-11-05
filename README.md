@@ -266,7 +266,7 @@ cicada index-pr . --clean
 
 ## MCP Tools
 
-CICADA provides 9 specialized tools for AI assistants to understand and navigate your codebase. For complete technical documentation including parameters and return formats, see [MCP Tools Reference](docs/MCP-Tools-Reference.md).
+CICADA provides 9 specialized tools for AI assistants to understand and navigate your codebase. For complete technical documentation including parameters and return formats, see [MCP Tools Reference](docs/MCP_TOOLS_REFERENCE.md).
 
 ### 🧭 Which Tool Should You Use?
 
@@ -358,7 +358,7 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 
 ---
 
-**See also:** [Complete MCP Tools Reference](docs/MCP-Tools-Reference.md) for detailed specifications
+**See also:** [Complete MCP Tools Reference](docs/MCP_TOOLS_REFERENCE.md) for detailed specifications
 
 ---
 
