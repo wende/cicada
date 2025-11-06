@@ -569,7 +569,17 @@ class ModuleFormatter:
             # Extract just the function name without module/arity for suggestions
             func_only = function_name.split('.')[-1].split('/')[0]
 
-            return f"""❌ Function Not Found
+            # Build error message
+            error_parts = []
+
+            # Add staleness warning if applicable
+            if staleness_info and staleness_info.get("is_stale"):
+                error_parts.append(
+                    f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)\n"
+                    f"   Please ask the user to run: cicada index\n"
+                )
+
+            error_parts.append(f"""❌ Function Not Found
 
 **Query:** `{function_name}`
 
@@ -582,7 +592,9 @@ class ModuleFormatter:
   • Check spelling (function names are case-sensitive)
 
 💡 Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
-"""
+""")
+
+            return "\n".join(error_parts)
 
         # Group results by (module, name, arity) to consolidate function clauses
         grouped_results = {}

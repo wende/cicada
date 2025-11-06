@@ -18,6 +18,7 @@ import yaml
 
 from cicada.format.formatter import ModuleFormatter
 from cicada.mcp.server import CicadaServer
+from cicada.utils.storage import get_pr_index_path, get_storage_dir
 
 
 class TestFindSimilarNames:
@@ -156,13 +157,16 @@ class TestStalenessWarnings:
             "metadata": {"total_modules": 1},
         }
 
+        # Create the test file FIRST (before index)
+        test_file = tmp_path / "test.ex"
+        test_file.write_text("defmodule TestModule do\nend")
+
+        # Small delay to ensure clear time difference
+        time.sleep(0.01)
+
         index_path = tmp_path / "index.json"
         with open(index_path, "w") as f:
             json.dump(index, f)
-
-        # Create the test file
-        test_file = tmp_path / "test.ex"
-        test_file.write_text("defmodule TestModule do\nend")
 
         config = {
             "repository": {"path": str(tmp_path)},
@@ -179,8 +183,9 @@ class TestStalenessWarnings:
         """Should not show warning for fresh index"""
         staleness = test_server._check_index_staleness()
 
-        # Fresh index - no staleness
-        assert staleness is None
+        # Fresh index - should be None or not stale
+        # (index was created after the file, so it should be fresh)
+        assert staleness is None or staleness.get("is_stale") is False
 
     def test_stale_index_shows_warning(self, test_server, tmp_path):
         """Should detect stale index when files are modified"""
@@ -330,7 +335,7 @@ class TestPRContextInResults:
         with open(index_path, "w") as f:
             json.dump(index, f)
 
-        # Create PR index
+        # Create PR index in the correct storage location
         pr_index = {
             "file_to_prs": {
                 "lib/test.ex": [123, 456],
@@ -357,7 +362,11 @@ class TestPRContextInResults:
             },
         }
 
-        pr_index_path = tmp_path / "pr_index.json"
+        # Use the storage utility to get the correct PR index path
+        storage_dir = get_storage_dir(tmp_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        pr_index_path = get_pr_index_path(tmp_path)
+
         with open(pr_index_path, "w") as f:
             json.dump(pr_index, f)
 
@@ -365,7 +374,6 @@ class TestPRContextInResults:
             "repository": {"path": str(tmp_path)},
             "storage": {
                 "index_path": str(index_path),
-                "pr_index_path": str(pr_index_path),
             },
         }
         config_path = tmp_path / "config.yaml"
