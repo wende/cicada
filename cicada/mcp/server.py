@@ -7,8 +7,6 @@ Provides an MCP tool to search for Elixir modules and their functions.
 Author: Cursor(Auto)
 """
 
-import contextlib
-import fnmatch
 import os
 import sys
 import time
@@ -23,6 +21,13 @@ from mcp.types import TextContent, Tool
 from cicada.command_logger import get_logger
 from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
+from cicada.mcp.pattern_utils import (
+    FunctionPattern,
+    has_wildcards,
+    match_any_pattern,
+    parse_function_patterns,
+    split_or_patterns,
+)
 from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
 from cicada.utils import get_config_path, get_pr_index_path, load_index
@@ -396,127 +401,6 @@ class CicadaServer:
 
         return None
 
-    def _has_wildcards(self, pattern: str) -> bool:
-        """Check if a pattern contains wildcard characters (* or |)."""
-        return "*" in pattern or "|" in pattern
-
-    def _match_wildcard(self, pattern: str, text: str) -> bool:
-        """
-        Check if text matches a wildcard pattern.
-
-        Supports * (matches any characters) only, not ?.
-
-        Args:
-            pattern: Wildcard pattern (e.g., "MyApp.*", "test_*")
-            text: Text to match against
-
-        Returns:
-            True if text matches the pattern
-        """
-        # Only support * wildcard, not ?
-        if "?" in pattern:
-            return False
-        return fnmatch.fnmatch(text.lower(), pattern.lower())
-
-    def _split_or_patterns(self, pattern: str) -> list[str]:
-        """
-        Split a pattern by the OR symbol (|).
-
-        Args:
-            pattern: Pattern potentially containing | (e.g., "create*|update*")
-
-        Returns:
-            List of individual patterns
-        """
-        return [p.strip() for p in pattern.split("|")]
-
-    def _match_any_pattern(self, patterns: list[str], text: str) -> bool:
-        """
-        Check if text matches any of the given patterns.
-
-        Supports both exact matching and wildcard patterns.
-
-        Args:
-            patterns: List of patterns (can be exact strings or wildcard patterns)
-            text: Text to match against
-
-        Returns:
-            True if text matches any pattern
-        """
-        for pattern in patterns:
-            if "*" in pattern:
-                if self._match_wildcard(pattern, text):
-                    return True
-            else:
-                # Exact match (case-insensitive)
-                if pattern.lower() == text.lower():
-                    return True
-        return False
-
-    def _parse_function_pattern(self, pattern: str) -> dict[str, Any]:
-        """
-        Parse a single function pattern (without OR) into components.
-
-        Supports optional file path (`path:Module.func/arity`), optional module prefix,
-        and optional `/arity` suffix. When no function name is supplied, defaults to `*`.
-        """
-        pattern = pattern.strip()
-        file_pattern = None
-        module_pattern = None
-        name_pattern = pattern
-        arity = None
-
-        if ":" in pattern:
-            file_candidate, remainder = pattern.split(":", 1)
-            # Treat the portion before ":" as a file path only if it resembles a path
-            if "/" in file_candidate or file_candidate.endswith((".ex", ".exs")):
-                file_pattern = file_candidate
-                name_pattern = remainder
-
-        if "." in name_pattern:
-            module_pattern, name_pattern = name_pattern.rsplit(".", 1)
-
-        if "/" in name_pattern:
-            name_part, arity_part = name_pattern.rsplit("/", 1)
-            with contextlib.suppress(ValueError):
-                arity = int(arity_part)
-            name_pattern = name_part
-
-        if not name_pattern:
-            name_pattern = "*"
-
-        return {
-            "file": file_pattern,
-            "module": module_pattern,
-            "name": name_pattern,
-            "arity": arity,
-        }
-
-    def _matches_pattern(self, pattern: str | None, text: str) -> bool:
-        """Return True when the text satisfies the provided (possibly wildcard) pattern."""
-        if not pattern or pattern == "*":
-            return True
-        if "*" in pattern:
-            return self._match_wildcard(pattern, text)
-        return pattern.lower() == text.lower()
-
-    def _function_matches_pattern(
-        self,
-        module_name: str,
-        file_path: str,
-        func: dict[str, Any],
-        pattern: dict[str, Any],
-    ) -> bool:
-        """Determine whether a function entry satisfies a parsed search pattern."""
-        if not self._matches_pattern(pattern.get("module"), module_name):
-            return False
-        if not self._matches_pattern(pattern.get("file"), file_path):
-            return False
-        if not self._matches_pattern(pattern.get("name"), func["name"]):
-            return False
-        arity = pattern.get("arity")
-        return not (arity is not None and func["arity"] != arity)
-
     async def _search_module(
         self,
         module_name: str,
@@ -535,15 +419,15 @@ class CicadaServer:
             - "*User*|*Post*" - matches modules containing User OR Post
         """
         # Check for wildcard or OR patterns
-        if self._has_wildcards(module_name):
+        if has_wildcards(module_name):
             # Split by OR patterns
-            patterns = self._split_or_patterns(module_name)
+            patterns = split_or_patterns(module_name)
 
             # Find all matching modules
             matching_modules = []
             for mod_name, mod_data in self.index["modules"].items():
                 # Check if module name or file path matches any pattern
-                if self._match_any_pattern(patterns, mod_name) or self._match_any_pattern(
+                if match_any_pattern(patterns, mod_name) or match_any_pattern(
                     patterns, mod_data["file"]
                 ):
                     matching_modules.append((mod_name, mod_data))
@@ -627,12 +511,7 @@ class CicadaServer:
             - "lib/*/user.ex:create*" - matches create* functions in files matching path pattern
         """
         # Support OR syntax by splitting first, then parsing each component individually
-        raw_patterns = self._split_or_patterns(function_name) if function_name else ["*"]
-        parsed_patterns = [
-            self._parse_function_pattern(pattern) for pattern in raw_patterns if pattern.strip()
-        ]
-        if not parsed_patterns:
-            parsed_patterns = [self._parse_function_pattern("*")]
+        parsed_patterns: list[FunctionPattern] = parse_function_patterns(function_name)
 
         # Search across all modules for function definitions
         results = []
@@ -640,7 +519,7 @@ class CicadaServer:
         for module_name, module_data in self.index["modules"].items():
             for func in module_data["functions"]:
                 if any(
-                    self._function_matches_pattern(module_name, module_data["file"], func, pattern)
+                    pattern.matches(module_name, module_data["file"], func)
                     for pattern in parsed_patterns
                 ):
                     key = (module_name, func["name"], func["arity"])
