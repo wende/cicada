@@ -231,5 +231,46 @@ async def test_or_patterns_with_different_arities(tmp_path):
     assert ("validate_email", 1) in arities
 
 
+@pytest.mark.asyncio
+async def test_file_path_wildcard_function_search(tmp_path):
+    """File-path wildcards should scope function searches."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Should match create_user in lib/my_app/user.ex
+    result = await server._search_function("lib/my_app/*.ex:create*", "json")
+    payload = json.loads(result[0].text)
+    matched = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in matched
+
+    # Combining two file-scoped patterns via OR should union their matches
+    result = await server._search_function(
+        "lib/my_app/*.ex:create*|lib/my_app_web/controllers/*.ex:create", "json"
+    )
+    payload = json.loads(result[0].text)
+    matched = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in matched
+    assert "MyApp.UserController.create/2" in matched
+
+
 if __name__ == "__main__":
     asyncio.run(test_search_function())
