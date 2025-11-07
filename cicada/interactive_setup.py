@@ -16,12 +16,12 @@ from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED, generate_
 from cicada.setup import EditorType
 
 
-def _text_based_setup() -> tuple[str, str]:
+def _text_based_setup() -> tuple[str, str, bool]:
     """
     Fallback text-based setup for terminals that don't support simple-term-menu.
 
     Returns:
-        tuple[str, str]: The selected extraction and expansion methods
+        tuple[str, str, bool]: The selected extraction method, expansion method, and whether to index PRs
     """
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
@@ -30,21 +30,27 @@ def _text_based_setup() -> tuple[str, str]:
     print(f"This is your first time running CICADA in this project.{RESET}")
     print(f"Let's configure keyword extraction for code intelligence.{RESET}")
     print()
-    print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
+    print(f"{BOLD}Step 1/2: Choose intelligence tier{RESET}")
     print()
-    print("1. Regular - Term frequency-based extraction (fast, no ML)")
-    print("2. KeyBERT - Semantic keyword extraction (AI embeddings)")
+    print("1. Fast - Term frequency + inflections (no downloads)")
+    print("2. Balanced - KeyBERT + GloVe semantic expansion (261MB)")
+    print("3. Maximum - KeyBERT + FastText expansion (1091MB)")
     print()
 
     while True:
         try:
-            method_choice = input("Enter your choice (1 or 2) [default: 1]: ").strip()
-            if not method_choice:
-                method_choice = "1"
-            if method_choice in ("1", "2"):
-                method = "regular" if method_choice == "1" else "bert"
+            tier_choice = input("Enter your choice (1, 2, or 3) [default: 1]: ").strip()
+            if not tier_choice:
+                tier_choice = "1"
+            if tier_choice in ("1", "2", "3"):
+                tier_map = {
+                    "1": ("regular", "lemmi"),
+                    "2": ("bert", "glove"),
+                    "3": ("bert", "fasttext"),
+                }
+                method, expansion_method = tier_map[tier_choice]
                 break
-            print("Invalid choice. Please enter 1 or 2.")
+            print("Invalid choice. Please enter 1, 2, or 3.")
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
@@ -52,71 +58,64 @@ def _text_based_setup() -> tuple[str, str]:
 
     # Display info based on selection
     print()
-    if method == "regular":
-        print(f"{BOLD}  What is Regular extraction?{RESET}")
-        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
-        print(f"   Fast, lightweight, no model downloads required{RESET}")
-        print()
-        print(f"{GREEN}✓{RESET} Selected: REGULAR")
-        print()
-    else:
-        print(f"{SELECTED}  What is KeyBERT?{RESET}")
-        print(
-            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
-        )
-        print()
-        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
-        print()
-
-    # Step 2: Ask about keyword expansion (applies to both methods)
-    print(f"{BOLD}Step 2/2: Choose keyword expansion{RESET}")
-    print(
-        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
-    )
-    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
-    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
+    if tier_choice == "1":
+        print(f"{GREEN}✓{RESET} Selected: FAST tier")
+        print(f"   Term frequency extraction + inflections")
+        print(f"   Fast, lightweight, no model downloads")
+    elif tier_choice == "2":
+        print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   GloVe semantic expansion (128MB)")
+        print(f"   Total: 261MB download")
+    else:  # tier 3
+        print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   FastText semantic expansion (958MB)")
+        print(f"   Total: 1091MB download")
     print()
-    print("1. Lemmi only - Just inflections (fast, no downloads)")
-    print("2. GloVe + Lemmi - Semantic expansion (128MB download)")
-    print("3. FastText + Lemmi - Better rare words (958MB download)")
+
+    # Step 2: Ask about PR indexing
+    print(f"{BOLD}Step 2/2: Index pull requests?{RESET}")
+    print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
+    print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
+    print()
+    print("1. Yes - Index PRs now (requires GitHub access)")
+    print("2. No - Skip PR indexing (can run later with 'cicada-pr-indexer')")
     print()
 
     while True:
         try:
-            expansion_choice = input("Enter your choice (1, 2, or 3) [default: 1]: ").strip()
-            if not expansion_choice:
-                expansion_choice = "1"
-            if expansion_choice in ("1", "2", "3"):
-                expansion_map = {"1": "lemmi", "2": "glove", "3": "fasttext"}
-                expansion_method = expansion_map[expansion_choice]
+            pr_choice = input("Enter your choice (1 or 2) [default: 2]: ").strip()
+            if not pr_choice:
+                pr_choice = "2"
+            if pr_choice in ("1", "2"):
+                index_prs = pr_choice == "1"
                 break
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1 or 2.")
         except (KeyboardInterrupt, EOFError):
             print()
             print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
             sys.exit(1)
 
     print()
-    if expansion_method == "lemmi":
-        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
-    elif expansion_method == "glove":
-        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
-    else:  # fasttext
-        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
+    if index_prs:
+        print(f"{GREEN}✓{RESET} Will index pull requests")
+    else:
+        print(f"{GREEN}✓{RESET} Skipping PR indexing")
     print()
 
-    return (method, expansion_method)
+    return (method, expansion_method, index_prs)
 
 
-def show_first_time_setup() -> tuple[str, str]:
+def show_first_time_setup() -> tuple[str, str, bool]:
     """
     Display an interactive first-time setup menu for cicada.
 
     Falls back to text-based input if the terminal doesn't support simple-term-menu.
 
     Returns:
-        tuple[str, str]: The selected extraction and expansion methods
-                        e.g., ('regular', 'lemmi') or ('bert', 'glove')
+        tuple[str, str, bool]: The selected extraction method, expansion method, and whether to index PRs
+                              e.g., ('regular', 'lemmi', False) or ('bert', 'glove', True)
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
@@ -125,7 +124,7 @@ def show_first_time_setup() -> tuple[str, str]:
     # Display ASCII art
     print(generate_gradient_ascii_art())
 
-    # Step 1: Choose extraction method
+    # Step 1: Choose intelligence tier
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
     print(f"{PRIMARY}{'=' * 70}{RESET}")
@@ -133,18 +132,19 @@ def show_first_time_setup() -> tuple[str, str]:
     print(f"This is your first time running CICADA in this project.{RESET}")
     print(f"Let's configure keyword extraction for code intelligence.{RESET}")
     print()
-    print(f"{BOLD}Step 1/2: Choose extraction method{RESET}")
+    print(f"{BOLD}Step 1/2: Choose intelligence tier{RESET}")
 
-    method_items = [
-        "Regular - Term frequency-based extraction (fast, no ML)",
-        "KeyBERT - Semantic keyword extraction (AI embeddings)",
+    tier_items = [
+        "Fast - Term frequency + inflections (no downloads)",
+        "Balanced - KeyBERT + GloVe semantic expansion (261MB)",
+        "Maximum - KeyBERT + FastText expansion (1091MB)",
     ]
 
     try:
         if TerminalMenu is None:
             return _text_based_setup()
-        method_menu = TerminalMenu(
-            method_items,
+        tier_menu = TerminalMenu(
+            tier_items,
             title="",
             menu_cursor="» ",
             menu_cursor_style=("fg_yellow", "bold"),
@@ -152,7 +152,7 @@ def show_first_time_setup() -> tuple[str, str]:
             cycle_cursor=True,
             clear_screen=False,
         )
-        method_index = method_menu.show()
+        tier_index = tier_menu.show()
     except (KeyboardInterrupt, EOFError):
         print()
         print("Setup cancelled. Exiting...")
@@ -165,51 +165,54 @@ def show_first_time_setup() -> tuple[str, str]:
         )
         return _text_based_setup()
 
-    if method_index is None:
+    if tier_index is None:
         print()
         print("Setup cancelled. Exiting...")
         sys.exit(1)
 
-    method = "regular" if method_index == 0 else "bert"
+    # Map tier to extraction + expansion methods
+    tier_map = {
+        0: ("regular", "lemmi"),
+        1: ("bert", "glove"),
+        2: ("bert", "fasttext"),
+    }
+    idx = int(tier_index) if isinstance(tier_index, int) else tier_index[0]
+    method, expansion_method = tier_map[idx]
 
     # Display info based on selection
     print()
-    if method == "regular":
-        print(f"{BOLD}  What is Regular extraction?{RESET}")
-        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
-        print(f"   Fast, lightweight, no model downloads required{RESET}")
-        print()
-        print(f"{GREEN}✓{RESET} Selected: REGULAR")
-        print()
-    else:
-        print(f"{SELECTED}  What is KeyBERT?{RESET}")
-        print(
-            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
-        )
-        print()
-        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
-        print()
-
-    # Step 2: Ask about keyword expansion (applies to both methods)
-    print(f"{BOLD}Step 2/2: Choose keyword expansion{RESET}")
-    print(
-        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
-    )
-    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
-    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
+    if idx == 0:
+        print(f"{GREEN}✓{RESET} Selected: FAST tier")
+        print(f"   Term frequency extraction + inflections")
+        print(f"   Fast, lightweight, no model downloads")
+    elif idx == 1:
+        print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   GloVe semantic expansion (128MB)")
+        print(f"   Total: 261MB download")
+    else:  # idx == 2
+        print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   FastText semantic expansion (958MB)")
+        print(f"   Total: 1091MB download")
     print()
 
-    expansion_items = [
-        "Lemmi only - Just inflections (fast, no downloads)",
-        "GloVe + Lemmi - Semantic expansion (128MB download)",
-        "FastText + Lemmi - Better rare words (958MB download)",
+    # Step 2: Ask about PR indexing
+    print(f"{BOLD}Step 2/2: Index pull requests?{RESET}")
+    print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
+    print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
+    print()
+
+    pr_items = [
+        "No - Skip PR indexing (can run later with 'cicada-pr-indexer')",
+        "Yes - Index PRs now (requires GitHub access)",
     ]
 
     try:
         if TerminalMenu is None:
             return _text_based_setup()
-        expansion_menu = TerminalMenu(
-            expansion_items,
+        pr_menu = TerminalMenu(
+            pr_items,
             title="",
             menu_cursor="» ",
             menu_cursor_style=("fg_yellow", "bold"),
@@ -217,7 +220,7 @@ def show_first_time_setup() -> tuple[str, str]:
             cycle_cursor=True,
             clear_screen=False,
         )
-        expansion_index = expansion_menu.show()
+        pr_index = pr_menu.show()
     except (KeyboardInterrupt, EOFError):
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
@@ -229,26 +232,22 @@ def show_first_time_setup() -> tuple[str, str]:
         )
         return _text_based_setup()
 
-    if expansion_index is None:
+    if pr_index is None:
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
         sys.exit(1)
 
-    expansion_map = {0: "lemmi", 1: "glove", 2: "fasttext"}
-    # Cast to int to satisfy type checker (TerminalMenu.show() returns int | tuple)
-    idx = int(expansion_index) if isinstance(expansion_index, int) else expansion_index[0]
-    expansion_method = expansion_map[idx]
+    idx = int(pr_index) if isinstance(pr_index, int) else pr_index[0]
+    index_prs = idx == 1
 
     print()
-    if expansion_method == "lemmi":
-        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
-    elif expansion_method == "glove":
-        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
-    else:  # fasttext
-        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
+    if index_prs:
+        print(f"{GREEN}✓{RESET} Will index pull requests")
+    else:
+        print(f"{GREEN}✓{RESET} Skipping PR indexing")
     print()
 
-    return (method, expansion_method)
+    return (method, expansion_method, index_prs)
 
 
 def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
@@ -333,14 +332,14 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print(f"{GREEN}✓{RESET} Selected: {editor.upper()}")
     print()
 
-    # Check if index already exists before showing model selection
+    # Check if index already exists before showing tier selection
     from cicada.utils.storage import get_config_path, get_index_path
 
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
     if config_path.exists() and index_path.exists():
-        # Index exists - use existing settings, don't show model selection
+        # Index exists - use existing settings, don't show tier selection
         import yaml
 
         try:
@@ -366,24 +365,25 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
                 sys.exit(1)
 
-            return  # Exit early - don't show model selection
+            return  # Exit early - don't show tier selection
         except Exception:
-            # If we can't read config, proceed with model selection
+            # If we can't read config, proceed with tier selection
             pass
 
-    # Step 2: Choose keyword extraction method
-    print(f"{BOLD}Step 2/4: Choose extraction method{RESET}")
+    # Step 2: Choose intelligence tier
+    print(f"{BOLD}Step 2/3: Choose intelligence tier{RESET}")
 
-    method_items = [
-        "Regular - Term frequency-based extraction (fast, no ML)",
-        "KeyBERT - Semantic keyword extraction (AI embeddings)",
+    tier_items = [
+        "Fast - Term frequency + inflections (no downloads)",
+        "Balanced - KeyBERT + GloVe semantic expansion (261MB)",
+        "Maximum - KeyBERT + FastText expansion (1091MB)",
     ]
 
     if has_terminal_menu:
         try:
             if TerminalMenu is None:
-                extraction_method, expansion_method = show_first_time_setup()
-                # Text-based setup complete - call setup and return
+                extraction_method, expansion_method, index_prs = show_first_time_setup()
+                # Text-based setup complete - call setup and handle PR indexing
                 try:
                     setup(
                         cast(EditorType, editor),
@@ -391,12 +391,14 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                         extraction_method=extraction_method,
                         expansion_method=expansion_method,
                     )
+                    if index_prs:
+                        _run_pr_indexing(repo_path)
                 except Exception as e:
                     print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
                     sys.exit(1)
                 return
-            method_menu = TerminalMenu(
-                method_items,
+            tier_menu = TerminalMenu(
+                tier_items,
                 title="",
                 menu_cursor="» ",
                 menu_cursor_style=("fg_yellow", "bold"),
@@ -404,14 +406,21 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 cycle_cursor=True,
                 clear_screen=False,
             )
-            method_index = method_menu.show()
+            tier_index = tier_menu.show()
 
-            if method_index is None:
+            if tier_index is None:
                 print()
                 print("Setup cancelled. Exiting...")
                 sys.exit(1)
 
-            method = "regular" if method_index == 0 else "bert"
+            # Map tier to extraction + expansion methods
+            tier_map = {
+                0: ("regular", "lemmi"),
+                1: ("bert", "glove"),
+                2: ("bert", "fasttext"),
+            }
+            idx = int(tier_index) if isinstance(tier_index, int) else tier_index[0]
+            extraction_method, expansion_method = tier_map[idx]
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
@@ -421,7 +430,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
                 file=sys.stderr,
             )
-            extraction_method, expansion_method = show_first_time_setup()
+            extraction_method, expansion_method, index_prs = show_first_time_setup()
             try:
                 setup(
                     cast(EditorType, editor),
@@ -429,12 +438,14 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                     extraction_method=extraction_method,
                     expansion_method=expansion_method,
                 )
+                if index_prs:
+                    _run_pr_indexing(repo_path)
             except Exception as e:
                 print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
                 sys.exit(1)
             return
     else:
-        extraction_method, expansion_method = show_first_time_setup()
+        extraction_method, expansion_method, index_prs = show_first_time_setup()
         try:
             setup(
                 cast(EditorType, editor),
@@ -442,52 +453,46 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 extraction_method=extraction_method,
                 expansion_method=expansion_method,
             )
+            if index_prs:
+                _run_pr_indexing(repo_path)
         except Exception as e:
             print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
             sys.exit(1)
         return
 
-    # For Regular extraction, no tier selection needed
-    if method == "regular":
-        print()
-        print(f"{BOLD}  What is Regular extraction?{RESET}")
-        print(f"   Uses term frequency (TF) to identify important keywords{RESET}")
-        print(f"   Fast, lightweight, no model downloads required{RESET}")
-        print()
-        print(f"{GREEN}✓{RESET} Selected: REGULAR")
-        print()
-    else:
-        # KeyBERT selected - single 133MB model
-        print()
-        print(f"{SELECTED}  What is KeyBERT?{RESET}")
-        print(
-            f"{PRIMARY}   KeyBERT uses AI embeddings (133MB model) to find semantically similar keywords{RESET}"
-        )
-        print()
-        print(f"{GREEN}✓{RESET} Selected: KEYBERT")
-        print()
-
-    # Step 3: Ask about keyword expansion (applies to both Regular and KeyBERT)
-    print(f"{BOLD}Step 3/4: Choose keyword expansion{RESET}")
+    # Display info based on tier selection
     print()
-    print(
-        f"{PRIMARY}   All methods include lemminflect inflections (e.g., run → runs, running, ran){RESET}"
-    )
-    print(f"{PRIMARY}   Optionally add word embeddings for semantic expansion:{RESET}")
-    print(f'{PRIMARY}   Example: "database" → adds "postgresql", "mysql", "storage"{RESET}')
+    if idx == 0:
+        print(f"{GREEN}✓{RESET} Selected: FAST tier")
+        print(f"   Term frequency extraction + inflections")
+        print(f"   Fast, lightweight, no model downloads")
+    elif idx == 1:
+        print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   GloVe semantic expansion (128MB)")
+        print(f"   Total: 261MB download")
+    else:  # idx == 2
+        print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
+        print(f"   KeyBERT semantic extraction (133MB)")
+        print(f"   FastText semantic expansion (958MB)")
+        print(f"   Total: 1091MB download")
     print()
 
-    expansion_items = [
-        "Lemmi only - Just inflections (fast, no downloads)",
-        "GloVe + Lemmi - Semantic expansion (128MB download)",
-        "FastText + Lemmi - Better rare words (958MB download)",
+    # Step 3: Ask about PR indexing
+    print(f"{BOLD}Step 3/3: Index pull requests?{RESET}")
+    print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
+    print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
+    print()
+
+    pr_items = [
+        "No - Skip PR indexing (can run later with 'cicada-pr-indexer')",
+        "Yes - Index PRs now (requires GitHub access)",
     ]
 
-    expansion_index = None  # Initialize to None
     try:
         if TerminalMenu is None:
-            extraction_method, expansion_method = show_first_time_setup()
-            # Text-based setup complete - call setup and return
+            extraction_method, expansion_method, index_prs = show_first_time_setup()
+            # Text-based setup complete - call setup and handle PR indexing
             try:
                 setup(
                     cast(EditorType, editor),
@@ -495,21 +500,22 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                     extraction_method=extraction_method,
                     expansion_method=expansion_method,
                 )
+                if index_prs:
+                    _run_pr_indexing(repo_path)
             except Exception as e:
                 print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
                 sys.exit(1)
             return
-        else:
-            expansion_menu = TerminalMenu(
-                expansion_items,
-                title="",
-                menu_cursor="» ",
-                menu_cursor_style=("fg_yellow", "bold"),
-                menu_highlight_style=("fg_yellow", "bold"),
-                cycle_cursor=True,
-                clear_screen=False,
-            )
-            expansion_index = expansion_menu.show()
+        pr_menu = TerminalMenu(
+            pr_items,
+            title="",
+            menu_cursor="» ",
+            menu_cursor_style=("fg_yellow", "bold"),
+            menu_highlight_style=("fg_yellow", "bold"),
+            cycle_cursor=True,
+            clear_screen=False,
+        )
+        pr_index = pr_menu.show()
     except (KeyboardInterrupt, EOFError):
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
@@ -519,8 +525,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
             f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
             file=sys.stderr,
         )
-        extraction_method, expansion_method = show_first_time_setup()
-        # Text-based setup complete - call setup and return
+        extraction_method, expansion_method, index_prs = show_first_time_setup()
         try:
             setup(
                 cast(EditorType, editor),
@@ -528,33 +533,26 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 extraction_method=extraction_method,
                 expansion_method=expansion_method,
             )
+            if index_prs:
+                _run_pr_indexing(repo_path)
         except Exception as e:
             print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
             sys.exit(1)
         return
 
-    # expansion_index is now guaranteed to be set (or we returned above)
-    if expansion_index is None:
+    if pr_index is None:
         print()
         print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
         sys.exit(1)
 
-    # Map method ("regular" or "bert") to extraction_method
-    extraction_method = method
-
-    # Map expansion_index to expansion_method
-    expansion_map = {0: "lemmi", 1: "glove", 2: "fasttext"}
-    # Cast to int to satisfy type checker (TerminalMenu.show() returns int | tuple)
-    idx = int(expansion_index) if isinstance(expansion_index, int) else expansion_index[0]
-    expansion_method = expansion_map[idx]
+    idx = int(pr_index) if isinstance(pr_index, int) else pr_index[0]
+    index_prs = idx == 1
 
     print()
-    if expansion_method == "lemmi":
-        print(f"{GREEN}✓{RESET} Lemminflect inflections only")
-    elif expansion_method == "glove":
-        print(f"{GREEN}✓{RESET} GloVe + Lemmi expansion (128MB)")
-    else:  # fasttext
-        print(f"{GREEN}✓{RESET} FastText + Lemmi expansion (958MB)")
+    if index_prs:
+        print(f"{GREEN}✓{RESET} Will index pull requests")
+    else:
+        print(f"{GREEN}✓{RESET} Skipping PR indexing")
     print()
 
     # Run setup
@@ -568,9 +566,46 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
             extraction_method=extraction_method,
             expansion_method=expansion_method,
         )
+
+        # Run PR indexing if requested
+        if index_prs:
+            _run_pr_indexing(repo_path)
     except Exception as e:
         print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
         sys.exit(1)
+
+
+def _run_pr_indexing(repo_path: Path) -> None:
+    """
+    Run the PR indexer for the given repository.
+
+    Args:
+        repo_path: Path to the repository to index
+    """
+    from cicada.pr_indexer.indexer import PRIndexer
+    from cicada.utils.storage import get_pr_index_path
+
+    print()
+    print(f"{BOLD}Indexing pull requests...{RESET}")
+    print()
+
+    try:
+        indexer = PRIndexer(repo_path=str(repo_path))
+        output_path = get_pr_index_path(repo_path)
+        indexer.index_repository(output_path=str(output_path), incremental=True)
+        print()
+        print(f"{GREEN}✓{RESET} PR indexing complete!")
+        print()
+    except KeyboardInterrupt:
+        print()
+        print(f"{PRIMARY}⚠️  PR indexing interrupted by user.{RESET}")
+        print(f"{GREY}Partial index may have been saved. Run 'cicada-pr-indexer' to continue.{RESET}")
+        print()
+    except Exception as e:
+        print()
+        print(f"{PRIMARY}⚠️  PR indexing failed: {e}{RESET}")
+        print(f"{GREY}You can run 'cicada-pr-indexer' later to index PRs.{RESET}")
+        print()
 
 
 def _text_based_editor_selection() -> str:
