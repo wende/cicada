@@ -1,0 +1,64 @@
+{
+  "name": "@sourcegraph/scip-typescript",
+  "version": "0.4.0",
+  "description": "SCIP indexer for TypeScript and JavaScript",
+  "publisher": "sourcegraph",
+  "bin": "dist/src/main.js",
+  "main": "./dist/src/main.js",
+  "scripts": {
+    "prettier": "prettier --write --list-different '**/*.{ts,js?(on),md,yml}'",
+    "prettier-check": "prettier --check '**/*.{ts,js?(on),md,yml}'",
+    "tslint": "tslint -p tsconfig.json --format stylish",
+    "eslint": "eslint --cache '**/*.ts?(x)'",
+    "build": "node ./node_modules/typescript/bin/tsc -b .",
+    "test": "uvu -r tsm --ignore dist",
+    "update-snapshots": "uvu -r tsm --ignore dist --update-snapshots",
+    "prepare": "cd snapshots && yarn && cd input/multi-project && yarn && cd ../pnpm-workspaces && pnpm install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sourcegraph/scip-typescript.git"
+  },
+  "keywords": [
+    "scip",
+    "typescript",
+    "compiler",
+    "javascript",
+    "indexer"
+  ],
+  "author": "Code Intelligence at Sourcegraph",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/sourcegraph/scip-typescript/issues"
+  },
+  "homepage": "https://github.com/sourcegraph/scip-typescript#readme",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "google-protobuf": "^3.21.4",
+    "progress": "^2.0.3",
+    "typescript": "^5.6.2"
+  },
+  "devDependencies": {
+    "@sourcegraph/eslint-config": "0.37.1",
+    "@sourcegraph/prettierrc": "3.0.3",
+    "@sourcegraph/tsconfig": "4.0.1",
+    "@types/diff": "7.0.1",
+    "@types/google-protobuf": "3.15.12",
+    "@types/node": "20.16.10",
+    "@types/progress": "2.0.7",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "diff": "7.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-etc": "^2.0.3",
+    "eslint-plugin-rxjs": "^5.0.3",
+    "eslint-plugin-unicorn": "^55.0.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "pnpm": "9.11.0",
+    "prettier": "3.5.3",
+    "tsm": "^2.3.0",
+    "tsx": "^4.19.1",
+    "typescript-eslint": "7.18.0",
+    "uvu": "^0.5.6"
+  }
+}

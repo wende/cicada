@@ -5,6 +5,7 @@ This module provides the FileWatcher class which monitors Elixir source files
 for changes and automatically triggers incremental reindexing.
 """
 
+import json
 import logging
 import signal
 import sys
@@ -39,8 +40,6 @@ class ElixirFileEventHandler(FileSystemEventHandler):
         super().__init__()
         self.watcher = watcher
         # Reuse excluded_dirs from ElixirIndexer to avoid duplication
-        from cicada.indexer import ElixirIndexer
-
         self.excluded_dirs = ElixirIndexer(verbose=False).excluded_dirs
 
     def _is_elixir_file(self, path: str) -> bool:
@@ -119,18 +118,29 @@ class FileWatcher:
         self.timer_lock = threading.Lock()
         self.running = False
         self.shutdown_event = threading.Event()
+        self._consecutive_failures = 0  # Track consecutive reindex failures
 
         # Set up signal handlers for graceful shutdown (unless disabled for testing)
         if register_signal_handlers:
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _signal_handler(self, _signum: int, _frame) -> None:
+    def _signal_handler(self, signum: int, _frame) -> None:
         """Handle shutdown signals (SIGINT, SIGTERM)."""
-        print("\n\nReceived interrupt signal. Stopping watcher...")
+        signal_name = signal.Signals(signum).name
+        logger.info(f"Received {signal_name} signal")
+        print(f"\n\nReceived {signal_name} signal. Stopping watcher...")
+
         self.shutdown_event.set()
-        self.stop_watching()
-        sys.exit(0)
+
+        try:
+            self.stop_watching()
+        except Exception as e:
+            logger.exception(f"Error during signal handler cleanup: {e}")
+            print(f"Warning: Error during cleanup: {e}", file=sys.stderr)
+            # Still exit even if cleanup fails
+        finally:
+            sys.exit(0)
 
     def start_watching(self) -> None:
         """
@@ -175,30 +185,25 @@ class FileWatcher:
         except KeyboardInterrupt:
             print("\n\nInitial indexing interrupted. Exiting...")
             return
+        except (MemoryError, OSError) as e:
+            # System-level failures - don't continue regardless of existing index
+            print("\n" + "=" * 70)
+            print("CRITICAL: System error during initial indexing!")
+            print("=" * 70)
+            print(f"Error: {e}")
+            print("\nWatch mode cannot start due to system-level failure.")
+            if isinstance(e, MemoryError):
+                print("Your system is out of memory. Close other applications and try again.")
+            elif isinstance(e, OSError):
+                print(f"File system error: {e}")
+                print("Check disk space, permissions, and filesystem health.")
+            print("=" * 70)
+            logger.critical(f"System error during initial indexing: {e}", exc_info=True)
+            sys.exit(1)
         except Exception as e:
-            # Check if an index already exists
-            if index_path.exists():
-                print("\n" + "=" * 70)
-                print("WARNING: Initial indexing failed!")
-                print("=" * 70)
-                print(f"Error: {e}")
-                print("\nAn existing index was found, so watch mode will continue.")
-                print("However, the index may be outdated. Consider running:")
-                print(f"  cicada index {self.repo_path}")
-                print("=" * 70)
-                print()
-                logger.exception("Initial indexing failed")
-            else:
-                print("\n" + "=" * 70)
-                print("ERROR: Initial indexing failed and no existing index found!")
-                print("=" * 70)
-                print(f"Error: {e}")
-                print("\nWatch mode cannot start without an index.")
-                print("Please fix the error and try again, or run:")
-                print(f"  cicada index {self.repo_path}")
-                print("=" * 70)
-                logger.exception("Initial indexing failed")
-                sys.exit(1)
+            # Other failures - check if we can use existing index
+            logger.exception("Initial indexing failed")
+            self._handle_initial_index_failure(e, index_path)
 
         # Set up file system observer
         event_handler = ElixirFileEventHandler(self)
@@ -234,16 +239,82 @@ class FileWatcher:
         # Cancel pending debounce timer
         with self.timer_lock:
             if self.debounce_timer is not None:
-                self.debounce_timer.cancel()
-                self.debounce_timer = None
+                try:
+                    self.debounce_timer.cancel()
+                    # Note: cancel() only prevents future execution,
+                    # callback might still be running
+                    logger.debug("Cancelled pending debounce timer")
+                except Exception as e:
+                    logger.warning(f"Error cancelling timer: {e}")
+                finally:
+                    self.debounce_timer = None
 
         # Stop observer
         if self.observer is not None:
             self.observer.stop()
             self.observer.join(timeout=5)
+
+            if self.observer.is_alive():
+                logger.warning("Observer thread did not stop within timeout")
+                print("Warning: File watcher thread did not stop cleanly", file=sys.stderr)
+                # Still clear reference to allow GC, but log the issue
+
             self.observer = None
 
         print("Watcher stopped.")
+
+    def _handle_initial_index_failure(self, error: Exception, index_path: Path) -> None:
+        """Handle failure during initial indexing.
+
+        Args:
+            error: The exception that occurred
+            index_path: Path to the index file
+
+        Raises:
+            SystemExit: If watch mode cannot continue
+        """
+        if not index_path.exists():
+            # No existing index - must exit
+            print("\n" + "=" * 70)
+            print("ERROR: Initial indexing failed and no existing index found!")
+            print("=" * 70)
+            print(f"Error: {error}")
+            print("\nWatch mode cannot start without an index.")
+            print("Please fix the error and try again, or run:")
+            print(f"  cicada index {self.repo_path}")
+            print("=" * 70)
+            sys.exit(1)
+
+        # Try to load existing index to verify it's usable
+        try:
+            with open(index_path) as f:
+                index = json.load(f)
+            if not index or not index.get("modules"):
+                raise ValueError("Existing index is empty or corrupted")
+
+            # Existing index appears valid
+            print("\n" + "=" * 70)
+            print("WARNING: Initial indexing failed!")
+            print("=" * 70)
+            print(f"Error: {error}")
+            print("\nAn existing index was found and verified as usable.")
+            print("Watch mode will continue, but the index may be outdated.")
+            print("\nTo fix this issue, run:")
+            print(f"  cicada clean && cicada index {self.repo_path}")
+            print("=" * 70)
+            print()
+        except Exception as load_error:
+            # Existing index is corrupted or unusable
+            print("\n" + "=" * 70)
+            print("ERROR: Initial indexing failed and existing index is corrupted!")
+            print("=" * 70)
+            print(f"Indexing error: {error}")
+            print(f"Index validation error: {load_error}")
+            print("\nCannot start watch mode. Please fix the issue:")
+            print(f"  cicada clean && cicada index {self.repo_path}")
+            print("=" * 70)
+            logger.error(f"Existing index corrupted: {load_error}")
+            sys.exit(1)
 
     def _on_file_change(self, event: FileSystemEvent) -> None:
         """
@@ -257,17 +328,28 @@ class FileWatcher:
             event: The file system event
         """
         with self.timer_lock:
-            # Cancel existing timer
-            if self.debounce_timer is not None:
-                self.debounce_timer.cancel()
+            self._cancel_pending_timer()
+            self._start_new_timer()
 
-            # Start new timer (daemon thread won't prevent process exit)
-            self.debounce_timer = threading.Timer(
-                self.debounce_seconds,
-                self._trigger_reindex,
-            )
-            self.debounce_timer.daemon = True
-            self.debounce_timer.start()
+    def _cancel_pending_timer(self) -> None:
+        """Cancel any pending debounce timer."""
+        if self.debounce_timer is None:
+            return
+
+        try:
+            self.debounce_timer.cancel()
+            logger.debug("Cancelled previous debounce timer due to new file change")
+        except Exception as e:
+            logger.warning(f"Error cancelling previous timer: {e}")
+
+    def _start_new_timer(self) -> None:
+        """Start a new debounce timer."""
+        self.debounce_timer = threading.Timer(
+            self.debounce_seconds,
+            self._trigger_reindex,
+        )
+        self.debounce_timer.daemon = True
+        self.debounce_timer.start()
 
     def _trigger_reindex(self) -> None:
         """
@@ -300,11 +382,50 @@ class FileWatcher:
                 print("Reindexing complete!")
                 print("=" * 70)
                 print()
-        except Exception as e:
+
+                # Reset failure counter on success
+                self._consecutive_failures = 0
+
+        except KeyboardInterrupt:
+            # Don't catch interrupts - let them propagate
+            print("\n\nReindexing interrupted.")
+            raise
+
+        except (MemoryError, OSError) as e:
+            # System-level errors - warn but continue (might be transient)
             print()
             print("=" * 70)
-            print(f"Error during reindexing: {e}")
+            print(f"SYSTEM ERROR during reindexing: {e}")
+            print("=" * 70)
+            if isinstance(e, MemoryError):
+                print("Your system is out of memory.")
+            elif isinstance(e, OSError):
+                print(f"File system error: {e}")
+            print("\nWatcher will continue, but next reindex may also fail.")
+            print("If this persists, stop the watcher and check system resources.")
+            print("=" * 70)
+            print()
+            logger.error(f"System error during reindex: {e}", exc_info=True)
+
+        except Exception as e:
+            # Unexpected errors - track consecutive failures
+            print()
+            print("=" * 70)
+            print(f"ERROR during reindexing: {e}")
             print("=" * 70)
             print("Continuing to watch for changes...")
             print()
             logger.exception("Reindexing failed")
+
+            # Track consecutive failures
+            self._consecutive_failures += 1
+
+            if self._consecutive_failures >= 3:
+                print("=" * 70)
+                print("WARNING: Reindexing has failed 3 consecutive times!")
+                print("=" * 70)
+                print("The watcher may be broken. Consider stopping it and investigating.")
+                print("Check logs for details. You may need to run:")
+                print(f"  cicada clean && cicada index {self.repo_path}")
+                print("=" * 70)
+                logger.error("Multiple consecutive reindex failures detected")
