@@ -431,14 +431,12 @@ class TestErrorHandling:
                         config_path = mock_repo / ".mcp.json"
                         mock_mcp.return_value = (config_path, {})
 
-                        # Mock Path.write_text to raise PermissionError (works even as root)
-                        def mock_write_text(*args, **kwargs):
+                        # Mock open() to raise PermissionError (actual code uses open + json.dump)
+                        def mock_open(*args, **kwargs):
                             raise PermissionError(f"Permission denied: {config_path}")
 
                         with (
-                            patch.object(
-                                type(config_path), "write_text", side_effect=mock_write_text
-                            ),
+                            patch("builtins.open", side_effect=mock_open),
                             pytest.raises(PermissionError),
                         ):
                             setup("claude", mock_repo)
@@ -510,11 +508,11 @@ class TestLoadExistingConfig:
         config_path = mock_repo / ".mcp.json"
         config_path.write_text("{}")
 
-        # Mock Path.read_text to raise PermissionError (works even as root)
-        def mock_read_text(*args, **kwargs):
+        # Mock open() to raise PermissionError (actual code uses open + json.load)
+        def mock_open(*args, **kwargs):
             raise PermissionError(f"Permission denied: {config_path}")
 
-        with patch.object(type(config_path), "read_text", side_effect=mock_read_text):
+        with patch("builtins.open", side_effect=mock_open):
             result = _load_existing_config(config_path)
 
             assert result == {}
