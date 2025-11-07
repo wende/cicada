@@ -192,8 +192,30 @@ class KeywordSearcher:
         }
 
     def _has_wildcards(self, keywords: list[str]) -> bool:
-        """Check if any keywords contain wildcard patterns."""
-        return any("*" in keyword for keyword in keywords)
+        """Check if any keywords contain wildcard patterns (* or |)."""
+        return any("*" in keyword or "|" in keyword for keyword in keywords)
+
+    def _expand_or_patterns(self, keywords: list[str]) -> list[str]:
+        """
+        Expand OR patterns (|) in keywords.
+
+        Args:
+            keywords: List of keywords that may contain | for OR logic
+
+        Returns:
+            Expanded list of keywords with OR patterns split out
+
+        Example:
+            ["create*|update*", "user"] -> ["create*", "update*", "user"]
+        """
+        expanded = []
+        for keyword in keywords:
+            if "|" in keyword:
+                # Split by | and add all parts
+                expanded.extend([p.strip() for p in keyword.split("|")])
+            else:
+                expanded.append(keyword)
+        return expanded
 
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
@@ -204,10 +226,10 @@ class KeywordSearcher:
         Uses pre-weighted keyword scores calculated during extraction/expansion.
         The score for each result is the sum of weights of matched keywords.
 
-        Automatically detects wildcard patterns (* supported) in keywords.
+        Automatically detects wildcard patterns (* supported) and OR patterns (| supported) in keywords.
 
         Args:
-            query_keywords: List of keywords to search for
+            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns)
             top_n: Maximum number of results to return
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
@@ -229,8 +251,11 @@ class KeywordSearcher:
         # Normalize query keywords to lowercase
         query_keywords_lower = [kw.lower() for kw in query_keywords]
 
+        # Expand OR patterns (e.g., "create*|update*" -> ["create*", "update*"])
+        query_keywords_expanded = self._expand_or_patterns(query_keywords_lower)
+
         # Check if wildcards are present
-        enable_wildcards = self._has_wildcards(query_keywords_lower)
+        enable_wildcards = self._has_wildcards(query_keywords_expanded)
 
         results = []
 
@@ -238,9 +263,9 @@ class KeywordSearcher:
         for doc in self.documents:
             # Calculate score
             if enable_wildcards:
-                result_data = self._calculate_wildcard_score(query_keywords_lower, doc["keywords"])
+                result_data = self._calculate_wildcard_score(query_keywords_expanded, doc["keywords"])
             else:
-                result_data = self._calculate_score(query_keywords_lower, doc["keywords"])
+                result_data = self._calculate_score(query_keywords_expanded, doc["keywords"])
 
             # Only include results with at least one matched keyword
             if result_data["score"] > 0:
