@@ -220,11 +220,38 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
+            name="search_by_features",
+            description=(
+                "🎯 USE THIS WHEN: You don't know exact module/function names but know what the code does.\n\n"
+                "Search for code by concepts and features - find code by describing what it does, not what it's called. "
+                "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
+                "Examples: 'authentication', 'api key storage', 'email validation', 'tab navigation'\n\n"
+                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
+                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
+                    },
+                },
+                "required": ["keywords"],
+            },
+        ),
+        Tool(
             name="search_by_keywords",
             description=(
-                "Semantic search for code by concept/topic when exact names are unknown.\n\n"
-                "Search for modules and functions by keywords extracted from documentation. "
-                "Uses semantic similarity to find related functions even if they don't match the exact name.\n\n"
+                "⚠️ DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
+                "Search for code by concepts and features when exact names are unknown.\n\n"
+                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
                 "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
             ),
             inputSchema={

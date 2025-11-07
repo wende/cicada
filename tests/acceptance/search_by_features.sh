@@ -1,7 +1,7 @@
 #!/bin/bash
-# Usage: ./tests/acceptance/search_by_keywords.sh keyword1 keyword2 keyword3
-# Example: ./tests/acceptance/search_by_keywords.sh performance benchmark test
-# Example: ./tests/acceptance/search_by_keywords.sh create* test_*
+# Usage: ./tests/acceptance/search_by_features.sh keyword1 keyword2 keyword3
+# Example: ./tests/acceptance/search_by_features.sh performance benchmark test
+# Example: ./tests/acceptance/search_by_features.sh create* test_*
 #
 # Author: Cursor(Auto)
 

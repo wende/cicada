@@ -42,7 +42,7 @@ async def search_function(
     return result[0].text if result else "No results found"
 
 
-async def search_by_keywords(*keywords: str) -> str:
+async def search_by_features(*keywords: str) -> str:
     """Search by keywords and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
     result = await server._search_by_keywords(list(keywords))
@@ -131,7 +131,7 @@ def main():
                 print("Error: at least one keyword required", file=sys.stderr)
                 sys.exit(1)
             keywords = sys.argv[2:]
-            result = asyncio.run(search_by_keywords(*keywords))
+            result = asyncio.run(search_by_features(*keywords))
             print(result)
 
         elif command == "file_history":
