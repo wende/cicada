@@ -17,7 +17,7 @@ from cicada.mcp.server import CicadaServer
 # Import runner functions - these get coverage when tests run
 from tests.acceptance.runner import (
     get_file_history,
-    search_by_keywords,
+    search_by_features,
     search_function,
     search_module,
 )
@@ -350,7 +350,7 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
     assert "add_numbers" in text
 
 
-# Keyword Search Tests (search_by_keywords.sh)
+# Keyword Search Tests (search_by_features.sh)
 
 
 @pytest.mark.asyncio

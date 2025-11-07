@@ -436,7 +436,9 @@ class TestErrorHandling:
                             raise PermissionError(f"Permission denied: {config_path}")
 
                         with (
-                            patch.object(type(config_path), "write_text", side_effect=mock_write_text),
+                            patch.object(
+                                type(config_path), "write_text", side_effect=mock_write_text
+                            ),
                             pytest.raises(PermissionError),
                         ):
                             setup("claude", mock_repo)

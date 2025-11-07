@@ -258,6 +258,7 @@ class TestCleanRepository:
 
         # Mock shutil.rmtree to raise PermissionError (works even as root)
         import shutil
+
         original_rmtree = shutil.rmtree
 
         def mock_rmtree(path, *args, **kwargs):
@@ -656,6 +657,7 @@ class TestCleanAllProjects:
 
         # Mock shutil.rmtree to raise PermissionError (works even as root)
         import shutil
+
         original_rmtree = shutil.rmtree
 
         def mock_rmtree(path, *args, **kwargs):
@@ -726,6 +728,7 @@ class TestCleanAllProjects:
 
         # Mock shutil.rmtree to raise PermissionError for hash2 only (works even as root)
         import shutil
+
         original_rmtree = shutil.rmtree
 
         def mock_rmtree(path, *args, **kwargs):

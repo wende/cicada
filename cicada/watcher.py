@@ -40,6 +40,7 @@ class ElixirFileEventHandler(FileSystemEventHandler):
         self.watcher = watcher
         # Reuse excluded_dirs from ElixirIndexer to avoid duplication
         from cicada.indexer import ElixirIndexer
+
         self.excluded_dirs = ElixirIndexer(verbose=False).excluded_dirs
 
     def _is_elixir_file(self, path: str) -> bool:

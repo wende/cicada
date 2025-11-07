@@ -25,7 +25,6 @@ from cicada.utils.hash_utils import (
     load_file_hashes,
     save_file_hashes,
 )
-from cicada.utils.storage import get_config_path
 from cicada.version_check import get_version_string, version_mismatch
 
 

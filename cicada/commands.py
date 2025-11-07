@@ -21,77 +21,6 @@ from cicada.tier import (
 DEFAULT_WATCH_DEBOUNCE = 2.0
 
 
-def validate_tier_flags(args) -> None:
-    """Validate that only one tier flag is specified.
-
-    Args:
-        args: Parsed command-line arguments with fast, regular, and max attributes
-
-    Raises:
-        SystemExit: If more than one tier flag is specified
-    """
-    tier_count = sum([args.fast, getattr(args, "regular", False), args.max])
-    if tier_count > 1:
-        print(
-            "Error: Can only specify one tier flag (--fast, --regular, or --max)",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-
-def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
-    """Map tier flags to extraction and expansion methods.
-
-    Args:
-        args: Parsed command-line arguments with fast, regular, and max attributes
-
-    Returns:
-        Tuple of (extraction_method, expansion_method), or (None, None) if no tier flag
-    """
-    if args.fast:
-        return "regular", "lemmi"
-    elif args.max:
-        return "bert", "fasttext"
-    elif getattr(args, "regular", False):
-        return "bert", "glove"
-    return None, None
-
-
-def determine_tier(args, repo_path: "Path | None" = None) -> str:
-    """Determine indexing tier from args or existing config.
-
-    Args:
-        args: Parsed command-line arguments with fast, regular, and max attributes
-        repo_path: Optional repository path to read config from
-
-    Returns:
-        Tier string: "fast", "regular", or "max"
-    """
-    # Check args first
-    if args.fast:
-        return "fast"
-    elif args.max:
-        return "max"
-    elif getattr(args, "regular", False):
-        return "regular"
-
-    # If no tier flag specified, try to load from existing config
-    # Reuse existing read_keyword_extraction_config instead of duplicating logic
-    if repo_path is not None:
-        from cicada.indexer import read_keyword_extraction_config
-
-        extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
-
-        # Convert methods to tier
-        if extraction_method == "regular":
-            return "fast"
-        elif extraction_method == "bert":
-            return "max" if expansion_method == "fasttext" else "regular"
-
-    # Default to regular tier
-    return "regular"
-
-
 def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     """Shared logic for starting file watcher.
 
@@ -102,7 +31,6 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     Raises:
         SystemExit: If configuration is invalid or watcher fails to start
     """
-    from pathlib import Path
 
     from cicada.utils.storage import get_config_path
     from cicada.watcher import FileWatcher
@@ -547,7 +475,6 @@ def handle_command(args):
 
 
 def handle_editor_setup(args, editor: str):
-    from pathlib import Path
     from typing import cast
 
     from cicada.setup import EditorType, setup
@@ -645,7 +572,6 @@ def handle_index_test_expansion_mode(args):
 
 def handle_index_main(args):
     """Handle main repository indexing."""
-    from pathlib import Path
 
     from cicada.indexer import ElixirIndexer
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
@@ -809,7 +735,6 @@ def handle_find_dead_code(args):
 
 
 def handle_clean(args):
-    from pathlib import Path
 
     from cicada.clean import (
         clean_all_projects,
@@ -848,7 +773,6 @@ def handle_clean(args):
 
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
-    from pathlib import Path
 
     from cicada.utils.storage import get_storage_dir
 
@@ -871,7 +795,6 @@ def handle_install(args):
     - Can skip prompts with flags (--claude, --cursor, --vs, --fast, --regular, --max)
     - Creates editor config and indexes repository
     """
-    from pathlib import Path
 
     from cicada.interactive_setup import show_first_time_setup
     from cicada.setup import EditorType, setup
@@ -991,7 +914,6 @@ def handle_server(args):
     """
     import asyncio
     import os
-    from pathlib import Path
 
     from cicada.setup import (
         EditorType,
