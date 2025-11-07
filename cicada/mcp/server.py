@@ -24,7 +24,7 @@ from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
 from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
-from cicada.utils import get_config_path, get_pr_index_path, load_index
+from cicada.utils import find_similar_names, get_config_path, get_pr_index_path, load_index
 
 
 class CicadaServer:
@@ -491,15 +491,19 @@ class CicadaServer:
 
             return [TextContent(type="text", text=result)]
 
-        # Module not found - provide helpful suggestions
+        # Module not found - compute suggestions and provide helpful error message
         total_modules = self.index["metadata"]["total_modules"]
-        available_modules = list(self.index["modules"].keys())
 
         if output_format == "json":
             error_result = ModuleFormatter.format_error_json(module_name, total_modules)
         else:
+            # Compute fuzzy match suggestions
+            available_modules = list(self.index["modules"].keys())
+            similar_matches = find_similar_names(module_name, available_modules, max_suggestions=3)
+            suggestions = [name for name, _score in similar_matches]
+
             error_result = ModuleFormatter.format_error_markdown(
-                module_name, total_modules, available_modules
+                module_name, total_modules, suggestions
             )
 
         return [TextContent(type="text", text=error_result)]

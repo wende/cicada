@@ -9,7 +9,6 @@ supporting both Markdown and JSON output formats.
 import argparse
 import json
 import sys
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -176,52 +175,8 @@ class ModuleFormatter:
         return json.dumps(result, indent=2)
 
     @staticmethod
-    def _find_similar_names(query: str, all_names: list[str], max_suggestions: int = 5) -> list[tuple[str, float]]:
-        """
-        Find similar names using fuzzy matching.
-
-        Args:
-            query: The query string to match
-            all_names: List of all available names
-            max_suggestions: Maximum number of suggestions to return
-
-        Returns:
-            List of (name, similarity_score) tuples, sorted by similarity
-        """
-        similarities = []
-        query_lower = query.lower()
-
-        # Early exit for exact match
-        for name in all_names:
-            if query_lower == name.lower():
-                return [(name, 1.0)]
-
-        # Limit search space for very large indices to prevent performance issues
-        search_names = all_names[:500] if len(all_names) > 500 else all_names
-
-        for name in search_names:
-            # Calculate similarity score
-            similarity = SequenceMatcher(None, query_lower, name.lower()).ratio()
-
-            # Boost score for substring matches
-            if query_lower in name.lower():
-                similarity = max(similarity, 0.7)
-
-            # Boost score for partial component matches (e.g., "User" matches "MyApp.User")
-            query_parts = query.split('.')
-            name_parts = name.split('.')
-            if any(qpart.lower() in name.lower() for qpart in query_parts):
-                similarity = max(similarity, 0.6)
-
-            similarities.append((name, similarity))
-
-        # Sort by similarity (descending) and return top matches above threshold
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        return [(name, score) for name, score in similarities[:max_suggestions] if score > 0.4]
-
-    @staticmethod
     def format_error_markdown(
-        module_name: str, total_modules: int, available_modules: list[str] | None = None
+        module_name: str, total_modules: int, suggestions: list[str] | None = None
     ) -> str:
         """
         Format error message as Markdown with suggestions.
@@ -229,7 +184,7 @@ class ModuleFormatter:
         Args:
             module_name: The queried module name
             total_modules: Total number of modules in the index
-            available_modules: Optional list of all available module names for suggestions
+            suggestions: Optional list of suggested similar module names (pre-computed)
 
         Returns:
             Formatted Markdown error message
@@ -241,15 +196,13 @@ class ModuleFormatter:
             "",
         ]
 
-        # Add "did you mean" suggestions if available
-        if available_modules:
-            suggestions = ModuleFormatter._find_similar_names(module_name, available_modules, max_suggestions=3)
-            if suggestions:
-                lines.append("## Did you mean?")
-                lines.append("")
-                for name, _score in suggestions:
-                    lines.append(f"  • `{name}`")
-                lines.append("")
+        # Add "did you mean" suggestions if provided
+        if suggestions:
+            lines.append("## Did you mean?")
+            lines.append("")
+            for name in suggestions:
+                lines.append(f"  • `{name}`")
+            lines.append("")
 
         # Add alternative search strategies
         lines.extend([
