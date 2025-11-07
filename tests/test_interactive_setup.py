@@ -15,61 +15,64 @@ class TestInteractiveSetup:
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_fast_tier_skip_pr_indexing(self, mock_menu_class, mock_ascii):
-        """Test selecting Fast tier (Regular extraction + Lemmi expansion) and skip PR indexing"""
+        """Test selecting Fast tier (Regular extraction + Lemmi expansion), skip PR indexing, and skip CLAUDE.md"""
         from cicada.interactive_setup import show_first_time_setup
 
         # Mock ASCII art
         mock_ascii.return_value = "ASCII ART"
 
-        # Mock menu selections: tier=0 (Fast), pr_indexing=0 (No)
+        # Mock menu selections: tier=0 (Fast), pr_indexing=0 (No), claude_md=1 (No)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # tier=0, pr=0
+        mock_menu_instance.show.side_effect = [0, 0, 1]  # tier=0, pr=0, claude_md=1
         mock_menu_class.return_value = mock_menu_instance
 
-        extraction, expansion, index_prs = show_first_time_setup()
+        extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction == "regular"
         assert expansion == "lemmi"
         assert index_prs is False
+        assert add_to_claude_md is False
         mock_ascii.assert_called_once()
-        # Should call twice: step 1 (tier) and step 2 (pr indexing)
-        assert mock_menu_instance.show.call_count == 2
+        # Should call three times: step 1 (tier), step 2 (pr indexing), and step 3 (CLAUDE.md)
+        assert mock_menu_instance.show.call_count == 3
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_balanced_tier_with_pr_indexing(self, mock_menu_class, mock_ascii):
-        """Test selecting Balanced tier (KeyBERT + GloVe) and index PRs"""
+        """Test selecting Balanced tier (KeyBERT + GloVe), index PRs, and add to CLAUDE.md"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, 1]  # tier=1 (Balanced), pr=1 (Yes)
+        mock_menu_instance.show.side_effect = [1, 1, 0]  # tier=1 (Balanced), pr=1 (Yes), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
-        extraction, expansion, index_prs = show_first_time_setup()
+        extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction == "bert"
         assert expansion == "glove"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_maximum_tier_skip_pr_indexing(self, mock_menu_class, mock_ascii):
-        """Test selecting Maximum tier (KeyBERT + FastText) and skip PR indexing"""
+        """Test selecting Maximum tier (KeyBERT + FastText), skip PR indexing, and add to CLAUDE.md"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [2, 0]  # tier=2 (Maximum), pr=0 (No)
+        mock_menu_instance.show.side_effect = [2, 0, 0]  # tier=2 (Maximum), pr=0 (No), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
-        extraction, expansion, index_prs = show_first_time_setup()
+        extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction == "bert"
         assert expansion == "fasttext"
         assert index_prs is False
+        assert add_to_claude_md is True
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -99,6 +102,24 @@ class TestInteractiveSetup:
         mock_menu_instance = MagicMock()
         # First call returns 1 (Balanced tier), second raises KeyboardInterrupt (PR indexing)
         mock_menu_instance.show.side_effect = [1, KeyboardInterrupt()]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_first_time_setup()
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    def test_keyboard_interrupt_on_claude_md_selection(self, mock_menu_class, mock_ascii):
+        """Test Ctrl+C during CLAUDE.md selection exits gracefully"""
+        from cicada.interactive_setup import show_first_time_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        mock_menu_instance = MagicMock()
+        # First call returns 1 (Balanced tier), second returns 0 (No PR), third raises KeyboardInterrupt (CLAUDE.md)
+        mock_menu_instance.show.side_effect = [1, 0, KeyboardInterrupt()]
         mock_menu_class.return_value = mock_menu_instance
 
         with pytest.raises(SystemExit) as exc_info:
@@ -143,40 +164,59 @@ class TestInteractiveSetup:
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
-    def test_return_value_is_tuple(self, mock_menu_class, mock_ascii):
-        """Test that return value is a tuple of two strings and a boolean"""
+    def test_none_selection_on_claude_md(self, mock_menu_class, mock_ascii):
+        """Test ESC/cancel on CLAUDE.md selection exits gracefully"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1]  # tier=0 (Fast), pr=1 (Yes)
+        # First call returns 1 (Balanced tier), second returns 0 (No PR), third returns None (cancel)
+        mock_menu_instance.show.side_effect = [1, 0, None]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_first_time_setup()
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    def test_return_value_is_tuple(self, mock_menu_class, mock_ascii):
+        """Test that return value is a tuple of two strings and two booleans"""
+        from cicada.interactive_setup import show_first_time_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, 0]  # tier=0 (Fast), pr=1 (Yes), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
         result = show_first_time_setup()
 
         assert isinstance(result, tuple)
-        assert len(result) == 3
+        assert len(result) == 4
         assert isinstance(result[0], str)
         assert isinstance(result[1], str)
         assert isinstance(result[2], bool)
+        assert isinstance(result[3], bool)
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_menu_created_with_correct_items(self, mock_menu_class, mock_ascii):
-        """Test that TerminalMenu is created with correct tier and PR indexing items"""
+        """Test that TerminalMenu is created with correct tier, PR indexing, and CLAUDE.md items"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1]  # tier=0 (Fast), pr=1 (Yes)
+        mock_menu_instance.show.side_effect = [0, 1, 0]  # tier=0 (Fast), pr=1 (Yes), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
 
-        # Check that TerminalMenu was called twice (tier and PR indexing)
-        assert mock_menu_class.call_count == 2
+        # Check that TerminalMenu was called three times (tier, PR indexing, and CLAUDE.md)
+        assert mock_menu_class.call_count == 3
 
         # Check first call (tier selection)
         first_call_args = mock_menu_class.call_args_list[0]
@@ -193,6 +233,13 @@ class TestInteractiveSetup:
         assert "No" in pr_items[0]
         assert "Yes" in pr_items[1]
 
+        # Check third call (CLAUDE.md selection)
+        third_call_args = mock_menu_class.call_args_list[2]
+        claude_md_items = third_call_args[0][0]
+        assert len(claude_md_items) == 2
+        assert "Yes" in claude_md_items[0]  # Default is Yes
+        assert "No" in claude_md_items[1]
+
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_ascii_art_displayed(self, mock_menu_class, mock_ascii, capsys):
@@ -202,7 +249,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = "🦗 CICADA ASCII ART"
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -223,7 +270,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -241,7 +288,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # tier=0 (Fast), pr=0 (No)
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -259,7 +306,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]  # tier=0 (Fast), pr=0 (No)
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -277,7 +324,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, 0]  # tier=1 (Balanced), pr=0 (No)
+        mock_menu_instance.show.side_effect = [1, 0, 0]  # tier=1 (Balanced), pr=0 (No), claude_md=0 (Yes)
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -296,7 +343,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = ""
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
         show_first_time_setup()
@@ -326,8 +373,8 @@ class TestInteractiveSetup:
         ]
 
         for tier_index, expected_extraction, expected_expansion in test_cases:
-            mock_menu_instance.show.side_effect = [tier_index, 0]  # tier + pr indexing
-            extraction_method, expansion_method, index_prs = show_first_time_setup()
+            mock_menu_instance.show.side_effect = [tier_index, 0, 0]  # tier + pr indexing + claude_md
+            extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
             assert extraction_method == expected_extraction, (
                 f"Expected {expected_extraction} for tier index {tier_index}"
             )
@@ -345,14 +392,15 @@ class TestInteractiveSetup:
 
         mock_menu_instance = MagicMock()
         # Return tuple instead of int for tier selection (some terminals do this)
-        mock_menu_instance.show.side_effect = [(1, "some_extra_data"), 0]
+        mock_menu_instance.show.side_effect = [(1, "some_extra_data"), 0, 0]  # tier, pr, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
-        extraction_method, expansion_method, index_prs = show_first_time_setup()
+        extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction_method == "bert"
         assert expansion_method == "glove"
         assert index_prs is False
+        assert add_to_claude_md is True
 
 
 class TestTextBasedSetup:
@@ -363,67 +411,72 @@ class TestTextBasedSetup:
         """Test text-based setup with default values (empty input)"""
         from cicada.interactive_setup import _text_based_setup
 
-        # User presses enter for defaults: tier=1 (Fast), pr=2 (No)
-        mock_input.side_effect = ["", ""]
+        # User presses enter for defaults: tier=1 (Fast), pr=2 (No), claude_md=1 (Yes)
+        mock_input.side_effect = ["", "", ""]
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "regular"
         assert expansion == "lemmi"
         assert index_prs is False
+        assert add_to_claude_md is True
 
     @patch("builtins.input")
     def test_text_fast_tier_with_pr_indexing(self, mock_input):
-        """Test text-based setup selecting Fast tier with PR indexing"""
+        """Test text-based setup selecting Fast tier with PR indexing and add to CLAUDE.md"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1", "1"]  # tier=1 (Fast), pr=1 (Yes)
+        mock_input.side_effect = ["1", "1", "1"]  # tier=1 (Fast), pr=1 (Yes), claude_md=1 (Yes)
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "regular"
         assert expansion == "lemmi"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("builtins.input")
     def test_text_balanced_tier_skip_pr_indexing(self, mock_input):
-        """Test text-based setup selecting Balanced tier and skip PR indexing"""
+        """Test text-based setup selecting Balanced tier, skip PR indexing, and skip CLAUDE.md"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["2", "2"]  # tier=2 (Balanced), pr=2 (No)
+        mock_input.side_effect = ["2", "2", "2"]  # tier=2 (Balanced), pr=2 (No), claude_md=2 (No)
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "bert"
         assert expansion == "glove"
         assert index_prs is False
+        assert add_to_claude_md is False
 
     @patch("builtins.input")
     def test_text_maximum_tier_with_pr_indexing(self, mock_input):
-        """Test text-based setup selecting Maximum tier with PR indexing"""
+        """Test text-based setup selecting Maximum tier with PR indexing and add to CLAUDE.md"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["3", "1"]  # tier=3 (Maximum), pr=1 (Yes)
+        mock_input.side_effect = ["3", "1", "1"]  # tier=3 (Maximum), pr=1 (Yes), claude_md=1 (Yes)
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "bert"
         assert expansion == "fasttext"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("builtins.input")
     def test_text_invalid_tier_then_valid(self, mock_input, capsys):
         """Test text-based setup with invalid tier input followed by valid"""
         from cicada.interactive_setup import _text_based_setup
 
-        # First invalid (4), then valid (1), then pr indexing (2)
-        mock_input.side_effect = ["4", "1", "2"]
+        # First invalid (4), then valid (1), then pr indexing (2), then claude_md (1)
+        mock_input.side_effect = ["4", "1", "2", "1"]
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "regular"
         assert expansion == "lemmi"
         assert index_prs is False
+        assert add_to_claude_md is True
 
         captured = capsys.readouterr()
         assert "Invalid choice" in captured.out
@@ -433,14 +486,15 @@ class TestTextBasedSetup:
         """Test text-based setup with invalid PR indexing input followed by valid"""
         from cicada.interactive_setup import _text_based_setup
 
-        # Valid tier (2=Balanced), then invalid pr indexing (3), then valid pr indexing (1=Yes)
-        mock_input.side_effect = ["2", "3", "1"]
+        # Valid tier (2=Balanced), then invalid pr indexing (3), then valid pr indexing (1=Yes), then claude_md (2=No)
+        mock_input.side_effect = ["2", "3", "1", "2"]
 
-        extraction, expansion, index_prs = _text_based_setup()
+        extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
         assert extraction == "bert"
         assert expansion == "glove"
         assert index_prs is True
+        assert add_to_claude_md is False
 
         captured = capsys.readouterr()
         assert "Invalid choice" in captured.out
@@ -464,6 +518,19 @@ class TestTextBasedSetup:
 
         # Valid tier (2=Balanced), then KeyboardInterrupt on PR indexing
         mock_input.side_effect = ["2", KeyboardInterrupt()]
+
+        with pytest.raises(SystemExit) as exc_info:
+            _text_based_setup()
+
+        assert exc_info.value.code == 1
+
+    @patch("builtins.input")
+    def test_text_keyboard_interrupt_on_claude_md_selection(self, mock_input):
+        """Test text-based setup with Ctrl+C during CLAUDE.md selection"""
+        from cicada.interactive_setup import _text_based_setup
+
+        # Valid tier (2=Balanced), valid PR indexing (1=Yes), then KeyboardInterrupt on CLAUDE.md
+        mock_input.side_effect = ["2", "1", KeyboardInterrupt()]
 
         with pytest.raises(SystemExit) as exc_info:
             _text_based_setup()
@@ -496,11 +563,24 @@ class TestTextBasedSetup:
         assert exc_info.value.code == 1
 
     @patch("builtins.input")
+    def test_text_eof_error_on_claude_md_selection(self, mock_input):
+        """Test text-based setup with EOF (Ctrl+D) during CLAUDE.md selection"""
+        from cicada.interactive_setup import _text_based_setup
+
+        # Valid tier, valid PR indexing, then EOFError on CLAUDE.md
+        mock_input.side_effect = ["2", "1", EOFError()]
+
+        with pytest.raises(SystemExit) as exc_info:
+            _text_based_setup()
+
+        assert exc_info.value.code == 1
+
+    @patch("builtins.input")
     def test_text_shows_fast_tier_explanation(self, mock_input, capsys):
         """Test that text-based setup shows Fast tier explanation"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1", "1"]  # tier=1 (Fast), pr=1 (Yes)
+        mock_input.side_effect = ["1", "1", "1"]  # tier=1 (Fast), pr=1 (Yes), claude_md=1 (Yes)
 
         _text_based_setup()
 
@@ -513,7 +593,7 @@ class TestTextBasedSetup:
         """Test that text-based setup shows Balanced tier explanation"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["2", "1"]  # tier=2 (Balanced), pr=1 (Yes)
+        mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
 
         _text_based_setup()
 
@@ -527,7 +607,7 @@ class TestTextBasedSetup:
         """Test that text-based setup shows welcome message"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1", "1"]
+        mock_input.side_effect = ["1", "1", "1"]  # tier, pr, claude_md
 
         _text_based_setup()
 
@@ -540,7 +620,7 @@ class TestTextBasedSetup:
         """Test that text-based setup shows success message"""
         from cicada.interactive_setup import _text_based_setup
 
-        mock_input.side_effect = ["1", "1"]  # Regular extraction, Lemmi expansion
+        mock_input.side_effect = ["1", "1", "1"]  # tier, pr, claude_md
 
         _text_based_setup()
 
@@ -558,13 +638,14 @@ class TestFallbackScenarios:
         """Test fallback to text-based setup when simple-term-menu not installed"""
         from cicada.interactive_setup import show_first_time_setup
 
-        mock_input.side_effect = ["1", "1"]  # tier=1 (Fast), pr=1 (Yes)
+        mock_input.side_effect = ["1", "1", "1"]  # tier=1 (Fast), pr=1 (Yes), claude_md=1 (Yes)
 
-        extraction_method, expansion_method, index_prs = show_first_time_setup()
+        extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction_method == "regular"
         assert expansion_method == "lemmi"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu", None)
@@ -574,13 +655,14 @@ class TestFallbackScenarios:
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
-        mock_input.side_effect = ["2", "2"]  # tier=2 (Balanced), pr=2 (No)
+        mock_input.side_effect = ["2", "2", "2"]  # tier=2 (Balanced), pr=2 (No), claude_md=2 (No)
 
-        extraction_method, expansion_method, index_prs = show_first_time_setup()
+        extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction_method == "bert"
         assert expansion_method == "glove"
         assert index_prs is False
+        assert add_to_claude_md is False
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -598,13 +680,14 @@ class TestFallbackScenarios:
         mock_menu_instance.show.side_effect = Exception("Terminal not supported")
         mock_menu_class.return_value = mock_menu_instance
 
-        mock_input.side_effect = ["1", "1"]  # tier=1 (Fast), pr=1 (Yes)
+        mock_input.side_effect = ["1", "1", "1"]  # tier=1 (Fast), pr=1 (Yes), claude_md=1 (Yes)
 
-        extraction_method, expansion_method, index_prs = show_first_time_setup()
+        extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction_method == "regular"
         assert expansion_method == "lemmi"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -621,13 +704,14 @@ class TestFallbackScenarios:
         mock_menu_class.return_value = mock_menu_instance
 
         # Text-based setup will be called after exception
-        mock_input.side_effect = ["2", "1"]  # tier=2 (Balanced), pr=1 (Yes)
+        mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
 
-        extraction_method, expansion_method, index_prs = show_first_time_setup()
+        extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
         assert extraction_method == "bert"
         assert expansion_method == "glove"
         assert index_prs is True
+        assert add_to_claude_md is True
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -642,7 +726,7 @@ class TestFallbackScenarios:
         mock_menu_instance.show.side_effect = Exception("Terminal not supported")
         mock_menu_class.return_value = mock_menu_instance
 
-        mock_input.side_effect = ["1", "1"]
+        mock_input.side_effect = ["1", "1", "1"]  # tier, pr, claude_md
 
         show_first_time_setup()
 
@@ -807,7 +891,7 @@ class TestShowFullInteractiveSetup:
         mock_ascii,
         mock_elixir_repo,
     ):
-        """Test full interactive setup with Claude and Fast tier, skip PR indexing"""
+        """Test full interactive setup with Claude, Fast tier, skip PR indexing, and add to CLAUDE.md"""
         from cicada.interactive_setup import show_full_interactive_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -821,9 +905,9 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=0 (Claude), tier=0 (Fast), pr=0 (No)
+        # Menu selections: editor=0 (Claude), tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]
+        mock_menu_instance.show.side_effect = [0, 0, 0, 0]
         mock_menu_class.return_value = mock_menu_instance
 
         show_full_interactive_setup(mock_elixir_repo)
@@ -850,7 +934,7 @@ class TestShowFullInteractiveSetup:
         mock_ascii,
         mock_elixir_repo,
     ):
-        """Test full interactive setup with Cursor and Balanced tier, with PR indexing"""
+        """Test full interactive setup with Cursor, Balanced tier, with PR indexing, and skip CLAUDE.md"""
         from cicada.interactive_setup import show_full_interactive_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -864,9 +948,9 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=1 (Cursor), tier=1 (Balanced), pr=1 (Yes)
+        # Menu selections: editor=1 (Cursor), tier=1 (Balanced), pr=1 (Yes), claude_md=1 (No)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, 1, 1]
+        mock_menu_instance.show.side_effect = [1, 1, 1, 1]
         mock_menu_class.return_value = mock_menu_instance
 
         # Need to mock PR indexer
@@ -894,7 +978,7 @@ class TestShowFullInteractiveSetup:
         mock_ascii,
         mock_elixir_repo,
     ):
-        """Test full interactive setup with VS Code and Maximum tier, skip PR indexing"""
+        """Test full interactive setup with VS Code, Maximum tier, skip PR indexing, and add to CLAUDE.md"""
         from cicada.interactive_setup import show_full_interactive_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -908,9 +992,9 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Menu selections: editor=2 (VS), tier=2 (Maximum), pr=0 (No)
+        # Menu selections: editor=2 (VS), tier=2 (Maximum), pr=0 (No), claude_md=0 (Yes)
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [2, 2, 0]
+        mock_menu_instance.show.side_effect = [2, 2, 0, 0]
         mock_menu_class.return_value = mock_menu_instance
 
         show_full_interactive_setup(mock_elixir_repo)
@@ -1076,6 +1160,37 @@ class TestShowFullInteractiveSetup:
     @patch("cicada.interactive_setup.TerminalMenu")
     @patch("cicada.utils.storage.get_config_path")
     @patch("cicada.utils.storage.get_index_path")
+    def test_keyboard_interrupt_on_claude_md_selection_full_setup(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test Ctrl+C during CLAUDE.md selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor + tier + PR succeed, CLAUDE.md gets Ctrl+C
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, 0, KeyboardInterrupt()]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
     def test_none_selection_on_editor(
         self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
     ):
@@ -1157,6 +1272,37 @@ class TestShowFullInteractiveSetup:
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
+    @patch("cicada.utils.storage.get_config_path")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_none_selection_on_claude_md_full_setup(
+        self, mock_get_index, mock_get_config, mock_menu_class, mock_ascii, mock_elixir_repo
+    ):
+        """Test ESC on CLAUDE.md selection exits gracefully"""
+        from cicada.interactive_setup import show_full_interactive_setup
+
+        mock_ascii.return_value = "ASCII ART"
+
+        # No existing index
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        mock_get_config.return_value = mock_config_path
+
+        mock_index_path = MagicMock()
+        mock_index_path.exists.return_value = False
+        mock_get_index.return_value = mock_index_path
+
+        # Editor + tier + PR succeed, CLAUDE.md returns None
+        mock_menu_instance = MagicMock()
+        mock_menu_instance.show.side_effect = [0, 1, 0, None]
+        mock_menu_class.return_value = mock_menu_instance
+
+        with pytest.raises(SystemExit) as exc_info:
+            show_full_interactive_setup(mock_elixir_repo)
+
+        assert exc_info.value.code == 1
+
+    @patch("cicada.interactive_setup.generate_gradient_ascii_art")
+    @patch("cicada.interactive_setup.TerminalMenu")
     @patch("cicada.setup.setup")
     @patch("cicada.utils.storage.get_config_path")
     @patch("cicada.utils.storage.get_index_path")
@@ -1185,7 +1331,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]  # editor, tier, pr indexing
+        mock_menu_instance.show.side_effect = [0, 0, 0, 0]  # editor, tier, pr indexing, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
         mock_setup.side_effect = Exception("Setup failed")
@@ -1216,13 +1362,13 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        # Text-based inputs: editor=2 (VS), tier=1 (Fast), pr=2 (No)
+        # Text-based inputs: editor=2 (VS), tier=1 (Fast), pr=2 (No), claude_md=1 (Yes)
         # When has_terminal_menu=False, it calls show_first_time_setup and returns early
-        mock_input.side_effect = ["2", "1", "2"]  # VS, tier=1 (Fast), pr=2 (No)
+        mock_input.side_effect = ["2", "1", "2", "1"]  # VS, tier=1 (Fast), pr=2 (No), claude_md=1 (Yes)
 
         # Should run without errors and use text-based fallback
         # Note: When has_terminal_menu=False and there's no existing index,
-        # it calls show_first_time_setup which returns with extraction/expansion/index_prs
+        # it calls show_first_time_setup which returns with extraction/expansion/index_prs/add_to_claude_md
         with patch("cicada.setup.setup"):
             show_full_interactive_setup(mock_elixir_repo)
 
@@ -1289,8 +1435,8 @@ class TestShowFullInteractiveSetup:
         mock_menu_instance.show.side_effect = [0, Exception("Terminal error")]
         mock_menu_class.return_value = mock_menu_instance
 
-        # Text-based fallback for tier and PR indexing
-        mock_input.side_effect = ["1", "2"]  # tier=1 (Fast), pr=2 (No)
+        # Text-based fallback for tier, PR indexing, and CLAUDE.md
+        mock_input.side_effect = ["1", "2", "1"]  # tier=1 (Fast), pr=2 (No), claude_md=1 (Yes)
 
         # Should fall back and complete
         with patch("cicada.setup.setup"):
@@ -1330,7 +1476,7 @@ class TestShowFullInteractiveSetup:
         mock_menu_class.return_value = mock_menu_instance
 
         # Text-based fallback (re-runs full setup)
-        mock_input.side_effect = ["2", "1"]  # tier=2 (Balanced), pr=1 (Yes)
+        mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
 
         # Should fall back and complete
         with patch("cicada.setup.setup"), patch("cicada.interactive_setup._run_pr_indexing"):
@@ -1367,14 +1513,14 @@ class TestShowFullInteractiveSetup:
         # But reading config fails
         with patch("builtins.open", side_effect=Exception("Read error")):
             mock_menu_instance = MagicMock()
-            # Editor, tier, PR indexing (all 3 menus shown due to config error)
-            mock_menu_instance.show.side_effect = [0, 0, 0]
+            # Editor, tier, PR indexing, CLAUDE.md (all 4 menus shown due to config error)
+            mock_menu_instance.show.side_effect = [0, 0, 0, 0]
             mock_menu_class.return_value = mock_menu_instance
 
             show_full_interactive_setup(mock_elixir_repo)
 
-            # Should show all 3 menus due to config read failure
-            assert mock_menu_instance.show.call_count == 3  # Editor + tier + PR indexing
+            # Should show all 4 menus due to config read failure
+            assert mock_menu_instance.show.call_count == 4  # Editor + tier + PR indexing + CLAUDE.md
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
@@ -1405,7 +1551,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]  # editor, tier, pr indexing
+        mock_menu_instance.show.side_effect = [0, 0, 0, 0]  # editor, tier, pr indexing, claude_md
         mock_menu_class.return_value = mock_menu_instance
 
         with patch("pathlib.Path.cwd", return_value=mock_elixir_repo):
