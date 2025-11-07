@@ -453,6 +453,70 @@ class CicadaServer:
                     return True
         return False
 
+    def _parse_function_pattern(self, pattern: str) -> dict[str, Any]:
+        """
+        Parse a single function pattern (without OR) into components.
+
+        Supports optional file path (`path:Module.func/arity`), optional module prefix,
+        and optional `/arity` suffix. When no function name is supplied, defaults to `*`.
+        """
+        pattern = pattern.strip()
+        file_pattern = None
+        module_pattern = None
+        name_pattern = pattern
+        arity = None
+
+        if ":" in pattern:
+            file_candidate, remainder = pattern.split(":", 1)
+            # Treat the portion before ":" as a file path only if it resembles a path
+            if "/" in file_candidate or file_candidate.endswith((".ex", ".exs")):
+                file_pattern = file_candidate
+                name_pattern = remainder
+
+        if "." in name_pattern:
+            module_pattern, name_pattern = name_pattern.rsplit(".", 1)
+
+        if "/" in name_pattern:
+            name_part, arity_part = name_pattern.rsplit("/", 1)
+            with contextlib.suppress(ValueError):
+                arity = int(arity_part)
+            name_pattern = name_part
+
+        if not name_pattern:
+            name_pattern = "*"
+
+        return {
+            "file": file_pattern,
+            "module": module_pattern,
+            "name": name_pattern,
+            "arity": arity,
+        }
+
+    def _matches_pattern(self, pattern: str | None, text: str) -> bool:
+        """Return True when the text satisfies the provided (possibly wildcard) pattern."""
+        if not pattern or pattern == "*":
+            return True
+        if "*" in pattern:
+            return self._match_wildcard(pattern, text)
+        return pattern.lower() == text.lower()
+
+    def _function_matches_pattern(
+        self,
+        module_name: str,
+        file_path: str,
+        func: dict[str, Any],
+        pattern: dict[str, Any],
+    ) -> bool:
+        """Determine whether a function entry satisfies a parsed search pattern."""
+        if not self._matches_pattern(pattern.get("module"), module_name):
+            return False
+        if not self._matches_pattern(pattern.get("file"), file_path):
+            return False
+        if not self._matches_pattern(pattern.get("name"), func["name"]):
+            return False
+        arity = pattern.get("arity")
+        return not (arity is not None and func["arity"] != arity)
+
     async def _search_module(
         self,
         module_name: str,
@@ -479,8 +543,9 @@ class CicadaServer:
             matching_modules = []
             for mod_name, mod_data in self.index["modules"].items():
                 # Check if module name or file path matches any pattern
-                if self._match_any_pattern(patterns, mod_name) or \
-                   self._match_any_pattern(patterns, mod_data["file"]):
+                if self._match_any_pattern(patterns, mod_name) or self._match_any_pattern(
+                    patterns, mod_data["file"]
+                ):
                     matching_modules.append((mod_name, mod_data))
 
             # If no matches found, return error
@@ -493,12 +558,16 @@ class CicadaServer:
                 return [TextContent(type="text", text=error_result)]
 
             # Format all matching modules
-            results = []
+            results: list[str] = []
             for mod_name, mod_data in matching_modules:
                 if output_format == "json":
-                    result = ModuleFormatter.format_module_json(mod_name, mod_data, private_functions)
+                    result = ModuleFormatter.format_module_json(
+                        mod_name, mod_data, private_functions
+                    )
                 else:
-                    result = ModuleFormatter.format_module_markdown(mod_name, mod_data, private_functions)
+                    result = ModuleFormatter.format_module_markdown(
+                        mod_name, mod_data, private_functions
+                    )
                 results.append(result)
 
             # Combine results with separator for markdown, or as array for JSON
@@ -507,7 +576,9 @@ class CicadaServer:
                 combined = "[\n" + ",\n".join(results) + "\n]"
             else:
                 # For markdown, separate with horizontal rules
-                header = f"Found {len(matching_modules)} module(s) matching pattern '{module_name}':\n\n"
+                header = (
+                    f"Found {len(matching_modules)} module(s) matching pattern '{module_name}':\n\n"
+                )
                 combined = header + "\n\n---\n\n".join(results)
 
             return [TextContent(type="text", text=combined)]
@@ -555,77 +626,27 @@ class CicadaServer:
             - "MyApp.*.create/1" - matches create/1 in any module under MyApp
             - "lib/*/user.ex:create*" - matches create* functions in files matching path pattern
         """
-        # Parse the function name - supports multiple formats:
-        # - "func_name" or "func_name/arity" (search all modules)
-        # - "Module.func_name" or "Module.func_name/arity" (search specific module)
-        # - "path/to/file.ex:func_name" (search by file path)
-        target_module = None
-        target_file = None
-        target_name = function_name
-        target_arity = None
-
-        # Check for file path format (path:function)
-        if ":" in function_name and "/" in function_name.split(":")[0]:
-            parts = function_name.split(":", 1)
-            target_file = parts[0]
-            target_name = parts[1] if len(parts) > 1 else ""
-
-        # Check for Module.function format (only if not file path format)
-        elif "." in function_name:
-            # Split on last dot to separate module from function
-            parts = function_name.rsplit(".", 1)
-            if len(parts) == 2:
-                target_module = parts[0]
-                target_name = parts[1]
-
-        # Check for arity
-        if "/" in target_name:
-            parts = target_name.split("/")
-            target_name = parts[0]
-            with contextlib.suppress(ValueError, IndexError):
-                target_arity = int(parts[1])
-
-        # Determine if we're using wildcard matching
-        use_wildcards = (
-            self._has_wildcards(target_name) or
-            (target_module and self._has_wildcards(target_module)) or
-            (target_file and self._has_wildcards(target_file))
-        )
-
-        # Split patterns for OR matching
-        name_patterns = self._split_or_patterns(target_name) if target_name else ["*"]
-        module_patterns = self._split_or_patterns(target_module) if target_module else None
-        file_patterns = self._split_or_patterns(target_file) if target_file else None
+        # Support OR syntax by splitting first, then parsing each component individually
+        raw_patterns = self._split_or_patterns(function_name) if function_name else ["*"]
+        parsed_patterns = [
+            self._parse_function_pattern(pattern) for pattern in raw_patterns if pattern.strip()
+        ]
+        if not parsed_patterns:
+            parsed_patterns = [self._parse_function_pattern("*")]
 
         # Search across all modules for function definitions
         results = []
+        seen_functions: set[tuple[str, str, int]] = set()
         for module_name, module_data in self.index["modules"].items():
-            # Filter by module pattern if specified
-            if module_patterns:
-                if use_wildcards:
-                    if not self._match_any_pattern(module_patterns, module_name):
-                        continue
-                else:
-                    # Exact match
-                    if module_name != target_module:
-                        continue
-
-            # Filter by file pattern if specified
-            if file_patterns:
-                if not self._match_any_pattern(file_patterns, module_data["file"]):
-                    continue
-
             for func in module_data["functions"]:
-                # Match by name and optionally arity
-                name_matches = False
-                if use_wildcards:
-                    name_matches = self._match_any_pattern(name_patterns, func["name"])
-                else:
-                    name_matches = func["name"] == target_name
-
-                arity_matches = target_arity is None or func["arity"] == target_arity
-
-                if name_matches and arity_matches:
+                if any(
+                    self._function_matches_pattern(module_name, module_data["file"], func, pattern)
+                    for pattern in parsed_patterns
+                ):
+                    key = (module_name, func["name"], func["arity"])
+                    if key in seen_functions:
+                        continue
+                    seen_functions.add(key)
                     # Find call sites for this function
                     call_sites = self._find_call_sites(
                         target_module=module_name,

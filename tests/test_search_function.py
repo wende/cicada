@@ -166,5 +166,70 @@ async def test_wildcard_module_search(tmp_path):
             # Should find both modules
 
 
+@pytest.mark.asyncio
+async def test_module_qualified_or_function_search(tmp_path):
+    """Module-qualified OR patterns should return all matching functions."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    result = await server._search_function(
+        "MyApp.User.create_user|MyApp.User.validate_email",
+        "json",
+    )
+    payload = json.loads(result[0].text)
+    names = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in names
+    assert "MyApp.User.validate_email/1" in names
+
+
+@pytest.mark.asyncio
+async def test_or_patterns_with_different_arities(tmp_path):
+    """OR patterns can carry independent arity constraints."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    result = await server._search_function("create_user/2|validate_email/1", "json")
+    payload = json.loads(result[0].text)
+    arities = {(entry["function"], entry["arity"]) for entry in payload.get("results", [])}
+
+    assert ("create_user", 2) in arities
+    assert ("validate_email", 1) in arities
+
+
 if __name__ == "__main__":
     asyncio.run(test_search_function())
