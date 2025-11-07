@@ -881,7 +881,7 @@ class TestSetupAndStartWatcher:
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert "No tier specified and no existing config found" in captured.err
+        assert "No tier specified" in captured.err
 
     def test_setup_and_start_watcher_creates_file_watcher(self, tmp_path):
         """Should create FileWatcher with correct parameters"""

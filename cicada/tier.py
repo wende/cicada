@@ -7,11 +7,22 @@ This module provides a single source of truth for:
 - Tier <-> (extraction_method, expansion_method) conversions
 """
 
+import argparse
 import sys
 from pathlib import Path
 
+# Tier to methods mapping
+TIER_METHODS = {
+    "fast": ("regular", "lemmi"),
+    "regular": ("bert", "glove"),
+    "max": ("bert", "fasttext"),
+}
 
-def validate_tier_flags(args) -> None:
+# Default methods if no configuration exists
+DEFAULT_METHODS = ("regular", "lemmi")
+
+
+def validate_tier_flags(args: argparse.Namespace) -> None:
     """Validate that only one tier flag is specified.
 
     Args:
@@ -20,8 +31,9 @@ def validate_tier_flags(args) -> None:
     Raises:
         SystemExit: If more than one tier flag is specified
     """
-    tier_count = sum([args.fast, getattr(args, "regular", False), args.max])
-    if tier_count > 1:
+    tier_flags = [args.fast, getattr(args, "regular", False), args.max]
+
+    if sum(tier_flags) > 1:
         print(
             "Error: Can only specify one tier flag (--fast, --regular, or --max)",
             file=sys.stderr,
@@ -29,7 +41,7 @@ def validate_tier_flags(args) -> None:
         sys.exit(1)
 
 
-def get_tier_from_args(args) -> str | None:
+def get_tier_from_args(args: argparse.Namespace) -> str | None:
     """Extract tier from command-line arguments.
 
     Args:
@@ -40,9 +52,9 @@ def get_tier_from_args(args) -> str | None:
     """
     if args.fast:
         return "fast"
-    elif args.max:
+    if args.max:
         return "max"
-    elif getattr(args, "regular", False):
+    if getattr(args, "regular", False):
         return "regular"
     return None
 
@@ -63,12 +75,7 @@ def tier_to_methods(tier: str) -> tuple[str, str]:
         - regular: bert extraction + glove expansion
         - max: bert extraction + fasttext expansion
     """
-    tier_map = {
-        "fast": ("regular", "lemmi"),
-        "regular": ("bert", "glove"),
-        "max": ("bert", "fasttext"),
-    }
-    return tier_map.get(tier, ("regular", "lemmi"))
+    return TIER_METHODS.get(tier, DEFAULT_METHODS)
 
 
 def methods_to_tier(extraction_method: str, expansion_method: str) -> str:
@@ -81,13 +88,22 @@ def methods_to_tier(extraction_method: str, expansion_method: str) -> str:
     Returns:
         Tier string: "fast", "regular", or "max"
     """
+    method_pair = (extraction_method, expansion_method)
+
+    # Find matching tier in our mapping
+    for tier, methods in TIER_METHODS.items():
+        if methods == method_pair:
+            return tier
+
+    # Fallback logic for partial matches
     if extraction_method == "regular":
         return "fast"
-    elif extraction_method == "bert":
+
+    if extraction_method == "bert":
         if expansion_method == "fasttext":
             return "max"
-        else:  # glove or other
-            return "regular"
+        return "regular"
+
     # Default to regular for unknown combinations
     return "regular"
 
@@ -102,7 +118,7 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
         tuple[str, str]: (extraction_method, expansion_method) where:
                         - extraction_method is 'regular' or 'bert'
                         - expansion_method is 'lemmi', 'glove', or 'fasttext'
-                        Returns ('regular', 'lemmi') as default if config not found.
+                        Returns DEFAULT_METHODS if config not found.
     """
     try:
         import yaml
@@ -111,25 +127,24 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
 
         config_path = get_config_path(repo_path)
         if not config_path.exists():
-            # Default to regular + lemmi if config doesn't exist
-            return ("regular", "lemmi")
+            return DEFAULT_METHODS
 
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        if config:
-            extraction_method = config.get("keyword_extraction", {}).get("method", "regular")
-            expansion_method = config.get("keyword_expansion", {}).get("method", "lemmi")
-            return (extraction_method, expansion_method)
+        if not config:
+            return DEFAULT_METHODS
 
-        # Default to regular + lemmi if config sections not found
-        return ("regular", "lemmi")
+        extraction_method = config.get("keyword_extraction", {}).get("method", DEFAULT_METHODS[0])
+        expansion_method = config.get("keyword_expansion", {}).get("method", DEFAULT_METHODS[1])
+        return (extraction_method, expansion_method)
+
     except Exception:
-        # If anything goes wrong, default to regular + lemmi
-        return ("regular", "lemmi")
+        # If anything goes wrong, use defaults
+        return DEFAULT_METHODS
 
 
-def determine_tier(args, repo_path: Path | None = None) -> str:
+def determine_tier(args: argparse.Namespace, repo_path: Path | None = None) -> str:
     """Determine indexing tier from args or existing config.
 
     This is the main function for tier resolution. It:
@@ -158,7 +173,9 @@ def determine_tier(args, repo_path: Path | None = None) -> str:
     return "regular"
 
 
-def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
+def get_extraction_expansion_methods(
+    args: argparse.Namespace,
+) -> tuple[str | None, str | None]:
     """Map tier flags to extraction and expansion methods.
 
     This is a convenience function for backward compatibility.
