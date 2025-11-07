@@ -1,7 +1,0 @@
-{
-  "compilerOptions": {
-    "outDir": "dist",
-    "target": "ES2015",
-    "experimentalDecorators": true
-  }
-}
