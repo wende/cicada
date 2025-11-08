@@ -791,7 +791,7 @@ def handle_install(args):
 
     # If only editor flag provided (no model), prompt for model (unless index exists)
     if extraction_method is None and not index_exists:
-        extraction_method, expansion_method = show_first_time_setup()
+        extraction_method, expansion_method, _, _ = show_first_time_setup()
 
     # If index exists but no model flags, use existing settings
     if extraction_method is None and index_exists:

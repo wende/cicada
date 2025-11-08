@@ -16,12 +16,13 @@ from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED, generate_
 from cicada.setup import EditorType
 
 
-def _text_based_setup() -> tuple[str, str, bool]:
+def _text_based_setup() -> tuple[str, str, bool, bool]:
     """
     Fallback text-based setup for terminals that don't support simple-term-menu.
 
     Returns:
-        tuple[str, str, bool]: The selected extraction method, expansion method, and whether to index PRs
+        tuple[str, str, bool, bool]: The selected extraction method, expansion method,
+                                     whether to index PRs, and whether to add to CLAUDE.md
     """
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
@@ -60,18 +61,18 @@ def _text_based_setup() -> tuple[str, str, bool]:
     print()
     if tier_choice == "1":
         print(f"{GREEN}✓{RESET} Selected: FAST tier")
-        print(f"   Term frequency extraction + inflections")
-        print(f"   Fast, lightweight, no model downloads")
+        print("   Term frequency extraction + inflections")
+        print("   Fast, lightweight, no model downloads")
     elif tier_choice == "2":
         print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   GloVe semantic expansion (128MB)")
-        print(f"   Total: 261MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   GloVe semantic expansion (128MB)")
+        print("   Total: 261MB download")
     else:  # tier 3
         print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   FastText semantic expansion (958MB)")
-        print(f"   Total: 1091MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   FastText semantic expansion (958MB)")
+        print("   Total: 1091MB download")
     print()
 
     # Step 2: Ask about PR indexing
@@ -214,18 +215,18 @@ def show_first_time_setup() -> tuple[str, str, bool, bool]:
     print()
     if idx == 0:
         print(f"{GREEN}✓{RESET} Selected: FAST tier")
-        print(f"   Term frequency extraction + inflections")
-        print(f"   Fast, lightweight, no model downloads")
+        print("   Term frequency extraction + inflections")
+        print("   Fast, lightweight, no model downloads")
     elif idx == 1:
         print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   GloVe semantic expansion (128MB)")
-        print(f"   Total: 261MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   GloVe semantic expansion (128MB)")
+        print("   Total: 261MB download")
     else:  # idx == 2
         print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   FastText semantic expansion (958MB)")
-        print(f"   Total: 1091MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   FastText semantic expansion (958MB)")
+        print("   Total: 1091MB download")
     print()
 
     # Step 2: Ask about PR indexing
@@ -463,7 +464,9 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     if has_terminal_menu:
         try:
             if TerminalMenu is None:
-                extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
+                extraction_method, expansion_method, index_prs, add_to_claude_md = (
+                    show_first_time_setup()
+                )
                 # Text-based setup complete - call setup and handle PR indexing
                 try:
                     setup(
@@ -513,7 +516,9 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
                 file=sys.stderr,
             )
-            extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
+            extraction_method, expansion_method, index_prs, add_to_claude_md = (
+                show_first_time_setup()
+            )
             try:
                 setup(
                     cast(EditorType, editor),
@@ -551,18 +556,18 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print()
     if idx == 0:
         print(f"{GREEN}✓{RESET} Selected: FAST tier")
-        print(f"   Term frequency extraction + inflections")
-        print(f"   Fast, lightweight, no model downloads")
+        print("   Term frequency extraction + inflections")
+        print("   Fast, lightweight, no model downloads")
     elif idx == 1:
         print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   GloVe semantic expansion (128MB)")
-        print(f"   Total: 261MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   GloVe semantic expansion (128MB)")
+        print("   Total: 261MB download")
     else:  # idx == 2
         print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
-        print(f"   KeyBERT semantic extraction (133MB)")
-        print(f"   FastText semantic expansion (958MB)")
-        print(f"   Total: 1091MB download")
+        print("   KeyBERT semantic extraction (133MB)")
+        print("   FastText semantic expansion (958MB)")
+        print("   Total: 1091MB download")
     print()
 
     # Step 3: Ask about PR indexing
@@ -578,7 +583,9 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     try:
         if TerminalMenu is None:
-            extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
+            extraction_method, expansion_method, index_prs, add_to_claude_md = (
+                show_first_time_setup()
+            )
             # Text-based setup complete - call setup and handle PR indexing
             try:
                 setup(
@@ -659,7 +666,9 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     try:
         if TerminalMenu is None:
-            extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
+            extraction_method, expansion_method, index_prs, add_to_claude_md = (
+                show_first_time_setup()
+            )
             try:
                 setup(
                     cast(EditorType, editor),
@@ -774,7 +783,9 @@ def _run_pr_indexing(repo_path: Path) -> None:
     except KeyboardInterrupt:
         print()
         print(f"{PRIMARY}⚠️  PR indexing interrupted by user.{RESET}")
-        print(f"{GREY}Partial index may have been saved. Run 'cicada-pr-indexer' to continue.{RESET}")
+        print(
+            f"{GREY}Partial index may have been saved. Run 'cicada-pr-indexer' to continue.{RESET}"
+        )
         print()
     except Exception as e:
         print()
@@ -827,7 +838,7 @@ def _add_to_claude_md(repo_path: Path) -> None:
         # Check if CLAUDE.md exists
         if claude_md_path.exists():
             # Read existing content
-            with open(claude_md_path, "r") as f:
+            with open(claude_md_path) as f:
                 content = f.read()
 
             # Check if cicada docs already exist
