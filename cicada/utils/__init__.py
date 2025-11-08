@@ -7,6 +7,7 @@ code duplication and improve maintainability.
 
 from .call_site_formatter import CallSiteFormatter
 from .function_grouper import FunctionGrouper
+from .fuzzy_match import find_similar_names
 from .index_utils import (
     load_index,
     merge_indexes_incremental,
@@ -42,6 +43,7 @@ __all__ = [
     "FunctionGrouper",
     "CallSiteFormatter",
     "SignatureBuilder",
+    "find_similar_names",
     "split_identifier",
     "split_camel_snake_case",
     "extract_code_identifiers",

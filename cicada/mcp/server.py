@@ -24,7 +24,7 @@ from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
 from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
-from cicada.utils import get_config_path, get_pr_index_path, load_index
+from cicada.utils import find_similar_names, get_config_path, get_pr_index_path, load_index
 
 
 class CicadaServer:
@@ -192,6 +192,77 @@ class CicadaServer:
                 if func.get("keywords"):
                     return True
         return False
+
+    def _check_index_staleness(self) -> dict[str, Any] | None:
+        """
+        Check if the index is stale by comparing file modification times.
+
+        Returns:
+            Dictionary with staleness info (is_stale, index_age, newest_file_age) or None
+        """
+        try:
+            import os
+            import random
+            from datetime import datetime
+
+            # Get index file path and modification time
+            index_path = Path(self.config["storage"]["index_path"])
+            if not index_path.exists():
+                return None
+
+            index_mtime = os.path.getmtime(index_path)
+            index_age = datetime.now().timestamp() - index_mtime
+
+            # Get repo path
+            repo_path = Path(self.config.get("repository", {}).get("path", "."))
+
+            # Check a sample of indexed files to see if any are newer than the index
+            # Use random sampling for better coverage
+            max_files_to_check = 50
+            all_modules = list(self.index.get("modules", {}).values())
+
+            if len(all_modules) > max_files_to_check:
+                modules_to_check = random.sample(all_modules, max_files_to_check)
+            else:
+                modules_to_check = all_modules
+
+            newest_file_mtime = 0
+
+            for module_data in modules_to_check:
+                file_path = repo_path / module_data["file"]
+                if file_path.exists():
+                    file_mtime = os.path.getmtime(file_path)
+                    newest_file_mtime = max(newest_file_mtime, file_mtime)
+
+            # Check if any files are newer than the index
+            is_stale = newest_file_mtime > index_mtime
+
+            if is_stale:
+                # Calculate how old the index is in human-readable format
+                hours_old = index_age / 3600
+                if hours_old < 1:
+                    age_str = f"{int(index_age / 60)} minutes"
+                elif hours_old < 24:
+                    age_str = f"{int(hours_old)} hours"
+                else:
+                    age_str = f"{int(hours_old / 24)} days"
+
+                return {
+                    "is_stale": True,
+                    "age_str": age_str,
+                }
+
+            return None
+        except (OSError, KeyError):
+            # Expected errors - file permissions, disk issues, config issues
+            # Silently ignore these as staleness check is non-critical
+            return None
+        except Exception as e:
+            # Unexpected error - log for debugging but don't break functionality
+            import sys
+
+            print(f"Warning: Unexpected error checking index staleness: {e}", file=sys.stderr)
+            return None
 
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
@@ -406,22 +477,35 @@ class CicadaServer:
         if module_name in self.index["modules"]:
             data = self.index["modules"][module_name]
 
+            # Get PR context for the file
+            pr_info = self._get_recent_pr_info(data["file"])
+
+            # Check index staleness
+            staleness_info = self._check_index_staleness()
+
             if output_format == "json":
                 result = ModuleFormatter.format_module_json(module_name, data, private_functions)
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, private_functions
+                    module_name, data, private_functions, pr_info, staleness_info
                 )
 
             return [TextContent(type="text", text=result)]
 
-        # Module not found
+        # Module not found - compute suggestions and provide helpful error message
         total_modules = self.index["metadata"]["total_modules"]
 
         if output_format == "json":
             error_result = ModuleFormatter.format_error_json(module_name, total_modules)
         else:
-            error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
+            # Compute fuzzy match suggestions
+            available_modules = list(self.index["modules"].keys())
+            similar_matches = find_similar_names(module_name, available_modules, max_suggestions=3)
+            suggestions = [name for name, _score in similar_matches]
+
+            error_result = ModuleFormatter.format_error_markdown(
+                module_name, total_modules, suggestions
+            )
 
         return [TextContent(type="text", text=error_result)]
 
@@ -489,6 +573,9 @@ class CicadaServer:
                         # Extract code lines for each call site
                         self._add_code_examples(call_sites_with_examples)
 
+                    # Get PR context for this function
+                    pr_info = self._get_recent_pr_info(module_data["file"])
+
                     results.append(
                         {
                             "module": module_name,
@@ -497,14 +584,20 @@ class CicadaServer:
                             "file": module_data["file"],
                             "call_sites": call_sites,
                             "call_sites_with_examples": call_sites_with_examples,
+                            "pr_info": pr_info,
                         }
                     )
+
+        # Check index staleness
+        staleness_info = self._check_index_staleness()
 
         # Format results
         if output_format == "json":
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
-            result = ModuleFormatter.format_function_results_markdown(function_name, results)
+            result = ModuleFormatter.format_function_results_markdown(
+                function_name, results, staleness_info
+            )
 
         return [TextContent(type="text", text=result)]
 
@@ -807,6 +900,46 @@ class CicadaServer:
                         )
 
         return call_sites
+
+    def _get_recent_pr_info(self, file_path: str) -> dict | None:
+        """
+        Get the most recent PR that modified a file.
+
+        Args:
+            file_path: Relative path to the file
+
+        Returns:
+            Dictionary with PR info (number, title, date, comment_count) or None
+        """
+        if not self.pr_index:
+            return None
+
+        # Look up PRs for this file
+        file_to_prs = self.pr_index.get("file_to_prs", {})
+        pr_numbers = file_to_prs.get(file_path, [])
+
+        if not pr_numbers:
+            return None
+
+        # Get the most recent PR (last in list)
+        prs_data = self.pr_index.get("prs", {})
+        most_recent_pr_num = pr_numbers[-1]
+        pr = prs_data.get(str(most_recent_pr_num))
+
+        if not pr:
+            return None
+
+        # Count comments for this file
+        comments = pr.get("comments", [])
+        file_comments = [c for c in comments if c.get("path") == file_path]
+
+        return {
+            "number": pr["number"],
+            "title": pr["title"],
+            "author": pr.get("author", "unknown"),
+            "comment_count": len(file_comments),
+            "url": pr.get("url", ""),
+        }
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """
