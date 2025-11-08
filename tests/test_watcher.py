@@ -324,6 +324,57 @@ class TestFileWatcher:
         # Should have only triggered once
         assert len(reindex_count) == 1
 
+    @patch("cicada.setup.create_config_yaml")
+    @patch("cicada.watcher.Observer")
+    @patch("cicada.watcher.ElixirIndexer")
+    def test_tier_configuration_applied_during_start_watching(
+        self, mock_indexer_class, mock_observer_class, mock_create_config, elixir_repo
+    ):
+        """Test that tier configuration is correctly applied when starting watch mode"""
+        from cicada.utils.storage import create_storage_dir, get_config_path
+
+        # Create storage directory
+        storage_dir = create_storage_dir(elixir_repo)
+        config_path = get_config_path(elixir_repo)
+
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+
+        mock_observer = Mock()
+        mock_observer_class.return_value = mock_observer
+
+        # Create watcher with max tier
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo), register_signal_handlers=False, tier="max"
+        )
+
+        # Mock the incremental_index_repository to avoid actual indexing
+        mock_indexer.incremental_index_repository.return_value = None
+
+        # Trigger KeyboardInterrupt after a short sleep to exit the while loop
+        def mock_sleep(seconds):
+            if seconds == 1:  # The sleep in the while loop
+                raise KeyboardInterrupt()
+
+        # Start watching (this should apply tier config)
+        with patch("cicada.watcher.time.sleep", side_effect=mock_sleep):
+            try:
+                watcher.start_watching()
+            except KeyboardInterrupt:
+                pass
+
+        # Verify that create_config_yaml was called with correct tier methods
+        mock_create_config.assert_called_once()
+        call_args = mock_create_config.call_args
+
+        # Verify the extraction and expansion methods match "max" tier
+        # max tier = bert extraction + fasttext expansion
+        assert call_args[0][0] == elixir_repo  # repo_path
+        assert call_args[0][1] == storage_dir  # storage_dir
+        assert call_args[0][2] == "bert"  # extraction_method
+        assert call_args[0][3] == "fasttext"  # expansion_method
+        assert call_args[1]["verbose"] is False  # verbose parameter
+
 
 # Integration Tests - Address REPORT.md Section 4 Testing Gaps
 class TestFileWatcherIntegration:

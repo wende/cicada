@@ -23,13 +23,22 @@ help:
 
 dev:
 	@echo "Installing cicada tool in development mode (clean rebuild)..."
-	@echo "1. Cleaning dist directory..."
+	@echo "1. Updating version hash..."
+	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
+	GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	GIT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown"); \
+	echo "\"\"\"Auto-generated file containing build-time git tag and hash.\"\"\"" > cicada/_version_hash.py; \
+	echo "" >> cicada/_version_hash.py; \
+	echo "VERSION = \"$$VERSION\"" >> cicada/_version_hash.py; \
+	echo "GIT_TAG = \"$$GIT_TAG\"" >> cicada/_version_hash.py; \
+	echo "GIT_HASH = \"$$GIT_HASH\"" >> cicada/_version_hash.py
+	@echo "2. Cleaning dist directory..."
 	@rm -rf dist/
-	@echo "2. Building package..."
+	@echo "3. Building package..."
 	@uv build
-	@echo "3. Uninstalling old version..."
+	@echo "4. Uninstalling old version..."
 	@uv tool uninstall cicada-mcp 2>/dev/null || true
-	@echo "4. Installing from fresh build..."
+	@echo "5. Installing from fresh build..."
 	@uv tool install --reinstall dist/cicada_mcp-*-py3-none-any.whl
 	@echo "✓ cicada installed from fresh build"
 	@echo "  Commands: cicada, cicada-mcp, cicada-server"
@@ -105,10 +114,12 @@ pre-commit: install
 	@echo "Fetching latest tags..."
 	@git fetch --tags --quiet 2>/dev/null || true
 	@echo "Updating version hash..."
-	@GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
+	GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	GIT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown"); \
 	echo "\"\"\"Auto-generated file containing build-time git tag and hash.\"\"\"" > cicada/_version_hash.py; \
 	echo "" >> cicada/_version_hash.py; \
+	echo "VERSION = \"$$VERSION\"" >> cicada/_version_hash.py; \
 	echo "GIT_TAG = \"$$GIT_TAG\"" >> cicada/_version_hash.py; \
 	echo "GIT_HASH = \"$$GIT_HASH\"" >> cicada/_version_hash.py; \
 	git add cicada/_version_hash.py
