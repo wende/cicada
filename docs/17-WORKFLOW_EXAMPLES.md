@@ -7,6 +7,7 @@ These examples show how to chain tools together to understand and modify your co
 - 🔍 **Don't know exact names?** → Use `search_by_features` with concepts like "authentication", "api key storage", "tab navigation"
 - 📖 **Understanding "why"?** → Combine code search with `get_file_pr_history` to see design discussions
 - 🎯 **Wildcards work!** → In `search_by_features`, use patterns like `create*`, `*_user`, or `validate_*`
+- 🔀 **OR patterns too!** → In `search_function` and `search_module`, combine patterns with `|` like `create*|update*` or `MyApp.User|MyApp.Post`
 - 🔗 **Chain tools together** → `search_by_features` → `search_function` → `get_file_pr_history` gives you the full picture
 
 ## Example 1: Adding a New Feature
@@ -81,11 +82,14 @@ Step 5: Look at recent changes
 **Workflow:**
 
 ```
-Step 1: Find all definitions
-→ search_function("create_user/2")
-   Defined in: lib/app/accounts.ex:42
+Step 1: Find all definitions (including related CRUD functions)
+→ search_function("create_user|update_user|delete_user")
+   Defined in: lib/app/accounts.ex
+   - create_user/2 (line 42)
+   - update_user/2 (line 58)
+   - delete_user/1 (line 73)
 
-Step 2: Find everywhere it's called
+Step 2: Find everywhere create_user is called
 → search_function("create_user/2")
    Called from 12 locations:
    - UserController.create/2 (controllers/user_controller.ex:15)

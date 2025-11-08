@@ -121,8 +121,8 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
+  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. Supports wildcards (`MyApp.*`) and OR patterns (`MyApp.User|MyApp.Post`). `mcp__cicada__search_module`
+  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. Supports wildcards (`create*`) and OR patterns (`create*|update*`). `mcp__cicada__search_function`
   - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
   - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
   - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`

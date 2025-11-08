@@ -322,8 +322,8 @@ CICADA ships nine focused MCP tools. Use the decision table to pick the right on
 
 | Need | Tool | Notes |
 |------|------|-------|
-| List a module's API | `search_module` | Includes public/private functions, signatures, specs, docs |
-| Find where a function is defined & called | `search_function` | Resolves aliases/imports, shows code context |
+| List a module's API | `search_module` | Supports wildcards (`*`) and OR (`|`) patterns. Includes public/private functions, signatures, specs, docs |
+| Find where a function is defined & called | `search_function` | Supports wildcards (`*`) and OR (`|`) patterns. Resolves aliases/imports, shows code context |
 | Discover who imports/aliases a module | `search_module_usage` | Great for dependency impact analysis |
 | Search by concept ("authentication", `*_user`) | `search_by_features` | Requires keyword tier index |
 | Identify unused code | `find_dead_code` | Confidence-ranked (high, medium, low) |
@@ -337,13 +337,13 @@ CICADA ships nine focused MCP tools. Use the decision table to pick the right on
 ### Core Search Tools
 
 **`search_module`** - Find modules and view all their functions
-- Search by exact module name or file path
+- Search by module name or file path with wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
 - View function signatures with type specs
 - Filter public/private functions
 - Output in Markdown or JSON
 
 **`search_function`** - Locate function definitions and track usage
-- Search by function name, arity, or full module path
+- Search by function name, arity, or module path with wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
 - See where functions are called with line numbers
 - View actual code usage examples
 - Filter for test files only
