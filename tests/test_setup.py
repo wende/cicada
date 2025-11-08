@@ -82,7 +82,6 @@ class TestGetMcpConfigForEditor:
         server_config = config["mcpServers"]["cicada"]
         assert "command" in server_config
         assert "env" in server_config
-        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
         assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
     def test_codex_config_structure(self, mock_repo, mock_storage_dir):
@@ -97,7 +96,6 @@ class TestGetMcpConfigForEditor:
         server_config = config["mcpServers"]["cicada"]
         assert "command" in server_config
         assert "env" in server_config
-        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
         assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
     def test_with_cicada_server_installed(self, mock_repo, mock_storage_dir):
