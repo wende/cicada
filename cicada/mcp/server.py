@@ -1652,6 +1652,40 @@ class CicadaServer:
 
         return [TextContent(type="text", text=output)]
 
+    def _format_dependency_with_context(
+        self,
+        dep: dict,
+        context_lines: dict,
+        include_context: bool,
+        include_module: bool = False,
+    ) -> list[str]:
+        """
+        Format a single dependency with optional code context.
+
+        Args:
+            dep: Dependency dict with module, function, arity, line
+            context_lines: Dict mapping line numbers to code context
+            include_context: Whether to include code context
+            include_module: Whether to include module name in output
+
+        Returns:
+            List of formatted lines
+        """
+        lines = []
+        line_info = f"(line {dep['line']})"
+
+        if include_module:
+            lines.append(f"- {dep['module']}.{dep['function']}/{dep['arity']} {line_info}")
+        else:
+            lines.append(f"- {dep['function']}/{dep['arity']} {line_info}")
+
+        if include_context and dep["line"] in context_lines:
+            lines.append("  ```elixir")
+            lines.append(f"  {context_lines[dep['line']]}")
+            lines.append("  ```")
+
+        return lines
+
     async def _get_function_dependencies(
         self,
         module_name: str,
@@ -1676,7 +1710,9 @@ class CicadaServer:
         import json
 
         # Look up the module in the index (no suggestions for function lookup)
-        module_data, error_msg = self._lookup_module_with_error(module_name, include_suggestions=False)
+        module_data, error_msg = self._lookup_module_with_error(
+            module_name, include_suggestions=False
+        )
         if error_msg:
             return [TextContent(type="text", text=error_msg)]
 
@@ -1741,23 +1777,21 @@ class CicadaServer:
                 if internal:
                     lines.append(f"## Internal Calls ({len(internal)})\n")
                     for dep in internal:
-                        line_info = f"(line {dep['line']})"
-                        lines.append(f"- {dep['function']}/{dep['arity']} {line_info}")
-                        if include_context and dep["line"] in context_lines:
-                            lines.append(f"  ```elixir")
-                            lines.append(f"  {context_lines[dep['line']]}")
-                            lines.append(f"  ```")
+                        lines.extend(
+                            self._format_dependency_with_context(
+                                dep, context_lines, include_context, include_module=False
+                            )
+                        )
                     lines.append("")
 
                 if external:
                     lines.append(f"## External Calls ({len(external)})\n")
                     for dep in external:
-                        line_info = f"(line {dep['line']})"
-                        lines.append(f"- {dep['module']}.{dep['function']}/{dep['arity']} {line_info}")
-                        if include_context and dep["line"] in context_lines:
-                            lines.append(f"  ```elixir")
-                            lines.append(f"  {context_lines[dep['line']]}")
-                            lines.append(f"  ```")
+                        lines.extend(
+                            self._format_dependency_with_context(
+                                dep, context_lines, include_context, include_module=True
+                            )
+                        )
                     lines.append("")
             else:
                 lines.append("*No dependencies found*")
