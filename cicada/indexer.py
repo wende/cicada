@@ -57,6 +57,33 @@ class ElixirIndexer:
         }
         self._interrupted = False
 
+    def _extract_dependencies(self, module_data: dict, functions: list) -> tuple[dict, list]:
+        """
+        Extract module and function level dependencies.
+
+        Args:
+            module_data: Parsed module data containing calls, aliases, etc.
+            functions: List of function data dictionaries
+
+        Returns:
+            Tuple of (module_dependencies, modified_functions_list)
+        """
+        # Extract module-level dependencies
+        module_dependencies = extract_module_dependencies(module_data)
+
+        # Extract function-level dependencies
+        all_calls = module_data.get("calls", [])
+        for i, func in enumerate(functions):
+            # Calculate function end line
+            next_func_line = functions[i + 1]["line"] if i + 1 < len(functions) else None
+            func_end_line = calculate_function_end_line(func, next_func_line)
+
+            # Extract dependencies for this function
+            func_deps = extract_function_dependencies(module_data, func, all_calls, func_end_line)
+            func["dependencies"] = func_deps
+
+        return module_dependencies, functions
+
     def _handle_interrupt(self, _signum, _frame):
         """Handle interrupt signals (Ctrl-C, SIGTERM) gracefully."""
         print("\n\n⚠️  Interrupt received. Finishing current file and saving progress...")
@@ -285,23 +312,10 @@ class ElixirIndexer:
                                                 file=sys.stderr,
                                             )
 
-                        # Extract module-level dependencies
-                        module_dependencies = extract_module_dependencies(module_data)
-
-                        # Extract function-level dependencies
-                        all_calls = module_data.get("calls", [])
-                        for i, func in enumerate(functions):
-                            # Calculate function end line
-                            next_func_line = (
-                                functions[i + 1]["line"] if i + 1 < len(functions) else None
-                            )
-                            func_end_line = calculate_function_end_line(func, next_func_line)
-
-                            # Extract dependencies for this function
-                            func_deps = extract_function_dependencies(
-                                module_data, func, all_calls, func_end_line
-                            )
-                            func["dependencies"] = func_deps
+                        # Extract dependencies
+                        module_dependencies, functions = self._extract_dependencies(
+                            module_data, functions
+                        )
 
                         # Store module info
                         module_info = {
@@ -672,23 +686,10 @@ class ElixirIndexer:
                                     except Exception:
                                         keyword_extraction_failures += 1
 
-                        # Extract module-level dependencies
-                        module_dependencies = extract_module_dependencies(module_data)
-
-                        # Extract function-level dependencies
-                        all_calls = module_data.get("calls", [])
-                        for i, func in enumerate(functions):
-                            # Calculate function end line
-                            next_func_line = (
-                                functions[i + 1]["line"] if i + 1 < len(functions) else None
-                            )
-                            func_end_line = calculate_function_end_line(func, next_func_line)
-
-                            # Extract dependencies for this function
-                            func_deps = extract_function_dependencies(
-                                module_data, func, all_calls, func_end_line
-                            )
-                            func["dependencies"] = func_deps
+                        # Extract dependencies
+                        module_dependencies, functions = self._extract_dependencies(
+                            module_data, functions
+                        )
 
                         # Store module info
                         module_info = {
