@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from cicada.git_helper import GitHelper
 from cicada.parser import ElixirParser
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
@@ -83,6 +84,7 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
+        compute_timestamps: bool = False,
     ):
         """
         Index an Elixir repository.
@@ -91,6 +93,7 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
+            compute_timestamps: If True, compute git history timestamps for functions
 
         Returns:
             Dictionary containing the index data
@@ -145,6 +148,19 @@ class ElixirIndexer:
                     print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                     print("Continuing without keyword extraction...")
                 extract_keywords = False
+
+        # Initialize git helper if timestamps are requested
+        git_helper = None
+        if compute_timestamps:
+            try:
+                git_helper = GitHelper(str(repo_path_obj))
+                if self.verbose:
+                    print("Git history tracking enabled - computing function timestamps")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize git helper: {e}")
+                    print("Continuing without timestamp computation...")
+                compute_timestamps = False
 
         # Find all Elixir files
         elixir_files = self._find_elixir_files(repo_path_obj)
@@ -277,6 +293,32 @@ class ElixirIndexer:
                                         if self.verbose:
                                             print(
                                                 f"Warning: Keyword extraction failed for {module_name}.{func_name}: {e}",
+                                                file=sys.stderr,
+                                            )
+
+                        # Compute git history timestamps if enabled
+                        if git_helper:
+                            for func in functions:
+                                func_name = func.get("name", "")
+                                func_line = func.get("line")
+                                if func_name and func_line:
+                                    try:
+                                        # Get function evolution metadata
+                                        evolution = git_helper.get_function_evolution(
+                                            file_path=str(file_path.relative_to(repo_path_obj)),
+                                            function_name=func_name,
+                                        )
+
+                                        if evolution:
+                                            # Add timestamp fields to function
+                                            func["created_at"] = evolution["created_at"]["date"]
+                                            func["last_modified_at"] = evolution["last_modified"]["date"]
+                                            func["last_modified_sha"] = evolution["last_modified"]["sha"]
+                                            func["modification_count"] = evolution["total_modifications"]
+                                    except Exception as e:
+                                        if self.verbose:
+                                            print(
+                                                f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
                                                 file=sys.stderr,
                                             )
 

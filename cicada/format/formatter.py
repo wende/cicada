@@ -93,6 +93,9 @@ class ModuleFormatter:
                 f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)"
             )
             lines.append("   Please ask the user to run: cicada index")
+            lines.append("")
+            lines.append("   💭 Recent changes might be in merged PRs:")
+            lines.append(f"      get_file_pr_history(\"{data['file']}\")")
 
         # Add PR context if available
         if pr_info:
@@ -104,6 +107,12 @@ class ModuleFormatter:
                 lines.append(
                     f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{data['file']}\")"
                 )
+        else:
+            # Suggest how to get context when PR info unavailable
+            lines.append("")
+            lines.append("💭 Want to know why this code exists?")
+            lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
+            lines.append(f"   • Check git history: get_commit_history(\"{data['file']}\")")
 
         # Add moduledoc if present (first paragraph only for brevity)
         if data.get("moduledoc"):
@@ -576,6 +585,13 @@ class ModuleFormatter:
   • Check spelling (function names are case-sensitive)
 
 💡 Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
+
+## Was this function recently removed?
+
+💭 If this function was deleted:
+  • Check recent PRs: get_file_pr_history("<file_path>")
+  • Search git history for the function name
+  • Find what replaced it: search_by_features(['<concept>'])
 """
             )
 
@@ -602,6 +618,8 @@ class ModuleFormatter:
             lines = [
                 f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)",
                 "   Please ask the user to run: cicada index",
+                "",
+                "   💭 Recent changes might be in merged PRs - use get_file_pr_history() for specific files",
                 "",
             ]
         else:
@@ -651,6 +669,12 @@ class ModuleFormatter:
                         lines.append(
                             f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
                         )
+                else:
+                    # Suggest how to get context when PR info unavailable
+                    lines.append("")
+                    lines.append("💭 Want to know why this code exists?")
+                    lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
+                    lines.append(f"   • Check git history: get_commit_history(\"{file_path}\", function_name=\"{func['name']}\")")
             else:
                 lines.extend(
                     [
@@ -671,6 +695,10 @@ class ModuleFormatter:
                     )
                     if pr_info["comment_count"] > 0:
                         lines.append(f"💬 {pr_info['comment_count']} review comment(s) available")
+                else:
+                    # Suggest how to get context when PR info unavailable
+                    lines.append("")
+                    lines.append("💭 Get context: get_commit_history() or build PR index with 'cicada index-pr'")
 
             # Add documentation if present
             if func.get("doc"):
@@ -703,7 +731,19 @@ class ModuleFormatter:
                     ModuleFormatter._format_call_sites(call_sites, call_sites_with_examples, indent)
                 )
             else:
-                lines.extend([f"{indent}*No call sites found*"])
+                lines.append(f"{indent}*No call sites found*")
+                lines.append("")
+                lines.append(f"{indent}💭 Possible reasons:")
+                lines.append(f"{indent}   • Dead code → Use find_dead_code() to verify")
+                lines.append(f"{indent}   • Public API → Not called internally but used by clients")
+                lines.append(f"{indent}   • New code → Check when added with get_commit_history()")
+
+                # Smart suggestion based on available data
+                if pr_info:
+                    if pr_info.get("comment_count", 0) > 0:
+                        lines.append(f"{indent}   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")")
+                    else:
+                        lines.append(f"{indent}   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")")
 
         # Add closing separator for single results
         if len(consolidated_results) == 1:

@@ -335,6 +335,7 @@ class CicadaServer:
             include_usage_examples = arguments.get("include_usage_examples", False)
             max_examples = arguments.get("max_examples", 5)
             test_files_only = arguments.get("test_files_only", False)
+            changed_since = arguments.get("changed_since")
 
             if not function_name:
                 error_msg = "'function_name' is required"
@@ -346,6 +347,7 @@ class CicadaServer:
                 include_usage_examples,
                 max_examples,
                 test_files_only,
+                changed_since,
             )
         elif name == "search_module_usage":
             module_name = arguments.get("module_name")
@@ -580,6 +582,7 @@ class CicadaServer:
         include_usage_examples: bool = False,
         max_examples: int = 5,
         test_files_only: bool = False,
+        changed_since: str | None = None,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -599,12 +602,27 @@ class CicadaServer:
         # Search across all modules for function definitions
         results = []
         seen_functions: set[tuple[str, str, int]] = set()
+        # Parse changed_since filter if provided
+        cutoff_date = None
+        if changed_since:
+            cutoff_date = self._parse_changed_since(changed_since)
+
         for module_name, module_data in self.index["modules"].items():
             for func in module_data["functions"]:
                 if any(
                     pattern.matches(module_name, module_data["file"], func)
                     for pattern in parsed_patterns
                 ):
+                    # Filter by changed_since if provided
+                    if cutoff_date:
+                        func_modified = func.get("last_modified_at")
+                        if not func_modified:
+                            continue  # Skip functions without timestamp
+                        from datetime import datetime
+
+                        if datetime.fromisoformat(func_modified) < cutoff_date:
+                            continue  # Function too old, skip
+
                     key = (module_name, func["name"], func["arity"])
                     if key in seen_functions:
                         continue
@@ -957,6 +975,65 @@ class CicadaServer:
                         )
 
         return call_sites
+
+    def _parse_changed_since(self, changed_since: str):
+        """
+        Parse changed_since parameter into datetime.
+
+        Supports:
+        - ISO dates: '2024-01-15'
+        - Relative: '7d', '2w', '3m', '1y'
+        - Git refs: 'HEAD~10', 'v1.0.0' (if git_helper available)
+
+        Returns:
+            datetime object representing the cutoff date
+        """
+        from datetime import datetime, timedelta
+
+        # ISO date format (YYYY-MM-DD)
+        if "-" in changed_since and len(changed_since) >= 10:
+            try:
+                return datetime.fromisoformat(changed_since)
+            except ValueError:
+                pass
+
+        # Relative format (7d, 2w, 3m, 1y)
+        if len(changed_since) >= 2 and changed_since[-1] in "dwmy":
+            try:
+                amount = int(changed_since[:-1])
+                unit = changed_since[-1]
+
+                now = datetime.now()
+                if unit == "d":
+                    return now - timedelta(days=amount)
+                elif unit == "w":
+                    return now - timedelta(weeks=amount)
+                elif unit == "m":
+                    return now - timedelta(days=amount * 30)
+                elif unit == "y":
+                    return now - timedelta(days=amount * 365)
+            except ValueError:
+                pass
+
+        # Git ref format (requires git_helper)
+        if self.git_helper:
+            try:
+                import subprocess
+
+                # Get timestamp of the ref using git show
+                repo_path = self.git_helper.repo_path
+                result = subprocess.run(
+                    ["git", "show", "-s", "--format=%ai", changed_since],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                return datetime.fromisoformat(result.stdout.strip())
+            except Exception:
+                pass
+
+        raise ValueError(f"Invalid changed_since format: {changed_since}")
 
     def _get_recent_pr_info(self, file_path: str) -> dict | None:
         """

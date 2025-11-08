@@ -91,6 +91,16 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Only show call sites from test files. Defaults to false.",
                     },
+                    "changed_since": {
+                        "type": "string",
+                        "description": (
+                            "Filter functions changed after this date/time. "
+                            "Formats: ISO date ('2024-01-15'), relative ('7d', '2w', '3m', '1y'), "
+                            "or git ref ('HEAD~10', 'v1.0.0'). "
+                            "Examples: '2024-01-01', '7d' (last 7 days), '2w' (last 2 weeks). "
+                            "Requires index to be built with timestamp support."
+                        ),
+                    },
                 },
                 "required": ["function_name"],
             },
