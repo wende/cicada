@@ -207,7 +207,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - `["create*|update*"]` - Match keywords starting with "create" OR "update"
 - `["*database*", "query"]` - Match keywords containing "database" and exact "query"
 
-**Requirements:** Index built with keyword extraction: `cicada index --fast`, `cicada index --regular`, or `cicada index --max`
+**Requirements:** Index built with keyword extraction: `cicada index --force --fast`, `cicada index --force --regular`, or `cicada index --force --max`
 
 **Best for:**
 - Finding code by topic or concept

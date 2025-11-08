@@ -45,8 +45,6 @@ def test_find_pr_for_line(mock_run):
     mock_run.side_effect = run_side_effect
 
     finder = PRFinder()
-
-    # Test with README.md line 1 (should have a commit)
     result = finder.find_pr_for_line("README.md", 1)
 
     assert "file_path" in result

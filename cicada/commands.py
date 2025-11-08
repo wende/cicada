@@ -21,6 +21,34 @@ from cicada.tier import (
 DEFAULT_WATCH_DEBOUNCE = 2.0
 
 
+def _tier_flag_specified(args: argparse.Namespace) -> bool:
+    """Return True when any tier flag is present."""
+    return any(getattr(args, flag, False) is True for flag in ("fast", "regular", "max"))
+
+
+def _validate_force_tier_usage(args: argparse.Namespace) -> None:
+    """Ensure --force is used correctly with tier flags for the index command."""
+    tier_specified = _tier_flag_specified(args)
+    force_enabled = getattr(args, "force", False) is True
+
+    if force_enabled and not tier_specified:
+        print(
+            "Error: --force requires specifying a tier flag (--fast, --regular, or --max).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if not force_enabled and tier_specified:
+        print(
+            "Error: Tier flags now require --force to override the configured tier.",
+            file=sys.stderr,
+        )
+        print(
+            "Run 'cicada index --force --fast|--regular|--max' to select a tier.", file=sys.stderr
+        )
+        sys.exit(2)
+
+
 def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     """Shared logic for starting file watcher.
 
@@ -45,7 +73,7 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     tier = determine_tier(args, repo_path)
 
     # Check if config exists when no tier is specified
-    tier_specified = args.fast or args.max or getattr(args, "regular", False)
+    tier_specified = _tier_flag_specified(args)
     if not tier_specified and not config_path.exists():
         _print_tier_requirement_error()
         print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
@@ -295,6 +323,12 @@ def get_argument_parser():
         "--max",
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion",
+    )
+    index_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Override configured tier (requires --fast, --regular, or --max)",
     )
     index_parser.add_argument(
         "--test",
@@ -604,9 +638,13 @@ def handle_index_main(args) -> None:
     storage_dir = create_storage_dir(repo_path)
     index_path = get_index_path(repo_path)
 
-    extraction_method, expansion_method = get_extraction_expansion_methods(args)
+    force_enabled = getattr(args, "force", False) is True
+    extraction_method: str | None = None
+    expansion_method: str | None = None
 
-    if extraction_method is not None:
+    if force_enabled:
+        extraction_method, expansion_method = get_extraction_expansion_methods(args)
+        assert extraction_method is not None
         assert expansion_method is not None
         _handle_index_config_update(
             config_path, storage_dir, repo_path, extraction_method, expansion_method
@@ -705,11 +743,22 @@ def _describe_config_change(
 
 def _print_tier_requirement_error() -> None:
     """Print error message when no tier is specified."""
-    print("Error: No tier specified.", file=sys.stderr)
-    print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
-    print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
-    print("  --regular   Regular tier: KeyBERT small + GloVe expansion (default)", file=sys.stderr)
-    print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+    print("Error: No tier configured.", file=sys.stderr)
+    print(
+        "\nUse '--force' with a tier flag to select keyword extraction settings:", file=sys.stderr
+    )
+    print(
+        "  cicada index --force --fast      Fast tier: Regular extraction + lemmi expansion",
+        file=sys.stderr,
+    )
+    print(
+        "  cicada index --force --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+        file=sys.stderr,
+    )
+    print(
+        "  cicada index --force --max       Max tier: KeyBERT large + FastText expansion",
+        file=sys.stderr,
+    )
     print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
 
 
@@ -721,9 +770,15 @@ def handle_index(args):
 
     if getattr(args, "test", False):
         handle_index_test_mode(args)
-    elif getattr(args, "test_expansion", False):
+        return
+
+    if getattr(args, "test_expansion", False):
         handle_index_test_expansion_mode(args)
-    elif getattr(args, "watch", False):
+        return
+
+    _validate_force_tier_usage(args)
+
+    if getattr(args, "watch", False):
         # Handle watch mode using shared logic
         _setup_and_start_watcher(args, args.repo)
     else:
@@ -892,7 +947,7 @@ def handle_install(args) -> None:
     if extraction_method is None and not index_exists:
         from cicada.interactive_setup import show_first_time_setup
 
-        extraction_method, expansion_method = show_first_time_setup()
+        extraction_method, expansion_method, _, _ = show_first_time_setup()
 
     # If index exists but no model flags, use existing settings
     if extraction_method is None and index_exists:

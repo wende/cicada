@@ -1473,9 +1473,10 @@ class CicadaServer:
         if not self._has_keywords:
             error_msg = (
                 "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada index           # Default: BERT + GloVe (regular tier)\n"
-                "  cicada index --fast    # Fast: Token-based + lemminflect\n"
-                "  cicada index --max     # Max: BERT + FastText\n\n"
+                "  cicada index           # Default: reuse configured tier\n"
+                "  cicada index --force --regular   # BERT + GloVe (regular tier)\n"
+                "  cicada index --force --fast      # Fast: Token-based + lemminflect\n"
+                "  cicada index --force --max       # Max: BERT + FastText\n\n"
                 "This will extract keywords from documentation for semantic search."
             )
             return [TextContent(type="text", text=error_msg)]

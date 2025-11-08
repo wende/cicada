@@ -256,9 +256,9 @@ For projects with 1000+ files:
 ### Keyword Search (Optional)
 Enable semantic search when ready:
 ```bash
-cicada index --fast     # Fast tier: No downloads
-cicada index --regular  # Regular tier: KeyBERT small + GloVe (128MB)
-cicada index --max      # Max tier: KeyBERT large + FastText (958MB+)
+cicada index --force --fast     # Fast tier: No downloads
+cicada index --force --regular  # Regular tier: KeyBERT small + GloVe (128MB)
+cicada index --force --max      # Max tier: KeyBERT large + FastText (958MB+)
 ```
 
 ---

@@ -38,7 +38,7 @@ The incremental indexing system allows you to reindex your Elixir codebase effic
 
 ```bash
 # First run: full index with hash computation
-cicada index
+cicada index --force --regular
 
 # Subsequent runs: automatic incremental indexing
 cicada index  # Only processes changed files
@@ -53,13 +53,13 @@ When switching between keyword extraction methods (token-based vs BERT), you sho
 
 ```bash
 # Initially indexed with token-based extraction (fast tier)
-cicada index --fast
+cicada index --force --fast
 
 # Switching to BERT - use --full for consistency
-cicada index --max --full
+cicada index --force --max --full
 
 # Switching to standard BERT with different model - use --full again
-cicada index --regular --full
+cicada index --force --regular --full
 ```
 
 **Why use `--full`?**
@@ -136,7 +136,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada index  # or cicada index --fast, or cicada index --max
+cicada index  # or cicada index --force --fast, or cicada index --force --max
 ```
 
 The incremental indexing system will:
@@ -357,10 +357,10 @@ priv/           # Private resources
 cicada index --full
 
 # With fast token-based keyword extraction
-cicada index --fast --full
+cicada index --force --fast --full
 
 # With BERT keyword extraction (max tier)
-cicada index --max --full
+cicada index --force --max --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -484,7 +484,7 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada index --full  # or cicada index --max --full for BERT extraction
+cicada index --full  # or cicada index --force --max --full for BERT extraction
 ```
 
 This ensures:

@@ -109,11 +109,11 @@ What would you like to do?
 ### Before This Feature
 ```bash
 # Initial index with fast tier (token-based)
-$ cicada index --fast
+$ cicada index --force --fast
 ✓ Indexing complete! Modules: 150
 
 # Later, switching to max tier BERT (SILENTLY creates inconsistent index)
-$ cicada index --max
+$ cicada index --force --max
 ✓ Processing 5 changed files...
 ✓ Index updated!
 # ⚠️  INDEX NOW INCONSISTENT: 145 modules use fast, 5 use max
@@ -122,11 +122,11 @@ $ cicada index --max
 ### After This Feature
 ```bash
 # Initial index with fast tier (token-based)
-$ cicada index --fast
+$ cicada index --force --fast
 ✓ Indexing complete! Modules: 150
 
 # Later, switching to max tier BERT (PROMPTS USER)
-$ cicada index --max
+$ cicada index --force --max
 ⚠  Model Configuration Change Detected
 
   Previous configuration:
@@ -189,11 +189,11 @@ No changes to existing workflows. Users only see prompts when they change model 
 
 ```bash
 # Regular incremental indexing (no model change)
-$ cicada index --regular  # First time
-$ cicada index --regular  # Later - no prompt
+$ cicada index --force --regular  # First time
+$ cicada index --force --regular  # Later - no prompt
 
 # Changing model configuration
-$ cicada index --max      # Prompt shown, user chooses
+$ cicada index --force --max      # Prompt shown, user chooses
 ```
 
 ## Benefits

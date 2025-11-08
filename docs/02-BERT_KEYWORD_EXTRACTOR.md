@@ -68,10 +68,10 @@ if keyword_method == "bert":
 
 ```bash
 # Using fast tier (token-based extraction)
-cicada index --fast
+cicada index --force --fast
 
 # Using max tier (BERT large model)
-cicada index --max
+cicada index --force --max
 
 # Using default (BERT small model)
 cicada index
