@@ -59,6 +59,28 @@ class TestMain:
             args, editor = mock_handler.call_args[0]
             assert editor == "vs"
 
+    def test_main_with_gemini_subcommand(self):
+        """Should route to handle_editor_setup for gemini"""
+        with (
+            patch.object(sys, "argv", ["cicada", "gemini"]),
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args, editor = mock_handler.call_args[0]
+            assert editor == "gemini"
+
+    def test_main_with_codex_subcommand(self):
+        """Should route to handle_editor_setup for codex"""
+        with (
+            patch.object(sys, "argv", ["cicada", "codex"]),
+            patch("cicada.commands.handle_editor_setup") as mock_handler,
+        ):
+            main()
+            mock_handler.assert_called_once()
+            args, editor = mock_handler.call_args[0]
+            assert editor == "codex"
+
     def test_main_with_index_subcommand(self):
         """Should route to handle_index"""
         with (

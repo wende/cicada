@@ -26,6 +26,8 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "claude",
     "cursor",
     "vs",
+    "gemini",
+    "codex",
     "watch",
     "index",
     "index-pr",
@@ -126,6 +128,16 @@ def get_argument_parser():
         help="Skip editor selection, use VS Code",
     )
     install_parser.add_argument(
+        "--gemini",
+        action="store_true",
+        help="Skip editor selection, use Gemini CLI",
+    )
+    install_parser.add_argument(
+        "--codex",
+        action="store_true",
+        help="Skip editor selection, use Codex",
+    )
+    install_parser.add_argument(
         "--fast",
         action="store_true",
         help="Fast tier: Regular extraction + lemmi expansion (no downloads)",
@@ -166,6 +178,16 @@ def get_argument_parser():
         "--vs",
         action="store_true",
         help="Create VS Code config before starting server",
+    )
+    server_parser.add_argument(
+        "--gemini",
+        action="store_true",
+        help="Create Gemini CLI config before starting server",
+    )
+    server_parser.add_argument(
+        "--codex",
+        action="store_true",
+        help="Create Codex config before starting server",
     )
     server_parser.add_argument(
         "--fast",
@@ -246,6 +268,48 @@ def get_argument_parser():
         help="Regular tier: KeyBERT small + GloVe expansion (default)",
     )
     vs_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
+    gemini_parser = subparsers.add_parser(
+        "gemini",
+        help="Setup Cicada for Gemini CLI",
+        description="One-command setup for Gemini CLI with keyword extraction",
+    )
+    gemini_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    gemini_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    gemini_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
+    codex_parser = subparsers.add_parser(
+        "codex",
+        help="Setup Cicada for Codex editor",
+        description="One-command setup for Codex with keyword extraction",
+    )
+    codex_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    codex_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    codex_parser.add_argument(
         "--max",
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion",
@@ -469,6 +533,8 @@ def handle_command(args) -> bool:
         "claude": lambda args: handle_editor_setup(args, "claude"),
         "cursor": lambda args: handle_editor_setup(args, "cursor"),
         "vs": lambda args: handle_editor_setup(args, "vs"),
+        "gemini": lambda args: handle_editor_setup(args, "gemini"),
+        "codex": lambda args: handle_editor_setup(args, "codex"),
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
@@ -955,7 +1021,7 @@ def _determine_editor_from_args(args) -> str | None:
     Raises:
         SystemExit: If multiple editor flags specified
     """
-    editor_flags = [args.claude, args.cursor, args.vs]
+    editor_flags = [args.claude, args.cursor, args.vs, args.gemini, args.codex]
     editor_count = sum(editor_flags)
 
     if editor_count > 1:
@@ -968,6 +1034,10 @@ def _determine_editor_from_args(args) -> str | None:
         return "cursor"
     if args.vs:
         return "vs"
+    if args.gemini:
+        return "gemini"
+    if args.codex:
+        return "codex"
     return None
 
 
@@ -988,6 +1058,8 @@ def _prompt_for_editor() -> str:
         "Claude Code (Claude AI assistant)",
         "Cursor (AI-powered code editor)",
         "VS Code (Visual Studio Code)",
+        "Gemini CLI (Google Gemini command line interface)",
+        "Codex (AI code editor)",
     ]
     editor_menu = TerminalMenu(editor_options, title="Choose your editor:")
     menu_idx = editor_menu.show()
@@ -998,7 +1070,7 @@ def _prompt_for_editor() -> str:
 
     # Map menu index to editor type
     assert isinstance(menu_idx, int), "menu_idx must be an integer"
-    editor_map: tuple[str, str, str] = ("claude", "cursor", "vs")
+    editor_map: tuple[str, str, str, str, str] = ("claude", "cursor", "vs", "gemini", "codex")
     return editor_map[menu_idx]
 
 
@@ -1109,6 +1181,10 @@ def _configure_editors_if_requested(args, repo_path: Path, storage_dir: Path) ->
         editors_to_configure.append("cursor")
     if args.vs:
         editors_to_configure.append("vs")
+    if args.gemini:
+        editors_to_configure.append("gemini")
+    if args.codex:
+        editors_to_configure.append("codex")
 
     if editors_to_configure:
         try:
