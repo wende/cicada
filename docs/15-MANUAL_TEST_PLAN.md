@@ -41,17 +41,17 @@ Quick test plan before merging to main.
 - [x] `cicada index .` - Uses centralized storage path
 
 ## Index - Tier Modes
-- [x] `cicada index --fast` - Fast tier: Regular extraction + lemminflect (no downloads)
-- [x] `cicada index --regular` - Regular tier: KeyBERT small + GloVe (128MB, default)
-- [x] `cicada index --max` - Max tier: KeyBERT large + FastText (958MB+)
+- [x] `cicada index --force --fast` - Fast tier: Regular extraction + lemminflect (no downloads)
+- [x] `cicada index --force --regular` - Regular tier: KeyBERT small + GloVe (128MB, default)
+- [x] `cicada index --force --max` - Max tier: KeyBERT large + FastText (958MB+)
 
 ## Index - Error Cases
-- [x] `cicada index --fast --regular` - Should error: "Cannot specify multiple tier flags"
-- [x] `cicada index --regular --max` - Should error: "Cannot specify multiple tier flags"
-- [x] `cicada index --fast --max` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --force --fast --regular` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --force --regular --max` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --force --fast --max` - Should error: "Cannot specify multiple tier flags"
 
 ## Index - Incremental
-- [x] Run `cicada index --regular` twice - Second run should be faster (incremental)
+- [x] Run `cicada index --force --regular` twice - Second run should be faster (incremental)
 - [x] Modify 1-2 files, run again - Only changed files reprocessed
 - [x] Ctrl-C during indexing, run again - Resume from saved progress
 

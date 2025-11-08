@@ -988,7 +988,7 @@ class TestShowFullInteractiveSetup:
         mock_menu_class.return_value = mock_menu_instance
 
         # Need to mock PR indexer
-        with patch("cicada.interactive_setup._run_pr_indexing"):
+        with patch("cicada.interactive_setup_helpers.run_pr_indexing"):
             show_full_interactive_setup(mock_elixir_repo)
 
         mock_setup.assert_called_once()
@@ -1518,7 +1518,7 @@ class TestShowFullInteractiveSetup:
         mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
 
         # Should fall back and complete
-        with patch("cicada.setup.setup"), patch("cicada.interactive_setup._run_pr_indexing"):
+        with patch("cicada.setup.setup"), patch("cicada.interactive_setup_helpers.run_pr_indexing"):
             show_full_interactive_setup(mock_elixir_repo)
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")

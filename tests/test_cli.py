@@ -308,6 +308,7 @@ class TestHandleIndex:
             fast=True,
             max=False,
             regular=False,
+            force=True,
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
@@ -342,6 +343,7 @@ class TestHandleIndex:
             fast=False,
             max=False,
             regular=True,
+            force=True,
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
@@ -376,9 +378,11 @@ class TestHandleIndex:
             fast=False,
             max=False,
             regular=False,
+            force=False,
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -399,10 +403,60 @@ class TestHandleIndex:
 
         # Verify error message is shown
         captured = capsys.readouterr()
-        assert "No tier specified" in captured.err
-        assert "--fast" in captured.err
-        assert "--regular" in captured.err
-        assert "--max" in captured.err
+        assert "No tier configured" in captured.err
+        assert "--force" in captured.err
+
+    def test_force_requires_tier_flag(self, mock_repo, capsys):
+        """--force without a tier flag should exit with error."""
+        args = MagicMock(
+            fast=False,
+            max=False,
+            regular=False,
+            force=True,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
+            watch=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.storage.get_config_path"),
+            patch("cicada.utils.storage.create_storage_dir"),
+            patch("cicada.utils.storage.get_index_path"),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            handle_index(args)
+
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert "--force requires specifying a tier flag" in captured.err
+
+    def test_tier_flag_without_force_errors(self, mock_repo, capsys):
+        """Tier flags without --force should exit with error."""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            force=False,
+            repo=str(mock_repo),
+            test=False,
+            test_expansion=False,
+            watch=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.utils.storage.get_config_path"),
+            patch("cicada.utils.storage.create_storage_dir"),
+            patch("cicada.utils.storage.get_index_path"),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            handle_index(args)
+
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert "Tier flags now require --force" in captured.err
 
     def test_changing_method_exits_with_error(self, mock_repo, capsys):
         """Changing extraction method should exit with error and suggest cicada clean"""
@@ -410,6 +464,7 @@ class TestHandleIndex:
             fast=False,
             max=False,
             regular=True,
+            force=True,
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
@@ -457,6 +512,7 @@ class TestHandleIndex:
             fast=False,
             max=True,
             regular=False,
+            force=True,
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
@@ -881,7 +937,7 @@ class TestSetupAndStartWatcher:
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert "No tier specified" in captured.err
+        assert "No tier configured" in captured.err
 
     def test_setup_and_start_watcher_creates_file_watcher(self, tmp_path):
         """Should create FileWatcher with correct parameters"""
@@ -1011,9 +1067,10 @@ class TestHandleIndexWithWatch:
             test=False,
             test_expansion=False,
             watch=True,
-            fast=True,
+            fast=False,
             max=False,
             regular=False,
+            force=False,
         )
 
         with (
@@ -1033,8 +1090,9 @@ class TestHandleIndexWithWatch:
             test_expansion=False,
             watch=True,
             fast=False,
-            max=True,
+            max=False,
             regular=False,
+            force=False,
         )
 
         with (
@@ -1055,9 +1113,10 @@ class TestHandleIndexWithWatch:
             test=False,
             test_expansion=False,
             watch=True,
-            fast=True,
+            fast=False,
             max=False,
             regular=False,
+            force=False,
         )
 
         with (
