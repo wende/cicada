@@ -72,6 +72,36 @@ class TestGetMcpConfigForEditor:
         server_config = config["mcp.servers"]["cicada"]
         assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
 
+    def test_gemini_config_structure(self, mock_repo, mock_storage_dir):
+        """Gemini config should have correct structure"""
+        with patch("shutil.which", return_value="cicada-server"):
+            config_path, config = get_mcp_config_for_editor("gemini", mock_repo, mock_storage_dir)
+
+        assert config_path == mock_repo / ".gemini" / "mcp.json"
+        assert "mcpServers" in config
+        assert "cicada" in config["mcpServers"]
+
+        server_config = config["mcpServers"]["cicada"]
+        assert "command" in server_config
+        assert "env" in server_config
+        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
+        assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
+
+    def test_codex_config_structure(self, mock_repo, mock_storage_dir):
+        """Codex config should have correct structure"""
+        with patch("shutil.which", return_value="cicada-server"):
+            config_path, config = get_mcp_config_for_editor("codex", mock_repo, mock_storage_dir)
+
+        assert config_path == mock_repo / ".codex" / "mcp.json"
+        assert "mcpServers" in config
+        assert "cicada" in config["mcpServers"]
+
+        server_config = config["mcpServers"]["cicada"]
+        assert "command" in server_config
+        assert "env" in server_config
+        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
+        assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
+
     def test_with_cicada_server_installed(self, mock_repo, mock_storage_dir):
         """Should always use uvx cicada-mcp for maximum compatibility"""
         _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)

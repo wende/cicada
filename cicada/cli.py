@@ -13,6 +13,8 @@ def main():
             "claude",
             "cursor",
             "vs",
+            "gemini",
+            "codex",
             "watch",
             "index",
             "index-pr",
