@@ -14,7 +14,22 @@ else:
 
 
 def _get_version() -> str:
-    """Read version from pyproject.toml."""
+    """
+    Read version from build-time generated file, falling back to pyproject.toml.
+
+    During development (before build), reads from pyproject.toml.
+    After build/install, uses VERSION baked into _version_hash.py.
+    """
+    # Try to get version from build-time generated file first
+    try:
+        from cicada._version_hash import VERSION
+
+        if VERSION and VERSION != "unknown":
+            return VERSION
+    except (ImportError, AttributeError):
+        pass
+
+    # Fallback: read from pyproject.toml (for development)
     if tomllib is None:
         return "unknown"
 

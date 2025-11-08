@@ -161,12 +161,21 @@ class FileWatcher:
         print()
 
         # Ensure storage directory exists
-        create_storage_dir(self.repo_path)
+        storage_dir = create_storage_dir(self.repo_path)
 
         # Get index path
         from cicada.utils.storage import get_index_path
 
         index_path = get_index_path(self.repo_path)
+
+        # Apply tier configuration before indexing
+        from cicada.setup import create_config_yaml
+        from cicada.tier import tier_to_methods
+
+        extraction_method, expansion_method = tier_to_methods(self.tier)
+        create_config_yaml(
+            self.repo_path, storage_dir, extraction_method, expansion_method, verbose=False
+        )
 
         # Create indexer instance
         self.indexer = ElixirIndexer(verbose=self.verbose)
