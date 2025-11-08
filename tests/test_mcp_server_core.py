@@ -391,5 +391,91 @@ class TestAddCodeExamples:
         assert "code_line" not in call_sites[0]
 
 
+class TestParseChangedSince:
+    """Test _parse_changed_since date parsing logic."""
+
+    @pytest.fixture
+    def test_server(self, tmp_path):
+        """Create a test server instance"""
+        index = {"modules": {}, "metadata": {"total_modules": 0}}
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        return CicadaServer(str(config_path))
+
+    def test_parse_iso_date(self, test_server):
+        """Should parse ISO date format"""
+        from datetime import datetime
+
+        result = test_server._parse_changed_since("2024-01-15")
+        assert isinstance(result, datetime)
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_parse_relative_days(self, test_server):
+        """Should parse relative days format"""
+        from datetime import datetime, timedelta
+
+        result = test_server._parse_changed_since("7d")
+        expected = datetime.now() - timedelta(days=7)
+        assert isinstance(result, datetime)
+        # Allow 1-second tolerance for execution time
+        assert abs((result - expected).total_seconds()) < 1
+
+    def test_parse_relative_weeks(self, test_server):
+        """Should parse relative weeks format"""
+        from datetime import datetime, timedelta
+
+        result = test_server._parse_changed_since("2w")
+        expected = datetime.now() - timedelta(weeks=2)
+        assert isinstance(result, datetime)
+        assert abs((result - expected).total_seconds()) < 1
+
+    def test_parse_relative_months(self, test_server):
+        """Should parse relative months format"""
+        from datetime import datetime, timedelta
+
+        result = test_server._parse_changed_since("3m")
+        expected = datetime.now() - timedelta(days=3 * 30)
+        assert isinstance(result, datetime)
+        assert abs((result - expected).total_seconds()) < 1
+
+    def test_parse_relative_years(self, test_server):
+        """Should parse relative years format"""
+        from datetime import datetime, timedelta
+
+        result = test_server._parse_changed_since("1y")
+        expected = datetime.now() - timedelta(days=365)
+        assert isinstance(result, datetime)
+        assert abs((result - expected).total_seconds()) < 1
+
+    def test_invalid_format_raises_error(self, test_server):
+        """Should raise ValueError for invalid format"""
+        with pytest.raises(ValueError, match="Invalid changed_since format"):
+            test_server._parse_changed_since("invalid")
+
+    def test_parse_iso_datetime(self, test_server):
+        """Should parse full ISO datetime with time"""
+        from datetime import datetime
+
+        result = test_server._parse_changed_since("2024-03-20T14:30:00")
+        assert isinstance(result, datetime)
+        assert result.year == 2024
+        assert result.month == 3
+        assert result.day == 20
+        assert result.hour == 14
+        assert result.minute == 30
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
