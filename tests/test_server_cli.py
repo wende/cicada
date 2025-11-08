@@ -227,3 +227,60 @@ def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
                 from cicada.mcp import server as mcp_server
 
                 mcp_server._auto_setup_if_needed()
+
+
+def test_positional_arg_auto_setup_from_different_directory(monkeypatch, tmp_path):
+    """Test that positional arg works for auto-setup when called from different directory."""
+    # Create a fake Elixir project in one location
+    test_repo = tmp_path / "test_repo"
+    test_repo.mkdir()
+    (test_repo / "mix.exs").write_text("defmodule Project do\nend")
+    (test_repo / "lib").mkdir()
+    (test_repo / "lib" / "test.ex").write_text("defmodule Test do\nend")
+
+    # Create a different directory to run from
+    other_dir = tmp_path / "other_dir"
+    other_dir.mkdir()
+
+    # Change to the other directory
+    original_cwd = Path.cwd()
+    os.chdir(other_dir)
+
+    try:
+        # Mock sys.argv with the repo path as positional argument
+        test_args = ["cicada-server", str(test_repo)]
+
+        # Track environment variables that get set
+        captured_env = {}
+
+        def capture_env(*args, **kwargs):
+            captured_env["_CICADA_REPO_PATH_ARG"] = os.environ.get("_CICADA_REPO_PATH_ARG")
+            captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
+
+        mock_async_run = MagicMock(side_effect=capture_env)
+
+        with patch("sys.argv", test_args):
+            with patch("asyncio.run", mock_async_run):
+                from cicada.mcp.server import main
+
+                try:
+                    main()
+                except Exception:
+                    pass
+
+        # Verify that the internal env var was set to the provided repo path
+        # This ensures _auto_setup_if_needed will use the correct repo, not cwd
+        assert "_CICADA_REPO_PATH_ARG" in captured_env
+        assert captured_env["_CICADA_REPO_PATH_ARG"] is not None
+        assert Path(captured_env["_CICADA_REPO_PATH_ARG"]) == test_repo.resolve()
+
+        # Verify it's NOT using the cwd (other_dir)
+        assert Path(captured_env["_CICADA_REPO_PATH_ARG"]) != other_dir.resolve()
+
+        # Verify CICADA_CONFIG_DIR was also set correctly
+        from cicada.utils.storage import get_storage_dir
+
+        expected_storage_dir = get_storage_dir(test_repo.resolve())
+        assert captured_env["CICADA_CONFIG_DIR"] == str(expected_storage_dir)
+    finally:
+        os.chdir(original_cwd)
