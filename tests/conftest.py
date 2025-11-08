@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from .elixir_repo_factory import create_sample_elixir_repo
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
@@ -141,3 +143,9 @@ def mock_home_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: mock_home)
 
     return mock_home
+
+
+@pytest.fixture
+def elixir_repo(tmp_path):
+    """Provision a sample Elixir repository for watcher-related tests."""
+    return create_sample_elixir_repo(tmp_path)
