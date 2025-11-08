@@ -351,4 +351,80 @@ def get_tool_definitions() -> list[Tool]:
                 },
             },
         ),
+        Tool(
+            name="get_module_dependencies",
+            description=(
+                "Get all modules that a given module depends on.\n\n"
+                "Shows which modules the target module imports, aliases, uses, requires, and calls. "
+                "Complements search_module_usage (which shows who depends on this module).\n\n"
+                "Returns list of dependent modules with dependency types (alias, import, use, require, call).\n\n"
+                "🤖 AI USAGE TIPS:\n"
+                '• Use for understanding: "What does this module need to work?"\n'
+                "• Pair with search_module_usage for full dependency graph (in + out)\n"
+                "• Helps identify coupling - modules with many dependencies may need refactoring\n"
+                "• Set depth=2 to see transitive dependencies (dependencies of dependencies)\n"
+                "• Useful for: refactoring planning, dependency analysis, circular dependency detection"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "module_name": {
+                        "type": "string",
+                        "description": "Module name to analyze (e.g., 'MyApp.User').",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["markdown", "json"],
+                        "description": "Output format. Defaults to 'markdown'.",
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Depth for transitive dependencies. 1 = direct only, 2 = include dependencies of dependencies. Defaults to 1.",
+                    },
+                },
+                "required": ["module_name"],
+            },
+        ),
+        Tool(
+            name="get_function_dependencies",
+            description=(
+                "Get all functions that a given function calls.\n\n"
+                "Shows which functions are called within the target function, including both "
+                "internal (same module) and external (other modules) calls.\n\n"
+                "Returns list of called functions with module, name, arity, and line numbers.\n\n"
+                "🤖 AI USAGE TIPS:\n"
+                '• Use for understanding: "What does this function do? What does it call?"\n'
+                "• Helps identify function complexity - many dependencies = complex function\n"
+                "• Shows exact line numbers where each dependency is called\n"
+                "• Useful for: refactoring, understanding control flow, identifying coupling\n"
+                "• Pair with search_function to see both what it calls and who calls it"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "module_name": {
+                        "type": "string",
+                        "description": "Module name containing the function (e.g., 'MyApp.User').",
+                    },
+                    "function_name": {
+                        "type": "string",
+                        "description": "Function name to analyze (e.g., 'create_user').",
+                    },
+                    "arity": {
+                        "type": "integer",
+                        "description": "Function arity (number of arguments). Required to uniquely identify the function.",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["markdown", "json"],
+                        "description": "Output format. Defaults to 'markdown'.",
+                    },
+                    "include_context": {
+                        "type": "boolean",
+                        "description": "Include code context showing where dependencies are called. Defaults to false.",
+                    },
+                },
+                "required": ["module_name", "function_name", "arity"],
+            },
+        ),
     ]

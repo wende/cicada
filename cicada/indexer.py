@@ -11,6 +11,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from cicada.dependency_analyzer import (
+    calculate_function_end_line,
+    extract_function_dependencies,
+    extract_module_dependencies,
+)
 from cicada.parser import ElixirParser
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
@@ -280,6 +285,24 @@ class ElixirIndexer:
                                                 file=sys.stderr,
                                             )
 
+                        # Extract module-level dependencies
+                        module_dependencies = extract_module_dependencies(module_data)
+
+                        # Extract function-level dependencies
+                        all_calls = module_data.get("calls", [])
+                        for i, func in enumerate(functions):
+                            # Calculate function end line
+                            next_func_line = (
+                                functions[i + 1]["line"] if i + 1 < len(functions) else None
+                            )
+                            func_end_line = calculate_function_end_line(func, next_func_line)
+
+                            # Extract dependencies for this function
+                            func_deps = extract_function_dependencies(
+                                module_data, func, all_calls, func_end_line
+                            )
+                            func["dependencies"] = func_deps
+
                         # Store module info
                         module_info = {
                             "file": str(file_path.relative_to(repo_path_obj)),
@@ -296,6 +319,7 @@ class ElixirIndexer:
                             "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
+                            "dependencies": module_dependencies,
                         }
 
                         # Add module keywords if extracted
@@ -648,6 +672,24 @@ class ElixirIndexer:
                                     except Exception:
                                         keyword_extraction_failures += 1
 
+                        # Extract module-level dependencies
+                        module_dependencies = extract_module_dependencies(module_data)
+
+                        # Extract function-level dependencies
+                        all_calls = module_data.get("calls", [])
+                        for i, func in enumerate(functions):
+                            # Calculate function end line
+                            next_func_line = (
+                                functions[i + 1]["line"] if i + 1 < len(functions) else None
+                            )
+                            func_end_line = calculate_function_end_line(func, next_func_line)
+
+                            # Extract dependencies for this function
+                            func_deps = extract_function_dependencies(
+                                module_data, func, all_calls, func_end_line
+                            )
+                            func["dependencies"] = func_deps
+
                         # Store module info
                         module_info = {
                             "file": relative_file,
@@ -664,6 +706,7 @@ class ElixirIndexer:
                             "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
+                            "dependencies": module_dependencies,
                         }
 
                         # Add module keywords if extracted
