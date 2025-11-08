@@ -6,6 +6,20 @@ to produce clean dependency information.
 """
 
 
+def _resolve_module_alias(module_name: str, aliases: dict) -> str:
+    """
+    Resolve a module name using the alias mapping.
+
+    Args:
+        module_name: Short or full module name
+        aliases: Dict mapping short names to full names
+
+    Returns:
+        Full module name (resolved if aliased, otherwise unchanged)
+    """
+    return aliases.get(module_name, module_name)
+
+
 def extract_module_dependencies(module_data: dict) -> dict:
     """
     Extract module-level dependencies from parsed module data.
@@ -27,33 +41,22 @@ def extract_module_dependencies(module_data: dict) -> dict:
     dependencies = set()
     aliases = module_data.get("aliases", {})
 
-    # 1. Add dependencies from aliases (use full names, not short names)
-    for full_name in aliases.values():
-        dependencies.add(full_name)
+    # Add dependencies from various sources
+    # Note: we use aliases.values() to get full names, not short names
+    for source_key, extract_values in [
+        ("aliases", lambda: aliases.values()),
+        ("imports", lambda: module_data.get("imports", [])),
+        ("uses", lambda: module_data.get("uses", [])),
+        ("requires", lambda: module_data.get("requires", [])),
+        ("behaviours", lambda: module_data.get("behaviours", [])),
+    ]:
+        dependencies.update(extract_values())
 
-    # 2. Add dependencies from imports
-    for import_name in module_data.get("imports", []):
-        dependencies.add(import_name)
-
-    # 3. Add dependencies from uses
-    for use_name in module_data.get("uses", []):
-        dependencies.add(use_name)
-
-    # 4. Add dependencies from requires
-    for require_name in module_data.get("requires", []):
-        dependencies.add(require_name)
-
-    # 5. Add dependencies from behaviours
-    for behaviour_name in module_data.get("behaviours", []):
-        dependencies.add(behaviour_name)
-
-    # 6. Add dependencies from function calls (module references)
+    # Add dependencies from function calls (with alias resolution)
     for call in module_data.get("calls", []):
         module_name = call.get("module")
         if module_name:
-            # Resolve alias if present
-            resolved_module = aliases.get(module_name, module_name)
-
+            resolved_module = _resolve_module_alias(module_name, aliases)
             # Exclude Kernel module (too noisy)
             if resolved_module != "Kernel":
                 dependencies.add(resolved_module)
@@ -98,27 +101,19 @@ def extract_function_dependencies(
     ]
 
     dependencies = []
-
     for call in function_calls:
+        # Resolve module name (external calls use aliases, local calls use current module)
         call_module = call.get("module")
-        call_function = call.get("function")
-        call_arity = call.get("arity")
-        call_line = call.get("line")
-
-        # Resolve module name
-        if call_module:
-            # External call - resolve alias
-            resolved_module = aliases.get(call_module, call_module)
-        else:
-            # Local call - use current module name
-            resolved_module = module_name
+        resolved_module = (
+            _resolve_module_alias(call_module, aliases) if call_module else module_name
+        )
 
         dependencies.append(
             {
                 "module": resolved_module,
-                "function": call_function,
-                "arity": call_arity,
-                "line": call_line,
+                "function": call.get("function"),
+                "arity": call.get("arity"),
+                "line": call.get("line"),
             }
         )
 
