@@ -8,7 +8,7 @@ import pytest
 
 
 def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
-    """Test that cicada-server accepts a positional repo path argument."""
+    """Test that cicada-server accepts a positional repo path argument and sets CICADA_CONFIG_DIR."""
     # Create a fake Elixir project
     test_repo = tmp_path / "test_repo"
     test_repo.mkdir()
@@ -22,11 +22,11 @@ def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
     # Mock asyncio.run to prevent actual server startup
     mock_async_run = MagicMock()
 
-    # Track what CICADA_REPO_PATH gets set to
+    # Track what CICADA_CONFIG_DIR gets set to
     captured_env = {}
 
     def capture_env(*args, **kwargs):
-        captured_env["CICADA_REPO_PATH"] = os.environ.get("CICADA_REPO_PATH")
+        captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
 
     mock_async_run.side_effect = capture_env
 
@@ -40,13 +40,16 @@ def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
             except Exception:
                 pass  # Ignore errors from mocked async_run
 
-    # Verify that CICADA_REPO_PATH was set to the absolute path
-    assert "CICADA_REPO_PATH" in captured_env
-    assert Path(captured_env["CICADA_REPO_PATH"]) == test_repo.resolve()
+    # Verify that CICADA_CONFIG_DIR was set to the storage directory
+    from cicada.utils.storage import get_storage_dir
+
+    expected_storage_dir = get_storage_dir(test_repo.resolve())
+    assert "CICADA_CONFIG_DIR" in captured_env
+    assert Path(captured_env["CICADA_CONFIG_DIR"]) == expected_storage_dir
 
 
 def test_cicada_server_without_argument_uses_cwd(monkeypatch):
-    """Test that cicada-server without arguments doesn't set CICADA_REPO_PATH."""
+    """Test that cicada-server without arguments doesn't set CICADA_CONFIG_DIR."""
     # Mock sys.argv with just the program name
     test_args = ["cicada-server"]
 
@@ -57,14 +60,14 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
     captured_env = {}
 
     def capture_env(*args, **kwargs):
-        captured_env["CICADA_REPO_PATH"] = os.environ.get("CICADA_REPO_PATH")
+        captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
 
     mock_async_run.side_effect = capture_env
 
-    # Clear CICADA_REPO_PATH if set
-    original_env = os.environ.get("CICADA_REPO_PATH")
-    if "CICADA_REPO_PATH" in os.environ:
-        del os.environ["CICADA_REPO_PATH"]
+    # Clear CICADA_CONFIG_DIR if set
+    original_env = os.environ.get("CICADA_CONFIG_DIR")
+    if "CICADA_CONFIG_DIR" in os.environ:
+        del os.environ["CICADA_CONFIG_DIR"]
 
     try:
         with patch("sys.argv", test_args):
@@ -76,16 +79,16 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
                 except Exception:
                     pass
 
-        # Verify CICADA_REPO_PATH was not set
-        assert captured_env["CICADA_REPO_PATH"] is None
+        # Verify CICADA_CONFIG_DIR was not set
+        assert captured_env["CICADA_CONFIG_DIR"] is None
     finally:
         # Restore original environment
         if original_env is not None:
-            os.environ["CICADA_REPO_PATH"] = original_env
+            os.environ["CICADA_CONFIG_DIR"] = original_env
 
 
 def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
-    """Test that relative paths are converted to absolute paths."""
+    """Test that relative paths are converted to absolute paths and CICADA_CONFIG_DIR is set."""
     # Create a fake Elixir project
     test_repo = tmp_path / "test_repo"
     test_repo.mkdir()
@@ -104,7 +107,7 @@ def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
         captured_env = {}
 
         def capture_env(*args, **kwargs):
-            captured_env["CICADA_REPO_PATH"] = os.environ.get("CICADA_REPO_PATH")
+            captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
 
         mock_async_run.side_effect = capture_env
 
@@ -117,16 +120,19 @@ def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
                 except Exception:
                     pass
 
-        # Verify the path was converted to absolute
-        assert "CICADA_REPO_PATH" in captured_env
-        assert Path(captured_env["CICADA_REPO_PATH"]).is_absolute()
-        assert Path(captured_env["CICADA_REPO_PATH"]) == test_repo.resolve()
+        # Verify CICADA_CONFIG_DIR was set to the storage directory
+        from cicada.utils.storage import get_storage_dir
+
+        expected_storage_dir = get_storage_dir(test_repo.resolve())
+        assert "CICADA_CONFIG_DIR" in captured_env
+        assert Path(captured_env["CICADA_CONFIG_DIR"]).is_absolute()
+        assert Path(captured_env["CICADA_CONFIG_DIR"]) == expected_storage_dir
     finally:
         os.chdir(original_cwd)
 
 
 def test_cicada_server_dot_argument(monkeypatch, tmp_path):
-    """Test that '.' as argument sets CICADA_REPO_PATH to current directory."""
+    """Test that '.' as argument sets CICADA_CONFIG_DIR based on current directory."""
     # Create a fake Elixir project in tmp_path
     (tmp_path / "mix.exs").write_text("defmodule Project do\nend")
 
@@ -143,7 +149,7 @@ def test_cicada_server_dot_argument(monkeypatch, tmp_path):
         captured_env = {}
 
         def capture_env(*args, **kwargs):
-            captured_env["CICADA_REPO_PATH"] = os.environ.get("CICADA_REPO_PATH")
+            captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
 
         mock_async_run.side_effect = capture_env
 
@@ -156,9 +162,12 @@ def test_cicada_server_dot_argument(monkeypatch, tmp_path):
                 except Exception:
                     pass
 
-        # Verify CICADA_REPO_PATH is set to the absolute path of current directory
-        assert "CICADA_REPO_PATH" in captured_env
-        assert Path(captured_env["CICADA_REPO_PATH"]) == tmp_path.resolve()
+        # Verify CICADA_CONFIG_DIR is set to the storage directory for current directory
+        from cicada.utils.storage import get_storage_dir
+
+        expected_storage_dir = get_storage_dir(tmp_path.resolve())
+        assert "CICADA_CONFIG_DIR" in captured_env
+        assert Path(captured_env["CICADA_CONFIG_DIR"]) == expected_storage_dir
     finally:
         os.chdir(original_cwd)
 
@@ -217,28 +226,4 @@ def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
             with patch("asyncio.run"):
                 from cicada.mcp import server as mcp_server
 
-                mcp_server._auto_setup_if_needed()
-
-
-def test_cicada_repo_path_takes_precedence_over_workspace_folder_paths(monkeypatch, tmp_path):
-    """Test that CICADA_REPO_PATH takes precedence over WORKSPACE_FOLDER_PATHS."""
-    repo1 = tmp_path / "repo1"
-    repo2 = tmp_path / "repo2"
-    repo1.mkdir()
-    repo2.mkdir()
-    (repo1 / "mix.exs").write_text("defmodule Project1 do\nend")
-    (repo2 / "mix.exs").write_text("defmodule Project2 do\nend")
-
-    # Set both environment variables
-    monkeypatch.setenv("CICADA_REPO_PATH", str(repo1))
-    monkeypatch.setenv("WORKSPACE_FOLDER_PATHS", str(repo2))
-
-    # Mock Path.exists to prevent actual setup
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        with patch("sys.argv", ["cicada-server"]):
-            with patch("asyncio.run"):
-                from cicada.mcp import server as mcp_server
-
-                # Should use CICADA_REPO_PATH (repo1), not WORKSPACE_FOLDER_PATHS (repo2)
                 mcp_server._auto_setup_if_needed()

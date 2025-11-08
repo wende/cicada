@@ -76,6 +76,51 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
   - New structure: `~/.cicada/projects/<hash>/`
   - Old structure: `.cicada/` in project root
 
+## Environment Variables
+
+The MCP server uses environment variables to locate configuration files:
+
+- **CICADA_CONFIG_DIR** (Required by MCP config files)
+  - Points directly to the storage directory: `~/.cicada/projects/<hash>/`
+  - Set in `.mcp.json`, `.cursor/mcp.json`, and `.vscode/settings.json`
+  - Primary mechanism for config file resolution
+  - Example: `/Users/username/.cicada/projects/a1b2c3d4e5f6g7h8/`
+
+- **WORKSPACE_FOLDER_PATHS** (Optional, Cursor-specific)
+  - Set automatically by Cursor editor for workspace folders
+  - Used as fallback when CICADA_CONFIG_DIR is not set
+  - Enables zero-config operation in Cursor
+  - The MCP server reads this but does not set it
+
+- **TOKENIZERS_PARALLELISM** (Internal, technical)
+  - Set to "false" in `cicada/extractors/keybert.py`
+  - Prevents fork warnings from ML libraries
+  - Not related to CICADA's config system
+
+### Configuration Resolution Order
+
+When the MCP server starts, it resolves the config file location in this order:
+
+1. **CICADA_CONFIG_DIR** → Direct path to `<dir>/config.yaml`
+2. **WORKSPACE_FOLDER_PATHS** → Calculate storage dir from repo path → `config.yaml`
+3. **Current working directory** → Calculate storage dir from cwd → `config.yaml`
+
+### Example MCP Configuration
+
+```json
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "uvx",
+      "args": ["cicada-mcp"],
+      "env": {
+        "CICADA_CONFIG_DIR": "/Users/username/.cicada/projects/a1b2c3d4e5f6g7h8/"
+      }
+    }
+  }
+}
+```
+
 ### Testing Storage-Related Code
 
 When adding or modifying storage-related functionality:

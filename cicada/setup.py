@@ -74,7 +74,6 @@ def _build_server_config(
         server_config["cwd"] = cwd
 
     server_config["env"] = {
-        "CICADA_REPO_PATH": str(repo_path),
         "CICADA_CONFIG_DIR": str(storage_dir),
     }
 

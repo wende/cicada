@@ -79,32 +79,31 @@ class CicadaServer:
         Returns:
             Path to the config file
         """
-        # Check if CICADA_CONFIG_DIR is set (new temp directory approach)
+        # Check if CICADA_CONFIG_DIR is set (direct path to storage directory)
         config_dir = os.environ.get("CICADA_CONFIG_DIR")
         if config_dir:
             return str(Path(config_dir) / "config.yaml")
 
         # Determine repository path from environment or current directory
-        repo_path = os.environ.get("CICADA_REPO_PATH")
+        repo_path = None
 
         # Check if WORKSPACE_FOLDER_PATHS is available (Cursor-specific)
-        if not repo_path:
-            workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
-            if workspace_paths:
-                # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
-                # Take the first one if multiple
-                # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
-                repo_path = (
-                    workspace_paths.split(os.pathsep)[0]
-                    if os.pathsep in workspace_paths
-                    else workspace_paths
-                )
+        workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
+        if workspace_paths:
+            # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
+            # Take the first one if multiple
+            # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
+            repo_path = (
+                workspace_paths.split(os.pathsep)[0]
+                if os.pathsep in workspace_paths
+                else workspace_paths
+            )
 
         # Fall back to current working directory
         if not repo_path:
             repo_path = str(Path.cwd().resolve())
 
-        # Use new storage structure only
+        # Calculate config path from repository path
         config_path = get_config_path(repo_path)
         return str(config_path)
 
@@ -1567,20 +1566,19 @@ def _auto_setup_if_needed():
     )
 
     # Determine repository path from environment or current directory
-    repo_path_str = os.environ.get("CICADA_REPO_PATH")
+    repo_path_str = None
 
     # Check if WORKSPACE_FOLDER_PATHS is available (Cursor-specific)
-    if not repo_path_str:
-        workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
-        if workspace_paths:
-            # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
-            # Take the first one if multiple
-            # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
-            repo_path_str = (
-                workspace_paths.split(os.pathsep)[0]
-                if os.pathsep in workspace_paths
-                else workspace_paths
-            )
+    workspace_paths = os.environ.get("WORKSPACE_FOLDER_PATHS")
+    if workspace_paths:
+        # WORKSPACE_FOLDER_PATHS might be a single path or multiple paths
+        # Take the first one if multiple
+        # Use os.pathsep for platform-aware splitting (';' on Windows, ':' on Unix)
+        repo_path_str = (
+            workspace_paths.split(os.pathsep)[0]
+            if os.pathsep in workspace_paths
+            else workspace_paths
+        )
 
     repo_path = Path(repo_path_str).resolve() if repo_path_str else Path.cwd().resolve()
 
@@ -1627,9 +1625,12 @@ def main():
         # Convert to absolute path
         from pathlib import Path
 
+        from cicada.utils.storage import get_storage_dir
+
         abs_path = Path(repo_path).resolve()
-        # Set environment variable to override default
-        os.environ["CICADA_REPO_PATH"] = str(abs_path)
+        # Set environment variable to point to storage directory
+        storage_dir = get_storage_dir(abs_path)
+        os.environ["CICADA_CONFIG_DIR"] = str(storage_dir)
 
     asyncio.run(async_main())
 

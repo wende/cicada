@@ -1086,7 +1086,6 @@ def handle_server(args) -> None:
     """
     import asyncio
     import logging
-    import os
 
     from cicada.utils import create_storage_dir, get_config_path, get_index_path
 
@@ -1115,9 +1114,6 @@ def handle_server(args) -> None:
 
     # Create editor configs if requested
     _configure_editors_if_requested(args, repo_path, storage_dir)
-
-    # Set environment variable for MCP server
-    os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
     # Start watch process if requested
     watch_enabled = getattr(args, "watch", False)

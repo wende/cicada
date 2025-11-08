@@ -44,7 +44,6 @@ class TestGetMcpConfigForEditor:
         server_config = config["mcpServers"]["cicada"]
         assert "command" in server_config
         assert "env" in server_config
-        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
         assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
     def test_cursor_config_structure(self, mock_repo, mock_storage_dir):
@@ -57,7 +56,6 @@ class TestGetMcpConfigForEditor:
         assert "cicada" in config["mcpServers"]
 
         server_config = config["mcpServers"]["cicada"]
-        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
         assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
     def test_vs_config_structure(self, mock_repo, mock_storage_dir):
@@ -70,7 +68,7 @@ class TestGetMcpConfigForEditor:
         assert "cicada" in config["mcp.servers"]
 
         server_config = config["mcp.servers"]["cicada"]
-        assert server_config["env"]["CICADA_REPO_PATH"] == str(mock_repo)
+        assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
     def test_gemini_config_structure(self, mock_repo, mock_storage_dir):
         """Gemini config should have correct structure"""
@@ -171,7 +169,7 @@ class TestGetMcpConfigForEditor:
         server_config = config["mcpServers"]["cicada"]
         assert server_config["command"] == "uvx"
         assert server_config["args"] == ["cicada-mcp"]
-        assert "CICADA_REPO_PATH" in server_config["env"]
+        assert "CICADA_CONFIG_DIR" in server_config["env"]
 
 
 class TestCreateConfigYaml:
@@ -565,7 +563,6 @@ class TestBuildServerConfig:
         assert result["command"] == "test-command"
         assert "args" not in result
         assert "cwd" not in result
-        assert result["env"]["CICADA_REPO_PATH"] == str(repo_path)
         assert result["env"]["CICADA_CONFIG_DIR"] == str(storage_dir)
 
     def test_builds_config_with_args(self, tmp_path):
@@ -609,7 +606,6 @@ class TestBuildServerConfig:
         assert result["command"] == "test-cmd"
         assert result["args"] == args
         assert result["cwd"] == cwd
-        assert result["env"]["CICADA_REPO_PATH"] == str(repo_path)
         assert result["env"]["CICADA_CONFIG_DIR"] == str(storage_dir)
 
 
