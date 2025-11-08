@@ -13,6 +13,8 @@
 [![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
+
 [Quick Install](#quick-install) · [Security](#privacy--security) · [Developers](#for-developers) · [AI Assistants](#for-ai-assistants) · [Docs](#documentation)
 
 </div>
