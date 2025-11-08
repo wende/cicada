@@ -256,25 +256,29 @@ class TestCleanRepository:
         """Should exit with error code when permission errors occur"""
         repo_path, storage_dir = mock_repo
 
-        # Make storage directory unremovable
-        storage_dir.chmod(0o000)
+        # Mock shutil.rmtree to raise PermissionError (works even as root)
+        import shutil
 
-        try:
-            with (
-                patch("cicada.clean.get_storage_dir", return_value=storage_dir),
-                pytest.raises(SystemExit) as exc_info,
-            ):
-                clean_repository(repo_path, force=True)
+        original_rmtree = shutil.rmtree
 
-            # Should exit with error code 1
-            assert exc_info.value.code == 1
+        def mock_rmtree(path, *args, **kwargs):
+            if str(path) == str(storage_dir):
+                raise PermissionError(f"Permission denied: {path}")
+            return original_rmtree(path, *args, **kwargs)
 
-            captured = capsys.readouterr()
-            assert "Failed" in captured.out
-            assert "⚠ Cleanup completed with errors" in captured.out
-        finally:
-            # Restore permissions for cleanup
-            storage_dir.chmod(0o755)
+        with (
+            patch("cicada.clean.get_storage_dir", return_value=storage_dir),
+            patch("shutil.rmtree", side_effect=mock_rmtree),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            clean_repository(repo_path, force=True)
+
+        # Should exit with error code 1
+        assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Failed" in captured.out
+        assert "⚠ Cleanup completed with errors" in captured.out
 
     def test_displays_items_to_be_removed(self, mock_repo, capsys):
         """Should display all items that will be removed"""
@@ -650,21 +654,28 @@ class TestCleanAllProjects:
 
         proj1 = storage_base / "hash1"
         proj1.mkdir()
-        proj1.chmod(0o000)  # No permissions
 
-        try:
-            with (
-                patch("pathlib.Path.home", return_value=tmp_path),
-                pytest.raises(SystemExit) as exc_info,
-            ):
-                clean_all_projects(force=True)
+        # Mock shutil.rmtree to raise PermissionError (works even as root)
+        import shutil
 
-            assert exc_info.value.code == 1
-            captured = capsys.readouterr()
-            assert "Failed to remove" in captured.out
-            assert "⚠ Cleanup completed with errors" in captured.out
-        finally:
-            proj1.chmod(0o755)
+        original_rmtree = shutil.rmtree
+
+        def mock_rmtree(path, *args, **kwargs):
+            if "hash1" in str(path):
+                raise PermissionError(f"Permission denied: {path}")
+            return original_rmtree(path, *args, **kwargs)
+
+        with (
+            patch("pathlib.Path.home", return_value=tmp_path),
+            patch("shutil.rmtree", side_effect=mock_rmtree),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            clean_all_projects(force=True)
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Failed to remove" in captured.out
+        assert "⚠ Cleanup completed with errors" in captured.out
 
     def test_shows_project_list(self, tmp_path, capsys):
         """Should show list of projects to be removed"""
@@ -714,17 +725,24 @@ class TestCleanAllProjects:
 
         proj2 = storage_base / "hash2"
         proj2.mkdir()
-        proj2.chmod(0o000)  # Make it unremovable
 
-        try:
-            with (
-                patch("pathlib.Path.home", return_value=tmp_path),
-                pytest.raises(SystemExit) as exc_info,
-            ):
-                clean_all_projects(force=True)
+        # Mock shutil.rmtree to raise PermissionError for hash2 only (works even as root)
+        import shutil
 
-            assert exc_info.value.code == 1
-            captured = capsys.readouterr()
-            assert "1/2 projects removed" in captured.out
-        finally:
-            proj2.chmod(0o755)
+        original_rmtree = shutil.rmtree
+
+        def mock_rmtree(path, *args, **kwargs):
+            if "hash2" in str(path):
+                raise PermissionError(f"Permission denied: {path}")
+            return original_rmtree(path, *args, **kwargs)
+
+        with (
+            patch("pathlib.Path.home", return_value=tmp_path),
+            patch("shutil.rmtree", side_effect=mock_rmtree),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            clean_all_projects(force=True)
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "1/2 projects removed" in captured.out
