@@ -126,7 +126,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Requires PR index (run 'cicada index-pr' first).\n\n"
                 "Returns PR number, title, description, and author.\n\n"
                 "🤖 AI USAGE TIPS:\n"
-                "• Use when you need context: \"Why does this code exist? What problem did it solve?\"\n"
+                '• Use when you need context: "Why does this code exist? What problem did it solve?"\n'
                 "• Perfect for understanding complex/confusing code - read the PR discussion\n"
                 "• Provides: PR title, description, author, and link to full discussion\n"
                 "• If this interests you, also try: get_file_pr_history (all PRs for a file)"
@@ -159,7 +159,7 @@ def get_tool_definitions() -> list[Tool]:
                 "function tracking which works even as the function moves around in the file.\n\n"
                 "Returns commits with dates, authors, and messages. Optionally shows function evolution metadata.\n\n"
                 "🤖 AI USAGE TIPS:\n"
-                "• Use for understanding evolution: \"How has this function changed over time?\"\n"
+                '• Use for understanding evolution: "How has this function changed over time?"\n'
                 "• Set show_evolution=true to see: creation date, total modifications, frequency\n"
                 "• Provide function_name for precise tracking (even as function moves in file)\n"
                 "• Helps identify frequently changing code (may indicate complexity/bugs)\n"
@@ -208,7 +208,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Groups consecutive lines with the same authorship together.\n\n"
                 "Returns author name, email, commit hash, and date for each authorship group.\n\n"
                 "🤖 AI USAGE TIPS:\n"
-                "• Use when you need to know: \"Who wrote this code? When?\"\n"
+                '• Use when you need to know: "Who wrote this code? When?"\n'
                 "• Shows line-by-line authorship with commit hashes for each change\n"
                 "• Requires start_line and end_line (from search_function results)\n"
                 "• Groups consecutive lines by same author for readability"
@@ -240,7 +240,7 @@ def get_tool_definitions() -> list[Tool]:
                 "including descriptions and code review comments specific to that file.\n\n"
                 "Requires PR index (run 'cicada index-pr' first).\n\n"
                 "🤖 AI USAGE TIPS:\n"
-                "• Use for deep context: \"What's the full history of changes to this file?\"\n"
+                '• Use for deep context: "What\'s the full history of changes to this file?"\n'
                 "• Shows ALL PRs that touched the file + review comments (discussions, decisions)\n"
                 "• Review comments reveal: design decisions, concerns, tradeoffs, bugs found\n"
                 "• Perfect for understanding controversial/complex code - read the debates!\n"
@@ -325,7 +325,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Note: Results are best-effort - some unused functions may be part of the public API, "
                 "used dynamically via atom introspection, or used in external packages.\n\n"
                 "🤖 AI USAGE TIPS:\n"
-                "• Use for cleanup: \"What code can potentially be removed?\"\n"
+                '• Use for cleanup: "What code can potentially be removed?"\n'
                 "• Start with min_confidence='high' to find most likely unused code\n"
                 "• VERIFY before deleting - may be public API, dynamic calls, or external usage\n"
                 "• Results show: function signature, location, confidence level, reasons"

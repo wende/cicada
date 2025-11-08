@@ -347,9 +347,7 @@ class TestPRContextInResults:
                     "author": "developer",
                     "url": "https://github.com/test/repo/pull/123",
                     "merged": True,
-                    "comments": [
-                        {"path": "lib/test.ex", "body": "Looks good!"}
-                    ],
+                    "comments": [{"path": "lib/test.ex", "body": "Looks good!"}],
                 },
                 "456": {
                     "number": 456,
@@ -416,9 +414,7 @@ class TestPRContextInResults:
         module_data = server_with_pr_index.index["modules"]["TestModule"]
         pr_info = server_with_pr_index._get_recent_pr_info(module_data["file"])
 
-        result = ModuleFormatter.format_module_markdown(
-            "TestModule", module_data, pr_info=pr_info
-        )
+        result = ModuleFormatter.format_module_markdown("TestModule", module_data, pr_info=pr_info)
 
         assert "📝 Last modified:" in result
         assert "PR #456" in result
@@ -459,9 +455,7 @@ class TestExceptionHandling:
     def test_staleness_check_handles_permission_errors(self, tmp_path):
         """Should handle permission errors gracefully"""
         index = {
-            "modules": {
-                "Test": {"file": "test.ex", "functions": [], "line": 1}
-            },
+            "modules": {"Test": {"file": "test.ex", "functions": [], "line": 1}},
             "metadata": {"total_modules": 1},
         }
 

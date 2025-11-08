@@ -23,7 +23,7 @@ def find_similar_names(
     Returns:
         List of (name, similarity_score) tuples, sorted by similarity (descending)
     """
-    similarities = []
+    similarities: list[tuple[str, float]] = []
     query_lower = query.lower()
 
     # Early exit for exact match

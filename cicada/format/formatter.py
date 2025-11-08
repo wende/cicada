@@ -12,7 +12,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cicada.utils import CallSiteFormatter, FunctionGrouper, SignatureBuilder
+from cicada.utils import (
+    CallSiteFormatter,
+    FunctionGrouper,
+    SignatureBuilder,
+    find_similar_names,
+)
 
 
 class ModuleFormatter:
@@ -21,6 +26,25 @@ class ModuleFormatter:
     @staticmethod
     def _group_call_sites_by_caller(call_sites):
         return CallSiteFormatter.group_by_caller(call_sites)
+
+    @staticmethod
+    def _find_similar_names(
+        query: str,
+        candidate_names: list[str],
+        max_suggestions: int = 5,
+        threshold: float = 0.4,
+    ) -> list[tuple[str, float]]:
+        """
+        Proxy to the shared fuzzy-matching helper so tests can exercise the logic in isolation.
+        """
+        if not candidate_names:
+            return []
+        return find_similar_names(
+            query=query,
+            candidates=candidate_names,
+            max_suggestions=max_suggestions,
+            threshold=threshold,
+        )
 
     @staticmethod
     def format_module_markdown(
@@ -76,7 +100,7 @@ class ModuleFormatter:
             lines.append(
                 f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
             )
-            if pr_info['comment_count'] > 0:
+            if pr_info["comment_count"] > 0:
                 lines.append(
                     f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{data['file']}\")"
                 )
@@ -205,23 +229,29 @@ class ModuleFormatter:
             lines.append("")
 
         # Add alternative search strategies
-        lines.extend([
-            "## Try:",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Try:",
+                "",
+            ]
+        )
 
         # Add wildcard and semantic search suggestions if module_name is valid
         if module_name and module_name.strip():
-            last_component = module_name.split('.')[-1] if '.' in module_name else module_name
+            last_component = module_name.split(".")[-1] if "." in module_name else module_name
             if last_component and last_component.strip():
                 lines.append(f"  • Wildcard search: search_module('*{last_component}*')")
-                lines.append(f"  • Semantic search: search_by_features(['{last_component.lower()}'])")
+                lines.append(
+                    f"  • Semantic search: search_by_features(['{last_component.lower()}'])"
+                )
 
-        lines.extend([
-            "  • Check exact spelling and capitalization (module names are case-sensitive)",
-            "",
-            f"Total modules in index: **{total_modules}**",
-        ])
+        lines.extend(
+            [
+                "  • Check exact spelling and capitalization (module names are case-sensitive)",
+                "",
+                f"Total modules in index: **{total_modules}**",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -520,7 +550,7 @@ class ModuleFormatter:
         """
         if not results:
             # Extract just the function name without module/arity for suggestions
-            func_only = function_name.split('.')[-1].split('/')[0]
+            func_only = function_name.split(".")[-1].split("/")[0]
 
             # Build error message
             error_parts = []
@@ -532,7 +562,8 @@ class ModuleFormatter:
                     f"   Please ask the user to run: cicada index\n"
                 )
 
-            error_parts.append(f"""❌ Function Not Found
+            error_parts.append(
+                f"""❌ Function Not Found
 
 **Query:** `{function_name}`
 
@@ -545,7 +576,8 @@ class ModuleFormatter:
   • Check spelling (function names are case-sensitive)
 
 💡 Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
-""")
+"""
+            )
 
             return "\n".join(error_parts)
 
@@ -579,11 +611,13 @@ class ModuleFormatter:
         if len(consolidated_results) == 1:
             lines.append("---")
         else:
-            lines.extend([
-                f"Functions matching {function_name}",
-                "",
-                f"Found {len(consolidated_results)} match(es):",
-            ])
+            lines.extend(
+                [
+                    f"Functions matching {function_name}",
+                    "",
+                    f"Found {len(consolidated_results)} match(es):",
+                ]
+            )
 
         for result in consolidated_results:
             module_name = result["module"]
@@ -613,7 +647,7 @@ class ModuleFormatter:
                     lines.append(
                         f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
                     )
-                    if pr_info['comment_count'] > 0:
+                    if pr_info["comment_count"] > 0:
                         lines.append(
                             f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
                         )
@@ -635,10 +669,8 @@ class ModuleFormatter:
                     lines.append(
                         f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
                     )
-                    if pr_info['comment_count'] > 0:
-                        lines.append(
-                            f"💬 {pr_info['comment_count']} review comment(s) available"
-                        )
+                    if pr_info["comment_count"] > 0:
+                        lines.append(f"💬 {pr_info['comment_count']} review comment(s) available")
 
             # Add documentation if present
             if func.get("doc"):

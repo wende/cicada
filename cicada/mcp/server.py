@@ -253,13 +253,14 @@ class CicadaServer:
                 }
 
             return None
-        except (OSError, IOError, KeyError) as e:
+        except (OSError, KeyError):
             # Expected errors - file permissions, disk issues, config issues
             # Silently ignore these as staleness check is non-critical
             return None
         except Exception as e:
             # Unexpected error - log for debugging but don't break functionality
             import sys
+
             print(f"Warning: Unexpected error checking index staleness: {e}", file=sys.stderr)
             return None
 
