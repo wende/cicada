@@ -122,7 +122,11 @@ class KeywordSearcher:
         return fnmatch.fnmatch(text.lower(), pattern.lower())
 
     def _calculate_score(
-        self, query_keywords: list[str], doc_keywords: dict[str, float]
+        self,
+        query_keywords: list[str],
+        keyword_groups: list[int],
+        total_terms: int,
+        doc_keywords: dict[str, float],
     ) -> dict[str, Any]:
         """
         Calculate the search score by summing weights of matched keywords.
@@ -138,14 +142,17 @@ class KeywordSearcher:
             - confidence: Percentage of query keywords that matched
         """
         matched_keywords = []
+        matched_groups: set[int] = set()
         total_score = 0.0
 
-        for query_kw in query_keywords:
+        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
             if query_kw in doc_keywords:
                 matched_keywords.append(query_kw)
+                matched_groups.add(group_idx)
                 total_score += doc_keywords[query_kw]
 
-        confidence = (len(matched_keywords) / len(query_keywords) * 100) if query_keywords else 0
+        denominator = total_terms if total_terms else len(query_keywords)
+        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
 
         return {
             "score": total_score,
@@ -154,7 +161,11 @@ class KeywordSearcher:
         }
 
     def _calculate_wildcard_score(
-        self, query_keywords: list[str], doc_keywords: dict[str, float]
+        self,
+        query_keywords: list[str],
+        keyword_groups: list[int],
+        total_terms: int,
+        doc_keywords: dict[str, float],
     ) -> dict[str, Any]:
         """
         Calculate the search score using wildcard pattern matching.
@@ -170,20 +181,23 @@ class KeywordSearcher:
             - confidence: Percentage of query keywords that matched
         """
         matched_keywords = []
+        matched_groups: set[int] = set()
         total_score = 0.0
 
-        for query_kw in query_keywords:
+        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
             # Find all doc keywords matching this pattern
             for doc_kw, weight in doc_keywords.items():
                 if self._match_wildcard(query_kw, doc_kw):
                     # Add query keyword to matched list (not the doc keyword)
                     if query_kw not in matched_keywords:
                         matched_keywords.append(query_kw)
+                        matched_groups.add(group_idx)
                     # Add the weight only once per query keyword
                     total_score += weight
                     break
 
-        confidence = (len(matched_keywords) / len(query_keywords) * 100) if query_keywords else 0
+        denominator = total_terms if total_terms else len(query_keywords)
+        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
 
         return {
             "score": total_score,
@@ -195,7 +209,7 @@ class KeywordSearcher:
         """Check if any keywords contain wildcard patterns (* or |)."""
         return any("*" in keyword or "|" in keyword for keyword in keywords)
 
-    def _expand_or_patterns(self, keywords: list[str]) -> list[str]:
+    def _expand_or_patterns(self, keywords: list[str]) -> tuple[list[str], list[int]]:
         """
         Expand OR patterns (|) in keywords.
 
@@ -203,19 +217,23 @@ class KeywordSearcher:
             keywords: List of keywords that may contain | for OR logic
 
         Returns:
-            Expanded list of keywords with OR patterns split out
+            Tuple of:
+            - Expanded list of keywords with OR patterns split out
+            - Parallel list of group indexes mapping each expanded keyword back to the
+              original keyword position. This lets us compute confidence using the
+              number of user-supplied keywords rather than the expanded variants.
 
         Example:
-            ["create*|update*", "user"] -> ["create*", "update*", "user"]
+            ["create*|update*", "user"] -> (["create*", "update*", "user"], [0, 0, 1])
         """
-        expanded = []
-        for keyword in keywords:
-            if "|" in keyword:
-                # Split by | and add all parts
-                expanded.extend([p.strip() for p in keyword.split("|")])
-            else:
-                expanded.append(keyword)
-        return expanded
+        expanded: list[str] = []
+        groups: list[int] = []
+        for idx, keyword in enumerate(keywords):
+            parts = [p.strip() for p in keyword.split("|")] if "|" in keyword else [keyword]
+            for part in parts:
+                expanded.append(part)
+                groups.append(idx)
+        return expanded, groups
 
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
@@ -252,7 +270,7 @@ class KeywordSearcher:
         query_keywords_lower = [kw.lower() for kw in query_keywords]
 
         # Expand OR patterns (e.g., "create*|update*" -> ["create*", "update*"])
-        query_keywords_expanded = self._expand_or_patterns(query_keywords_lower)
+        query_keywords_expanded, keyword_groups = self._expand_or_patterns(query_keywords_lower)
 
         # Check if wildcards are present
         enable_wildcards = self._has_wildcards(query_keywords_expanded)
@@ -263,9 +281,19 @@ class KeywordSearcher:
         for doc in self.documents:
             # Calculate score
             if enable_wildcards:
-                result_data = self._calculate_wildcard_score(query_keywords_expanded, doc["keywords"])
+                result_data = self._calculate_wildcard_score(
+                    query_keywords_expanded,
+                    keyword_groups,
+                    len(query_keywords_lower),
+                    doc["keywords"],
+                )
             else:
-                result_data = self._calculate_score(query_keywords_expanded, doc["keywords"])
+                result_data = self._calculate_score(
+                    query_keywords_expanded,
+                    keyword_groups,
+                    len(query_keywords_lower),
+                    doc["keywords"],
+                )
 
             # Only include results with at least one matched keyword
             if result_data["score"] > 0:

@@ -368,12 +368,14 @@ class TestKeywordSearcher:
         searcher = KeywordSearcher(sample_index)
 
         # Test _expand_or_patterns method
-        expanded = searcher._expand_or_patterns(["create|update", "user"])
+        expanded, groups = searcher._expand_or_patterns(["create|update", "user"])
         assert expanded == ["create", "update", "user"]
+        assert groups == [0, 0, 1]
 
         # Test with wildcards
-        expanded = searcher._expand_or_patterns(["create*|update*", "user"])
+        expanded, groups = searcher._expand_or_patterns(["create*|update*", "user"])
         assert expanded == ["create*", "update*", "user"]
+        assert groups == [0, 0, 1]
 
     def test_search_with_or_pattern(self, sample_index):
         """Test search with OR pattern matches multiple keywords."""
@@ -424,3 +426,11 @@ class TestKeywordSearcher:
 
         # Should match at least two of the three
         assert sum([has_create, has_update, has_delete]) >= 2
+
+    def test_or_pattern_confidence(self, sample_index):
+        """OR searches should report confidence using original term count."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create|update"])
+
+        assert results
+        assert all(r["confidence"] == 100.0 for r in results)
