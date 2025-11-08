@@ -24,8 +24,26 @@ def test_pr_finder_invalid_repo():
         _ = PRFinder(repo_path="/tmp/nonexistent")
 
 
-def test_find_pr_for_line():
+@patch("subprocess.run")
+def test_find_pr_for_line(mock_run):
     """Test finding PR for a specific line."""
+
+    # Mock git blame to return commit info
+    def run_side_effect(cmd, **kwargs):
+        if "blame" in cmd:
+            return Mock(
+                stdout="abc123\tJohn Doe\tjohn@example.com\t2024-01-01 00:00:00 +0000",
+                returncode=0,
+            )
+        elif "repo" in cmd and "view" in cmd:
+            return Mock(stdout="owner/repo\n", returncode=0)
+        elif "api" in cmd:
+            # Return empty PR list to avoid network lookup
+            return Mock(stdout="[]", returncode=0)
+        return Mock(stdout="", returncode=0)
+
+    mock_run.side_effect = run_side_effect
+
     finder = PRFinder()
 
     # Test with README.md line 1 (should have a commit)
@@ -36,7 +54,7 @@ def test_find_pr_for_line():
     assert "commit" in result
     assert result["file_path"] == "README.md"
     assert result["line_number"] == 1
-    assert result["commit"] is not None
+    assert result["commit"] == "abc123"
 
 
 def test_format_result_json():
@@ -389,8 +407,26 @@ def test_format_result_short_commit():
     assert "Commit: abc" in output
 
 
-def test_find_pr_for_line_absolute_path():
+@patch("subprocess.run")
+def test_find_pr_for_line_absolute_path(mock_run):
     """Test find_pr_for_line with absolute path."""
+
+    # Mock git blame to return commit info
+    def run_side_effect(cmd, **kwargs):
+        if "blame" in cmd:
+            return Mock(
+                stdout="abc123\tJohn Doe\tjohn@example.com\t2024-01-01 00:00:00 +0000",
+                returncode=0,
+            )
+        elif "repo" in cmd and "view" in cmd:
+            return Mock(stdout="owner/repo\n", returncode=0)
+        elif "api" in cmd:
+            # Return empty PR list to avoid network lookup
+            return Mock(stdout="[]", returncode=0)
+        return Mock(stdout="", returncode=0)
+
+    mock_run.side_effect = run_side_effect
+
     finder = PRFinder()
     abs_path = finder.repo_path / "README.md"
 

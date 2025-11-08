@@ -362,3 +362,75 @@ class TestKeywordSearcher:
 
         # Should return empty if no functions match
         assert len(results) == 0
+
+    def test_or_pattern_expansion(self, sample_index):
+        """Test that OR patterns (|) are expanded correctly."""
+        searcher = KeywordSearcher(sample_index)
+
+        # Test _expand_or_patterns method
+        expanded, groups = searcher._expand_or_patterns(["create|update", "user"])
+        assert expanded == ["create", "update", "user"]
+        assert groups == [0, 0, 1]
+
+        # Test with wildcards
+        expanded, groups = searcher._expand_or_patterns(["create*|update*", "user"])
+        assert expanded == ["create*", "update*", "user"]
+        assert groups == [0, 0, 1]
+
+    def test_search_with_or_pattern(self, sample_index):
+        """Test search with OR pattern matches multiple keywords."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create|update"], top_n=10)
+
+        # Should match both create and update functions
+        assert len(results) > 0
+        names = [r["name"] for r in results]
+        assert any("create" in name.lower() for name in names)
+        assert any("update" in name.lower() for name in names)
+
+    def test_search_with_wildcard_or_pattern(self, sample_index):
+        """Test search with wildcard OR pattern."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["creat*|updat*"], top_n=10)
+
+        # Should match functions starting with creat or updat
+        assert len(results) > 0
+        assert any("create" in r["name"].lower() for r in results)
+        assert any("update" in r["name"].lower() for r in results)
+
+    def test_or_pattern_has_wildcards_detection(self, sample_index):
+        """Test that OR patterns are detected as wildcards."""
+        searcher = KeywordSearcher(sample_index)
+
+        # OR pattern should be detected as wildcard
+        assert searcher._has_wildcards(["create|update"]) is True
+
+        # Combined with asterisk
+        assert searcher._has_wildcards(["create*|update*"]) is True
+
+        # Regular keywords should not be detected
+        assert searcher._has_wildcards(["create", "update"]) is False
+
+    def test_complex_or_pattern(self, sample_index):
+        """Test complex OR pattern with multiple alternatives."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create|update|delete"], top_n=10)
+
+        # Should match all three types of functions
+        assert len(results) > 0
+        names = [r["name"].lower() for r in results]
+        # At least one of each should be found
+        has_create = any("create" in name for name in names)
+        has_update = any("update" in name for name in names)
+        has_delete = any("delete" in name for name in names)
+
+        # Should match at least two of the three
+        assert sum([has_create, has_update, has_delete]) >= 2
+
+    def test_or_pattern_confidence(self, sample_index):
+        """OR searches should report confidence using original term count."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create|update"])
+
+        assert results
+        assert all(r["confidence"] == 100.0 for r in results)
