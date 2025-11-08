@@ -463,6 +463,34 @@ class CicadaServer:
         else:
             raise ValueError(f"Unknown tool: {name}")
 
+    def _lookup_module_with_error(
+        self, module_name: str, include_suggestions: bool = True
+    ) -> tuple[dict | None, str | None]:
+        """
+        Look up a module in the index with error handling.
+
+        Args:
+            module_name: Module name to look up
+            include_suggestions: Whether to include similar module suggestions in error
+
+        Returns:
+            Tuple of (module_data, error_message). If found, returns (data, None).
+            If not found, returns (None, error_message).
+        """
+        module_data = self.index["modules"].get(module_name)
+        if module_data:
+            return module_data, None
+
+        # Module not found - create error message
+        error_msg = f"Module not found: {module_name}"
+        if include_suggestions:
+            similar = find_similar_names(module_name, list(self.index["modules"].keys()))
+            if similar:
+                error_msg += f"\n\nDid you mean one of these?\n" + "\n".join(
+                    f"  - {name}" for name in similar[:5]
+                )
+        return None, error_msg
+
     def _resolve_file_to_module(self, file_path: str) -> str | None:
         """Resolve a file path to a module name by searching the index."""
         # Normalize the file path (remove leading ./ and trailing whitespace)
@@ -1559,15 +1587,8 @@ class CicadaServer:
         import json
 
         # Look up the module in the index
-        module_data = self.index["modules"].get(module_name)
-        if not module_data:
-            error_msg = f"Module not found: {module_name}"
-            # Try to suggest similar modules
-            similar = find_similar_names(module_name, list(self.index["modules"].keys()))
-            if similar:
-                error_msg += f"\n\nDid you mean one of these?\n" + "\n".join(
-                    f"  - {name}" for name in similar[:5]
-                )
+        module_data, error_msg = self._lookup_module_with_error(module_name)
+        if error_msg:
             return [TextContent(type="text", text=error_msg)]
 
         # Get dependencies from the index
@@ -1654,10 +1675,9 @@ class CicadaServer:
         """
         import json
 
-        # Look up the module in the index
-        module_data = self.index["modules"].get(module_name)
-        if not module_data:
-            error_msg = f"Module not found: {module_name}"
+        # Look up the module in the index (no suggestions for function lookup)
+        module_data, error_msg = self._lookup_module_with_error(module_name, include_suggestions=False)
+        if error_msg:
             return [TextContent(type="text", text=error_msg)]
 
         # Find the function
