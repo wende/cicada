@@ -138,10 +138,119 @@ Unlocks questions like “Which PR introduced line 42?” or “What did reviewe
 
 ### Troubleshooting
 
-- "Index file not found" → Run `cicada index .` and confirm `~/.cicada/projects/<hash>/index.json` exists.
-- MCP not connecting → Ensure `.mcp.json` (Claude), `.cursor/mcp.json`, or `.vscode/settings.json` has absolute paths; restart the editor.
-- Keyword search unavailable → Re-index with `--fast`, `--regular`, or `--max`.
-- PR tools failing → Verify `gh auth status` and rerun `cicada index-pr .`.
+<details>
+<summary><b>"Index file not found"</b></summary>
+
+Run the indexer first:
+```bash
+cicada index /path/to/project
+```
+
+Ensure indexing completed successfully. Check for `~/.cicada/projects/<hash>/index.json`.
+
+</details>
+
+<details>
+<summary><b>"Module not found"</b></summary>
+
+Use the exact module name as it appears in code (e.g., `MyApp.User`, not `User`).
+
+If module was recently added, re-index:
+```bash
+cicada index .
+```
+
+</details>
+
+<details>
+<summary><b>MCP Server Won't Connect</b></summary>
+
+**Troubleshooting checklist:**
+
+1. **Verify configuration file exists:**
+   ```bash
+   # For Claude Code
+   ls -la .mcp.json
+
+   # For Cursor
+   ls -la .cursor/mcp.json
+
+   # For VS Code
+   ls -la .vscode/settings.json
+   ```
+
+2. **Check paths are absolute:**
+   ```bash
+   cat .mcp.json
+   # Should contain: /absolute/path/to/project
+   # Not: ./project or ../project
+   ```
+
+3. **Ensure index exists:**
+   ```bash
+   ls -la ~/.cicada/projects/
+   # Should show directory for your project
+   ```
+
+4. **Restart editor completely** (not just reload window)
+
+5. **Check editor MCP logs:**
+   - Claude Code: Console output
+   - Cursor: Settings → MCP → View Logs
+   - VS Code: Output panel → MCP
+
+</details>
+
+<details>
+<summary><b>PR Features Not Working</b></summary>
+
+**Setup GitHub CLI:**
+```bash
+# Install GitHub CLI
+brew install gh  # macOS
+sudo apt install gh  # Ubuntu
+# or visit https://cli.github.com/
+
+# Authenticate
+gh auth login
+
+# Index PRs
+cicada index-pr .
+```
+
+**Common issues:**
+- "No PR index found" → Run `cicada index-pr .`
+- "Not a GitHub repository" → Ensure repo has GitHub remote
+- Slow indexing → First-time indexing fetches all PRs; subsequent runs are incremental
+- Rate limiting → GitHub API has rate limits; wait and retry if you hit limits
+
+**Force rebuild:**
+```bash
+cicada index-pr . --clean
+```
+
+</details>
+
+<details>
+<summary><b>Keyword Search Not Working</b></summary>
+
+**Error:** "Keyword search not available"
+
+**Cause:** Index was built without keyword extraction.
+
+**Solution:**
+```bash
+# Re-index with keyword extraction
+cicada index --regular .  # or --fast or --max
+```
+
+**Verify:**
+```bash
+cat ~/.cicada/projects/<hash>/config.yaml
+# Should show keyword_extraction: enabled
+```
+
+</details>
 
 More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_INDEXING.md](docs/08-INCREMENTAL_INDEXING.md).
 
