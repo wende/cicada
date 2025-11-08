@@ -7,7 +7,6 @@ Provides an MCP tool to search for Elixir modules and their functions.
 Author: Cursor(Auto)
 """
 
-import contextlib
 import os
 import sys
 import time
@@ -22,9 +21,16 @@ from mcp.types import TextContent, Tool
 from cicada.command_logger import get_logger
 from cicada.format import ModuleFormatter
 from cicada.git_helper import GitHelper
+from cicada.mcp.pattern_utils import (
+    FunctionPattern,
+    has_wildcards,
+    match_any_pattern,
+    parse_function_patterns,
+    split_or_patterns,
+)
 from cicada.mcp.tools import get_tool_definitions
 from cicada.pr_finder import PRFinder
-from cicada.utils import get_config_path, get_pr_index_path, load_index
+from cicada.utils import find_similar_names, get_config_path, get_pr_index_path, load_index
 
 
 class CicadaServer:
@@ -192,6 +198,77 @@ class CicadaServer:
                 if func.get("keywords"):
                     return True
         return False
+
+    def _check_index_staleness(self) -> dict[str, Any] | None:
+        """
+        Check if the index is stale by comparing file modification times.
+
+        Returns:
+            Dictionary with staleness info (is_stale, index_age, newest_file_age) or None
+        """
+        try:
+            import os
+            import random
+            from datetime import datetime
+
+            # Get index file path and modification time
+            index_path = Path(self.config["storage"]["index_path"])
+            if not index_path.exists():
+                return None
+
+            index_mtime = os.path.getmtime(index_path)
+            index_age = datetime.now().timestamp() - index_mtime
+
+            # Get repo path
+            repo_path = Path(self.config.get("repository", {}).get("path", "."))
+
+            # Check a sample of indexed files to see if any are newer than the index
+            # Use random sampling for better coverage
+            max_files_to_check = 50
+            all_modules = list(self.index.get("modules", {}).values())
+
+            if len(all_modules) > max_files_to_check:
+                modules_to_check = random.sample(all_modules, max_files_to_check)
+            else:
+                modules_to_check = all_modules
+
+            newest_file_mtime = 0
+
+            for module_data in modules_to_check:
+                file_path = repo_path / module_data["file"]
+                if file_path.exists():
+                    file_mtime = os.path.getmtime(file_path)
+                    newest_file_mtime = max(newest_file_mtime, file_mtime)
+
+            # Check if any files are newer than the index
+            is_stale = newest_file_mtime > index_mtime
+
+            if is_stale:
+                # Calculate how old the index is in human-readable format
+                hours_old = index_age / 3600
+                if hours_old < 1:
+                    age_str = f"{int(index_age / 60)} minutes"
+                elif hours_old < 24:
+                    age_str = f"{int(hours_old)} hours"
+                else:
+                    age_str = f"{int(hours_old / 24)} days"
+
+                return {
+                    "is_stale": True,
+                    "age_str": age_str,
+                }
+
+            return None
+        except (OSError, KeyError):
+            # Expected errors - file permissions, disk issues, config issues
+            # Silently ignore these as staleness check is non-critical
+            return None
+        except Exception as e:
+            # Unexpected error - log for debugging but don't break functionality
+            import sys
+
+            print(f"Warning: Unexpected error checking index staleness: {e}", file=sys.stderr)
+            return None
 
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
@@ -401,27 +478,99 @@ class CicadaServer:
         output_format: str = "markdown",
         private_functions: str = "exclude",
     ) -> list[TextContent]:
-        """Search for a module and return its information."""
-        # Exact match lookup
+        """
+        Search for a module and return its information.
+
+        Supports wildcards (*) and OR patterns (|) for both module names and file paths.
+        Examples:
+            - "MyApp.*" - matches all modules starting with MyApp.
+            - "*User*" - matches all modules containing User
+            - "lib/my_app/*.ex" - matches all modules in that directory
+            - "MyApp.User|MyApp.Post" - matches either module
+            - "*User*|*Post*" - matches modules containing User OR Post
+        """
+        # Check for wildcard or OR patterns
+        if has_wildcards(module_name):
+            # Split by OR patterns
+            patterns = split_or_patterns(module_name)
+
+            # Find all matching modules
+            matching_modules = []
+            for mod_name, mod_data in self.index["modules"].items():
+                # Check if module name or file path matches any pattern
+                if match_any_pattern(patterns, mod_name) or match_any_pattern(
+                    patterns, mod_data["file"]
+                ):
+                    matching_modules.append((mod_name, mod_data))
+
+            # If no matches found, return error
+            if not matching_modules:
+                total_modules = self.index["metadata"]["total_modules"]
+                if output_format == "json":
+                    error_result = ModuleFormatter.format_error_json(module_name, total_modules)
+                else:
+                    error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
+                return [TextContent(type="text", text=error_result)]
+
+            # Format all matching modules
+            results: list[str] = []
+            for mod_name, mod_data in matching_modules:
+                if output_format == "json":
+                    result = ModuleFormatter.format_module_json(
+                        mod_name, mod_data, private_functions
+                    )
+                else:
+                    result = ModuleFormatter.format_module_markdown(
+                        mod_name, mod_data, private_functions
+                    )
+                results.append(result)
+
+            # Combine results with separator for markdown, or as array for JSON
+            if output_format == "json":
+                # For JSON, wrap in array notation
+                combined = "[\n" + ",\n".join(results) + "\n]"
+            else:
+                # For markdown, separate with horizontal rules
+                header = (
+                    f"Found {len(matching_modules)} module(s) matching pattern '{module_name}':\n\n"
+                )
+                combined = header + "\n\n---\n\n".join(results)
+
+            return [TextContent(type="text", text=combined)]
+
+        # Exact match lookup (no wildcards)
         if module_name in self.index["modules"]:
             data = self.index["modules"][module_name]
+
+            # Get PR context for the file
+            pr_info = self._get_recent_pr_info(data["file"])
+
+            # Check index staleness
+            staleness_info = self._check_index_staleness()
 
             if output_format == "json":
                 result = ModuleFormatter.format_module_json(module_name, data, private_functions)
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, private_functions
+                    module_name, data, private_functions, pr_info, staleness_info
                 )
 
             return [TextContent(type="text", text=result)]
 
-        # Module not found
+        # Module not found - compute suggestions and provide helpful error message
         total_modules = self.index["metadata"]["total_modules"]
 
         if output_format == "json":
             error_result = ModuleFormatter.format_error_json(module_name, total_modules)
         else:
-            error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
+            # Compute fuzzy match suggestions
+            available_modules = list(self.index["modules"].keys())
+            similar_matches = find_similar_names(module_name, available_modules, max_suggestions=3)
+            suggestions = [name for name, _score in similar_matches]
+
+            error_result = ModuleFormatter.format_error_markdown(
+                module_name, total_modules, suggestions
+            )
 
         return [TextContent(type="text", text=error_result)]
 
@@ -433,45 +582,38 @@ class CicadaServer:
         max_examples: int = 5,
         test_files_only: bool = False,
     ) -> list[TextContent]:
-        """Search for a function across all modules and return matches with call sites."""
-        # Parse the function name - supports multiple formats:
-        # - "func_name" or "func_name/arity" (search all modules)
-        # - "Module.func_name" or "Module.func_name/arity" (search specific module)
-        target_module = None
-        target_name = function_name
-        target_arity = None
+        """
+        Search for a function across all modules and return matches with call sites.
 
-        # Check for Module.function format
-        if "." in function_name:
-            # Split on last dot to separate module from function
-            parts = function_name.rsplit(".", 1)
-            if len(parts) == 2:
-                target_module = parts[0]
-                target_name = parts[1]
-
-        # Check for arity
-        if "/" in target_name:
-            parts = target_name.split("/")
-            target_name = parts[0]
-            with contextlib.suppress(ValueError, IndexError):
-                target_arity = int(parts[1])
+        Supports wildcards (*) and OR patterns (|) for function names, module names, and file paths.
+        Examples:
+            - "create*" - matches all functions starting with create
+            - "*user*" - matches all functions containing user
+            - "MyApp.User.create*" - matches create* functions in MyApp.User module
+            - "create*|update*" - matches functions starting with create OR update
+            - "MyApp.*.create/1" - matches create/1 in any module under MyApp
+            - "lib/*/user.ex:create*" - matches create* functions in files matching path pattern
+        """
+        # Support OR syntax by splitting first, then parsing each component individually
+        parsed_patterns: list[FunctionPattern] = parse_function_patterns(function_name)
 
         # Search across all modules for function definitions
         results = []
+        seen_functions: set[tuple[str, str, int]] = set()
         for module_name, module_data in self.index["modules"].items():
-            # If target_module is specified, only search in that module
-            if target_module and module_name != target_module:
-                continue
-
             for func in module_data["functions"]:
-                # Match by name and optionally arity
-                if func["name"] == target_name and (
-                    target_arity is None or func["arity"] == target_arity
+                if any(
+                    pattern.matches(module_name, module_data["file"], func)
+                    for pattern in parsed_patterns
                 ):
+                    key = (module_name, func["name"], func["arity"])
+                    if key in seen_functions:
+                        continue
+                    seen_functions.add(key)
                     # Find call sites for this function
                     call_sites = self._find_call_sites(
                         target_module=module_name,
-                        target_function=target_name,
+                        target_function=func["name"],
                         target_arity=func["arity"],
                     )
 
@@ -489,6 +631,9 @@ class CicadaServer:
                         # Extract code lines for each call site
                         self._add_code_examples(call_sites_with_examples)
 
+                    # Get PR context for this function
+                    pr_info = self._get_recent_pr_info(module_data["file"])
+
                     results.append(
                         {
                             "module": module_name,
@@ -497,14 +642,20 @@ class CicadaServer:
                             "file": module_data["file"],
                             "call_sites": call_sites,
                             "call_sites_with_examples": call_sites_with_examples,
+                            "pr_info": pr_info,
                         }
                     )
+
+        # Check index staleness
+        staleness_info = self._check_index_staleness()
 
         # Format results
         if output_format == "json":
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
-            result = ModuleFormatter.format_function_results_markdown(function_name, results)
+            result = ModuleFormatter.format_function_results_markdown(
+                function_name, results, staleness_info
+            )
 
         return [TextContent(type="text", text=result)]
 
@@ -807,6 +958,46 @@ class CicadaServer:
                         )
 
         return call_sites
+
+    def _get_recent_pr_info(self, file_path: str) -> dict | None:
+        """
+        Get the most recent PR that modified a file.
+
+        Args:
+            file_path: Relative path to the file
+
+        Returns:
+            Dictionary with PR info (number, title, date, comment_count) or None
+        """
+        if not self.pr_index:
+            return None
+
+        # Look up PRs for this file
+        file_to_prs = self.pr_index.get("file_to_prs", {})
+        pr_numbers = file_to_prs.get(file_path, [])
+
+        if not pr_numbers:
+            return None
+
+        # Get the most recent PR (last in list)
+        prs_data = self.pr_index.get("prs", {})
+        most_recent_pr_num = pr_numbers[-1]
+        pr = prs_data.get(str(most_recent_pr_num))
+
+        if not pr:
+            return None
+
+        # Count comments for this file
+        comments = pr.get("comments", [])
+        file_comments = [c for c in comments if c.get("path") == file_path]
+
+        return {
+            "number": pr["number"],
+            "title": pr["title"],
+            "author": pr.get("author", "unknown"),
+            "comment_count": len(file_comments),
+            "url": pr.get("url", ""),
+        }
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """

@@ -60,8 +60,10 @@ data/
 .mcp.json
 config.yaml
 test_config.yaml
+scip_doc/
 
 # Test fixtures - local-only test projects
 tests/fixtures/elixir_project
 tests/fixtures/test_project
+tests/fixtures/sample_typescript/
 .env

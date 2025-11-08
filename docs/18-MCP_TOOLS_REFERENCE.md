@@ -12,19 +12,31 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ### 1. search_module
 
-**Purpose:** Search for a module by exact name and retrieve all its functions.
+**Purpose:** Search for modules by name or pattern and retrieve all their functions.
 
 **What it does:**
-- Locates an Elixir module by its full name or file path
-- Displays all functions within that module
+- Locates Elixir modules by exact name, file path, or pattern
+- Supports wildcard patterns (*) and OR logic (|) for flexible searching
+- Displays all functions within matched modules
 - Shows function signatures and documentation
 - Distinguishes between public and private functions
 
 **Key Features:**
 - Exact module name matching
+- Wildcard pattern support (`MyApp.*`, `*User*`, `lib/my_app/*.ex`)
+- OR pattern support (`MyApp.User|MyApp.Post`, `*User*|*Post*`)
+- File path pattern matching
 - Function signature display
 - Support for both public and private functions with filtering options
 - Available in Markdown and JSON formats
+
+**Pattern Examples:**
+- `MyApp.User` - Exact match for a single module
+- `MyApp.*` - All modules starting with MyApp.
+- `*User*` - All modules containing "User"
+- `lib/my_app/*.ex` - All modules in that directory
+- `MyApp.User|MyApp.Post` - Either module
+- `*User*|*Post*` - Modules containing User OR Post
 
 ---
 
@@ -33,17 +45,29 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 **Purpose:** Find function definitions and see where they're called across the codebase.
 
 **What it does:**
-- Searches for specific functions by name, arity, or full module path
-- Identifies all call sites where the function is used
+- Searches for functions by name, pattern, arity, module path, or file path
+- Supports wildcard patterns (*) and OR logic (|) for flexible searching
+- Identifies all call sites where matched functions are used
 - Shows the calling context with line numbers
 - Provides actual code usage examples
 
 **Key Features:**
-- Multiple search query formats (name only, with arity, with module)
+- Multiple search query formats (name only, with arity, with module, with file path)
+- Wildcard pattern support for function names, module names, and file paths
+- OR pattern support for matching multiple alternatives
 - Call site tracking with line numbers
 - Usage example extraction with code snippets
 - Test file filtering capability
 - Markdown and JSON output formats
+
+**Pattern Examples:**
+- `create_user` - Exact match for function name
+- `create*` - All functions starting with "create"
+- `*user*` - All functions containing "user"
+- `MyApp.User.create*` - Functions starting with "create" in MyApp.User module
+- `create*|update*` - Functions starting with "create" OR "update"
+- `MyApp.*.create/1` - Function create/1 in any module under MyApp
+- `lib/*/user.ex:create*` - Functions starting with "create" in files matching path pattern
 
 ---
 
@@ -159,13 +183,14 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 **What it does:**
 - Searches code by concepts rather than exact names
 - Extracts keywords from module and function documentation
-- Supports wildcard pattern matching
+- Supports wildcard pattern matching and OR logic
 - Performs semantic matching across codebase
 - Optionally filters results to show only modules or only functions
 
 **Key Features:**
 - Keyword-based semantic search
 - Wildcard pattern support (`*` matching)
+- OR pattern support (`|` for matching multiple alternatives)
 - Documentation-based indexing
 - Match percentage scoring
 - Concept-driven discovery
@@ -173,8 +198,14 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Markdown output format
 
 **Parameters:**
-- `keywords` (required) - List of keywords to search for
+- `keywords` (required) - List of keywords to search for (supports wildcards and OR patterns)
 - `filter_type` (optional) - Filter results: `'all'` (default), `'modules'`, or `'functions'`
+
+**Pattern Examples:**
+- `["user", "authentication"]` - Match both keywords
+- `["create*"]` - Match keywords starting with "create"
+- `["create*|update*"]` - Match keywords starting with "create" OR "update"
+- `["*database*", "query"]` - Match keywords containing "database" and exact "query"
 
 **Requirements:** Index built with keyword extraction: `cicada index --fast`, `cicada index --regular`, or `cicada index --max`
 
@@ -182,7 +213,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 - Finding code by topic or concept
 - Discovering functions related to domain terms
 - Exploring when exact names are unknown
-- Semantic pattern matching
+- Semantic pattern matching with flexible patterns
 - Filtering search results to specific code types
 
 ---
@@ -230,12 +261,12 @@ All tools support flexible output formats:
 
 | Tool | Input | Output | Key Use Case |
 |------|-------|--------|--------------|
-| `search_module` | Module name or file path | Functions & signatures | Find module contents |
-| `search_function` | Function name ± arity ± module | Definition & call sites | Understand function usage |
+| `search_module` | Module name/pattern/file path | Functions & signatures | Find module contents (supports `*` and `\|`) |
+| `search_function` | Function name/pattern ± arity ± module | Definition & call sites | Understand function usage (supports `*` and `\|`) |
 | `search_module_usage` | Module name | Imports & function calls | Track module dependencies |
 | `find_pr_for_line` | File path & line number | PR info & author | Code attribution |
 | `get_file_pr_history` | File path | PR list with reviews | File change history |
 | `get_commit_history` | File path ± function | Commits & evolution | Track modifications |
 | `get_blame` | File path & line range | Line-by-line authors | Code ownership |
-| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery |
+| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery (supports `*` and `\|`) |
 | `find_dead_code` | Index path (CLI) | Unused functions report | Code cleanup |

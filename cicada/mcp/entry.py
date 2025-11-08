@@ -1,7 +1,7 @@
 from cicada.entry_utils import run_cli
 
 
-def main():
+def main() -> None:
     """Main entry point for cicada-mcp command."""
     run_cli(
         prog_name="cicada-mcp",
