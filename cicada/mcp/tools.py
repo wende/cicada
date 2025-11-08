@@ -15,6 +15,7 @@ def get_tool_definitions() -> list[Tool]:
             name="search_module",
             description=(
                 "PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers.\n\n"
+                "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
                 "Control visibility with private_functions: 'exclude' (default), 'include', or 'only'.\n\n"
                 "Returns public functions in markdown format by default. Start here when exploring modules.\n\n"
@@ -29,11 +30,11 @@ def get_tool_definitions() -> list[Tool]:
                 "properties": {
                     "module_name": {
                         "type": "string",
-                        "description": "Full module name to search (e.g., 'MyApp.User'). Provide either this or file_path.",
+                        "description": "Module name or pattern (supports * and |, e.g., 'MyApp.*' or 'MyApp.User|MyApp.Admin'). Provide either this or file_path.",
                     },
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file containing the module (e.g., 'lib/my_app/user.ex'). Provide either this or module_name.",
+                        "description": "Path (relative or absolute) to the file containing the module (e.g., 'lib/my_app/user.ex'). Provide either this or module_name.",
                     },
                     "format": {
                         "type": "string",
@@ -52,7 +53,8 @@ def get_tool_definitions() -> list[Tool]:
             name="search_function",
             description=(
                 "PREFERRED for Elixir: Find function definitions and call sites across the codebase.\n\n"
-                "Search by function name, optionally with module and arity: 'function_name', 'Module.function_name', or 'function_name/2'.\n\n"
+                "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
+                "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
                 "Returns definition location, signature, documentation, and all call sites. "
                 "Use include_usage_examples to see actual code snippets where the function is called.\n\n"
                 "🤖 AI USAGE TIPS:\n"
@@ -67,7 +69,10 @@ def get_tool_definitions() -> list[Tool]:
                 "properties": {
                     "function_name": {
                         "type": "string",
-                        "description": "Function name to search. Can include module and/or arity: 'MyApp.create_user', 'create_user/2', 'MyApp.create_user/2'.",
+                        "description": (
+                            "Function pattern to search. Supports module qualifiers, file scoping via 'file.ex:function', wildcards (*), OR (|), "
+                            "and arity filters (e.g., 'MyApp.create_user/2', 'create*|update*', 'lib/*/user.ex:create*')."
+                        ),
                     },
                     "format": {
                         "type": "string",

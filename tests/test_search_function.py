@@ -68,6 +68,261 @@ async def test_search_function(tmp_path):
     print(result[0].text)
     print()
 
+    # Test 5: Search with wildcard pattern
+    print("Test 5: Search for 'create*' (wildcard pattern)")
+    result = await server._search_function("create*", "markdown")
+    print(result[0].text)
+    print()
+
+    # Test 6: Search with OR pattern
+    print("Test 6: Search for 'create_user|find_user' (OR pattern)")
+    result = await server._search_function("create_user|find_user", "markdown")
+    print(result[0].text)
+    print()
+
+    # Test 7: Search with wildcard OR pattern
+    print("Test 7: Search for 'create*|find*' (wildcard OR pattern)")
+    result = await server._search_function("create*|find*", "markdown")
+    print(result[0].text)
+    print()
+
+
+@pytest.mark.asyncio
+async def test_wildcard_function_search(tmp_path):
+    """Test wildcard functionality in function search."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    # Create temporary config and index
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Test wildcard pattern matching
+    result = await server._search_function("create*", "markdown")
+    assert result[0].text
+    # Should find functions starting with "create"
+    assert "create" in result[0].text.lower()
+
+    # Test OR pattern
+    result = await server._search_function("create*|find*", "markdown")
+    assert result[0].text
+    # Should find both create and find functions
+
+
+@pytest.mark.asyncio
+async def test_wildcard_module_search(tmp_path):
+    """Test wildcard functionality in module search."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    # Create temporary config and index
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Get module names from test index
+    module_names = list(test_index["modules"].keys())
+
+    if module_names:
+        # Test wildcard pattern - match all modules with a prefix
+        if "." in module_names[0]:
+            prefix = module_names[0].split(".")[0]
+            result = await server._search_module(f"{prefix}.*", "markdown")
+            assert result[0].text
+            # Should find modules with that prefix
+            assert "Found" in result[0].text or prefix in result[0].text
+
+        # Test OR pattern
+        if len(module_names) >= 2:
+            result = await server._search_module(f"{module_names[0]}|{module_names[1]}", "markdown")
+            assert result[0].text
+            # Should find both modules
+
+
+@pytest.mark.asyncio
+async def test_module_qualified_or_function_search(tmp_path):
+    """Module-qualified OR patterns should return all matching functions."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    result = await server._search_function(
+        "MyApp.User.create_user|MyApp.User.validate_email",
+        "json",
+    )
+    payload = json.loads(result[0].text)
+    names = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in names
+    assert "MyApp.User.validate_email/1" in names
+
+
+@pytest.mark.asyncio
+async def test_or_patterns_with_different_arities(tmp_path):
+    """OR patterns can carry independent arity constraints."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    result = await server._search_function("create_user/2|validate_email/1", "json")
+    payload = json.loads(result[0].text)
+    arities = {(entry["function"], entry["arity"]) for entry in payload.get("results", [])}
+
+    assert ("create_user", 2) in arities
+    assert ("validate_email", 1) in arities
+
+
+@pytest.mark.asyncio
+async def test_file_path_wildcard_function_search(tmp_path):
+    """File-path wildcards should scope function searches."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Should match create_user in lib/my_app/user.ex
+    result = await server._search_function("lib/my_app/*.ex:create*", "json")
+    payload = json.loads(result[0].text)
+    matched = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in matched
+
+    # Combining two file-scoped patterns via OR should union their matches
+    result = await server._search_function(
+        "lib/my_app/*.ex:create*|lib/my_app_web/controllers/*.ex:create", "json"
+    )
+    payload = json.loads(result[0].text)
+    matched = {entry["full_name"] for entry in payload.get("results", [])}
+
+    assert "MyApp.User.create_user/2" in matched
+    assert "MyApp.UserController.create/2" in matched
+
+
+@pytest.mark.asyncio
+async def test_module_wildcard_with_nested_segments(tmp_path):
+    """Module search should support multi-segment wildcards like MyApp.*.Module."""
+    import json
+    import yaml
+
+    with open("data/test_index.json") as f:
+        test_index = json.load(f)
+
+    # Add a nested module to verify multi-segment wildcard matching
+    test_index["modules"]["MyApp.Sub.Module"] = {
+        "file": "lib/my_app/sub/module.ex",
+        "line": 1,
+        "moduledoc": "Nested module for testing.",
+        "keywords": {"module": 1.0},
+        "functions": [
+            {
+                "name": "create_user",
+                "arity": 1,
+                "line": 10,
+                "doc": "Creates a user from nested module",
+                "type": "def",
+                "signature": "create_user(attrs)",
+                "examples": None,
+                "return_type": None,
+                "guards": [],
+                "keywords": {"create": 1.0},
+            }
+        ],
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    result = await server._search_module("MyApp.*.Module", "markdown")
+    text = result[0].text
+
+    assert "MyApp.Sub.Module" in text
+    assert "MyApp.User" not in text  # ensure suffix constraint is respected
+
 
 if __name__ == "__main__":
     asyncio.run(test_search_function())
