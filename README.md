@@ -74,7 +74,7 @@ Runs CICADA on demand (slower after the first run, but zero install).
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
 - `cicada watch` - Watch for file changes and automatically reindex
-- `cicada index` - Re-index code with custom options (--fast, --regular, --max, --watch)
+- `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
 
@@ -126,7 +126,8 @@ This command:
 
 - **Incremental update:** `cicada claude` (or cursor/vs) detects changed files only.
 - **Force rebuild:** `rm ~/.cicada/projects/<hash>/hashes.json && cicada index .`
-- **Switch keyword tier:** `cicada index --fast|--regular|--max .`
+- **Switch keyword tier:** `cicada index --force --fast|--regular|--max .`
+
 
 ### Enable PR Attribution (optional)
 
@@ -190,7 +191,8 @@ When watch mode is enabled:
 | Command | Purpose | Run When |
 |---------|---------|---------|
 | `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
-| `cicada index --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
+| `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
+antic keywords | After large refactors or enabling AI tier |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
 | `cicada find-dead-code --min-confidence high` | List unused public functions | Cleanup sprints |
 

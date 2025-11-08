@@ -67,10 +67,10 @@ What would you like to do?
 ```bash
 # Initial indexing with fast model (token-based)
 cd my-elixir-project
-cicada index --fast
+cicada index --force --fast
 
 # Later, trying to upgrade to max quality (BERT-based)
-cicada index --max
+cicada index --force --max
 
 # CICADA will detect the change and prompt:
 # ⚠  Model Configuration Change Detected
@@ -84,10 +84,10 @@ cicada index --max
 
 ```bash
 # Initial indexing with regular model (default)
-cicada index
+cicada index --force --regular
 
 # Later, upgrading to max quality
-cicada index --max
+cicada index --force --max
 
 # CICADA will detect the tier change and prompt
 ```
@@ -96,10 +96,10 @@ cicada index --max
 
 ```bash
 # Initial indexing
-cicada index --regular
+cicada index --force --regular
 
 # Later, running again with same config
-cicada index --regular
+cicada index --force --regular
 
 # No prompt - proceeds with incremental indexing normally
 ```

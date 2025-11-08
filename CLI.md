@@ -125,7 +125,7 @@ cicada vs --max                   # Same for VS Code
 ### 5. Other Commands (Unchanged)
 
 ```bash
-cicada index [path]               # Index repository
+cicada index [path]               # Index repository (use -f/--force with --fast/--regular/--max)
 cicada index-pr [path]            # Index GitHub PRs
 cicada find-dead-code             # Find unused functions
 cicada clean                      # Clean up configs and indexes
