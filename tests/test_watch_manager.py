@@ -2,12 +2,14 @@
 Tests for cicada/watch_manager.py - Watch process management
 """
 
+import signal
 import subprocess
 import time
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+
+from tests.elixir_repo_factory import make_mock_watch_process
 
 from cicada.watch_manager import (
     WatchProcessManager,
@@ -20,16 +22,6 @@ from cicada.watch_manager import (
 # Mark all tests in this module to run serially in their own xdist group
 # This prevents interference with parallel test execution
 pytestmark = pytest.mark.xdist_group(name="watch_manager_tests")
-
-
-@pytest.fixture
-def temp_repo(tmp_path):
-    """Create a temporary repository for testing"""
-    lib_dir = tmp_path / "lib"
-    lib_dir.mkdir()
-    (lib_dir / "module.ex").write_text("defmodule Test do\nend\n")
-    (tmp_path / "mix.exs").write_text("defmodule Test.MixProject do\nend\n")
-    return tmp_path
 
 
 @pytest.fixture(autouse=True)
@@ -49,39 +41,30 @@ def cleanup_watch_managers():
 class TestWatchProcessManager:
     """Tests for WatchProcessManager class"""
 
-    @staticmethod
-    def _create_mock_process(pid=12345, running=True):
-        """Helper to create a mock subprocess with standard behavior"""
-        mock_process = Mock()
-        mock_process.pid = pid
-        mock_process.poll.return_value = None if running else 0
-        mock_process.returncode = None if running else 0
-        return mock_process
-
-    def test_initialization(self, temp_repo):
+    def test_initialization(self, elixir_repo):
         """Test WatchProcessManager initialization"""
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
 
-        assert manager.repo_path == temp_repo
+        assert manager.repo_path == elixir_repo
         assert manager.tier == "regular"
         assert manager.debounce == 2.0
         assert manager.process is None
         assert manager._cleanup_registered is False
 
-    def test_initialization_with_custom_parameters(self, temp_repo):
+    def test_initialization_with_custom_parameters(self, elixir_repo):
         """Test initialization with custom parameters"""
-        manager = WatchProcessManager(temp_repo, tier="fast", debounce=5.0, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, tier="fast", debounce=5.0, register_atexit=False)
 
         assert manager.tier == "fast"
         assert manager.debounce == 5.0
 
     @patch("subprocess.Popen")
-    def test_start_creates_process(self, mock_popen, temp_repo):
+    def test_start_creates_process(self, mock_popen, elixir_repo):
         """Test that start() creates a subprocess"""
-        mock_process = self._create_mock_process(pid=12345, running=True)
+        mock_process = make_mock_watch_process(pid=12345, running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         result = manager.start()
 
         assert result is True
@@ -92,13 +75,13 @@ class TestWatchProcessManager:
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
         assert "watch" in cmd
-        assert str(temp_repo) in cmd
+        assert str(elixir_repo) in cmd
         assert "--debounce" in cmd
         assert "2.0" in cmd
         assert "--regular" in cmd
 
     @patch("subprocess.Popen")
-    def test_start_with_tier_flags(self, mock_popen, temp_repo):
+    def test_start_with_tier_flags(self, mock_popen, elixir_repo):
         """Test that tier flags are passed correctly to the watch command"""
         test_cases = [
             ("fast", "--fast"),
@@ -108,10 +91,10 @@ class TestWatchProcessManager:
 
         for tier, expected_flag in test_cases:
             mock_popen.reset_mock()
-            mock_process = self._create_mock_process(pid=12345, running=True)
+            mock_process = make_mock_watch_process(pid=12345, running=True)
             mock_popen.return_value = mock_process
 
-            manager = WatchProcessManager(temp_repo, tier=tier, register_atexit=False)
+            manager = WatchProcessManager(elixir_repo, tier=tier, register_atexit=False)
             manager.start()
 
             call_args = mock_popen.call_args
@@ -119,12 +102,12 @@ class TestWatchProcessManager:
             assert expected_flag in cmd, f"Expected {expected_flag} for tier {tier}"
 
     @patch("subprocess.Popen")
-    def test_start_already_running_returns_false(self, mock_popen, temp_repo):
+    def test_start_already_running_returns_false(self, mock_popen, elixir_repo):
         """Test that start() returns False if process is already running"""
-        mock_process = self._create_mock_process(running=True)
+        mock_process = make_mock_watch_process(running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         result = manager.start()
         assert result is True
 
@@ -135,7 +118,7 @@ class TestWatchProcessManager:
         assert mock_popen.call_count == 1
 
     @patch("subprocess.Popen")
-    def test_start_error_handling(self, mock_popen, temp_repo):
+    def test_start_error_handling(self, mock_popen, elixir_repo):
         """Test start() error handling for various exception types"""
         # Test cases: (exception, expected_result, should_raise, error_pattern)
         test_cases = [
@@ -158,7 +141,7 @@ class TestWatchProcessManager:
 
         for exception, expected_result, should_raise, error_pattern in test_cases:
             mock_popen.side_effect = exception
-            manager = WatchProcessManager(temp_repo, register_atexit=False)
+            manager = WatchProcessManager(elixir_repo, register_atexit=False)
 
             if should_raise:
                 with pytest.raises(RuntimeError, match=error_pattern):
@@ -172,13 +155,13 @@ class TestWatchProcessManager:
     @patch("subprocess.Popen")
     @patch("os.killpg")
     @patch("os.getpgid")
-    def test_stop_terminates_process(self, mock_getpgid, mock_killpg, mock_popen, temp_repo):
+    def test_stop_terminates_process(self, mock_getpgid, mock_killpg, mock_popen, elixir_repo):
         """Test that stop() terminates the process"""
-        mock_process = self._create_mock_process(running=True)
+        mock_process = make_mock_watch_process(running=True)
         mock_popen.return_value = mock_process
         mock_getpgid.return_value = 12345
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         manager.start()
         manager.stop()
 
@@ -188,20 +171,20 @@ class TestWatchProcessManager:
         assert manager.process is None
 
     @patch("subprocess.Popen")
-    def test_stop_no_process_is_safe(self, mock_popen, temp_repo):
+    def test_stop_no_process_is_safe(self, mock_popen, elixir_repo):
         """Test that stop() is safe when no process is running"""
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         # Should not raise exception
         manager.stop()
 
     @patch("subprocess.Popen")
-    def test_is_running_states(self, mock_popen, temp_repo):
+    def test_is_running_states(self, mock_popen, elixir_repo):
         """Test is_running() in different process states"""
         # Test when process is active
-        mock_process = self._create_mock_process(running=True)
+        mock_process = make_mock_watch_process(running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         manager.start()
         assert manager.is_running() is True
 
@@ -213,25 +196,64 @@ class TestWatchProcessManager:
         manager.process = None
         assert manager.is_running() is False
 
+    def test_terminate_process_returns_true_when_process_already_gone(self, elixir_repo):
+        """_terminate_process should return True when process already exited."""
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
+        manager.process = make_mock_watch_process(running=False)
+        manager._send_termination_signal = Mock(return_value=False)
+
+        assert manager._terminate_process(signal.SIGTERM) is True
+        manager.process.wait.assert_not_called()
+
+    def test_send_termination_signal_without_killpg_falls_back(self, monkeypatch, elixir_repo):
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
+        manager.process = make_mock_watch_process(running=True)
+
+        monkeypatch.delattr("cicada.watch_manager.os.killpg", raising=False)
+        monkeypatch.delattr("cicada.watch_manager.os.getpgid", raising=False)
+
+        with patch.object(manager, "_send_direct_signal") as mock_direct:
+            assert manager._send_termination_signal(signal.SIGTERM) is True
+            mock_direct.assert_called_once_with(signal.SIGTERM)
+
+    @patch("cicada.watch_manager.os.killpg")
+    @patch("cicada.watch_manager.os.getpgid")
+    def test_send_termination_signal_handles_process_lookup_error(
+        self, mock_getpgid, mock_killpg, elixir_repo
+    ):
+        mock_getpgid.return_value = 12345
+        mock_killpg.side_effect = ProcessLookupError("gone")
+
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
+        mock_process = make_mock_watch_process(running=True)
+        mock_process.terminate.side_effect = ProcessLookupError("gone")
+        manager.process = mock_process
+
+        assert manager._send_termination_signal(signal.SIGTERM) is False
+
+    def test_send_direct_signal_uses_kill_for_sigkill(self, elixir_repo):
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
+        mock_process = make_mock_watch_process(running=True)
+        mock_process.kill = Mock()
+        mock_process.terminate = Mock()
+        manager.process = mock_process
+
+        manager._send_direct_signal(signal.SIGKILL)
+
+        mock_process.kill.assert_called_once()
+        mock_process.terminate.assert_not_called()
+
 
 class TestGlobalWatchManager:
     """Tests for global watch manager functions"""
-
-    @staticmethod
-    def _create_mock_process(pid=12345, running=True):
-        """Helper to create a mock subprocess with standard behavior"""
-        mock_process = Mock()
-        mock_process.pid = pid
-        mock_process.poll.return_value = None if running else 0
-        return mock_process
 
     def teardown_method(self):
         """Clean up global state after each test"""
         set_watch_manager(None)
 
-    def test_get_set_watch_manager(self, temp_repo):
+    def test_get_set_watch_manager(self, elixir_repo):
         """Test getting and setting the global watch manager"""
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
 
         set_watch_manager(manager)
         assert get_watch_manager() == manager
@@ -240,35 +262,41 @@ class TestGlobalWatchManager:
         assert get_watch_manager() is None
 
     @patch("subprocess.Popen")
-    def test_start_watch_process(self, mock_popen, temp_repo):
+    def test_start_watch_process(self, mock_popen, elixir_repo):
         """Test start_watch_process creates manager with correct parameters"""
-        mock_process = self._create_mock_process(running=True)
+        mock_process = make_mock_watch_process(running=True)
         mock_popen.return_value = mock_process
 
         # Test with default parameters
-        result = start_watch_process(temp_repo)
+        result = start_watch_process(elixir_repo)
         assert result is True
         manager = get_watch_manager()
         assert manager is not None
-        assert manager.repo_path == temp_repo
+        assert manager.repo_path == elixir_repo
 
         # Test with custom parameters
-        result = start_watch_process(temp_repo, tier="fast", debounce=5.0)
+        result = start_watch_process(elixir_repo, tier="fast", debounce=5.0)
         assert result is True
         manager = get_watch_manager()
         assert manager.tier == "fast"
         assert manager.debounce == 5.0
 
+    @patch.object(WatchProcessManager, "start", return_value=False)
+    def test_start_watch_process_returns_false_on_failure(self, mock_start, elixir_repo):
+        """start_watch_process should bubble up failures without setting global manager."""
+        assert start_watch_process(elixir_repo) is False
+        assert get_watch_manager() is None
+
     @patch("subprocess.Popen")
     @patch("os.killpg")
     @patch("os.getpgid")
-    def test_stop_watch_process(self, mock_getpgid, mock_killpg, mock_popen, temp_repo):
+    def test_stop_watch_process(self, mock_getpgid, mock_killpg, mock_popen, elixir_repo):
         """Test that stop_watch_process stops the global manager"""
-        mock_process = self._create_mock_process(running=True)
+        mock_process = make_mock_watch_process(running=True)
         mock_popen.return_value = mock_process
         mock_getpgid.return_value = 12345
 
-        start_watch_process(temp_repo)
+        start_watch_process(elixir_repo)
         stop_watch_process()
 
         assert get_watch_manager() is None
@@ -283,7 +311,7 @@ class TestWatchProcessErrorPaths:
     """Tests for error paths in watch process management"""
 
     @patch("subprocess.Popen")
-    def test_process_early_exit_detection(self, mock_popen, temp_repo):
+    def test_process_early_exit_detection(self, mock_popen, elixir_repo):
         """Test detection of processes that exit immediately after starting"""
         test_cases = [
             (1, "Non-zero exit code"),
@@ -292,13 +320,12 @@ class TestWatchProcessErrorPaths:
         ]
 
         for exit_code, description in test_cases:
-            mock_process = Mock()
-            mock_process.pid = 12345
+            mock_process = make_mock_watch_process(pid=12345)
             mock_process.poll.return_value = exit_code
             mock_process.returncode = exit_code
             mock_popen.return_value = mock_process
 
-            manager = WatchProcessManager(temp_repo, register_atexit=False)
+            manager = WatchProcessManager(elixir_repo, register_atexit=False)
             result = manager.start()
 
             # Should detect the early exit and return False
@@ -308,15 +335,13 @@ class TestWatchProcessErrorPaths:
     @patch("subprocess.Popen")
     @patch("os.killpg")
     @patch("os.getpgid")
-    def test_stop_error_scenarios(self, mock_getpgid, mock_killpg, mock_popen, temp_repo):
+    def test_stop_error_scenarios(self, mock_getpgid, mock_killpg, mock_popen, elixir_repo):
         """Test stop() behavior in various error scenarios"""
-        mock_process = Mock()
-        mock_process.pid = 12345
-        mock_process.poll.return_value = None
+        mock_process = make_mock_watch_process(pid=12345, running=True)
         mock_popen.return_value = mock_process
         mock_getpgid.return_value = 12345
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         manager.start()
 
         # Test 1: Process already gone
@@ -343,14 +368,12 @@ class TestWatchProcessErrorPaths:
         assert manager.process is None
 
     @patch("subprocess.Popen")
-    def test_platform_specific_stop_behavior(self, mock_popen, temp_repo):
+    def test_platform_specific_stop_behavior(self, mock_popen, elixir_repo):
         """Test stopping behavior on different platforms"""
-        mock_process = Mock()
-        mock_process.pid = 12345
-        mock_process.poll.return_value = None
+        mock_process = make_mock_watch_process(pid=12345, running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         manager.start()
 
         # Simulate Windows (no killpg)
@@ -362,18 +385,16 @@ class TestWatchProcessErrorPaths:
         assert manager.process is None
 
     @patch("subprocess.Popen")
-    def test_stop_process_reference_management(self, mock_popen, temp_repo):
+    def test_stop_process_reference_management(self, mock_popen, elixir_repo):
         """Test process reference management during stop() errors.
 
         Addresses REPORT.md Issue 1.1 - verifies correct handling of process
         reference during different error scenarios.
         """
-        mock_process = Mock()
-        mock_process.pid = 12345
-        mock_process.poll.return_value = None
+        mock_process = make_mock_watch_process(pid=12345, running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
         manager.start()
 
         # Test 1: Unexpected errors preserve process reference for retry
@@ -395,17 +416,15 @@ class TestWatchProcessErrorPaths:
         assert manager.process is None  # Cleared (process is gone)
 
     @patch("subprocess.Popen")
-    def test_cleanup_and_terminate_edge_cases(self, mock_popen, temp_repo):
+    def test_cleanup_and_terminate_edge_cases(self, mock_popen, elixir_repo):
         """Test edge cases for cleanup and terminate methods.
 
         Addresses REPORT.md Issues 1.4 and 5.2.
         """
-        mock_process = Mock()
-        mock_process.pid = 12345
-        mock_process.poll.return_value = None
+        mock_process = make_mock_watch_process(pid=12345, running=True)
         mock_popen.return_value = mock_process
 
-        manager = WatchProcessManager(temp_repo, register_atexit=False)
+        manager = WatchProcessManager(elixir_repo, register_atexit=False)
 
         # Test 1: _cleanup handles stop() exceptions gracefully (Issue 1.4)
         manager.start()
@@ -425,7 +444,7 @@ class TestWatchProcessErrorPaths:
 class TestMCPWatchIntegration:
     """Integration tests for MCP server + watch process coordination"""
 
-    def test_mcp_server_starts_watch_process_and_cleans_up(self, temp_repo):
+    def test_mcp_server_starts_watch_process_and_cleans_up(self, elixir_repo):
         """Test watch process lifecycle when started from MCP server context.
 
         Addresses REPORT.md Issue 4.3 - MCP + watch integration not tested.
@@ -443,7 +462,7 @@ class TestMCPWatchIntegration:
 
         # Use REAL WatchProcessManager and actually spawn subprocess
         # This is the critical difference from unit tests - we verify real process behavior
-        success = start_watch_process(repo_path=str(temp_repo), tier="fast", debounce=2.0)
+        success = start_watch_process(repo_path=str(elixir_repo), tier="fast", debounce=2.0)
 
         assert success, "Watch process should start successfully"
 
