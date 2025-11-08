@@ -719,7 +719,7 @@ class TestTextBasedEditorSelection:
         """Test invalid input followed by valid input"""
         from cicada.interactive_setup import _text_based_editor_selection
 
-        mock_input.side_effect = ["4", "invalid", "2"]
+        mock_input.side_effect = ["6", "invalid", "2"]
 
         editor = _text_based_editor_selection()
 

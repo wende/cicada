@@ -266,21 +266,19 @@ def update_claude_md(repo_path: Path, editor: EditorType | None = None) -> None:
 
     Args:
         repo_path: Path to the repository
-        editor: Editor type - CLAUDE.md is only updated for 'claude' editor, AGENTS.md for all
+        editor: Editor type - defaults to None which updates CLAUDE.md (for backward compatibility)
     """
-    import re
-
     from cicada.mcp.tools import get_tool_definitions
 
     claude_md_path = repo_path / "CLAUDE.md"
     agents_md_path = repo_path / "AGENTS.md"
 
-    # Process CLAUDE.md only if editor is 'claude'
-    if editor == "claude" and claude_md_path.exists():
+    # Process CLAUDE.md if no editor specified (backward compatibility) or if editor is 'claude'
+    if (editor is None or editor == "claude") and claude_md_path.exists():
         _update_md_file(claude_md_path, get_tool_definitions())
 
-    # Process AGENTS.md for all editors if it exists
-    if agents_md_path.exists():
+    # Process AGENTS.md for all editors if it exists (when editor is specified)
+    if editor is not None and agents_md_path.exists():
         _update_md_file(agents_md_path, get_tool_definitions())
 
 
@@ -297,6 +295,10 @@ def _update_md_file(md_path: Path, tools) -> None:
     tool_list: list[str] = []
 
     for tool in tools:
+        # Skip deprecated tools
+        if tool.description and "DEPRECATED" in tool.description:
+            continue
+
         # Extract first sentence from description (up to first period or newline)
         if tool.description:
             desc = tool.description.split("\n")[0].strip()
@@ -489,10 +491,9 @@ def setup(
             index_repository(repo_path, force_full=force_full)
             print()
 
-    # Update CLAUDE.md or AGENTS.md with cicada instructions
-    # CLAUDE.md is updated only for Claude Code editor
-    # AGENTS.md is updated for all editors if it exists
-    update_claude_md(repo_path, editor)
+    # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
+    if editor == "claude":
+        update_claude_md(repo_path)
 
     # Create MCP config for the editor
     config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
