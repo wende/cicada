@@ -6,7 +6,7 @@
 `cicada` and `cicada-mcp` should support the same subcommands with identical behavior.
 The only difference is their default behavior when called without arguments:
 - `cicada` (no args) → Interactive setup
-- `cicada-mcp` (no args) → Start MCP server (backward compatibility)
+- `cicada-mcp` (no args) → Equivalent to `cicada server --fast` (silent MCP server)
 
 ## All Command Combinations
 
@@ -14,14 +14,14 @@ The only difference is their default behavior when called without arguments:
 
 ```bash
 cicada                    # Interactive setup (editor + model selection)
-uvx cicada-mcp            # Interactive setup (same as above)
-cicada-mcp                # Start MCP server (backward compatibility - SILENT)
+uvx cicada-mcp            # Same as cicada-mcp (defaults to server --fast)
+cicada-mcp                # Equivalent to `cicada server --fast` (silent MCP server)
 ```
 
 **Behavior:**
 - `cicada`: Shows interactive menu for editor and model selection
-- `uvx cicada-mcp`: Same as `cicada` (user-friendly for first-time uvx users)
-- `cicada-mcp`: Starts MCP server immediately (for MCP clients, no interaction)
+- `uvx cicada-mcp`: Default behavior mirrors `cicada-mcp` (silent server --fast). Run `uvx cicada-mcp install` for the interactive flow.
+- `cicada-mcp`: Starts MCP server as if `cicada server --fast` were executed (no prompts, fast tier by default)
 
 ### 2. Install Subcommand (Interactive Setup)
 
@@ -88,6 +88,9 @@ cicada server --regular           # Regular tier (if reindexing needed)
 cicada server --max               # Max tier (if reindexing needed)
 ```
 
+**Default via `cicada-mcp`:**
+- Running `cicada-mcp` (or `uvx cicada-mcp`) with no subcommand is equivalent to `cicada server --fast`, guaranteeing a silent startup that favors the fast tier unless the user explicitly passes different flags.
+
 **Key Difference from Install:**
 - Server mode is SILENT (no prompts, uses defaults)
 - Install mode is INTERACTIVE (prompts for choices)
@@ -134,8 +137,8 @@ cicada clean --all                # Clean all projects
 | Command | Interactive? | Creates Config? | Starts Server? | Auto-indexes? |
 |---------|--------------|-----------------|----------------|---------------|
 | `cicada` | Yes | Yes | No | Yes |
-| `uvx cicada-mcp` | Yes | Yes | No | Yes |
-| `cicada-mcp` | No | No | Yes | Yes (silent) |
+| `uvx cicada-mcp` | No (defaults to server --fast) | Yes (if needed) | Yes | Yes (silent, fast tier) |
+| `cicada-mcp` | No (server --fast) | Yes (if needed) | Yes | Yes (silent, fast tier) |
 | `cicada install` | Yes | Yes | No | Yes |
 | `cicada server` | No | Yes (if needed) | Yes | Yes (silent) |
 | `cicada claude` | Conditional* | Yes | No | Yes |
@@ -238,26 +241,9 @@ cicada install                    # NEW: Explicit install command
 cicada server                     # NEW: Explicit server command
 ```
 
-## Environment Detection
+## Default Command Injection
 
-For `cicada-mcp` default behavior, detect if called by MCP client vs terminal:
-
-```python
-import sys
-
-def is_mcp_client():
-    """Detect if running in MCP client context (non-TTY)."""
-    return not sys.stdin.isatty() or not sys.stdout.isatty()
-
-def main():
-    if len(sys.argv) == 1:  # No arguments
-        if is_mcp_client():
-            # Called by MCP client → start server silently
-            start_mcp_server()
-        else:
-            # Called from terminal → show interactive setup
-            show_interactive_setup()
-```
+The entry-point for `cicada-mcp` always injects `server --fast` when no explicit subcommand is passed. This guarantees MCP clients (and developers running `cicada-mcp` directly) immediately start the silent server with the fast tier, while still allowing all regular subcommands (`install`, `server --max`, etc.) when specified manually.
 
 ## Model Selection Defaults
 
@@ -351,8 +337,8 @@ cicada server --claude --vs --max # Start server, create both configs, use max t
   }
 }
 ```
-When MCP client starts `cicada-mcp`, it:
-1. Detects non-TTY (MCP client context)
+When an MCP client starts `cicada-mcp` with no arguments, the CLI:
+1. Injects `server --fast` so the silent server launches immediately
 2. Auto-setups with defaults if needed (silently)
 3. Starts MCP server on stdio
 4. Never prompts or prints to stdout
@@ -369,7 +355,7 @@ When MCP client starts `cicada-mcp`, it:
 ### Phase 2: Shared Logic ✅ COMPLETED
 - [x] Extract common argument parsing
 - [x] Create silent setup mode in `setup.py`
-- [x] Add environment detection for MCP client context (TTY detection)
+- [x] Add default command injection so `cicada-mcp` maps to `server --fast`
 - [x] Implement default behavior routing
 
 ### Phase 3: Commands Implementation ✅ COMPLETED
@@ -390,9 +376,9 @@ When MCP client starts `cicada-mcp`, it:
 ## Open Questions ✅ RESOLVED
 
 1. **Should `cicada-mcp` with no args detect TTY and show interactive setup if in terminal?**
-   - ✅ **ANSWERED: Yes, but only with TTY**
-   - Implementation: TTY detection using `sys.stdin.isatty()` and `sys.stdout.isatty()`
-   - Result: `cicada-mcp` (no args) → interactive if TTY, server if non-TTY
+   - ✅ **ANSWERED: Always run `server --fast`**
+   - Rationale: MCP clients expect silent startup, and developers can still run `cicada-mcp install` explicitly when they need the interactive flow.
+   - Result: `cicada-mcp` (no args) is equivalent to `cicada server --fast` in every environment.
 
 2. **Should `server` mode accept a path as positional arg or require `--path`?**
    - ✅ **ANSWERED: Positional arg**
@@ -408,9 +394,9 @@ When MCP client starts `cicada-mcp`, it:
 
 ### Files Created
 - **`cicada/mcp_entry.py`** - New entry point for `cicada-mcp` command
-  - TTY detection via `is_tty()` function
+  - Injects `server --fast` when no subcommand is supplied
   - Unified subcommand support
-  - Default behavior routing (interactive vs server)
+  - Default behavior routing (interactive flows always opt-in via explicit `install`)
 
 - **`cicada/commands/__init__.py`** - Command handlers package
 - **`cicada/commands/install.py`** - Interactive install command handler
@@ -444,7 +430,7 @@ When MCP client starts `cicada-mcp`, it:
 | `cicada install` | ✅ Working | Explicit interactive setup |
 | `cicada server` | ✅ Working | Silent MCP server |
 | `cicada claude/cursor/vs` | ✅ Working | Editor shortcuts (backward compatible) |
-| `cicada-mcp` | ✅ Working | TTY detection: interactive if TTY, server if non-TTY |
+| `cicada-mcp` | ✅ Working | No-arg default runs `server --fast` (silent) |
 | `cicada-mcp install` | ✅ Working | Same as `cicada install` |
 | `cicada-mcp server` | ✅ Working | Same as `cicada server` |
 | `cicada-mcp claude/cursor/vs` | ✅ Working | Same as `cicada` editor shortcuts |
@@ -474,7 +460,7 @@ When MCP client starts `cicada-mcp`, it:
 1. **Full Integration Testing** - Test with actual Elixir project:
    - Test `cicada install` with interactive prompts
    - Test `cicada server` silent mode
-   - Test `cicada-mcp` from non-TTY (MCP client simulation)
+   - Test `cicada-mcp` default (`server --fast`) behavior with an MCP client simulation
    - Test multiple editor flags: `cicada server --claude --vs`
 
 2. **Documentation Updates**:
