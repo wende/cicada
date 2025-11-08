@@ -1075,7 +1075,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_yaml_parsing_error_returns_default(self, tmp_path, monkeypatch):
         """Test that YAML parsing errors return default config"""
-        from cicada.indexer import read_keyword_extraction_config
+        from cicada.tier import read_keyword_extraction_config
         from cicada.utils.storage import get_config_path
 
         # Create a config file with invalid YAML
@@ -1084,7 +1084,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
         # Mock get_config_path to return our invalid config
         monkeypatch.setattr(
-            "cicada.indexer.get_config_path",
+            "cicada.utils.storage.get_config_path",
             lambda x: config_path,
         )
 
@@ -1095,13 +1095,13 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_general_exception_returns_default(self, tmp_path, monkeypatch):
         """Test that general exceptions return default config"""
-        from cicada.indexer import read_keyword_extraction_config
+        from cicada.tier import read_keyword_extraction_config
 
         # Mock get_config_path to raise an exception
         def mock_get_config_path(x):
             raise PermissionError("Permission denied")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", mock_get_config_path)
+        monkeypatch.setattr("cicada.utils.storage.get_config_path", mock_get_config_path)
 
         # Should return defaults instead of crashing
         extraction_method, expansion_method = read_keyword_extraction_config(tmp_path)
@@ -1136,7 +1136,7 @@ end
         config_path.write_text("keyword_extraction:\n  method: bert\n  tier: fast")
 
         # Mock get_config_path
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
         # Mock KeyBERT extractor to raise exception
         def mock_keybert_init(*args, **kwargs):
@@ -1150,7 +1150,7 @@ end
         index = indexer.index_repository(str(tmp_path), str(output_path), extract_keywords=True)
 
         captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor" in captured.out
+        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
         assert "Continuing without keyword extraction" in captured.out
 
         # Index should still be created
@@ -1180,7 +1180,7 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
         # Mock keyword extractor to raise exception
         from unittest.mock import Mock
@@ -1229,7 +1229,7 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
         # Mock keyword extractor to raise exception only for function extraction
         from unittest.mock import Mock
@@ -1284,7 +1284,7 @@ end
         config_path = config_dir / "config.yaml"
         config_path.write_text("keyword_extraction:\n  method: bert\n  tier: regular")
 
-        monkeypatch.setattr("cicada.indexer.get_config_path", lambda x: config_path)
+        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
         # Mock KeyBERT extractor to raise exception
         def mock_keybert_init(*args, **kwargs):
@@ -1298,7 +1298,7 @@ end
         )
 
         captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor" in captured.out
+        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
 
         # Index should still be updated
         assert index is not None

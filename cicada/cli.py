@@ -13,6 +13,7 @@ def main():
             "claude",
             "cursor",
             "vs",
+            "watch",
             "index",
             "index-pr",
             "find-dead-code",

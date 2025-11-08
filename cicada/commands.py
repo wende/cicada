@@ -8,42 +8,64 @@ making `cli.py` a thin entry point and `mcp_entry.py` focused solely on MCP serv
 
 import argparse
 import sys
+from pathlib import Path
+
+# Import tier resolution functions from centralized module
+from cicada.tier import (
+    determine_tier,
+    get_extraction_expansion_methods,
+    validate_tier_flags,
+)
+
+# Default debounce interval for watch mode (in seconds)
+DEFAULT_WATCH_DEBOUNCE = 2.0
 
 
-def validate_tier_flags(args) -> None:
-    """Validate that only one tier flag is specified.
+def _setup_and_start_watcher(args, repo_path_str: str) -> None:
+    """Shared logic for starting file watcher.
 
     Args:
-        args: Parsed command-line arguments with fast, regular, and max attributes
+        args: Parsed command-line arguments
+        repo_path_str: Path to the repository as a string
 
     Raises:
-        SystemExit: If more than one tier flag is specified
+        SystemExit: If configuration is invalid or watcher fails to start
     """
-    tier_count = sum([args.fast, getattr(args, "regular", False), args.max])
-    if tier_count > 1:
-        print(
-            "Error: Can only specify one tier flag (--fast, --regular, or --max)",
-            file=sys.stderr,
+    from cicada.utils.storage import get_config_path
+    from cicada.watcher import FileWatcher
+
+    # Validate tier flags
+    validate_tier_flags(args)
+
+    # Resolve repository path
+    repo_path = Path(repo_path_str).resolve()
+    config_path = get_config_path(repo_path)
+
+    # Determine tier using helper
+    tier = determine_tier(args, repo_path)
+
+    # Check if config exists when no tier is specified
+    tier_specified = args.fast or args.max or getattr(args, "regular", False)
+    if not tier_specified and not config_path.exists():
+        _print_tier_requirement_error()
+        print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
+        sys.exit(2)
+
+    # Create and start watcher
+    try:
+        watcher = FileWatcher(
+            repo_path=str(repo_path),
+            debounce_seconds=getattr(args, "debounce", DEFAULT_WATCH_DEBOUNCE),
+            verbose=True,
+            tier=tier,
         )
+        watcher.start_watching()
+    except KeyboardInterrupt:
+        print("\nWatch mode stopped by user.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def get_extraction_expansion_methods(args) -> tuple[str | None, str | None]:
-    """Map tier flags to extraction and expansion methods.
-
-    Args:
-        args: Parsed command-line arguments with fast, regular, and max attributes
-
-    Returns:
-        Tuple of (extraction_method, expansion_method), or (None, None) if no tier flag
-    """
-    if args.fast:
-        return "regular", "lemmi"
-    elif args.max:
-        return "bert", "fasttext"
-    elif getattr(args, "regular", False):
-        return "bert", "glove"
-    return None, None
 
 
 def get_argument_parser():
@@ -145,6 +167,11 @@ def get_argument_parser():
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion (if reindexing needed)",
     )
+    server_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Start file watcher in a linked process for automatic reindexing",
+    )
 
     claude_parser = subparsers.add_parser(
         "claude",
@@ -209,6 +236,40 @@ def get_argument_parser():
         help="Max tier: KeyBERT large + FastText expansion",
     )
 
+    watch_parser = subparsers.add_parser(
+        "watch",
+        help="Watch for file changes and automatically reindex",
+        description="Watch Elixir source files for changes and trigger automatic incremental reindexing",
+    )
+    watch_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the Elixir repository to watch (default: current directory)",
+    )
+    watch_parser.add_argument(
+        "--debounce",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Debounce interval in seconds to wait after file changes before reindexing (default: 2.0)",
+    )
+    watch_parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    watch_parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    watch_parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
     index_parser = subparsers.add_parser(
         "index",
         help="Index an Elixir repository to extract modules and functions",
@@ -265,6 +326,18 @@ def get_argument_parser():
         default=0.2,
         metavar="SCORE",
         help="Minimum similarity score for keyword expansion (0.0-1.0, default: 0.2)",
+    )
+    index_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Watch for file changes and automatically reindex (runs initial index first)",
+    )
+    index_parser.add_argument(
+        "--debounce",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
 
     index_pr_parser = subparsers.add_parser(
@@ -366,126 +439,144 @@ Examples:
     return parser
 
 
-def handle_command(args):
-    if args.command == "install":
-        handle_install(args)
-    elif args.command == "server":
-        handle_server(args)
-    elif args.command == "claude":
-        handle_editor_setup(args, "claude")
-    elif args.command == "cursor":
-        handle_editor_setup(args, "cursor")
-    elif args.command == "vs":
-        handle_editor_setup(args, "vs")
-    elif args.command == "index":
-        handle_index(args)
-    elif args.command == "index-pr":
-        handle_index_pr(args)
-    elif args.command == "find-dead-code":
-        handle_find_dead_code(args)
-    elif args.command == "clean":
-        handle_clean(args)
-    elif args.command == "dir":
-        handle_dir(args)
-    elif args.command is None:
+def handle_command(args) -> bool:
+    """Route command to appropriate handler.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        True if a command was handled, False if no command specified
+    """
+    command_handlers = {
+        "install": handle_install,
+        "server": handle_server,
+        "claude": lambda args: handle_editor_setup(args, "claude"),
+        "cursor": lambda args: handle_editor_setup(args, "cursor"),
+        "vs": lambda args: handle_editor_setup(args, "vs"),
+        "watch": handle_watch,
+        "index": handle_index,
+        "index-pr": handle_index_pr,
+        "find-dead-code": handle_find_dead_code,
+        "clean": handle_clean,
+        "dir": handle_dir,
+    }
+
+    if args.command is None:
         return False
-    return True
+
+    handler = command_handlers.get(args.command)
+    if handler:
+        handler(args)
+        return True
+
+    return False
 
 
-def handle_editor_setup(args, editor: str):
-    from pathlib import Path
+def handle_editor_setup(args, editor: str) -> None:
+    """Handle setup for a specific editor.
+
+    Args:
+        args: Parsed command-line arguments
+        editor: Editor type ('claude', 'cursor', or 'vs')
+    """
     from typing import cast
 
     from cicada.setup import EditorType, setup
+    from cicada.utils.storage import get_config_path, get_index_path
 
     # Validate tier flags
     validate_tier_flags(args)
 
     repo_path = Path.cwd()
 
+    # Verify it's an Elixir project
     if not (repo_path / "mix.exs").exists():
         print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
         print("(mix.exs not found)", file=sys.stderr)
         sys.exit(1)
 
-    from cicada.utils.storage import get_config_path, get_index_path
-
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
+    index_exists = config_path.exists() and index_path.exists()
 
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
-    if extraction_method is None and config_path.exists() and index_path.exists():
-        import yaml
+    # Load existing config if no tier specified but index exists
+    if extraction_method is None and index_exists:
+        extraction_method, expansion_method = _load_existing_config(config_path)
 
-        try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
-        except Exception as e:
-            print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
     try:
+        assert editor is not None
         setup(
             cast(EditorType, editor),
             repo_path,
             extraction_method=extraction_method,
             expansion_method=expansion_method,
-            index_exists=config_path.exists() and index_path.exists(),
+            index_exists=index_exists,
         )
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
+def _load_existing_config(config_path: Path) -> tuple[str, str]:
+    """Load extraction and expansion methods from existing config.
+
+    Args:
+        config_path: Path to config.yaml
+
+    Returns:
+        Tuple of (extraction_method, expansion_method)
+    """
+    import yaml
+
+    try:
+        with open(config_path) as f:
+            existing_config = yaml.safe_load(f)
+            extraction_method = existing_config.get("keyword_extraction", {}).get(
+                "method", "regular"
+            )
+            expansion_method = existing_config.get("keyword_expansion", {}).get("method", "lemmi")
+            return extraction_method, expansion_method
+    except Exception as e:
+        print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
+        return "regular", "lemmi"
+
+
 def handle_index_test_mode(args):
     """Handle interactive keyword extraction test mode."""
     from cicada.keyword_test import run_keywords_interactive
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Map tier to extraction method
-    # Note: The tier names here don't match the flag names (legacy behavior)
-    if args.fast:
-        method = "regular"
-        tier = "regular"
-    elif args.max:
-        method = "bert"
-        tier = "max"
-    else:  # --regular or no flag (default to regular)
-        method = "bert"
-        tier = "fast"
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
+
+    # Convert tier to extraction method
+    extraction_method, _ = tier_to_methods(tier_name)
 
     extraction_threshold = getattr(args, "extraction_threshold", None)
-    run_keywords_interactive(method=method, tier=tier, extraction_threshold=extraction_threshold)
+    run_keywords_interactive(
+        method=extraction_method, tier=tier_name, extraction_threshold=extraction_threshold
+    )
 
 
 def handle_index_test_expansion_mode(args):
     """Handle interactive keyword expansion test mode."""
     from cicada.keyword_test import run_expansion_interactive
+    from cicada.tier import determine_tier, tier_to_methods
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Map tier to extraction method and expansion type
-    # Note: The tier names here don't match the flag names (legacy behavior)
-    if args.fast:
-        extraction_method = "regular"
-        extraction_tier = "regular"
-        expansion_type = "lemmi"
-    elif args.max:
-        extraction_method = "bert"
-        extraction_tier = "max"
-        expansion_type = "fasttext"
-    else:  # --regular or no flag (default to regular)
-        extraction_method = "bert"
-        extraction_tier = "fast"
-        expansion_type = "glove"
+    # Get tier (includes fallback to 'regular' if not specified)
+    tier_name = determine_tier(args)
+
+    # Convert tier to extraction method and expansion type
+    extraction_method, expansion_type = tier_to_methods(tier_name)
 
     extraction_threshold = getattr(args, "extraction_threshold", 0.3)
     expansion_threshold = getattr(args, "expansion_threshold", 0.2)
@@ -493,94 +584,133 @@ def handle_index_test_expansion_mode(args):
     run_expansion_interactive(
         expansion_type=expansion_type,
         extraction_method=extraction_method,
-        extraction_tier=extraction_tier,
+        extraction_tier=tier_name,
         extraction_threshold=extraction_threshold,
         expansion_threshold=expansion_threshold,
         min_score=min_score,
     )
 
 
-def handle_index_main(args):
+def handle_index_main(args) -> None:
     """Handle main repository indexing."""
-    from pathlib import Path
-
     from cicada.indexer import ElixirIndexer
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    repo_path_obj = Path(args.repo).resolve()
-    config_path = get_config_path(repo_path_obj)
-    storage_dir = create_storage_dir(repo_path_obj)
-    index_path = get_index_path(repo_path_obj)
+    repo_path = Path(args.repo).resolve()
+    config_path = get_config_path(repo_path)
+    storage_dir = create_storage_dir(repo_path)
+    index_path = get_index_path(repo_path)
 
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     if extraction_method is not None:
-        from cicada.setup import create_config_yaml
-
-        if config_path.exists():
-            import yaml
-
-            try:
-                with open(config_path) as f:
-                    existing_config = yaml.safe_load(f)
-                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
-                    )
-                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
-                    )
-
-                    extraction_changed = existing_extraction != extraction_method
-                    expansion_changed = existing_expansion != expansion_method
-
-                    if extraction_changed or expansion_changed:
-                        if extraction_changed and expansion_changed:
-                            change_desc = f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-                        elif extraction_changed:
-                            change_desc = (
-                                f"extraction from {existing_extraction} to {extraction_method}"
-                            )
-                        else:
-                            change_desc = (
-                                f"expansion from {existing_expansion} to {expansion_method}"
-                            )
-
-                        print(
-                            f"Error: Cannot change {change_desc}",
-                            file=sys.stderr,
-                        )
-                        print(
-                            "\nTo reindex with different settings, first run:",
-                            file=sys.stderr,
-                        )
-                        print("  cicada clean", file=sys.stderr)
-                        print("\nThen run your index command again.", file=sys.stderr)
-                        sys.exit(1)
-            except Exception as e:
-                print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
-
-        create_config_yaml(repo_path_obj, storage_dir, extraction_method, expansion_method)
-    elif not config_path.exists():
-        print("Error: No tier specified.", file=sys.stderr)
-        print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
-        print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
-        print(
-            "  --regular   Regular tier: KeyBERT small + GloVe expansion (default)", file=sys.stderr
+        assert expansion_method is not None
+        _handle_index_config_update(
+            config_path, storage_dir, repo_path, extraction_method, expansion_method
         )
-        print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
-        print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
+    elif not config_path.exists():
+        _print_tier_requirement_error()
         sys.exit(2)
 
+    # Perform indexing
     indexer = ElixirIndexer(verbose=True)
     indexer.incremental_index_repository(
-        str(repo_path_obj),
+        str(repo_path),
         str(index_path),
         extract_keywords=True,
         force_full=False,
     )
+
+
+def _handle_index_config_update(
+    config_path: Path,
+    storage_dir: Path,
+    repo_path: Path,
+    extraction_method: str,
+    expansion_method: str,
+) -> None:
+    """Handle config creation or validation during indexing.
+
+    Args:
+        config_path: Path to config.yaml
+        storage_dir: Storage directory path
+        repo_path: Repository path
+        extraction_method: Extraction method to use
+        expansion_method: Expansion method to use
+    """
+    from cicada.setup import create_config_yaml
+
+    if config_path.exists():
+        existing_extraction, existing_expansion = _load_existing_config(config_path)
+
+        extraction_changed = existing_extraction != extraction_method
+        expansion_changed = existing_expansion != expansion_method
+
+        if extraction_changed or expansion_changed:
+            _print_config_change_error(
+                existing_extraction,
+                existing_expansion,
+                extraction_method,
+                expansion_method,
+                extraction_changed,
+                expansion_changed,
+            )
+            sys.exit(1)
+
+    create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
+
+
+def _print_config_change_error(
+    existing_extraction: str,
+    existing_expansion: str,
+    extraction_method: str,
+    expansion_method: str,
+    extraction_changed: bool,
+    expansion_changed: bool,
+) -> None:
+    """Print error message for config changes."""
+    change_desc = _describe_config_change(
+        existing_extraction,
+        existing_expansion,
+        extraction_method,
+        expansion_method,
+        extraction_changed,
+        expansion_changed,
+    )
+
+    print(f"Error: Cannot change {change_desc}", file=sys.stderr)
+    print("\nTo reindex with different settings, first run:", file=sys.stderr)
+    print("  cicada clean", file=sys.stderr)
+    print("\nThen run your index command again.", file=sys.stderr)
+
+
+def _describe_config_change(
+    existing_extraction: str,
+    existing_expansion: str,
+    extraction_method: str,
+    expansion_method: str,
+    extraction_changed: bool,
+    expansion_changed: bool,
+) -> str:
+    """Generate description of config change."""
+    if extraction_changed and expansion_changed:
+        return f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
+    if extraction_changed:
+        return f"extraction from {existing_extraction} to {extraction_method}"
+    return f"expansion from {existing_expansion} to {expansion_method}"
+
+
+def _print_tier_requirement_error() -> None:
+    """Print error message when no tier is specified."""
+    print("Error: No tier specified.", file=sys.stderr)
+    print("\nYou must specify a tier for keyword extraction:", file=sys.stderr)
+    print("  --fast      Fast tier: Regular extraction + lemmi expansion", file=sys.stderr)
+    print("  --regular   Regular tier: KeyBERT small + GloVe expansion (default)", file=sys.stderr)
+    print("  --max       Max tier: KeyBERT large + FastText expansion", file=sys.stderr)
+    print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
 
 
 def handle_index(args):
@@ -593,8 +723,21 @@ def handle_index(args):
         handle_index_test_mode(args)
     elif getattr(args, "test_expansion", False):
         handle_index_test_expansion_mode(args)
+    elif getattr(args, "watch", False):
+        # Handle watch mode using shared logic
+        _setup_and_start_watcher(args, args.repo)
     else:
         handle_index_main(args)
+
+
+def handle_watch(args):
+    """Handle watch command for automatic reindexing on file changes."""
+    from cicada.version_check import check_for_updates
+
+    check_for_updates()
+
+    # Use shared watcher setup logic
+    _setup_and_start_watcher(args, args.repo)
 
 
 def handle_index_pr(args):
@@ -653,8 +796,6 @@ def handle_find_dead_code(args):
 
 
 def handle_clean(args):
-    from pathlib import Path
-
     from cicada.clean import (
         clean_all_projects,
         clean_index_only,
@@ -692,8 +833,6 @@ def handle_clean(args):
 
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
-    from pathlib import Path
-
     from cicada.utils.storage import get_storage_dir
 
     repo_path = Path(args.repo).resolve()
@@ -706,7 +845,7 @@ def handle_dir(args):
         sys.exit(1)
 
 
-def handle_install(args):
+def handle_install(args) -> None:
     """
     Handle the install subcommand (interactive setup).
 
@@ -715,40 +854,20 @@ def handle_install(args):
     - Can skip prompts with flags (--claude, --cursor, --vs, --fast, --regular, --max)
     - Creates editor config and indexes repository
     """
-    from pathlib import Path
+    from typing import cast
 
-    from cicada.interactive_setup import show_first_time_setup
     from cicada.setup import EditorType, setup
     from cicada.utils import get_config_path, get_index_path
 
-    # Determine repository path
+    # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
-
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
-        sys.exit(1)
+    _validate_elixir_project(repo_path)
 
     # Validate tier flags
     validate_tier_flags(args)
 
-    # Count editor flags
-    editor_flags = [args.claude, args.cursor, args.vs]
-    editor_count = sum(editor_flags)
-
-    if editor_count > 1:
-        print("Error: Can only specify one editor flag for install command", file=sys.stderr)
-        sys.exit(1)
-
-    # Determine editor from flags
-    editor: EditorType | None = None
-    if args.claude:
-        editor = "claude"
-    elif args.cursor:
-        editor = "cursor"
-    elif args.vs:
-        editor = "vs"
+    # Parse editor selection
+    editor = _determine_editor_from_args(args)
 
     # Determine extraction and expansion methods from flags
     extraction_method, expansion_method = get_extraction_expansion_methods(args)
@@ -767,52 +886,23 @@ def handle_install(args):
 
     # If only model flags provided (no editor), prompt for editor
     if editor is None:
-        # Show editor selection menu
-        from simple_term_menu import TerminalMenu
-
-        print("Select editor to configure:")
-        print()
-        editor_options = [
-            "Claude Code (Claude AI assistant)",
-            "Cursor (AI-powered code editor)",
-            "VS Code (Visual Studio Code)",
-        ]
-        editor_menu = TerminalMenu(editor_options, title="Choose your editor:")
-        menu_idx = editor_menu.show()
-
-        if menu_idx is None:
-            print("\nSetup cancelled.")
-            sys.exit(0)
-
-        # Map menu index to editor type (menu_idx is guaranteed to be int here)
-        assert isinstance(menu_idx, int), "menu_idx must be an integer"
-        editor_map: tuple[EditorType, EditorType, EditorType] = ("claude", "cursor", "vs")
-        editor = editor_map[menu_idx]
+        editor = _prompt_for_editor()
 
     # If only editor flag provided (no model), prompt for model (unless index exists)
     if extraction_method is None and not index_exists:
+        from cicada.interactive_setup import show_first_time_setup
+
         extraction_method, expansion_method = show_first_time_setup()
 
     # If index exists but no model flags, use existing settings
     if extraction_method is None and index_exists:
-        import yaml
-
-        try:
-            with open(config_path) as f:
-                existing_config = yaml.safe_load(f)
-                extraction_method = existing_config.get("keyword_extraction", {}).get(
-                    "method", "regular"
-                )
-                expansion_method = existing_config.get("keyword_expansion", {}).get(
-                    "method", "lemmi"
-                )
-        except Exception as e:
-            print(f"Warning: Could not load existing config, using defaults: {e}", file=sys.stderr)
+        extraction_method, expansion_method = _load_existing_config(config_path)
 
     # Run setup
+    assert editor is not None
     try:
         setup(
-            editor,
+            cast(EditorType, editor),
             repo_path,
             extraction_method=extraction_method,
             expansion_method=expansion_method,
@@ -823,7 +913,81 @@ def handle_install(args):
         sys.exit(1)
 
 
-def handle_server(args):
+def _validate_elixir_project(repo_path: Path) -> None:
+    """Validate that the repository is an Elixir project.
+
+    Args:
+        repo_path: Path to the repository
+
+    Raises:
+        SystemExit: If not an Elixir project
+    """
+    if not (repo_path / "mix.exs").exists():
+        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
+        print("(mix.exs not found)", file=sys.stderr)
+        sys.exit(1)
+
+
+def _determine_editor_from_args(args) -> str | None:
+    """Determine editor from command-line arguments.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        Editor type or None if not specified
+
+    Raises:
+        SystemExit: If multiple editor flags specified
+    """
+    editor_flags = [args.claude, args.cursor, args.vs]
+    editor_count = sum(editor_flags)
+
+    if editor_count > 1:
+        print("Error: Can only specify one editor flag for install command", file=sys.stderr)
+        sys.exit(1)
+
+    if args.claude:
+        return "claude"
+    if args.cursor:
+        return "cursor"
+    if args.vs:
+        return "vs"
+    return None
+
+
+def _prompt_for_editor() -> str:
+    """Prompt user to select an editor.
+
+    Returns:
+        Selected editor type
+
+    Raises:
+        SystemExit: If user cancels selection
+    """
+    from simple_term_menu import TerminalMenu
+
+    print("Select editor to configure:")
+    print()
+    editor_options = [
+        "Claude Code (Claude AI assistant)",
+        "Cursor (AI-powered code editor)",
+        "VS Code (Visual Studio Code)",
+    ]
+    editor_menu = TerminalMenu(editor_options, title="Choose your editor:")
+    menu_idx = editor_menu.show()
+
+    if menu_idx is None:
+        print("\nSetup cancelled.")
+        sys.exit(0)
+
+    # Map menu index to editor type
+    assert isinstance(menu_idx, int), "menu_idx must be an integer"
+    editor_map: tuple[str, str, str] = ("claude", "cursor", "vs")
+    return editor_map[menu_idx]
+
+
+def handle_server(args) -> None:
     """
     Handle the server subcommand (silent MCP server with optional configs).
 
@@ -834,27 +998,16 @@ def handle_server(args):
     - Starts MCP server on stdio
     """
     import asyncio
+    import logging
     import os
-    from pathlib import Path
 
-    from cicada.setup import (
-        EditorType,
-        create_config_yaml,
-        index_repository,
-        setup_multiple_editors,
-    )
     from cicada.utils import create_storage_dir, get_config_path, get_index_path
 
-    # Determine repository path
-    repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
+    logger = logging.getLogger(__name__)
 
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    # Determine and validate repository path
+    repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
+    _validate_elixir_project(repo_path)
 
     # Validate tier flags
     validate_tier_flags(args)
@@ -871,25 +1024,69 @@ def handle_server(args):
     needs_setup = not (config_path.exists() and index_path.exists())
 
     if needs_setup:
-        # Silent setup with defaults
-        # If no tier specified, default to fast tier (fastest, no downloads)
-        if extraction_method is None:
-            extraction_method = "regular"
-            expansion_method = "lemmi"
+        _perform_silent_setup(repo_path, storage_dir, extraction_method, expansion_method)
 
-        # Create config.yaml (silent)
-        create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
-        )
+    # Create editor configs if requested
+    _configure_editors_if_requested(args, repo_path, storage_dir)
 
-        # Index repository (silent)
-        try:
-            index_repository(repo_path, force_full=False, verbose=False)
-        except Exception as e:
-            print(f"Error during indexing: {e}", file=sys.stderr)
-            sys.exit(1)
+    # Set environment variable for MCP server
+    os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
-    # Create editor configs if flags provided
+    # Start watch process if requested
+    watch_enabled = getattr(args, "watch", False)
+    if watch_enabled:
+        _start_watch_for_server(args, repo_path)
+
+    # Start MCP server
+    from cicada.mcp.server import async_main
+
+    try:
+        asyncio.run(async_main())
+    finally:
+        # Ensure watch process is stopped when server exits
+        if watch_enabled:
+            _cleanup_watch_process(logger)
+
+
+def _perform_silent_setup(
+    repo_path: Path, storage_dir: Path, extraction_method: str | None, expansion_method: str | None
+) -> None:
+    """Perform silent setup with defaults if needed.
+
+    Args:
+        repo_path: Repository path
+        storage_dir: Storage directory path
+        extraction_method: Extraction method or None for defaults
+        expansion_method: Expansion method or None for defaults
+    """
+    from cicada.setup import create_config_yaml, index_repository
+
+    # If no tier specified, default to fast tier (fastest, no downloads)
+    if extraction_method is None:
+        extraction_method = "regular"
+        expansion_method = "lemmi"
+
+    # Create config.yaml (silent)
+    create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method, verbose=False)
+
+    # Index repository (silent)
+    try:
+        index_repository(repo_path, force_full=False, verbose=False)
+    except Exception as e:
+        print(f"Error during indexing: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _configure_editors_if_requested(args, repo_path: Path, storage_dir: Path) -> None:
+    """Configure editors if flags are provided.
+
+    Args:
+        args: Parsed command-line arguments
+        repo_path: Repository path
+        storage_dir: Storage directory path
+    """
+    from cicada.setup import EditorType, setup_multiple_editors
+
     editors_to_configure: list[EditorType] = []
     if args.claude:
         editors_to_configure.append("claude")
@@ -905,10 +1102,41 @@ def handle_server(args):
             print(f"Error creating editor configs: {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Set environment variable for MCP server
-    os.environ["CICADA_REPO_PATH"] = str(repo_path)
 
-    # Start MCP server (silent)
-    from cicada.mcp.server import async_main
+def _start_watch_for_server(args, repo_path: Path) -> None:
+    """Start watch process for the server.
 
-    asyncio.run(async_main())
+    Args:
+        args: Parsed command-line arguments
+        repo_path: Repository path
+    """
+    from cicada.watch_manager import start_watch_process
+
+    # Determine tier using helper
+    tier = determine_tier(args, repo_path)
+
+    # Start the watch process
+    try:
+        if not start_watch_process(repo_path, tier=tier, debounce=DEFAULT_WATCH_DEBOUNCE):
+            print("ERROR: Failed to start watch process as requested", file=sys.stderr)
+            print("Server startup aborted. Run without --watch or fix the issue.", file=sys.stderr)
+            sys.exit(1)
+    except RuntimeError as e:
+        print(f"ERROR: Cannot start watch process: {e}", file=sys.stderr)
+        print("Server startup aborted. Run without --watch or fix the issue.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _cleanup_watch_process(logger) -> None:
+    """Clean up watch process on server exit.
+
+    Args:
+        logger: Logger instance
+    """
+    try:
+        from cicada.watch_manager import stop_watch_process
+
+        stop_watch_process()
+    except Exception as e:
+        logger.exception("Error stopping watch process during cleanup")
+        print(f"Warning: Error stopping watch process: {e}", file=sys.stderr)
