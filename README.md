@@ -129,6 +129,14 @@ cicada claude  # or: cicada cursor, cicada vs
 
 > **Available commands:** `cicada [claude|cursor|vs]`, `cicada index`, `cicada index-pr`, `cicada find-dead-code`
 
+**Available commands after installation:**
+- `cicada [claude|cursor|vs]` - One-command setup per project
+- `cicada-mcp` - MCP server (auto-started by editor)
+- `cicada watch` - Watch for file changes and automatically reindex (standalone)
+- `cicada index` - Re-index code with custom options (--fast, --regular, --max, --watch)
+- `cicada index-pr` - Index pull requests for PR attribution
+- `cicada find-dead-code` - Find potentially unused functions
+
 ### Try Before Installing (uvx)
 
 ```bash
@@ -205,6 +213,52 @@ This will:
 - Detect changed files (incremental indexing)
 - Update the index with new/modified code
 - Keep your existing MCP configuration
+
+### Automatic Re-indexing with Watch Mode
+
+Enable automatic reindexing when files change by starting the MCP server with the `--watch` flag:
+
+**For Claude Code (.mcp.json):**
+```json
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "cicada-mcp",
+      "args": ["--watch"],
+      "env": {
+        "CICADA_REPO_PATH": "/path/to/project",
+        "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"
+      }
+    }
+  }
+}
+```
+
+**For Cursor (.cursor/mcp.json):**
+```json
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "cicada-mcp",
+      "args": ["--watch"]
+    }
+  }
+}
+```
+
+**Or use with the server subcommand:**
+```bash
+cicada server --watch
+cicada server --watch --fast    # Use fast tier for reindexing
+cicada server --watch --max     # Use max tier for reindexing
+```
+
+When watch mode is enabled:
+- A separate process monitors `.ex` and `.exs` files for changes
+- Changes are automatically reindexed (incremental, fast)
+- 2-second debounce prevents excessive reindexing during rapid edits
+- The watch process stops automatically when the MCP server stops
+- Excluded directories: `deps`, `_build`, `node_modules`, `.git`, `assets`, `priv`
 
 ### Optional: PR Attribution
 
@@ -343,11 +397,14 @@ cicada index                         # Index current directory
 cicada index --fast                  # Fast tier: Regular extraction + lemminflect (no downloads)
 cicada index --regular               # Regular tier: KeyBERT small + GloVe (128MB, default)
 cicada index --max                   # Max tier: KeyBERT large + FastText (958MB+)
+cicada index --watch                 # Index once, then watch for changes and auto-reindex
+cicada index --watch --debounce 5.0  # Custom debounce interval (default: 2.0s)
 ```
 - Parses all Elixir files using tree-sitter
 - Extracts modules, functions, and call sites
 - Resolves aliases for accurate tracking
 - Optional keyword extraction for semantic search
+- `--watch` mode: Runs initial index, then monitors files for automatic reindexing
 
 **`cicada index-pr`** - Index GitHub pull requests
 ```bash
@@ -358,6 +415,21 @@ cicada index-pr . --clean      # Full rebuild from scratch
 - Indexes PR metadata and review comments
 - Incremental updates by default
 - Enables PR attribution features
+
+**`cicada watch`** - Watch for file changes and automatically reindex
+```bash
+cicada watch                         # Watch current directory with default settings
+cicada watch --debounce 5.0          # Custom debounce interval (default: 2.0 seconds)
+cicada watch --fast                  # Use fast tier for reindexing
+cicada watch --regular               # Use regular tier for reindexing (default)
+cicada watch --max                   # Use max tier for reindexing
+```
+- Monitors `.ex` and `.exs` files for changes
+- Automatically triggers incremental reindexing when files are modified
+- Debounces rapid changes to avoid excessive reindexing
+- Runs initial index on startup to ensure index is current
+- Press Ctrl-C to stop watching
+- Excludes `deps`, `_build`, `node_modules`, `.git`, `assets`, and `priv` directories
 
 ### Analysis Tools
 

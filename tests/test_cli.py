@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cicada.commands import (
+    _setup_and_start_watcher,
     handle_clean,
     handle_dir,
     handle_editor_setup,
@@ -17,6 +18,7 @@ from cicada.commands import (
     handle_index,
     handle_index_pr,
     handle_install as handle_install_command,
+    handle_watch,
 )
 from cicada.cli import main
 
@@ -309,6 +311,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -342,6 +345,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -409,6 +413,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -455,6 +460,7 @@ class TestHandleIndex:
             repo=str(mock_repo),
             test=False,
             test_expansion=False,
+            watch=False,
         )
 
         with (
@@ -755,3 +761,309 @@ class TestHandleDir:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "Storage error" in captured.err
+
+
+class TestHandleWatch:
+    """Tests for handle_watch() command"""
+
+    def test_handle_watch_calls_version_check(self):
+        """Should call version check before starting watcher"""
+        args = MagicMock(repo=".", fast=True, max=False, regular=False, debounce=2.0)
+
+        with (
+            patch("cicada.version_check.check_for_updates") as mock_check,
+            patch("cicada.commands._setup_and_start_watcher") as mock_setup,
+        ):
+            handle_watch(args)
+
+            mock_check.assert_called_once()
+            mock_setup.assert_called_once_with(args, ".")
+
+    def test_handle_watch_calls_setup_and_start_watcher(self):
+        """Should call _setup_and_start_watcher with correct args"""
+        args = MagicMock(repo="/path/to/repo", fast=False, max=True, regular=False, debounce=3.0)
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.commands._setup_and_start_watcher") as mock_setup,
+        ):
+            handle_watch(args)
+
+            mock_setup.assert_called_once_with(args, "/path/to/repo")
+
+    def test_handle_watch_handles_exceptions(self, capsys):
+        """Should handle exceptions from _setup_and_start_watcher"""
+        args = MagicMock(repo=".", fast=True, max=False, regular=False)
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch(
+                "cicada.commands._setup_and_start_watcher",
+                side_effect=Exception("Watcher failed"),
+            ),
+            pytest.raises(Exception, match="Watcher failed"),
+        ):
+            handle_watch(args)
+
+
+class TestSetupAndStartWatcher:
+    """Tests for _setup_and_start_watcher() helper"""
+
+    def test_setup_and_start_watcher_validates_tier_flags(self, tmp_path):
+        """Should validate tier flags before starting"""
+        args = MagicMock(
+            fast=True,
+            max=True,
+            regular=False,
+            repo=".",
+            debounce=2.0,
+        )
+
+        with (
+            patch("cicada.commands.validate_tier_flags") as mock_validate,
+            patch("cicada.utils.storage.get_config_path"),
+            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.watcher.FileWatcher"),
+        ):
+            try:
+                _setup_and_start_watcher(args, str(tmp_path))
+            except SystemExit:
+                pass
+
+            mock_validate.assert_called_once_with(args)
+
+    def test_setup_and_start_watcher_determines_tier_from_args(self, tmp_path):
+        """Should determine tier from args or config"""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            debounce=2.0,
+        )
+
+        config_path = tmp_path / "config.yaml"
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="fast") as mock_determine,
+            patch("cicada.watcher.FileWatcher") as mock_watcher_class,
+        ):
+            mock_watcher = MagicMock()
+            mock_watcher_class.return_value = mock_watcher
+
+            _setup_and_start_watcher(args, str(tmp_path))
+
+            # Should call determine_tier with args and repo_path
+            mock_determine.assert_called_once()
+            call_args = mock_determine.call_args[0]
+            assert call_args[0] == args
+            assert isinstance(call_args[1], Path)
+
+    def test_setup_and_start_watcher_error_when_no_tier_and_no_config(self, tmp_path, capsys):
+        """Should exit with error when no tier specified and no config exists"""
+        args = MagicMock(
+            fast=False,
+            max=False,
+            regular=False,
+            debounce=2.0,
+        )
+
+        config_path = tmp_path / "nonexistent" / "config.yaml"
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="regular"),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _setup_and_start_watcher(args, str(tmp_path))
+
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert "No tier specified" in captured.err
+
+    def test_setup_and_start_watcher_creates_file_watcher(self, tmp_path):
+        """Should create FileWatcher with correct parameters"""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            debounce=3.5,
+        )
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("test")
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.watcher.FileWatcher") as mock_watcher_class,
+        ):
+            mock_watcher = MagicMock()
+            mock_watcher_class.return_value = mock_watcher
+
+            _setup_and_start_watcher(args, str(tmp_path))
+
+            # Should create FileWatcher with correct params
+            mock_watcher_class.assert_called_once()
+            call_kwargs = mock_watcher_class.call_args[1]
+            assert call_kwargs["debounce_seconds"] == 3.5
+            assert call_kwargs["verbose"] is True
+            assert call_kwargs["tier"] == "fast"
+
+            # Should call start_watching
+            mock_watcher.start_watching.assert_called_once()
+
+    def test_setup_and_start_watcher_handles_debounce_param(self, tmp_path):
+        """Should handle debounce parameter correctly"""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            debounce=5.0,
+        )
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("test")
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.watcher.FileWatcher") as mock_watcher_class,
+        ):
+            mock_watcher = MagicMock()
+            mock_watcher_class.return_value = mock_watcher
+
+            _setup_and_start_watcher(args, str(tmp_path))
+
+            call_kwargs = mock_watcher_class.call_args[1]
+            assert call_kwargs["debounce_seconds"] == 5.0
+
+    def test_setup_and_start_watcher_handles_keyboard_interrupt(self, tmp_path, capsys):
+        """Should handle KeyboardInterrupt gracefully"""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            debounce=2.0,
+        )
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("test")
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.watcher.FileWatcher") as mock_watcher_class,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            mock_watcher = MagicMock()
+            mock_watcher.start_watching.side_effect = KeyboardInterrupt()
+            mock_watcher_class.return_value = mock_watcher
+
+            _setup_and_start_watcher(args, str(tmp_path))
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "Watch mode stopped by user" in captured.out
+
+    def test_setup_and_start_watcher_handles_exceptions(self, tmp_path, capsys):
+        """Should handle exceptions from FileWatcher"""
+        args = MagicMock(
+            fast=True,
+            max=False,
+            regular=False,
+            debounce=2.0,
+        )
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("test")
+
+        with (
+            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.utils.storage.get_config_path", return_value=config_path),
+            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.watcher.FileWatcher") as mock_watcher_class,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            mock_watcher = MagicMock()
+            mock_watcher.start_watching.side_effect = Exception("Watcher error")
+            mock_watcher_class.return_value = mock_watcher
+
+            _setup_and_start_watcher(args, str(tmp_path))
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Watcher error" in captured.err
+
+
+class TestHandleIndexWithWatch:
+    """Tests for handle_index() with --watch flag"""
+
+    def test_handle_index_routes_to_watcher_when_watch_true(self):
+        """Should route to _setup_and_start_watcher when --watch flag is set"""
+        args = MagicMock(
+            repo="/path/to/repo",
+            test=False,
+            test_expansion=False,
+            watch=True,
+            fast=True,
+            max=False,
+            regular=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.commands._setup_and_start_watcher") as mock_setup,
+        ):
+            handle_index(args)
+
+            # Should route to watcher, not normal indexing
+            mock_setup.assert_called_once_with(args, "/path/to/repo")
+
+    def test_handle_index_does_not_run_normal_indexing_when_watch_true(self):
+        """Should not execute normal indexing when watch=True"""
+        args = MagicMock(
+            repo=".",
+            test=False,
+            test_expansion=False,
+            watch=True,
+            fast=False,
+            max=True,
+            regular=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.commands._setup_and_start_watcher"),
+            patch("cicada.commands.handle_index_main") as mock_main,
+        ):
+            handle_index(args)
+
+            # handle_index_main should not be called
+            mock_main.assert_not_called()
+
+    def test_handle_index_passes_correct_repo_path_to_watcher(self):
+        """Should pass correct repo path to _setup_and_start_watcher"""
+        test_repo = "/custom/repo/path"
+        args = MagicMock(
+            repo=test_repo,
+            test=False,
+            test_expansion=False,
+            watch=True,
+            fast=True,
+            max=False,
+            regular=False,
+        )
+
+        with (
+            patch("cicada.version_check.check_for_updates"),
+            patch("cicada.commands._setup_and_start_watcher") as mock_setup,
+        ):
+            handle_index(args)
+
+            mock_setup.assert_called_once_with(args, test_repo)
