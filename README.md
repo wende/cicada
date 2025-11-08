@@ -128,6 +128,7 @@ This command:
 - **Force rebuild:** `rm ~/.cicada/projects/<hash>/hashes.json && cicada index .`
 - **Switch keyword tier:** `cicada index --force --fast|--regular|--max .`
 
+
 ### Enable PR Attribution (optional)
 
 ```bash
@@ -191,6 +192,7 @@ When watch mode is enabled:
 |---------|---------|---------|
 | `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
 | `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
+antic keywords | After large refactors or enabling AI tier |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
 | `cicada find-dead-code --min-confidence high` | List unused public functions | Cleanup sprints |
 
@@ -299,7 +301,7 @@ cicada index-pr . --clean
 **Solution:**
 ```bash
 # Re-index with keyword extraction
-cicada index --force --regular .  # or --force --fast / --force --max
+cicada index --regular .  # or --fast or --max
 ```
 
 **Verify:**

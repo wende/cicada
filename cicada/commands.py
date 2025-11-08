@@ -20,6 +20,21 @@ from cicada.tier import (
 # Default debounce interval for watch mode (in seconds)
 DEFAULT_WATCH_DEBOUNCE = 2.0
 
+KNOWN_SUBCOMMANDS: tuple[str, ...] = (
+    "install",
+    "server",
+    "claude",
+    "cursor",
+    "vs",
+    "watch",
+    "index",
+    "index-pr",
+    "find-dead-code",
+    "clean",
+    "dir",
+)
+KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
+
 
 def _tier_flag_specified(args: argparse.Namespace) -> bool:
     """Return True when any tier flag is present."""
