@@ -9,6 +9,20 @@ making `cli.py` a thin entry point and `mcp_entry.py` focused solely on MCP serv
 import argparse
 import sys
 
+KNOWN_SUBCOMMANDS: tuple[str, ...] = (
+    "install",
+    "server",
+    "claude",
+    "cursor",
+    "vs",
+    "index",
+    "index-pr",
+    "find-dead-code",
+    "clean",
+    "dir",
+)
+KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
+
 
 def validate_tier_flags(args) -> None:
     """Validate that only one tier flag is specified.
