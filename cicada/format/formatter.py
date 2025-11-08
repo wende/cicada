@@ -47,6 +47,40 @@ class ModuleFormatter:
         )
 
     @staticmethod
+    def _format_pr_context(pr_info: dict | None, file_path: str, function_name: str | None = None) -> list[str]:
+        """
+        Format PR context information with suggestions when unavailable.
+
+        Args:
+            pr_info: Optional PR context (number, title, author, comment_count)
+            file_path: Path to the file
+            function_name: Optional function name for more specific suggestions
+
+        Returns:
+            List of formatted lines to append to output
+        """
+        lines = []
+        if pr_info:
+            lines.append("")
+            lines.append(
+                f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+            )
+            if pr_info["comment_count"] > 0:
+                lines.append(
+                    f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
+                )
+        else:
+            # Suggest how to get context when PR info unavailable
+            lines.append("")
+            lines.append("💭 Want to know why this code exists?")
+            lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
+            if function_name:
+                lines.append(f"   • Check git history: get_commit_history(\"{file_path}\", function_name=\"{function_name}\")")
+            else:
+                lines.append(f"   • Check git history: get_commit_history(\"{file_path}\")")
+        return lines
+
+    @staticmethod
     def format_module_markdown(
         module_name: str,
         data: dict[str, Any],
@@ -98,21 +132,7 @@ class ModuleFormatter:
             lines.append(f"      get_file_pr_history(\"{data['file']}\")")
 
         # Add PR context if available
-        if pr_info:
-            lines.append("")
-            lines.append(
-                f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
-            )
-            if pr_info["comment_count"] > 0:
-                lines.append(
-                    f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{data['file']}\")"
-                )
-        else:
-            # Suggest how to get context when PR info unavailable
-            lines.append("")
-            lines.append("💭 Want to know why this code exists?")
-            lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
-            lines.append(f"   • Check git history: get_commit_history(\"{data['file']}\")")
+        lines.extend(ModuleFormatter._format_pr_context(pr_info, data["file"]))
 
         # Add moduledoc if present (first paragraph only for brevity)
         if data.get("moduledoc"):
@@ -660,21 +680,7 @@ class ModuleFormatter:
                 )
 
                 # Add PR context for single results
-                if pr_info:
-                    lines.append("")
-                    lines.append(
-                        f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
-                    )
-                    if pr_info["comment_count"] > 0:
-                        lines.append(
-                            f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
-                        )
-                else:
-                    # Suggest how to get context when PR info unavailable
-                    lines.append("")
-                    lines.append("💭 Want to know why this code exists?")
-                    lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
-                    lines.append(f"   • Check git history: get_commit_history(\"{file_path}\", function_name=\"{func['name']}\")")
+                lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path, func['name']))
             else:
                 lines.extend(
                     [
@@ -688,17 +694,12 @@ class ModuleFormatter:
                 lines.extend(["", "Signature:", "", f"{sig}"])
 
                 # Add PR context for multi-result format
-                if pr_info:
-                    lines.append("")
-                    lines.append(
-                        f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
-                    )
-                    if pr_info["comment_count"] > 0:
-                        lines.append(f"💬 {pr_info['comment_count']} review comment(s) available")
-                else:
-                    # Suggest how to get context when PR info unavailable
-                    lines.append("")
-                    lines.append("💭 Get context: get_commit_history() or build PR index with 'cicada index-pr'")
+                pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
+                # For multi-result, adjust comment count message to be more concise
+                if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
+                    # Replace the last line with shorter version for multi-result display
+                    pr_lines[-1] = f"💬 {pr_info['comment_count']} review comment(s) available"
+                lines.extend(pr_lines)
 
             # Add documentation if present
             if func.get("doc"):

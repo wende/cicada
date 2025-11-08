@@ -8,8 +8,10 @@ Author: Cursor(Auto)
 """
 
 import os
+import subprocess
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -618,7 +620,6 @@ class CicadaServer:
                         func_modified = func.get("last_modified_at")
                         if not func_modified:
                             continue  # Skip functions without timestamp
-                        from datetime import datetime
 
                         if datetime.fromisoformat(func_modified) < cutoff_date:
                             continue  # Function too old, skip
@@ -976,7 +977,7 @@ class CicadaServer:
 
         return call_sites
 
-    def _parse_changed_since(self, changed_since: str):
+    def _parse_changed_since(self, changed_since: str) -> datetime:
         """
         Parse changed_since parameter into datetime.
 
@@ -988,8 +989,6 @@ class CicadaServer:
         Returns:
             datetime object representing the cutoff date
         """
-        from datetime import datetime, timedelta
-
         # ISO date format (YYYY-MM-DD)
         if "-" in changed_since and len(changed_since) >= 10:
             try:
@@ -1018,8 +1017,6 @@ class CicadaServer:
         # Git ref format (requires git_helper)
         if self.git_helper:
             try:
-                import subprocess
-
                 # Get timestamp of the ref using git show
                 repo_path = self.git_helper.repo_path
                 result = subprocess.run(
