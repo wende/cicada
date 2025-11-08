@@ -9,6 +9,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+def configure_menu(mock_menu_class, selections):
+    """Helper to configure TerminalMenu mock responses."""
+    mock_menu_instance = MagicMock()
+    mock_menu_instance.show.side_effect = selections
+    mock_menu_class.return_value = mock_menu_instance
+    return mock_menu_instance
+
+
 class TestInteractiveSetup:
     """Tests for show_first_time_setup function"""
 
@@ -22,9 +30,7 @@ class TestInteractiveSetup:
         mock_ascii.return_value = "ASCII ART"
 
         # Mock menu selections: tier=0 (Fast), pr_indexing=0 (No), claude_md=1 (No)
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 1]  # tier=0, pr=0, claude_md=1
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 1])
 
         extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
@@ -44,13 +50,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = "ASCII ART"
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            1,
-            1,
-            0,
-        ]  # tier=1 (Balanced), pr=1 (Yes), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                1,
+                1,
+                0,
+            ],
+        )
 
         extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
@@ -67,13 +74,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = "ASCII ART"
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            2,
-            0,
-            0,
-        ]  # tier=2 (Maximum), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                2,
+                0,
+                0,
+            ],
+        )
 
         extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
@@ -196,13 +204,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = "ASCII ART"
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            0,
-            1,
-            0,
-        ]  # tier=0 (Fast), pr=1 (Yes), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                0,
+                1,
+                0,
+            ],
+        )
 
         result = show_first_time_setup()
 
@@ -221,13 +230,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = "ASCII ART"
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            0,
-            1,
-            0,
-        ]  # tier=0 (Fast), pr=1 (Yes), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                0,
+                1,
+                0,
+            ],
+        )
 
         show_first_time_setup()
 
@@ -264,9 +274,7 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = "🦗 CICADA ASCII ART"
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0])
 
         show_first_time_setup()
 
@@ -285,9 +293,7 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = ""
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0])
 
         show_first_time_setup()
 
@@ -303,13 +309,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = ""
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            0,
-            0,
-            0,
-        ]  # tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                0,
+                0,
+                0,
+            ],
+        )
 
         show_first_time_setup()
 
@@ -325,13 +332,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = ""
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            0,
-            0,
-            0,
-        ]  # tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                0,
+                0,
+                0,
+            ],
+        )
 
         show_first_time_setup()
 
@@ -347,13 +355,14 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = ""
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [
-            1,
-            0,
-            0,
-        ]  # tier=1 (Balanced), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(
+            mock_menu_class,
+            [
+                1,
+                0,
+                0,
+            ],
+        )
 
         show_first_time_setup()
 
@@ -370,9 +379,7 @@ class TestInteractiveSetup:
 
         mock_ascii.return_value = ""
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0]  # tier, pr, claude_md
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0])
 
         show_first_time_setup()
 
@@ -733,9 +740,7 @@ class TestFallbackScenarios:
         mock_ascii.return_value = "ASCII ART"
 
         # First menu succeeds (tier), second menu raises exception (PR indexing)
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, Exception("Terminal error")]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [1, Exception("Terminal error")])
 
         # Text-based setup will be called after exception
         mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
@@ -940,9 +945,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Menu selections: editor=0 (Claude), tier=0 (Fast), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0, 0]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0, 0])
 
         show_full_interactive_setup(mock_elixir_repo)
 
@@ -983,9 +986,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Menu selections: editor=1 (Cursor), tier=1 (Balanced), pr=1 (Yes), claude_md=1 (No)
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [1, 1, 1, 1]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [1, 1, 1, 1])
 
         # Need to mock PR indexer
         with patch("cicada.interactive_setup_helpers.run_pr_indexing"):
@@ -1027,9 +1028,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Menu selections: editor=2 (VS), tier=2 (Maximum), pr=0 (No), claude_md=0 (Yes)
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [2, 2, 0, 0]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [2, 2, 0, 0])
 
         show_full_interactive_setup(mock_elixir_repo)
 
@@ -1150,9 +1149,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor selection succeeds, tier selection gets Ctrl+C
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, KeyboardInterrupt()]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, KeyboardInterrupt()])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1181,9 +1178,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor + tier succeed, PR indexing gets Ctrl+C
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1, KeyboardInterrupt()]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 1, KeyboardInterrupt()])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1212,9 +1207,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor + tier + PR succeed, CLAUDE.md gets Ctrl+C
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1, 0, KeyboardInterrupt()]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 1, 0, KeyboardInterrupt()])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1264,9 +1257,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor succeeds, tier returns None
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, None]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, None])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1295,9 +1286,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor + tier succeed, PR indexing returns None
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1, None]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 1, None])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1326,9 +1315,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor + tier + PR succeed, CLAUDE.md returns None
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1, 0, None]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 1, 0, None])
 
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(mock_elixir_repo)
@@ -1364,9 +1351,7 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0, 0]  # editor, tier, pr indexing, claude_md
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0, 0])
 
         mock_setup.side_effect = Exception("Setup failed")
 
@@ -1470,9 +1455,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor succeeds, tier menu fails
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, Exception("Terminal error")]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, Exception("Terminal error")])
 
         # Text-based fallback for tier, PR indexing, and CLAUDE.md
         mock_input.side_effect = ["1", "2", "1"]  # tier=1 (Fast), pr=2 (No), claude_md=1 (Yes)
@@ -1510,9 +1493,7 @@ class TestShowFullInteractiveSetup:
         mock_get_index.return_value = mock_index_path
 
         # Editor + tier succeed, PR indexing menu fails
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 1, Exception("Terminal error")]
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 1, Exception("Terminal error")])
 
         # Text-based fallback (re-runs full setup)
         mock_input.side_effect = ["2", "1", "1"]  # tier=2 (Balanced), pr=1 (Yes), claude_md=1 (Yes)
@@ -1591,9 +1572,7 @@ class TestShowFullInteractiveSetup:
         mock_index_path.exists.return_value = False
         mock_get_index.return_value = mock_index_path
 
-        mock_menu_instance = MagicMock()
-        mock_menu_instance.show.side_effect = [0, 0, 0, 0]  # editor, tier, pr indexing, claude_md
-        mock_menu_class.return_value = mock_menu_instance
+        mock_menu_instance = configure_menu(mock_menu_class, [0, 0, 0, 0])
 
         with patch("pathlib.Path.cwd", return_value=mock_elixir_repo):
             show_full_interactive_setup(None)

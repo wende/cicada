@@ -14,6 +14,7 @@ from pathlib import Path
 from cicada.tier import (
     determine_tier,
     get_extraction_expansion_methods,
+    tier_flag_specified,
     validate_tier_flags,
 )
 
@@ -36,34 +37,6 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
 
-def _tier_flag_specified(args: argparse.Namespace) -> bool:
-    """Return True when any tier flag is present."""
-    return any(getattr(args, flag, False) is True for flag in ("fast", "regular", "max"))
-
-
-def _validate_force_tier_usage(args: argparse.Namespace) -> None:
-    """Ensure --force is used correctly with tier flags for the index command."""
-    tier_specified = _tier_flag_specified(args)
-    force_enabled = getattr(args, "force", False) is True
-
-    if force_enabled and not tier_specified:
-        print(
-            "Error: --force requires specifying a tier flag (--fast, --regular, or --max).",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    if not force_enabled and tier_specified:
-        print(
-            "Error: Tier flags now require --force to override the configured tier.",
-            file=sys.stderr,
-        )
-        print(
-            "Run 'cicada index --force --fast|--regular|--max' to select a tier.", file=sys.stderr
-        )
-        sys.exit(2)
-
-
 def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     """Shared logic for starting file watcher.
 
@@ -78,7 +51,7 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     from cicada.watcher import FileWatcher
 
     # Validate tier flags
-    validate_tier_flags(args)
+    validate_tier_flags(args, require_force=True)
 
     # Resolve repository path
     repo_path = Path(repo_path_str).resolve()
@@ -88,7 +61,7 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     tier = determine_tier(args, repo_path)
 
     # Check if config exists when no tier is specified
-    tier_specified = _tier_flag_specified(args)
+    tier_specified = tier_flag_specified(args)
     if not tier_specified and not config_path.exists():
         _print_tier_requirement_error()
         print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
@@ -646,7 +619,7 @@ def handle_index_main(args) -> None:
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
-    validate_tier_flags(args)
+    validate_tier_flags(args, require_force=True)
 
     repo_path = Path(args.repo).resolve()
     config_path = get_config_path(repo_path)
@@ -790,8 +763,6 @@ def handle_index(args):
     if getattr(args, "test_expansion", False):
         handle_index_test_expansion_mode(args)
         return
-
-    _validate_force_tier_usage(args)
 
     if getattr(args, "watch", False):
         # Handle watch mode using shared logic

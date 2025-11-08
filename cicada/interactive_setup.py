@@ -33,6 +33,71 @@ from cicada.interactive_setup_helpers import (
     run_setup,
 )
 
+MENU_STYLE = {
+    "title": "",
+    "menu_cursor": "» ",
+    "menu_cursor_style": ("fg_yellow", "bold"),
+    "menu_highlight_style": ("fg_yellow", "bold"),
+    "cycle_cursor": True,
+    "clear_screen": False,
+}
+
+
+class MenuUnavailableError(Exception):
+    """Raised when TerminalMenu cannot be used for interactive prompts."""
+
+
+def _print_first_time_intro(show_header: bool) -> None:
+    """Render the ASCII art banner and intro text."""
+    if show_header:
+        print(generate_gradient_ascii_art())
+        print(f"{PRIMARY}{'=' * 70}{RESET}")
+        print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+        print(f"{PRIMARY}{'=' * 70}{RESET}")
+    print()
+    print(f"This is your first time running CICADA in this project.{RESET}")
+    print(f"Let's configure keyword extraction for code intelligence.{RESET}")
+    print()
+
+
+def _prompt_menu_selection(items: list[str], cancel_message: str) -> int:
+    """Display a menu and return the selected index."""
+    if TerminalMenu is None:
+        raise MenuUnavailableError
+
+    try:
+        menu = TerminalMenu(items, **MENU_STYLE)  # type: ignore[arg-type]
+    except Exception:
+        raise MenuUnavailableError from None
+
+    try:
+        selection = menu.show()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        print(cancel_message)
+        sys.exit(1)
+    except Exception:
+        raise MenuUnavailableError from None
+
+    if selection is None:
+        print()
+        print(cancel_message)
+        sys.exit(1)
+
+    if isinstance(selection, tuple):
+        selection = selection[0]
+
+    return int(selection)
+
+
+def _handle_menu_unavailable() -> tuple[str, str, bool, bool]:
+    """Fallback to text-based setup when TerminalMenu cannot be used."""
+    print(
+        f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
+        file=sys.stderr,
+    )
+    return _text_based_setup()
+
 
 def _text_based_setup() -> tuple[str, str, bool, bool]:
     """
@@ -42,14 +107,8 @@ def _text_based_setup() -> tuple[str, str, bool, bool]:
         tuple[str, str, bool, bool]: The selected extraction method, expansion method,
                                      whether to index PRs, and whether to add to CLAUDE.md
     """
-    print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
-    print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print()
-    print(f"This is your first time running CICADA in this project.{RESET}")
-    print(f"Let's configure keyword extraction for code intelligence.{RESET}")
-    print()
-    print(f"{BOLD}Step 1/2: Choose intelligence tier{RESET}")
+    _print_first_time_intro(show_header=True)
+    print(f"{BOLD}Step 1/3: Choose intelligence tier{RESET}")
     print()
     print("1. Fast - Term frequency + inflections (no downloads)")
     print("2. Balanced - KeyBERT + GloVe semantic expansion (261MB)")
@@ -125,11 +184,14 @@ def _text_based_setup() -> tuple[str, str, bool, bool]:
     return (method, expansion_method, index_prs, add_to_claude_md_flag)
 
 
-def show_first_time_setup() -> tuple[str, str, bool, bool]:
+def show_first_time_setup(show_welcome: bool = True) -> tuple[str, str, bool, bool]:
     """
     Display an interactive first-time setup menu for cicada.
 
     Falls back to text-based input if the terminal doesn't support simple-term-menu.
+
+    Args:
+        show_welcome: Whether to display the ASCII art banner and intro text.
 
     Returns:
         tuple[str, str, bool, bool]: The selected extraction method, expansion method,
@@ -140,52 +202,21 @@ def show_first_time_setup() -> tuple[str, str, bool, bool]:
     if not has_terminal_menu:
         return _text_based_setup()
 
-    # Display ASCII art
-    print(generate_gradient_ascii_art())
-
-    # Step 1: Choose intelligence tier
-    print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
-    print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print()
-    print(f"This is your first time running CICADA in this project.{RESET}")
-    print(f"Let's configure keyword extraction for code intelligence.{RESET}")
-    print()
+    _print_first_time_intro(show_header=show_welcome)
     print(f"{BOLD}Step 1/3: Choose intelligence tier{RESET}")
 
-    try:
-        if TerminalMenu is None:
-            return _text_based_setup()
-        tier_menu = TerminalMenu(
-            TIER_ITEMS,
-            title="",
-            menu_cursor="» ",
-            menu_cursor_style=("fg_yellow", "bold"),
-            menu_highlight_style=("fg_yellow", "bold"),
-            cycle_cursor=True,
-            clear_screen=False,
-        )
-        tier_index = tier_menu.show()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print("Setup cancelled. Exiting...")
-        sys.exit(1)
-    except Exception:
-        # Terminal doesn't support the menu - fall back to text-based
-        print(
-            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-            file=sys.stderr,
-        )
-        return _text_based_setup()
+    def _select_with_menu(items: list[str], cancel_message: str) -> int | None:
+        try:
+            return _prompt_menu_selection(items, cancel_message)
+        except MenuUnavailableError:
+            return None
 
+    tier_index = _select_with_menu(TIER_ITEMS, "Setup cancelled. Exiting...")
     if tier_index is None:
-        print()
-        print("Setup cancelled. Exiting...")
-        sys.exit(1)
+        return _handle_menu_unavailable()
 
-    idx = int(tier_index) if isinstance(tier_index, int) else tier_index[0]
-    method, expansion_method = TIER_MAP[idx]
-    display_tier_selection(idx)
+    method, expansion_method = TIER_MAP[tier_index]
+    display_tier_selection(tier_index)
 
     # Step 2: Ask about PR indexing
     print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
@@ -193,37 +224,14 @@ def show_first_time_setup() -> tuple[str, str, bool, bool]:
     print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
     print()
 
-    try:
-        if TerminalMenu is None:
-            return _text_based_setup()
-        pr_menu = TerminalMenu(
-            PR_ITEMS,
-            title="",
-            menu_cursor="» ",
-            menu_cursor_style=("fg_yellow", "bold"),
-            menu_highlight_style=("fg_yellow", "bold"),
-            cycle_cursor=True,
-            clear_screen=False,
-        )
-        pr_index = pr_menu.show()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-    except Exception:
-        print(
-            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-            file=sys.stderr,
-        )
-        return _text_based_setup()
-
+    pr_index = _select_with_menu(
+        PR_ITEMS,
+        f"{SELECTED}Setup cancelled. Exiting...{RESET}",
+    )
     if pr_index is None:
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
+        return _handle_menu_unavailable()
 
-    idx = int(pr_index) if isinstance(pr_index, int) else pr_index[0]
-    index_prs = idx == 1
+    index_prs = pr_index == 1
     display_pr_indexing_selection(index_prs)
 
     # Step 3: Ask about adding to CLAUDE.md
@@ -232,37 +240,14 @@ def show_first_time_setup() -> tuple[str, str, bool, bool]:
     print(f"{PRIMARY}   understand when and how to use Cicada tools effectively{RESET}")
     print()
 
-    try:
-        if TerminalMenu is None:
-            return _text_based_setup()
-        claude_md_menu = TerminalMenu(
-            CLAUDE_MD_ITEMS,
-            title="",
-            menu_cursor="» ",
-            menu_cursor_style=("fg_yellow", "bold"),
-            menu_highlight_style=("fg_yellow", "bold"),
-            cycle_cursor=True,
-            clear_screen=False,
-        )
-        claude_md_index = claude_md_menu.show()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-    except Exception:
-        print(
-            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-            file=sys.stderr,
-        )
-        return _text_based_setup()
-
+    claude_md_index = _select_with_menu(
+        CLAUDE_MD_ITEMS,
+        f"{SELECTED}Setup cancelled. Exiting...{RESET}",
+    )
     if claude_md_index is None:
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
+        return _handle_menu_unavailable()
 
-    idx = int(claude_md_index) if isinstance(claude_md_index, int) else claude_md_index[0]
-    add_to_claude_md_flag = idx == 0  # "Yes" is at index 0
+    add_to_claude_md_flag = claude_md_index == 0  # "Yes" is at index 0
     display_claude_md_selection(add_to_claude_md_flag)
 
     return (method, expansion_method, index_prs, add_to_claude_md_flag)
@@ -388,195 +373,17 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         )
         return
 
-    # Step 2: Choose intelligence tier
-    print(f"{BOLD}Step 2/4: Choose intelligence tier{RESET}")
+    extraction_method, expansion_method, index_prs, add_to_claude_md_flag = show_first_time_setup(
+        show_welcome=False
+    )
 
-    if has_terminal_menu:
-        try:
-            if TerminalMenu is None:
-                extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-                    show_first_time_setup()
-                )
-                _run_setup_with_error_handling(
-                    editor, repo_path, extraction_method, expansion_method
-                )
-                if index_prs:
-                    run_pr_indexing(repo_path)
-                if add_to_claude_md_flag:
-                    add_to_claude_md(repo_path)
-                return
-
-            tier_menu = TerminalMenu(
-                TIER_ITEMS,
-                title="",
-                menu_cursor="» ",
-                menu_cursor_style=("fg_yellow", "bold"),
-                menu_highlight_style=("fg_yellow", "bold"),
-                cycle_cursor=True,
-                clear_screen=False,
-            )
-            tier_index = tier_menu.show()
-
-            if tier_index is None:
-                print()
-                print("Setup cancelled. Exiting...")
-                sys.exit(1)
-
-            idx = int(tier_index) if isinstance(tier_index, int) else tier_index[0]
-            extraction_method, expansion_method = TIER_MAP[idx]
-        except (KeyboardInterrupt, EOFError):
-            print()
-            print("Setup cancelled. Exiting...")
-            sys.exit(1)
-        except Exception:
-            print(
-                f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-                file=sys.stderr,
-            )
-            extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-                show_first_time_setup()
-            )
-            _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-            if index_prs:
-                run_pr_indexing(repo_path)
-            if add_to_claude_md_flag:
-                add_to_claude_md(repo_path)
-            return
-    else:
-        extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-            show_first_time_setup()
-        )
-        _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-        if index_prs:
-            run_pr_indexing(repo_path)
-        if add_to_claude_md_flag:
-            add_to_claude_md(repo_path)
-        return
-
-    display_tier_selection(idx)
-
-    # Step 3: Ask about PR indexing
-    print(f"{BOLD}Step 3/4: Index pull requests?{RESET}")
-    print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
-    print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
-    print()
-
-    try:
-        if TerminalMenu is None:
-            extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-                show_first_time_setup()
-            )
-            _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-            if index_prs:
-                run_pr_indexing(repo_path)
-            if add_to_claude_md_flag:
-                add_to_claude_md(repo_path)
-            return
-
-        pr_menu = TerminalMenu(
-            PR_ITEMS,
-            title="",
-            menu_cursor="» ",
-            menu_cursor_style=("fg_yellow", "bold"),
-            menu_highlight_style=("fg_yellow", "bold"),
-            cycle_cursor=True,
-            clear_screen=False,
-        )
-        pr_index = pr_menu.show()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-    except Exception:
-        print(
-            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-            file=sys.stderr,
-        )
-        extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-            show_first_time_setup()
-        )
-        _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-        if index_prs:
-            run_pr_indexing(repo_path)
-        if add_to_claude_md_flag:
-            add_to_claude_md(repo_path)
-        return
-
-    if pr_index is None:
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-
-    idx = int(pr_index) if isinstance(pr_index, int) else pr_index[0]
-    index_prs = idx == 1
-    display_pr_indexing_selection(index_prs)
-
-    # Step 4: Ask about adding to CLAUDE.md
-    print(f"{BOLD}Step 4/4: Augment CLAUDE.md for AI assistants?{RESET}")
-    print(f"{PRIMARY}   Add documentation to CLAUDE.md to help AI assistants{RESET}")
-    print(f"{PRIMARY}   understand when and how to use Cicada tools effectively{RESET}")
-    print()
-
-    try:
-        if TerminalMenu is None:
-            extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-                show_first_time_setup()
-            )
-            _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-            if index_prs:
-                run_pr_indexing(repo_path)
-            if add_to_claude_md_flag:
-                add_to_claude_md(repo_path)
-            return
-
-        claude_md_menu = TerminalMenu(
-            CLAUDE_MD_ITEMS,
-            title="",
-            menu_cursor="» ",
-            menu_cursor_style=("fg_yellow", "bold"),
-            menu_highlight_style=("fg_yellow", "bold"),
-            cycle_cursor=True,
-            clear_screen=False,
-        )
-        claude_md_index = claude_md_menu.show()
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-    except Exception:
-        print(
-            f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
-            file=sys.stderr,
-        )
-        extraction_method, expansion_method, index_prs, add_to_claude_md_flag = (
-            show_first_time_setup()
-        )
-        _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-        if index_prs:
-            run_pr_indexing(repo_path)
-        if add_to_claude_md_flag:
-            add_to_claude_md(repo_path)
-        return
-
-    if claude_md_index is None:
-        print()
-        print(f"{SELECTED}Setup cancelled. Exiting...{RESET}")
-        sys.exit(1)
-
-    idx = int(claude_md_index) if isinstance(claude_md_index, int) else claude_md_index[0]
-    add_to_claude_md_flag = idx == 0  # "Yes" is at index 0
-    display_claude_md_selection(add_to_claude_md_flag)
-
-    # Run setup
     print(f"{BOLD}Running setup...{RESET}")
     print()
 
     _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
 
-    # Run PR indexing if requested
     if index_prs:
         run_pr_indexing(repo_path)
 
-    # Add to CLAUDE.md if requested
     if add_to_claude_md_flag:
         add_to_claude_md(repo_path)

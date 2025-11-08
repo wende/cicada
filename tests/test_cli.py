@@ -23,6 +23,23 @@ from cicada.commands import (
 from cicada.cli import main
 
 
+def make_index_args(**overrides):
+    """Build a MagicMock with sensible defaults for index command args."""
+    defaults = {
+        "fast": False,
+        "max": False,
+        "regular": False,
+        "force": False,
+        "repo": ".",
+        "test": False,
+        "test_expansion": False,
+        "watch": False,
+        "debounce": 2.0,
+    }
+    defaults.update(overrides)
+    return MagicMock(**defaults)
+
+
 class TestMain:
     """Tests for main() entry point"""
 
@@ -169,7 +186,7 @@ class TestHandleEditorSetup:
 
     def test_cannot_specify_multiple_tiers(self, mock_elixir_repo, capsys):
         """Should error if multiple tier flags specified"""
-        args = MagicMock(fast=True, max=True, regular=False)
+        args = make_index_args(fast=True, max=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -183,7 +200,7 @@ class TestHandleEditorSetup:
 
     def test_requires_elixir_project(self, tmp_path, capsys):
         """Should error if not an Elixir project"""
-        args = MagicMock(fast=False, max=False, regular=False)
+        args = make_index_args()
 
         with (
             patch("pathlib.Path.cwd", return_value=tmp_path),
@@ -197,7 +214,7 @@ class TestHandleEditorSetup:
 
     def test_fast_flag_sets_regular_extraction(self, mock_elixir_repo):
         """--fast should set extraction to regular + lemmi expansion"""
-        args = MagicMock(fast=True, max=False, regular=False)
+        args = make_index_args(fast=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -212,7 +229,7 @@ class TestHandleEditorSetup:
 
     def test_regular_flag_sets_bert_glove(self, mock_elixir_repo):
         """--regular should set extraction to bert + glove expansion"""
-        args = MagicMock(fast=False, max=False, regular=True)
+        args = make_index_args(regular=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -227,7 +244,7 @@ class TestHandleEditorSetup:
 
     def test_max_flag_sets_bert_fasttext(self, mock_elixir_repo):
         """--max should set extraction to bert + fasttext expansion"""
-        args = MagicMock(fast=False, max=True, regular=False)
+        args = make_index_args(max=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -241,7 +258,7 @@ class TestHandleEditorSetup:
 
     def test_no_flags_with_existing_index(self, mock_elixir_repo, tmp_path):
         """Should read existing config when no flags and index exists"""
-        args = MagicMock(fast=False, max=False, regular=False)
+        args = make_index_args()
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -279,7 +296,7 @@ class TestHandleEditorSetup:
 
     def test_setup_exception_exits(self, mock_elixir_repo, capsys):
         """Should exit with error if setup fails"""
-        args = MagicMock(fast=True, max=False, regular=False)
+        args = make_index_args(fast=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -304,16 +321,7 @@ class TestHandleIndex:
 
     def test_fast_flag_creates_config(self, mock_repo):
         """--fast should create config with regular extraction and lemmi expansion"""
-        args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
-            force=True,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(fast=True, force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -339,16 +347,7 @@ class TestHandleIndex:
 
     def test_regular_flag_creates_config_with_bert_glove(self, mock_repo):
         """--regular should create config with bert extraction and glove expansion"""
-        args = MagicMock(
-            fast=False,
-            max=False,
-            regular=True,
-            force=True,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(regular=True, force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -374,16 +373,7 @@ class TestHandleIndex:
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
-        args = MagicMock(
-            fast=False,
-            max=False,
-            regular=False,
-            force=False,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -408,16 +398,7 @@ class TestHandleIndex:
 
     def test_force_requires_tier_flag(self, mock_repo, capsys):
         """--force without a tier flag should exit with error."""
-        args = MagicMock(
-            fast=False,
-            max=False,
-            regular=False,
-            force=True,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -434,16 +415,7 @@ class TestHandleIndex:
 
     def test_tier_flag_without_force_errors(self, mock_repo, capsys):
         """Tier flags without --force should exit with error."""
-        args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
-            force=False,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(fast=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -460,16 +432,7 @@ class TestHandleIndex:
 
     def test_changing_method_exits_with_error(self, mock_repo, capsys):
         """Changing extraction method should exit with error and suggest cicada clean"""
-        args = MagicMock(
-            fast=False,
-            max=False,
-            regular=True,
-            force=True,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(regular=True, force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -508,16 +471,7 @@ class TestHandleIndex:
 
     def test_changing_expansion_method_exits_with_error(self, mock_repo, capsys):
         """Changing expansion method should exit with error and suggest cicada clean"""
-        args = MagicMock(
-            fast=False,
-            max=True,
-            regular=False,
-            force=True,
-            repo=str(mock_repo),
-            test=False,
-            test_expansion=False,
-            watch=False,
-        )
+        args = make_index_args(max=True, force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -886,7 +840,7 @@ class TestSetupAndStartWatcher:
             except SystemExit:
                 pass
 
-            mock_validate.assert_called_once_with(args)
+            mock_validate.assert_called_once_with(args, require_force=True)
 
     def test_setup_and_start_watcher_determines_tier_from_args(self, tmp_path):
         """Should determine tier from args or config"""

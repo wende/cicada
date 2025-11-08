@@ -22,23 +22,54 @@ TIER_METHODS = {
 DEFAULT_METHODS = ("regular", "lemmi")
 
 
-def validate_tier_flags(args: argparse.Namespace) -> None:
+def validate_tier_flags(args: argparse.Namespace, *, require_force: bool = False) -> None:
     """Validate that only one tier flag is specified.
 
     Args:
         args: Parsed command-line arguments with fast, regular, and max attributes
+        require_force: Whether --force is required when specifying tier flags
 
     Raises:
-        SystemExit: If more than one tier flag is specified
+        SystemExit: If validation fails
     """
-    tier_flags = [args.fast, getattr(args, "regular", False), args.max]
+    tier_flags = [bool(args.fast), bool(getattr(args, "regular", False)), bool(args.max)]
+    tier_count = sum(tier_flags)
 
-    if sum(tier_flags) > 1:
+    if tier_count > 1:
         print(
             "Error: Can only specify one tier flag (--fast, --regular, or --max)",
             file=sys.stderr,
         )
         sys.exit(1)
+
+    if not require_force:
+        return
+
+    force_enabled = getattr(args, "force", False) is True
+    tier_specified = tier_count == 1
+
+    if force_enabled and not tier_specified:
+        print(
+            "Error: --force requires specifying a tier flag (--fast, --regular, or --max).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if tier_specified and not force_enabled:
+        print(
+            "Error: Tier flags now require --force to override the configured tier.",
+            file=sys.stderr,
+        )
+        print(
+            "Run 'cicada index --force --fast|--regular|--max' to select a tier.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+def tier_flag_specified(args: argparse.Namespace) -> bool:
+    """Return True when any tier flag is present."""
+    return bool(args.fast or getattr(args, "regular", False) or args.max)
 
 
 def get_tier_from_args(args: argparse.Namespace) -> str | None:

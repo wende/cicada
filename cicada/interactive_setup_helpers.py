@@ -14,42 +14,26 @@ class NotElixirProjectError(Exception):
 
 
 # Tier configuration data
-TIER_ITEMS = [
-    "Fast - Term frequency + inflections (no downloads)",
-    "Balanced - KeyBERT + GloVe semantic expansion (261MB)",
-    "Maximum - KeyBERT + FastText expansion (1091MB)",
-]
+_TIER_OPTIONS = (
+    ("Fast - Term frequency + inflections (no downloads)", ("regular", "lemmi")),
+    ("Balanced - KeyBERT + GloVe semantic expansion (261MB)", ("bert", "glove")),
+    ("Maximum - KeyBERT + FastText expansion (1091MB)", ("bert", "fasttext")),
+)
 
-TIER_MAP = {
-    0: ("regular", "lemmi"),
-    1: ("bert", "glove"),
-    2: ("bert", "fasttext"),
-}
-
-TIER_MAP_TEXT = {
-    "1": ("regular", "lemmi"),
-    "2": ("bert", "glove"),
-    "3": ("bert", "fasttext"),
-}
+TIER_ITEMS = [label for label, _ in _TIER_OPTIONS]
+TIER_MAP = {idx: methods for idx, (_, methods) in enumerate(_TIER_OPTIONS)}
+TIER_MAP_TEXT = {str(idx + 1): methods for idx, methods in TIER_MAP.items()}
 
 # Editor configuration data
-EDITOR_ITEMS = [
-    "Claude Code - AI-powered code editor",
-    "Cursor - AI-first code editor",
-    "VS Code - Visual Studio Code",
-]
+_EDITOR_OPTIONS = (
+    ("Claude Code - AI-powered code editor", "claude"),
+    ("Cursor - AI-first code editor", "cursor"),
+    ("VS Code - Visual Studio Code", "vs"),
+)
 
-EDITOR_MAP = {
-    0: "claude",
-    1: "cursor",
-    2: "vs",
-}
-
-EDITOR_MAP_TEXT = {
-    "1": "claude",
-    "2": "cursor",
-    "3": "vs",
-}
+EDITOR_ITEMS = [label for label, _ in _EDITOR_OPTIONS]
+EDITOR_MAP = {idx: value for idx, (_, value) in enumerate(_EDITOR_OPTIONS)}
+EDITOR_MAP_TEXT = {str(idx + 1): value for idx, value in EDITOR_MAP.items()}
 
 # PR indexing options
 PR_ITEMS = [
