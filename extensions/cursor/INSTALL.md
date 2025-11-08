@@ -259,8 +259,8 @@ Once installed, you can use these Cicada tools in Cursor:
 
 | Tool | Description |
 |------|-------------|
-| `search_module` | View a module's complete API with functions, docs, and typespecs |
-| `search_function` | Find function definitions and all call sites |
+| `search_module` | View a module's complete API with functions, docs, and typespecs. Supports wildcards (`*`) and OR patterns (`|`) |
+| `search_function` | Find function definitions and all call sites. Supports wildcards (`*`) and OR patterns (`|`) |
 | `search_module_usage` | Find all places where a module is used |
 | `find_pr_for_line` | Discover which PR introduced a specific line of code |
 | `get_commit_history` | Get commit history for files or functions |

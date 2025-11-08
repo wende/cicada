@@ -1,6 +1,81 @@
-# CICADA - AI Assistant Guidelines
+# CICADA - AI Agent Guidelines
 
-This file contains project-specific instructions for AI assistants working on the CICADA codebase.
+This file contains project-specific instructions for AI agents working on the CICADA codebase.
+
+## Supported Editors
+
+CICADA supports the following AI-powered editors and tools:
+
+- **Claude Code** - AI-powered code editor from Anthropic
+- **Cursor** - AI-first code editor
+- **VS Code** - Visual Studio Code with AI extensions
+- **Gemini CLI** - Google Gemini command line interface
+- **Codex** - AI code editor
+
+## Installation
+
+Choose your editor and run the appropriate setup command:
+
+```bash
+# Claude Code
+cicada claude
+
+# Cursor
+cicada cursor
+
+# VS Code
+cicada vs
+
+# Gemini CLI
+cicada gemini
+
+# Codex
+cicada codex
+
+# Interactive setup (choose editor interactively)
+cicada install
+```
+
+## Editor-Specific Configuration
+
+CICADA creates the following configuration files for each editor:
+
+| Editor | Configuration File | Location |
+|--------|-------------------|----------|
+| Claude Code | `.mcp.json` | Project root |
+| Cursor | `mcp.json` | `.cursor/` directory |
+| VS Code | `settings.json` | `.vscode/` directory |
+| Gemini CLI | `mcp.json` | `.gemini/` directory |
+| Codex | `mcp.json` | `.codex/` directory |
+
+## Code Search Guidelines
+
+When working with Elixir codebases, AI agents should follow these guidelines:
+
+<cicada>
+  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+
+  ### Use cicada tools for:
+  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
+  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
+  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
+  - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
+  - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
+  - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
+  - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
+  - Semantic search for code by concept/topic when exact names are unknown. `mcp__cicada__search_by_keywords`
+  - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
+
+  ### DO NOT use Grep for:
+  - ❌ Searching for module structure
+  - ❌ Searching for function definitions
+  - ❌ Searching for module imports/usage
+
+  ### You can still use Grep for:
+  - ✓ Non-code files (markdown, JSON, config)
+  - ✓ String literal searches
+  - ✓ Pattern matching in single line comments
+</cicada>
 
 ## Release Process
 
@@ -58,10 +133,7 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
   - All generated files (index.json, config.yaml, hashes.json, pr_index.json) are stored here
   - Repository hash is generated from the resolved absolute path using SHA-256 (truncated to 16 hex chars)
 
-- **Repository Config:** Only one MCP config file is added to the user's repository:
-  - `.mcp.json` (Claude Code)
-  - `.cursor/mcp.json` (Cursor)
-  - `.vscode/settings.json` (VS Code)
+- **Repository Config:** Only one MCP config file is added to the user's repository per editor
 
 - **Storage Utilities:** `cicada/utils/storage.py` provides functions for:
   - `get_repo_hash(repo_path)` - Generate unique hash for a repository
@@ -113,33 +185,5 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - Include type hints where appropriate
 - Write tests for new features
 - Keep functions focused and modular
-
-- When searching through the Elixir codebase, use the cicada-mcp MCP server tools instead of grep/find commands for better accuracy and context.
-- use make to run tests
-
-<cicada>
-  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
-
-  ### Use cicada tools for:
-  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. Supports wildcards (`MyApp.*`) and OR patterns (`MyApp.User|MyApp.Post`). `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. Supports wildcards (`create*`) and OR patterns (`create*|update*`). `mcp__cicada__search_function`
-  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
-  - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
-  - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
-  - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
-  - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
-  - Semantic search for code by concept/topic when exact names are unknown. `mcp__cicada__search_by_keywords`
-  - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
-
-  ### DO NOT use Grep for:
-  - ❌ Searching for module structure
-  - ❌ Searching for function definitions
-  - ❌ Searching for module imports/usage
-
-  ### You can still use Grep for:
-  - ✓ Non-code files (markdown, JSON, config)
-  - ✓ String literal searches
-  - ✓ Pattern matching in single line comments
-</cicada>
-
-
+- When searching through the Elixir codebase, use the cicada-mcp MCP server tools instead of grep/find commands for better accuracy and context
+- Use make to run tests

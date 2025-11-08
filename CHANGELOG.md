@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Wildcard and OR Pattern Support for Search Tools** ([#73](https://github.com/wende/cicada/pull/73))
+  - `search_module` now supports wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
+  - `search_function` now supports wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
+  - Patterns work across module names, function names, and file paths
+  - Examples: `lib/my_app/*.ex:create*`, `MyApp.*.Module`, `create_user/2|validate_email/1`
+
 ## [0.2.3] - 2025-11-03
 
 ### Fixed

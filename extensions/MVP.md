@@ -36,13 +36,13 @@
 
 #### Core Search Capabilities
 - **Module Search** (`search_module`)
-  - Find any Elixir module by name
+  - Find any Elixir module by name with wildcards (`MyApp.*`) and OR patterns (`MyApp.User|MyApp.Post`)
   - View complete API: functions, docs, typespecs, line numbers
   - Filter private functions
   - JSON or Markdown output
 
 - **Function Search** (`search_function`)
-  - Find function definitions across all modules
+  - Find function definitions across all modules with wildcards (`create*`) and OR patterns (`create*|update*`)
   - Supports arity filtering (e.g., `create_user/2`)
   - Module-scoped search (e.g., `MyApp.User.create_user`)
   - View function signatures, docs, typespecs

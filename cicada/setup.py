@@ -22,7 +22,7 @@ from cicada.utils import (
     get_index_path,
 )
 
-EditorType = Literal["claude", "cursor", "vs"]
+EditorType = Literal["claude", "cursor", "vs", "gemini", "codex"]
 
 
 def _load_existing_config(config_path: Path) -> dict:
@@ -116,6 +116,16 @@ def get_mcp_config_for_editor(
         "vs": {
             "config_path": repo_path / ".vscode" / "settings.json",
             "config_key": "mcp.servers",
+            "needs_dir": True,
+        },
+        "gemini": {
+            "config_path": repo_path / ".gemini" / "mcp.json",
+            "config_key": "mcpServers",
+            "needs_dir": True,
+        },
+        "codex": {
+            "config_path": repo_path / ".codex" / "mcp.json",
+            "config_key": "mcpServers",
             "needs_dir": True,
         },
     }
@@ -251,23 +261,44 @@ def setup_multiple_editors(
                 print(f"⚠ Error creating {editor.upper()} config: {e}")
 
 
-def update_claude_md(repo_path: Path) -> None:
-    """Update CLAUDE.md with instructions to use cicada-mcp for Elixir codebase searches."""
-    import re
+def update_claude_md(repo_path: Path, editor: EditorType | None = None) -> None:
+    """Update CLAUDE.md and AGENTS.md with instructions to use cicada-mcp for Elixir codebase searches.
 
+    Args:
+        repo_path: Path to the repository
+        editor: Editor type - defaults to None which updates CLAUDE.md (for backward compatibility)
+    """
     from cicada.mcp.tools import get_tool_definitions
 
     claude_md_path = repo_path / "CLAUDE.md"
+    agents_md_path = repo_path / "AGENTS.md"
 
-    # Fail silently if CLAUDE.md doesn't exist
-    if not claude_md_path.exists():
-        return
+    # Process CLAUDE.md if no editor specified (backward compatibility) or if editor is 'claude'
+    if (editor is None or editor == "claude") and claude_md_path.exists():
+        _update_md_file(claude_md_path, get_tool_definitions())
 
-    # Auto-generate tool list from mcp/tools.py
-    tools = get_tool_definitions()
+    # Process AGENTS.md for all editors if it exists (when editor is specified)
+    if editor is not None and agents_md_path.exists():
+        _update_md_file(agents_md_path, get_tool_definitions())
+
+
+def _update_md_file(md_path: Path, tools) -> None:
+    """Update a markdown file with cicada tool instructions.
+
+    Args:
+        md_path: Path to the markdown file (CLAUDE.md or AGENTS.md)
+        tools: Tool definitions from get_tool_definitions()
+    """
+    import re
+
+    # Auto-generate tool list from tools
     tool_list: list[str] = []
 
     for tool in tools:
+        # Skip deprecated tools
+        if tool.description and "DEPRECATED" in tool.description:
+            continue
+
         # Extract first sentence from description (up to first period or newline)
         if tool.description:
             desc = tool.description.split("\n")[0].strip()
@@ -304,7 +335,7 @@ def update_claude_md(repo_path: Path) -> None:
 
     try:
         # Read existing content
-        with open(claude_md_path) as f:
+        with open(md_path) as f:
             content = f.read()
 
         # Pattern to find existing <cicada>...</cicada> tags
@@ -314,16 +345,16 @@ def update_claude_md(repo_path: Path) -> None:
         if cicada_pattern.search(content):
             # Replace existing content between tags
             new_content = cicada_pattern.sub(instruction_content, content)
-            with open(claude_md_path, "w") as f:
+            with open(md_path, "w") as f:
                 f.write(new_content)
-            print("✓ Updated <cicada> instructions in CLAUDE.md")
+            print(f"✓ Updated <cicada> instructions in {md_path.name}")
         elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
             # Content already mentions cicada, don't add duplication
             # This handles cases where users manually added cicada instructions
-            print("✓ CLAUDE.md already mentions cicada, skipping update")
+            print(f"✓ {md_path.name} already mentions cicada, skipping update")
         else:
             # Append the instruction
-            with open(claude_md_path, "a") as f:
+            with open(md_path, "a") as f:
                 # Add newline if file doesn't end with one
                 if content and not content.endswith("\n"):
                     f.write("\n")
@@ -331,7 +362,7 @@ def update_claude_md(repo_path: Path) -> None:
                 f.write("\n")
                 f.write(instruction_content)
 
-            print("✓ Added cicada-mcp usage instructions to CLAUDE.md")
+            print(f"✓ Added cicada-mcp usage instructions to {md_path.name}")
     except Exception:
         # Fail silently on any errors
         pass

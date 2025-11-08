@@ -175,3 +175,43 @@ def test_update_claude_md_case_insensitive_check(mock_repo):
     # Content should remain unchanged (skip due to mention)
     content = claude_md.read_text()
     assert "<cicada>" not in content
+
+
+def test_creates_agents_md_for_gemini(mock_repo):
+    """Test that update_claude_md updates AGENTS.md for Gemini editor."""
+    agents_md = mock_repo / "AGENTS.md"
+    agents_md.write_text("# AI Agent Instructions\n\nSome existing content.\n")
+
+    # Call update_claude_md with gemini editor
+    update_claude_md(mock_repo, editor="gemini")
+
+    # AGENTS.md should be updated
+    assert agents_md.exists()
+    content = agents_md.read_text()
+
+    # Should contain cicada instructions
+    assert "<cicada>" in content
+    assert "</cicada>" in content
+    assert "ALWAYS use cicada-mcp tools for Elixir code searches" in content
+    assert "mcp__cicada__search_module" in content
+    assert "mcp__cicada__search_function" in content
+
+
+def test_creates_agents_md_for_codex(mock_repo):
+    """Test that update_claude_md updates AGENTS.md for Codex editor."""
+    agents_md = mock_repo / "AGENTS.md"
+    agents_md.write_text("# AI Agent Instructions\n\nSome existing content.\n")
+
+    # Call update_claude_md with codex editor
+    update_claude_md(mock_repo, editor="codex")
+
+    # AGENTS.md should be updated
+    assert agents_md.exists()
+    content = agents_md.read_text()
+
+    # Should contain cicada instructions
+    assert "<cicada>" in content
+    assert "</cicada>" in content
+    assert "ALWAYS use cicada-mcp tools for Elixir code searches" in content
+    assert "mcp__cicada__search_module" in content
+    assert "mcp__cicada__search_function" in content

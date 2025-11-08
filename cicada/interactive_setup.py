@@ -325,6 +325,14 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print()
     print(f"{BOLD}Step 1/4: Choose your editor{RESET}")
 
+    editor_items = [
+        "Claude Code - AI-powered code editor",
+        "Cursor - AI-first code editor",
+        "VS Code - Visual Studio Code",
+        "Gemini CLI - Google Gemini command line interface",
+        "Codex - AI code editor",
+    ]
+
     if has_terminal_menu:
         try:
             if TerminalMenu is None:
@@ -346,7 +354,8 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                     print("Setup cancelled. Exiting...")
                     sys.exit(1)
 
-                editor = EDITOR_MAP[
+                editor_map = {0: "claude", 1: "cursor", 2: "vs", 3: "gemini", 4: "codex"}
+                editor = editor_map[
                     int(editor_index) if isinstance(editor_index, int) else editor_index[0]
                 ]
         except (KeyboardInterrupt, EOFError):
@@ -387,3 +396,31 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     if add_to_claude_md_flag:
         add_to_claude_md(repo_path)
+        
+def _text_based_editor_selection() -> str:
+    """
+    Fallback text-based editor selection for terminals that don't support simple-term-menu.
+
+    Returns:
+        str: The selected editor ('claude', 'cursor', 'vs', 'gemini', or 'codex')
+    """
+    print("1. Claude Code - AI-powered code editor")
+    print("2. Cursor - AI-first code editor")
+    print("3. VS Code - Visual Studio Code")
+    print("4. Gemini CLI - Google Gemini command line interface")
+    print("5. Codex - AI code editor")
+    print()
+
+    while True:
+        try:
+            choice = input("Enter your choice (1-5) [default: 1]: ").strip()
+            if not choice:
+                choice = "1"
+            if choice in ("1", "2", "3", "4", "5"):
+                editor_map = {"1": "claude", "2": "cursor", "3": "vs", "4": "gemini", "5": "codex"}
+                return editor_map[choice]
+            print("Invalid choice. Please enter 1-5.")
+        except (KeyboardInterrupt, EOFError):
+            print()
+            print("Setup cancelled. Exiting...")
+            sys.exit(1)
