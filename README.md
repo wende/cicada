@@ -68,6 +68,14 @@ Runs CICADA on demand (slower after the first run, but zero install).
 </details>
 </div>
 
+**Available commands after installation:**
+- `cicada [claude|cursor|vs]` - One-command setup per project
+- `cicada-mcp` - MCP server (auto-started by editor)
+- `cicada watch` - Watch for file changes and automatically reindex
+- `cicada index` - Re-index code with custom options (--fast, --regular, --max, --watch)
+- `cicada index-pr` - Index pull requests for PR attribution
+- `cicada find-dead-code` - Find potentially unused functions
+
 Ask your assistant:
 ```
 "Show me the functions in MyApp.User"
@@ -128,6 +136,52 @@ cicada index-pr . --clean   # full rebuild
 ```
 
 Unlocks questions like "Which PR introduced line 42?" or "What did reviewers say about `billing.ex`?"
+
+### Automatic Re-indexing with Watch Mode
+
+Enable automatic reindexing when files change by starting the MCP server with the `--watch` flag:
+
+**For Claude Code (.mcp.json):**
+```json
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "cicada-mcp",
+      "args": ["--watch"],
+      "env": {
+        "CICADA_REPO_PATH": "/path/to/project",
+        "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"
+      }
+    }
+  }
+}
+```
+
+**For Cursor (.cursor/mcp.json):**
+```json
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "cicada-mcp",
+      "args": ["--watch"]
+    }
+  }
+}
+```
+
+**Or use with the server subcommand:**
+```bash
+cicada server --watch
+cicada server --watch --fast    # Use fast tier for reindexing
+cicada server --watch --max     # Use max tier for reindexing
+```
+
+When watch mode is enabled:
+- A separate process monitors `.ex` and `.exs` files for changes
+- Changes are automatically reindexed (incremental, fast)
+- 2-second debounce prevents excessive reindexing during rapid edits
+- The watch process stops automatically when the MCP server stops
+- Excluded directories: `deps`, `_build`, `node_modules`, `.git`, `assets`, `priv`
 
 ### CLI Cheat Sheet
 
@@ -262,6 +316,8 @@ More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_IN
 
 CICADA ships nine focused MCP tools. Use the decision table to pick the right one:
 
+### 🧭 Which Tool Should You Use?
+
 | Need | Tool | Notes |
 |------|------|-------|
 | List a module's API | `search_module` | Includes public/private functions, signatures, specs, docs |
@@ -273,6 +329,73 @@ CICADA ships nine focused MCP tools. Use the decision table to pick the right on
 | View PR history for a file | `get_file_pr_history` | Shows descriptions + review comments |
 | Track function/file evolution | `get_commit_history` | Follows refactors via `.gitattributes` |
 | Show blame with grouped authorship | `get_blame` | Useful when you need owners |
+
+**Want to see these tools in action?** Check out [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios.
+
+### Core Search Tools
+
+**`search_module`** - Find modules and view all their functions
+- Search by exact module name or file path
+- View function signatures with type specs
+- Filter public/private functions
+- Output in Markdown or JSON
+
+**`search_function`** - Locate function definitions and track usage
+- Search by function name, arity, or full module path
+- See where functions are called with line numbers
+- View actual code usage examples
+- Filter for test files only
+
+**`search_module_usage`** - Track module dependencies
+- Find all aliases and imports
+- See all function calls to a module
+- Understand module relationships
+- Map dependencies across codebase
+
+### Git History & Attribution Tools
+
+**`find_pr_for_line`** - Identify which PR introduced any line of code
+- Line-level PR attribution via git blame
+- Author and commit information
+- Direct links to GitHub PRs
+- Requires: GitHub CLI + PR index
+
+**`get_file_pr_history`** - View complete PR history for a file
+- All PRs that modified the file
+- PR descriptions and metadata
+- Code review comments with line numbers
+- Requires: GitHub CLI + PR index
+
+**`get_commit_history`** - Track file and function evolution over time
+- Complete commit history for files
+- Function-level tracking (follows refactors)
+- Creation and modification timeline
+- Requires: `.gitattributes` configuration
+
+**`get_blame`** - Show line-by-line code ownership
+- Grouped authorship display
+- Commit details for each author
+- Code snippets with context
+
+### Advanced Features
+
+**`search_by_features`** (Beta) - Search code by concepts and features
+- **🎯 Perfect for: "I don't know the exact name"** - Search by what code does, not what it's called
+- Find code related to concepts like "authentication", "api key storage", "email validation"
+- Wildcard pattern matching (`create*`, `*_user`, `validate_*`)
+- Filter results by type: modules only, functions only, or all
+- AI-powered keyword extraction from documentation
+- Relevance scoring to surface the most relevant results
+- Requires: Index built with keyword extraction (--fast, --regular, or --max)
+
+**When to use:** You know what you're looking for conceptually but not the exact module/function names. Instead of guessing names with `search_function`, describe what the code does!
+
+**`find_dead_code`** - Identify potentially unused functions
+- Three confidence levels (high, medium, low)
+- Smart detection of callbacks and behaviors
+- Recognition of dynamic call patterns
+- Module-level grouping with line numbers
+- Excludes test files and `@impl` functions
 
 Detailed parameters + output formats: [docs/MCP_TOOLS_REFERENCE.md](docs/MCP_TOOLS_REFERENCE.md).
 
