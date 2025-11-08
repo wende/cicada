@@ -1,218 +1,143 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="400"/>
+<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="360"/>
 
 # CICADA
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-*Coding Agents search blindly. Be their guide.*
+**Give your AI assistant structured access to your Elixir codebase.**
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Elixir](https://img.shields.io/badge/Elixir-Support-purple.svg)](https://elixir-lang.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-
-> 🎉 **Version 0.2.0 Released!** Enhanced AI-powered codebase understanding - find code by concepts, not just names. [What's New →](#whats-new-in-v020)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
-[Installation](#installation) •
-[Quick Start](#quick-start) •
-[Configuration](#configuration) •
-[MCP Tools](#mcp-tools) •
-[Contributing](#contributing)
+[Quick Install](#quick-install) · [Security](#privacy--security) · [Developers](#for-developers) · [AI Assistants](#for-ai-assistants) · [Docs](#documentation)
 
 </div>
 
 ---
 
-## Overview
+## Why CICADA?
 
-CICADA is a Model Context Protocol (MCP) server that provides AI coding assistants with **deep codebase understanding**. **Currently supports Elixir projects**, with Python and TypeScript support planned for future releases. It indexes your codebase using tree-sitter AST parsing and provides instant access to modules, functions, call sites, PR attribution, and the context behind code decisions.
+Traditional AI assistants treat your repo like a pile of text. That leads to:
 
-<div align="center">
-  <table>
-    <tr>
-      <td align="center"><b>Without CICADA</b></td>
-      <td align="center"><b>With CICADA</b></td>
-    </tr>
-    <tr>
-      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/no-cicada-demo-trimmed.gif" alt="Demo without CICADA" width="450"/></td>
-      <td><img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada-demo-extended-clean-trimmed%20copy.gif" alt="Demo with CICADA" width="450"/></td>
-    </tr>
-    <tr>
-      <td align="center">3,127 tokens • 52.84s</td>
-      <td align="center">550 tokens • 35.04s</td>
-    </tr>
-    <tr>
-      <td colspan="2" align="center"><b>82.4% fewer tokens • 33.7% faster</b></td>
-    </tr>
-  </table>
-</div>
+- **Token waste:** blind grep dumps that burn 3k+ tokens per question.
+- **Hallucinated edits:** aliases/imports hide call sites, so refactors miss real usages.
+- **No historical context:** design intent and PR trade-offs never make it into the prompt.
 
-## What's New in v0.2.0
+CICADA is an MCP server that gives assistants AST-level knowledge:
 
-### 🤖 Enhanced AI Keyword Extraction and Expansion
+- Module + function definitions with signatures, specs, docs, owning files.
+- Complete call-site tracking (aliases, imports, dynamic references).
+- Semantic/keyword search so you can ask for "authentication" even if it's called `verify_credentials/2`.
+- Git + PR attribution to surface *why* code exists.
+- Dead-code detection and module dependency views for safe refactors.
 
-AI-powered semantic search capabilities:
-
-- **BERT Extraction**: KeyBERT-based keyword extraction for superior semantic understanding
-- **GloVE Expansion**: GloVe-based keyword expansion into terms of similar meaning and domain
-- **Configurable Model Tiers**: Choose between `fast`, `regular`, or `large` models to balance speed and accuracy
-- **Smart Wildcard Search**: Use patterns like `create*` or `*_user` to find related concepts
-- **Improved Relevance Scoring**: Better ranking of search results by semantic relevance and TF scoring
-
-#### Keyword Expansion Example
-
-**Input:** "Authenticates user's credentials"
-
-| Fast (NLP) | Standard (AI) | Max (AI) |
-|-----------|--------------|----------|
-| auth_user (11.0) | auth_user (8.92) | auth_user (8.92) |
-| user (4.0) | user (1.98) | user (1.98) |
-| auth (3.0) | interface (1.41) | users (1.39) |
-| users (2.8) | users (1.39) | user2 (1.32) |
-| authenticates (1.0) | software (1.30) | user1 (1.30) |
-| credentials (1.0) | application (1.30) | userlist (1.29) |
-| | allows (1.30) | non-user (1.29) |
-| | interfaced (0.99) | non-users (0.90) |
-| | interfaces (0.99) | auth (0.90) |
-| | interfacing (0.99) | authenticates (0.72) |
-| | softwares (0.91) | credentials (0.68) |
-| | applications (0.91) | xauth (0.58) |
-| | auth (0.90) | authentication (0.53) |
-| | authenticates (0.72) | authentications (0.52) |
-| | credentials (0.68) | authentification (0.52) |
-| | | login (0.52) |
-| | | authenticate (0.51) |
-| | | authenticators (0.50) |
-| | | authenticator (0.50) |
-
-### ⚡ Incremental Indexing
-### 🛡️ QoL
-
-- **Graceful Interruption**: Press Ctrl-C to cleanly save progress mid-indexing
-- **Resume Capability**: Interrupted? Just run the same command again to continue
-- **Smart Merging**: Automatically merges incremental changes with existing index
-
-**[Read the complete changelog →](CHANGELOG.md)**
+**Result:** in our comparison, the same question dropped from **3,127 tokens / 52.8s** to **550 tokens / 35s** with correct answers.
 
 ---
 
-### Key Features
-
-- **Codebase understanding, not just search** - Find code by concepts ("authentication", "api keys") when you don't know exact names
-- **AST-aware function discovery** - View function definitions with full signatures, types, and documentation—no implementation bloat
-- **Intelligent call site tracking** - Resolve aliases and track where functions are actually invoked across the codebase
-- **PR attribution & review context** - Discover *why* code exists: view the pull request discussions and design decisions behind any line
-- **Function evolution tracking** - See when functions were created, how often they're modified, and their complete git history
-- **Semantic module analysis** - Understand module dependencies, imports, and relationships beyond text matching
-- **MCP integration** - Provide AI coding assistants with structured context and understanding, not raw text
-
-## Installation
-
-**Install uv:** `curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`
-
-### Recommended: Permanent Installation
+## Quick Install
 
 ```bash
+# 1. Install uv (if needed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install CICADA
 uv tool install cicada-mcp
-cd /path/to/your/elixir/project
-cicada claude  # or: cicada cursor, cicada vs
+
+# 3. Index your Elixir project
+cd /path/to/project
+cicada claude   # or: cicada cursor, cicada vs
+
+# 4. Restart your editor
 ```
 
-**That's it!** Restart your editor and start coding.
+<div align="left">
+<details>
+<summary><strong>Try before installing permanently</strong></summary>
 
-> **Available commands:** `cicada [claude|cursor|vs]`, `cicada index`, `cicada index-pr`, `cicada find-dead-code`
+```bash
+uvx --from cicada-mcp cicada claude   # or cursor, vs
+```
+
+Runs CICADA on demand (slower after the first run, but zero install).
+
+</details>
+</div>
 
 **Available commands after installation:**
 - `cicada [claude|cursor|vs]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
-- `cicada watch` - Watch for file changes and automatically reindex (standalone)
+- `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (--fast, --regular, --max, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
 
-### Try Before Installing (uvx)
-
-```bash
-cd /path/to/your/elixir/project
-uvx --from cicada-mcp cicada claude  # or: cursor, vs
+Ask your assistant:
 ```
-
-> **Note:** Permanent installation is faster and provides access to all CLI features.
-
-### Quick Setup for Cursor and Claude Code
-
-**For Cursor:**
-
-Click the install button at the top of this README or visit:
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
-
-**For Claude Code:**
-
-```bash
-# Option 1: Using claude mcp add command
-claude mcp add cicada -- uvx cicada-mcp ./path/to/your/codebase
-
-# Option 2: Using setup script
-uvx --from cicada-mcp cicada claude
-```
-
-**Then for both editors,** run these commands in your codebase to generate keyword lookup and GitHub PR lookup databases:
-
-```bash
-# Generate keyword lookup database
-uvx --from cicada-mcp cicada-index .
-
-# Generate GitHub PR lookup database
-uvx --from cicada-mcp cicada-index-pr .
+"Show me the functions in MyApp.User"
+"Where is authenticate/2 called?"
+"Find code related to API authentication"
 ```
 
 ---
 
-## Quick Start
+## Privacy & Security
 
-After installation, ask your AI coding assistant:
-
-```
-"What functions are in the MyApp.User module?"
-"Show me where authenticate/2 is called"
-"Which PR introduced line 42 of user.ex?"
-"Show me all PRs that modified the User module with their review comments"
-"Find all usages of Repo.insert/2"
-"What's the git history of the authenticate function?"
-```
-
-**For PR features**, first run:
-```bash
-cicada index-pr .
-```
+- **100% local:** parsing + indexing happen on your machine; no cloud uploads.
+- **No telemetry:** CICADA doesn't collect usage or phone home.
+- **Read-only tools:** MCP endpoints only read the index; they can't change your repo.
+- **Optional GitHub access:** PR features rely on `gh` and your existing OAuth token.
+- **Data layout:**
+  ```
+  ~/.cicada/projects/<repo_hash>/
+  ├─ index.json      # modules, functions, call sites, metadata
+  ├─ config.yaml     # indexing options + keyword tier
+  ├─ hashes.json     # incremental indexing cache
+  └─ pr_index.json   # optional PR metadata + reviews
+  ```
+  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json`).
 
 ---
 
-## Configuration
+## For Developers
+
+> Wire CICADA into your editor once, and every assistant session inherits the context.
+
+### Install & Configure
+
+```bash
+cd /path/to/project
+cicada claude   # or cicada cursor / cicada vs
+```
+
+This command:
+1. Parses every `.ex`/`.exs` file with tree-sitter.
+2. Builds the index in `~/.cicada/projects/<hash>/`.
+3. Creates the correct MCP config for your editor.
+4. Configures `.gitattributes` so git can track functions through refactors.
 
 ### Re-indexing
 
-After code changes, re-run the setup command:
+- **Incremental update:** `cicada claude` (or cursor/vs) detects changed files only.
+- **Force rebuild:** `rm ~/.cicada/projects/<hash>/hashes.json && cicada index .`
+- **Switch keyword tier:** `cicada index --fast|--regular|--max .`
+
+### Enable PR Attribution (optional)
 
 ```bash
-# Re-index for Claude Code
-uvx --from cicada-mcp cicada claude
-
-# Or if permanently installed
-cicada claude
+brew install gh    # or apt install gh
+gh auth login
+cicada index-pr .     # incremental
+cicada index-pr . --clean   # full rebuild
 ```
 
-This will:
-- Detect changed files (incremental indexing)
-- Update the index with new/modified code
-- Keep your existing MCP configuration
+Unlocks questions like "Which PR introduced line 42?" or "What did reviewers say about `billing.ex`?"
 
 ### Automatic Re-indexing with Watch Mode
 
@@ -260,47 +185,154 @@ When watch mode is enabled:
 - The watch process stops automatically when the MCP server stops
 - Excluded directories: `deps`, `_build`, `node_modules`, `.git`, `assets`, `priv`
 
-### Optional: PR Attribution
+### CLI Cheat Sheet
 
-Index pull requests for PR-related features:
+| Command | Purpose | Run When |
+|---------|---------|---------|
+| `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
+| `cicada index --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
+| `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
+| `cicada find-dead-code --min-confidence high` | List unused public functions | Cleanup sprints |
 
+### Troubleshooting
+
+<details>
+<summary><b>"Index file not found"</b></summary>
+
+Run the indexer first:
 ```bash
-# After permanent installation
+cicada index /path/to/project
+```
+
+Ensure indexing completed successfully. Check for `~/.cicada/projects/<hash>/index.json`.
+
+</details>
+
+<details>
+<summary><b>"Module not found"</b></summary>
+
+Use the exact module name as it appears in code (e.g., `MyApp.User`, not `User`).
+
+If module was recently added, re-index:
+```bash
+cicada index .
+```
+
+</details>
+
+<details>
+<summary><b>MCP Server Won't Connect</b></summary>
+
+**Troubleshooting checklist:**
+
+1. **Verify configuration file exists:**
+   ```bash
+   # For Claude Code
+   ls -la .mcp.json
+
+   # For Cursor
+   ls -la .cursor/mcp.json
+
+   # For VS Code
+   ls -la .vscode/settings.json
+   ```
+
+2. **Check paths are absolute:**
+   ```bash
+   cat .mcp.json
+   # Should contain: /absolute/path/to/project
+   # Not: ./project or ../project
+   ```
+
+3. **Ensure index exists:**
+   ```bash
+   ls -la ~/.cicada/projects/
+   # Should show directory for your project
+   ```
+
+4. **Restart editor completely** (not just reload window)
+
+5. **Check editor MCP logs:**
+   - Claude Code: Console output
+   - Cursor: Settings → MCP → View Logs
+   - VS Code: Output panel → MCP
+
+</details>
+
+<details>
+<summary><b>PR Features Not Working</b></summary>
+
+**Setup GitHub CLI:**
+```bash
+# Install GitHub CLI
+brew install gh  # macOS
+sudo apt install gh  # Ubuntu
+# or visit https://cli.github.com/
+
+# Authenticate
+gh auth login
+
+# Index PRs
 cicada index-pr .
+```
 
-# Or with uvx
-uvx --from cicada-mcp cicada-index-pr .
+**Common issues:**
+- "No PR index found" → Run `cicada index-pr .`
+- "Not a GitHub repository" → Ensure repo has GitHub remote
+- Slow indexing → First-time indexing fetches all PRs; subsequent runs are incremental
+- Rate limiting → GitHub API has rate limits; wait and retry if you hit limits
 
-# Clean rebuild (re-index everything from scratch)
+**Force rebuild:**
+```bash
 cicada index-pr . --clean
 ```
 
-**See also:** [PR Indexing Documentation](docs/PR_INDEXING.md)
+</details>
+
+<details>
+<summary><b>Keyword Search Not Working</b></summary>
+
+**Error:** "Keyword search not available"
+
+**Cause:** Index was built without keyword extraction.
+
+**Solution:**
+```bash
+# Re-index with keyword extraction
+cicada index --regular .  # or --fast or --max
+```
+
+**Verify:**
+```bash
+cat ~/.cicada/projects/<hash>/config.yaml
+# Should show keyword_extraction: enabled
+```
+
+</details>
+
+More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_INDEXING.md](docs/08-INCREMENTAL_INDEXING.md).
 
 ---
 
-## MCP Tools
+## For AI Assistants
 
-CICADA provides 9 specialized tools for AI assistants to understand and navigate your codebase. For complete technical documentation including parameters and return formats, see [MCP Tools Reference](docs/MCP_TOOLS_REFERENCE.md).
+CICADA ships nine focused MCP tools. Use the decision table to pick the right one:
 
 ### 🧭 Which Tool Should You Use?
 
-**Not sure which tool to use?** Here's a quick decision guide based on what you're trying to do:
+| Need | Tool | Notes |
+|------|------|-------|
+| List a module's API | `search_module` | Includes public/private functions, signatures, specs, docs |
+| Find where a function is defined & called | `search_function` | Resolves aliases/imports, shows code context |
+| Discover who imports/aliases a module | `search_module_usage` | Great for dependency impact analysis |
+| Search by concept ("authentication", `*_user`) | `search_by_features` | Requires keyword tier index |
+| Identify unused code | `find_dead_code` | Confidence-ranked (high, medium, low) |
+| Find PR for a line | `find_pr_for_line` | Needs `cicada index-pr` + `gh` |
+| View PR history for a file | `get_file_pr_history` | Shows descriptions + review comments |
+| Track function/file evolution | `get_commit_history` | Follows refactors via `.gitattributes` |
+| Show blame with grouped authorship | `get_blame` | Useful when you need owners |
 
-| User Request | Recommended Tool(s) | Why |
-|-------------|-------------------|-----|
-| "Find all functions in UserAuth module" | `search_module` | You know the exact module name |
-| "Where is `create_user/2` defined?" | `search_function` | You know the exact function name |
-| "Where is `authenticate` called?" | `search_function` | Shows call sites with context |
-| "Find code related to API keys" | `search_by_features` | Conceptual search when you don't know exact names |
-| "How does authentication work?" | `search_by_features` → `get_file_pr_history` | Find relevant code, then understand design decisions |
-| "Which modules use `Repo`?" | `search_module_usage` | Track dependencies and imports |
-| "Who wrote this line?" | `find_pr_for_line` | Line-level attribution |
-| "Why was this function built this way?" | `get_file_pr_history` | View PR discussions and review comments |
-| "When was `validate_email` created?" | `get_commit_history` | Function evolution over time |
-| "What code might be unused?" | `find_dead_code` | Identify cleanup candidates |
-
-**Want to see these tools in action?** Check out our [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios like adding features, debugging issues, refactoring safely, and learning new codebases.
+**Want to see these tools in action?** Check out [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios.
 
 ### Core Search Tools
 
@@ -367,275 +399,87 @@ CICADA provides 9 specialized tools for AI assistants to understand and navigate
 - Module-level grouping with line numbers
 - Excludes test files and `@impl` functions
 
----
+Detailed parameters + output formats: [docs/MCP_TOOLS_REFERENCE.md](docs/MCP_TOOLS_REFERENCE.md).
 
-**See also:** [Complete MCP Tools Reference](docs/MCP_TOOLS_REFERENCE.md) for detailed specifications
+### Token-Friendly Responses
 
----
-
-## CLI Tools
-
-CICADA provides several command-line tools for setup, indexing, and analysis:
-
-### Setup & Configuration
-
-**`cicada`** - Initialize CICADA in your project
-```bash
-cicada                           # Setup in current directory
-cicada /path/to/other/project   # Setup in different directory
-```
-- Generates `.mcp.json` configuration
-- Creates `.cicada/` directory
-- Installs Elixir dependencies
-- Configures git attributes for function tracking
-
-### Indexing Tools
-
-**`cicada index`** - Index Elixir codebase
-```bash
-cicada index                         # Index current directory
-cicada index --fast                  # Fast tier: Regular extraction + lemminflect (no downloads)
-cicada index --regular               # Regular tier: KeyBERT small + GloVe (128MB, default)
-cicada index --max                   # Max tier: KeyBERT large + FastText (958MB+)
-cicada index --watch                 # Index once, then watch for changes and auto-reindex
-cicada index --watch --debounce 5.0  # Custom debounce interval (default: 2.0s)
-```
-- Parses all Elixir files using tree-sitter
-- Extracts modules, functions, and call sites
-- Resolves aliases for accurate tracking
-- Optional keyword extraction for semantic search
-- `--watch` mode: Runs initial index, then monitors files for automatic reindexing
-
-**`cicada index-pr`** - Index GitHub pull requests
-```bash
-cicada index-pr .              # Index PRs for current repo
-cicada index-pr . --clean      # Full rebuild from scratch
-```
-- Requires GitHub CLI (`gh`) authenticated
-- Indexes PR metadata and review comments
-- Incremental updates by default
-- Enables PR attribution features
-
-**`cicada watch`** - Watch for file changes and automatically reindex
-```bash
-cicada watch                         # Watch current directory with default settings
-cicada watch --debounce 5.0          # Custom debounce interval (default: 2.0 seconds)
-cicada watch --fast                  # Use fast tier for reindexing
-cicada watch --regular               # Use regular tier for reindexing (default)
-cicada watch --max                   # Use max tier for reindexing
-```
-- Monitors `.ex` and `.exs` files for changes
-- Automatically triggers incremental reindexing when files are modified
-- Debounces rapid changes to avoid excessive reindexing
-- Runs initial index on startup to ensure index is current
-- Press Ctrl-C to stop watching
-- Excludes `deps`, `_build`, `node_modules`, `.git`, `assets`, and `priv` directories
-
-### Analysis Tools
-
-**`cicada find-dead-code`** - Find unused functions (CLI version)
-```bash
-cicada find-dead-code                      # Show high confidence only
-cicada find-dead-code --min-confidence low # Show all candidates
-cicada find-dead-code --format json        # JSON output
-cicada find-dead-code --index path/to/index.json
-```
-- Analyzes function usage across codebase
-- Categorizes by confidence level
-- Available as both CLI tool and MCP tool
+All tools return structured Markdown/JSON snippets (signatures, call sites, PR metadata) instead of full files, keeping prompts lean.
 
 ---
 
-## What's Available & What's Coming
+## Learn by Doing (5–10 min each)
 
-### ✅ Current Features (v0.2.0)
+### 1. Safe Refactor Checklist
+1. `search_function` → "Where is `create_user/2` called?"
+2. `search_module_usage` → "Which modules alias `MyApp.User`?"
+3. `search_function` with `test_only:true` to confirm test coverage.
+4. `get_file_pr_history` → "Show PRs that modified `lib/my_app/user.ex`."
 
-**Codebase Understanding:**
-- Semantic search by concepts and features (Beta) - find code when you don't know exact names
-- Module and function discovery with full signatures and type specs
-- Call site tracking with intelligent alias resolution
-- Dead code detection with confidence levels
+### 2. Untangle Legacy Intent
+1. `search_module` to skim the API.
+2. `get_file_pr_history` for design discussions/reviews.
+3. `get_commit_history` on the hot function.
+4. `get_blame` on confusing lines to ping the right author.
 
-**Git Context & History:**
-- PR attribution - discover which PR introduced any line
-- PR review comments with line numbers
-- File PR history with descriptions
-- Function evolution tracking
-- Git blame integration
+### 3. Cleanup Sprint
+1. `find_dead_code --min-confidence high` for candidates.
+2. For each, `search_function` to double-check dynamic usage.
+3. `find_pr_for_line` to ensure it isn't waiting on an unfinished feature.
+4. Remove or deprecate confidently.
 
-**Developer Experience:**
-- Incremental indexing for faster reindexing
-- Interrupt-safe with graceful Ctrl-C handling
-- Multiple AI model tiers (fast, regular, max)
-- Wildcard patterns and relevance scoring
-- Multiple output formats (Markdown, JSON)
+For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) and [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
 
-### 🚀 Coming Soon
+---
 
-- **Multi-language support** - Python and TypeScript planned
+## Documentation
+
+- [CHANGELOG.md](CHANGELOG.md) – release notes.
+- [docs/01-KEYWORD_EXTRACTION_ANALYSIS.md](docs/01-KEYWORD_EXTRACTION_ANALYSIS.md) – semantic search internals.
+- [docs/09-PR_INDEXING.md](docs/09-PR_INDEXING.md) – GitHub integration details.
+- [docs/16-MCP_TOOL_CALL_BENCHMARKING.md](docs/16-MCP_TOOL_CALL_BENCHMARKING.md) – token/time benchmarks.
+
+---
+
+## Roadmap
+
+| Available | Coming Soon |
+|-----------|-------------|
+| Elixir indexing + AST search | Python + TypeScript support |
+| Semantic keyword tiers (`--fast/regular/max`) | Shared/team indexes |
+| PR attribution + review scraping | Native IDE plugins (no MCP bridge) |
+| Dead-code + dependency analysis | Optional remote index storage |
 
 ---
 
 ## Contributing
 
-### Development Setup
-
 ```bash
-# Clone your fork
 git clone https://github.com/wende/cicada.git
 cd cicada
-
-# Using uv (recommended)
 uv sync
-
-# Or traditional venv (legacy)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -e ".[dev]"
-
-# Run tests
 pytest
 ```
-
-### Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run specific test files
-pytest tests/test_parser.py
-pytest tests/test_search_function.py
-
-# Run with coverage (terminal report)
-pytest --cov=cicada --cov-report=term-missing
-
-# Generate HTML coverage report
-pytest --cov=cicada --cov-report=html
-# Open htmlcov/index.html in your browser
-
-# Run with coverage and see which lines need tests
-pytest --cov=cicada --cov-report=term-missing --cov-report=html
-
-# Check coverage and fail if below threshold (e.g., 80%)
-pytest --cov=cicada --cov-fail-under=80
-```
-
-### Code Style
-
-This project uses:
-- **black** for code formatting
-- **pytest** for testing
-- **type hints** where appropriate
 
 Before submitting a PR:
-```bash
-# Format code
-black cicada tests
+- Run `black cicada tests`
+- Ensure tests + coverage pass (`pytest --cov=cicada --cov-report=term-missing`)
+- Update docs if behaviour changes
 
-# Run tests
-pytest
-
-# Check types (if using mypy)
-mypy cicada
-```
-
-### Reporting Issues
-
-When reporting bugs or requesting features:
-
-1. Check existing [Issues](https://github.com/wende/cicada/issues)
-2. If not found, create a new issue with:
-   - Clear description
-   - Steps to reproduce (for bugs)
-   - Expected vs actual behavior
-   - Your environment (OS, Python version, Elixir version)
-
----
-
-## Troubleshooting
-
-### "Index file not found"
-
-Run the indexer first:
-```bash
-cicada index /path/to/project
-```
-
-### "Module not found"
-
-Use the exact module name as it appears in code (e.g., `MyApp.User`, not `User`).
-
-### MCP Server Won't Connect
-
-1. Verify `.mcp.json` exists in your project root
-2. Check that all paths in `.mcp.json` are absolute
-3. Ensure `index.json` was created successfully
-4. Restart your MCP client (Claude Code, Cline, etc.)
-5. Check your MCP client logs for errors
-
-### PR Features Not Working
-
-PR features require the GitHub CLI and a PR index:
-
-```bash
-# Install GitHub CLI
-brew install gh  # macOS
-# or visit https://cli.github.com/
-
-# Authenticate
-gh auth login
-
-# Index PRs (first time or after new PRs)
-cicada index-pr .
-
-# Clean rebuild (re-index everything from scratch)
-cicada index-pr . --clean
-```
-
-**Common issues:**
-- "No PR index found" → Run `cicada index-pr .`
-- "Not a GitHub repository" → Ensure repo has GitHub remote
-- Slow indexing → Incremental updates are used by default
-
-#### Uninstall
-
-Remove CICADA from a project:
-
-```bash
-rm -rf .cicada/ .mcp.json
-# Restart your MCP client
-```
-
----
-
-## Credits
-
-### Built With
-
-- [Tree-sitter](https://tree-sitter.github.io/) - Incremental parsing system
-- [tree-sitter-elixir](https://github.com/elixir-lang/tree-sitter-elixir) - Elixir grammar
-- [MCP](https://modelcontextprotocol.io/) - Model Context Protocol
-- [GitHub CLI](https://cli.github.com/) - PR attribution
+We welcome issues/PRs for:
+- New language grammars
+- Tool output improvements
+- Better onboarding docs and tutorials
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- The Anthropic team for Claude Code and MCP
-- The Elixir community for tree-sitter-elixir
-- All contributors who help improve CICADA
-
----
+MIT – see [LICENSE](LICENSE).
 
 <div align="center">
 
-**[⬆ back to top](#cicada)**
+**Stop letting your AI search blindly. Give it CICADA.**
+
+[Get Started](#quick-install) · [Report Issues](https://github.com/wende/cicada/issues)
 
 </div>
