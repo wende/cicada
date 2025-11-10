@@ -1722,7 +1722,7 @@ class CicadaServer:
         from cicada.format import ModuleFormatter
 
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
-            keywords, results, show_scores=(min_score > 0.0)
+            keywords, results, show_scores=True
         )
 
         return [TextContent(type="text", text=formatted_result)]
