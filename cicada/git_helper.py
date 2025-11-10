@@ -368,6 +368,8 @@ class GitHelper:
             # Parse porcelain format
             lines_data = []
             current_commit = {}
+            # Cache commit metadata by SHA to handle repeated commits
+            commit_cache = {}
 
             for line in result.stdout.split("\n"):
                 if not line:
@@ -377,11 +379,21 @@ class GitHelper:
                 if len(line) >= 40 and line[0:40].isalnum():
                     parts = line.split()
                     if len(parts) >= 3:
-                        current_commit = {
-                            "sha": parts[0][:8],
-                            "full_sha": parts[0],
-                            "line_number": int(parts[2]),
-                        }
+                        sha = parts[0]
+                        # Check if we've seen this commit before
+                        if sha in commit_cache:
+                            # Reuse cached metadata
+                            current_commit = {
+                                **commit_cache[sha],
+                                "line_number": int(parts[2]),
+                            }
+                        else:
+                            # New commit - initialize with SHA and line number
+                            current_commit = {
+                                "sha": sha[:8],
+                                "full_sha": sha,
+                                "line_number": int(parts[2]),
+                            }
                 # Author name
                 elif line.startswith("author "):
                     current_commit["author"] = line[7:]
@@ -396,11 +408,22 @@ class GitHelper:
                         current_commit["date"] = datetime.fromtimestamp(timestamp).isoformat()
                     except (ValueError, OSError):
                         current_commit["date"] = line[12:]
+                    # Cache this commit's metadata (after we have all fields)
+                    if "author" in current_commit and "author_email" in current_commit:
+                        commit_cache[current_commit["full_sha"]] = {
+                            "sha": current_commit["sha"],
+                            "full_sha": current_commit["full_sha"],
+                            "author": current_commit["author"],
+                            "author_email": current_commit["author_email"],
+                            "date": current_commit["date"],
+                        }
                 # Actual code line (starts with tab)
                 elif line.startswith("\t"):
                     code_line = line[1:]  # Remove leading tab
-                    line_info = {**current_commit, "content": code_line}
-                    lines_data.append(line_info)
+                    # Only add if we have all required fields
+                    if all(k in current_commit for k in ["author", "author_email", "date"]):
+                        line_info = {**current_commit, "content": code_line}
+                        lines_data.append(line_info)
 
             # Group consecutive lines by same author and commit
             if lines_data:
