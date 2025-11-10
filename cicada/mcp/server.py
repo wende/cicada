@@ -51,6 +51,7 @@ class CicadaServer:
 
         self.config = self._load_config(config_path)
         self.index = self._load_index()
+        self._index_mtime = self._get_index_mtime()  # Track index modification time
         self._pr_index: dict | None = None  # Lazy load PR index only when needed
         self.server = Server("cicada")
 
@@ -271,6 +272,23 @@ class CicadaServer:
             print(f"Warning: Unexpected error checking index staleness: {e}", file=sys.stderr)
             return None
 
+    def _get_index_mtime(self) -> float | None:
+        """Get index file modification time."""
+        try:
+            index_path = Path(self.config["storage"]["index_path"])
+            return index_path.stat().st_mtime if index_path.exists() else None
+        except (OSError, KeyError):
+            return None
+
+    def _reload_index_if_changed(self):
+        """Reload index if file has been modified."""
+        current_mtime = self._get_index_mtime()
+        if current_mtime and current_mtime != self._index_mtime:
+            self.index = self._load_index()
+            self._has_keywords = self._check_keywords_available()
+            self._index_mtime = current_mtime
+            self._pr_index = None  # Invalidate PR index cache as well
+
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
         return get_tool_definitions()
@@ -278,6 +296,9 @@ class CicadaServer:
     async def call_tool_with_logging(self, name: str, arguments: dict) -> list[TextContent]:
         """Wrapper for call_tool that logs execution details."""
         from datetime import datetime
+
+        # Reload index if it has been modified
+        self._reload_index_if_changed()
 
         # Record start time
         start_time = time.perf_counter()
