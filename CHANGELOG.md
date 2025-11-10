@@ -5,15 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.1rc2] - 2025-11-10
 
 ### Added
 
-- **Wildcard and OR Pattern Support for Search Tools** ([#73](https://github.com/wende/cicada/pull/73))
-  - `search_module` now supports wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
-  - `search_function` now supports wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
-  - Patterns work across module names, function names, and file paths
-  - Examples: `lib/my_app/*.ex:create*`, `MyApp.*.Module`, `create_user/2|validate_email/1`
+- **OpenCode editor support** ([#92](https://github.com/wende/cicada/pull/92)) - Support for OpenCode editor integration
+- **Enhanced interactive setup menu** ([#94](https://github.com/wende/cicada/pull/94)) - Added Gemini CLI and Codex editor options to setup workflow
+
+### Fixed
+
+- **OpenCode configuration path** - Fixed OpenCode to use `.mcp.json` instead of `.opencode.json` to match Claude Code convention
+
+## [0.3.0] - 2025-11-10
+
+### Search & Filtering Enhancements
+
+- **Time-based function filtering** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Find functions modified within a specific timeframe
+- **Wildcard and OR pattern support** ([#73](https://github.com/wende/cicada/pull/73)) - Search using patterns like wildcards and OR operators
+- **Score threshold filtering** ([#90](https://github.com/wende/cicada/pull/90)) - Filter keyword search results by minimum relevance score
+- **Usage type filtering** ([#90](https://github.com/wende/cicada/pull/90)) - Filter module usage by all/test_only/production_only
+- **Time and author filters for commit history** ([#90](https://github.com/wende/cicada/pull/90)) - Filter commits by date range and author
+
+### Dependency & Relationship Analysis
+
+- **Module and function dependency tools** ([#87](https://github.com/wende/cicada/pull/87)) - Discover what modules and functions depend on
+- **Transitive dependency analysis** ([#87](https://github.com/wende/cicada/pull/87)) - Trace dependencies across multiple levels
+- **Inline relationship display** ([#90](https://github.com/wende/cicada/pull/90)) - View relationships directly in search results
+- **Granular module dependencies** ([#90](https://github.com/wende/cicada/pull/90)) - Track dependencies at the function level
+
+### Developer Experience & Tooling
+
+- **Watch mode for automatic reindexing** ([#52](https://github.com/wende/cicada/pull/52)) - Automatically reindex when files change
+- **Redesigned interactive setup** ([#81](https://github.com/wende/cicada/pull/81)) - Streamlined setup with tier-based selection
+- **Enhanced MCP tool discoverability** ([#70](https://github.com/wende/cicada/pull/70)) - Smart error messages and staleness warnings
+- **Enhanced proactive PR suggestions** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Contextual prompts when information is unavailable
+
+### Editor & CLI Integration
+
+- **Gemini CLI and Codex editor support** ([#82](https://github.com/wende/cicada/pull/82)) - Support for two additional code editors
+- **CLI entrypoint consolidation** ([#83](https://github.com/wende/cicada/pull/83)) - Unified command structure across all CLI commands
+
+### Removed
+
+- **CICADA_REPO_PATH environment variable** ([#85](https://github.com/wende/cicada/pull/85)) - Simplified to use only CICADA_CONFIG_DIR for configuration
+
+### Fixed
+
+- **Git blame parsing with repeated commits** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Fixed errors when consecutive lines from same commit
+- **Dependency analysis null safety** ([#90](https://github.com/wende/cicada/pull/90)) - Prevent errors when call sites have missing line numbers
 
 ## [0.2.3] - 2025-11-03
 
@@ -207,7 +246,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - docs/BERT_KEYWORD_EXTRACTOR.md - BERT keyword extraction guide
   - docs/FEATURE_MODEL_TRACKING.md - Model tracking feature documentation
   - docs/MODEL_CHANGE_DETECTION.md - Model change detection guide
-  - docs/MCP_TOOLS_REFERENCE.md - MCP tools reference documentation
+  - MCP_TOOLS_REFERENCE.md - MCP tools reference documentation
   - OBJECTIVE_MERGE.md - Merge investigation documentation
 
 - **Updated Documentation**
@@ -334,7 +373,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.3.1rc2...HEAD
+[0.3.1rc2]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1rc2
+[0.3.0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0
+[0.2.3]: https://github.com/wende/cicada/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/wende/cicada/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/wende/cicada/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/wende/cicada/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/wende/cicada/compare/v0.1.0...v0.1.1

@@ -370,7 +370,10 @@ class GitHelper:
             lines_data = []
             current_commit = {}
             # Cache commit metadata by SHA to handle repeated commits
+            # Optimization: Pre-validate commits during caching to avoid validation in hot loop
             commit_cache = {}
+            # Track which commits have all required fields (valid)
+            valid_commits = set()
 
             for line in result.stdout.split("\n"):
                 if not line:
@@ -409,7 +412,7 @@ class GitHelper:
                         current_commit["date"] = datetime.fromtimestamp(timestamp).isoformat()
                     except (ValueError, OSError):
                         current_commit["date"] = line[12:]
-                    # Cache this commit's metadata (after we have all fields)
+                    # Cache this commit's metadata and validate (after we have all fields)
                     if "author" in current_commit and "author_email" in current_commit:
                         commit_cache[current_commit["full_sha"]] = {
                             "sha": current_commit["sha"],
@@ -418,11 +421,13 @@ class GitHelper:
                             "author_email": current_commit["author_email"],
                             "date": current_commit["date"],
                         }
+                        # Mark as valid to avoid per-line validation in hot loop
+                        valid_commits.add(current_commit["full_sha"])
                 # Actual code line (starts with tab)
                 elif line.startswith("\t"):
                     code_line = line[1:]  # Remove leading tab
-                    # Only add if we have all required fields
-                    if all(k in current_commit for k in ["author", "author_email", "date"]):
+                    # Use pre-validated commit check (optimized - no field iteration per line)
+                    if current_commit.get("full_sha") in valid_commits:
                         line_info = {**current_commit, "content": code_line}
                         lines_data.append(line_info)
 

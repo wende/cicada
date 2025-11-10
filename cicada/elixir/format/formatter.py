@@ -59,7 +59,10 @@ class ModuleFormatter:
             function_name: Optional function name for more specific suggestions
 
         Returns:
-            List of formatted lines to append to output
+            List of formatted lines to append to output. The first line is always
+            an empty string (for spacing), followed by either:
+            - PR context lines (if pr_info provided): PR title, author, comment count
+            - Suggestion lines (if no pr_info): Instructions on how to get context
         """
         lines = []
         if pr_info:

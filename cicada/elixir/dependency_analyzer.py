@@ -98,6 +98,7 @@ def extract_function_dependencies(
         call
         for call in all_module_calls
         if function_start_line is not None
+        and call.get("line") is not None
         and function_start_line <= call["line"] <= function_end_line
     ]
 
