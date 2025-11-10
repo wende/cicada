@@ -5,93 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0-rc0] - 2025-11-10
 
-### Added
+### Search & Filtering Enhancements
 
-- **Time-Based Function Filtering** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
-  - New `changed_since` parameter for `search_function` tool to find recently modified functions
-  - Support for multiple date formats: ISO dates (`2024-01-15`), relative dates (`7d`, `2w`, `3m`, `1y`), and git refs
-  - Automatic timestamp computation during indexing (`created_at`, `last_modified_at`, `modification_count`)
-  - Timezone-aware datetime handling for accurate cross-timezone filtering
+- **Time-based function filtering** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Find functions modified within a specific timeframe
+- **Wildcard and OR pattern support** ([#73](https://github.com/wende/cicada/pull/73)) - Search using patterns like wildcards and OR operators
+- **Score threshold filtering** ([#90](https://github.com/wende/cicada/pull/90)) - Filter keyword search results by minimum relevance score
+- **Usage type filtering** ([#90](https://github.com/wende/cicada/pull/90)) - Filter module usage by all/test_only/production_only
+- **Time and author filters for commit history** ([#90](https://github.com/wende/cicada/pull/90)) - Filter commits by date range and author
 
-- **Enhanced Proactive PR Suggestions** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
-  - Contextual prompts when no call sites are found for functions
-  - Automatic suggestions to build PR index when PR information is unavailable
-  - Deletion hints in function-not-found errors to guide troubleshooting
-  - Staleness warnings linked to PR history suggestions for outdated indexes
+### Dependency & Relationship Analysis
 
-- **Advanced Filtering and Relationship Features** ([#90](https://github.com/wende/cicada/pull/90))
-  - Score threshold filtering for `search_by_keywords` with `min_score` parameter
-  - Usage type filtering for `search_module_usage`: filter by all/test_only/production_only
-  - Inline relationship display in `search_function` with `show_relationships` parameter
-  - Granular module dependencies with `granular` parameter showing function-level dependency tracking
-  - Time and author filters for `get_commit_history`: `since_date`, `until_date`, `author`, `min_changes` parameters
-  - New `cicada/mcp/filter_utils.py` module with shared filtering utilities
+- **Module and function dependency tools** ([#87](https://github.com/wende/cicada/pull/87)) - Discover what modules and functions depend on
+- **Transitive dependency analysis** ([#87](https://github.com/wende/cicada/pull/87)) - Trace dependencies across multiple levels
+- **Inline relationship display** ([#90](https://github.com/wende/cicada/pull/90)) - View relationships directly in search results
+- **Granular module dependencies** ([#90](https://github.com/wende/cicada/pull/90)) - Track dependencies at the function level
 
-- **Module and Function Dependency Analysis** ([#87](https://github.com/wende/cicada/pull/87))
-  - New MCP tool `get_module_dependencies` - Shows which modules a module depends on
-  - New MCP tool `get_function_dependencies` - Shows which functions a function calls
-  - Supports transitive dependency analysis with configurable depth parameter
-  - Complements existing "what uses X" tools with "what does X use" analysis
-  - 38 new comprehensive tests added
+### Developer Experience & Tooling
 
-- **Gemini CLI and Codex Editor Support** ([#82](https://github.com/wende/cicada/pull/82))
-  - New `cicada gemini` command for Gemini CLI setup
-  - New `cicada codex` command for Codex editor setup
-  - Total of 5 supported editors: Claude Code, Cursor, VS Code, Gemini CLI, Codex
-  - Updated AGENTS.md with new editor documentation
+- **Watch mode for automatic reindexing** ([#52](https://github.com/wende/cicada/pull/52)) - Automatically reindex when files change
+- **Redesigned interactive setup** ([#81](https://github.com/wende/cicada/pull/81)) - Streamlined setup with tier-based selection
+- **Enhanced MCP tool discoverability** ([#70](https://github.com/wende/cicada/pull/70)) - Smart error messages and staleness warnings
+- **Enhanced proactive PR suggestions** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Contextual prompts when information is unavailable
 
-- **Watch Mode for Automatic Reindexing** ([#52](https://github.com/wende/cicada/pull/52))
-  - New standalone `cicada watch` command for monitoring file changes
-  - `--watch` flag for MCP server and server subcommand
-  - FileWatcher class with 2-second debouncing to prevent excessive reindexing
-  - Process management for background watch functionality
-  - Automatic cleanup when MCP server stops
+### Editor & CLI Integration
 
-- **Redesigned Interactive Setup** ([#81](https://github.com/wende/cicada/pull/81))
-  - Tier-based selection system for better user experience
-  - Watch mode integration in setup flow
-  - Extracted setup helpers into `interactive_setup_helpers.py` for maintainability
-  - Improved error handling and user guidance
-
-- **Enhanced MCP Tool Discoverability** ([#70](https://github.com/wende/cicada/pull/70))
-  - Smart error messages with "Did You Mean" suggestions for misspelled tool names
-  - Inline PR context in search results for better historical understanding
-  - Index staleness warnings to alert users when reindexing is needed
-  - Enhanced tool descriptions with AI usage tips and examples
-
-- **Wildcard and OR Pattern Support for Search Tools** ([#73](https://github.com/wende/cicada/pull/73))
-  - `search_module` now supports wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
-  - `search_function` now supports wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
-  - Patterns work across module names, function names, and file paths
-  - Examples: `lib/my_app/*.ex:create*`, `MyApp.*.Module`, `create_user/2|validate_email/1`
-
-### Changed
-
-- **CLI Entrypoint Consolidation** ([#83](https://github.com/wende/cicada/pull/83))
-  - Unified all CLI entry points for better maintainability
-  - Improved command structure and help text
-  - Better error handling across all commands
+- **Gemini CLI and Codex editor support** ([#82](https://github.com/wende/cicada/pull/82)) - Support for two additional code editors
+- **CLI entrypoint consolidation** ([#83](https://github.com/wende/cicada/pull/83)) - Unified command structure across all CLI commands
 
 ### Removed
 
-- **CICADA_REPO_PATH Environment Variable** ([#85](https://github.com/wende/cicada/pull/85))
-  - Simplified to use only `CICADA_CONFIG_DIR` for configuration
-  - Reduced complexity in environment variable handling
-  - Updated documentation to reflect the change
+- **CICADA_REPO_PATH environment variable** ([#85](https://github.com/wende/cicada/pull/85)) - Simplified to use only CICADA_CONFIG_DIR for configuration
 
 ### Fixed
 
-- **Git Blame Parsing with Repeated Commits** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
-  - Fixed KeyError when git blame encountered consecutive lines from the same commit
-  - Added commit metadata cache to store and reuse author info by SHA
-  - Git's porcelain format optimization now properly handled
-  - Comprehensive regression tests added to prevent recurrence
-
-- **Dependency Analysis Null Safety** ([#90](https://github.com/wende/cicada/pull/90))
-  - Added null check in dependency analyzer to prevent TypeError when call sites have missing line numbers
-  - Optimized git blame parsing performance by pre-validating commits once instead of per-line checking
+- **Git blame parsing with repeated commits** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90)) - Fixed errors when consecutive lines from same commit
+- **Dependency analysis null safety** ([#90](https://github.com/wende/cicada/pull/90)) - Prevent errors when call sites have missing line numbers
 
 ## [0.2.3] - 2025-11-03
 
@@ -412,7 +362,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.3.0-rc0...HEAD
+[0.3.0-rc0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0-rc0
+[0.2.3]: https://github.com/wende/cicada/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/wende/cicada/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/wende/cicada/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/wende/cicada/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/wende/cicada/compare/v0.1.0...v0.1.1
