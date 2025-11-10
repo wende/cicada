@@ -181,7 +181,7 @@ class TestStalenessWarnings:
 
     def test_fresh_index_no_warning(self, test_server):
         """Should not show warning for fresh index"""
-        staleness = test_server._check_index_staleness()
+        staleness = test_server.index_manager.check_staleness()
 
         # Fresh index - should be None or not stale
         # (index was created after the file, so it should be fresh)
@@ -196,7 +196,7 @@ class TestStalenessWarnings:
         test_file = tmp_path / "test.ex"
         test_file.write_text("defmodule TestModule do\n  def new_func, do: :ok\nend")
 
-        staleness = test_server._check_index_staleness()
+        staleness = test_server.index_manager.check_staleness()
 
         # Should detect staleness
         assert staleness is not None
@@ -214,7 +214,7 @@ class TestStalenessWarnings:
         test_file = tmp_path / "test.ex"
         test_file.touch()
 
-        staleness = test_server._check_index_staleness()
+        staleness = test_server.index_manager.check_staleness()
 
         if staleness:
             assert "minutes" in staleness["age_str"]
@@ -230,7 +230,7 @@ class TestStalenessWarnings:
         test_file = tmp_path / "test.ex"
         test_file.touch()
 
-        staleness = test_server._check_index_staleness()
+        staleness = test_server.index_manager.check_staleness()
 
         if staleness:
             assert "hours" in staleness["age_str"]
@@ -295,11 +295,11 @@ class TestStalenessWarnings:
         with open(index_path, "w") as f:
             json.dump(index, f)
 
-        # Reload index
-        test_server.index = test_server._load_index()
+        # Reload index (after refactoring, reload in index_manager)
+        test_server.index_manager._index = test_server.index_manager._load_index()
 
         # This should not crash and should complete quickly
-        staleness = test_server._check_index_staleness()
+        staleness = test_server.index_manager.check_staleness()
 
         # Should complete without error
         assert staleness is None or isinstance(staleness, dict)
@@ -383,7 +383,7 @@ class TestPRContextInResults:
 
     def test_pr_info_retrieval(self, server_with_pr_index):
         """Should retrieve PR info for a file"""
-        pr_info = server_with_pr_index._get_recent_pr_info("lib/test.ex")
+        pr_info = server_with_pr_index.pr_handler.get_recent_pr_info("lib/test.ex")
 
         assert pr_info is not None
         assert pr_info["number"] == 456  # Most recent
@@ -394,7 +394,7 @@ class TestPRContextInResults:
     def test_pr_info_with_comments(self, server_with_pr_index):
         """Should count comments for the file"""
         # Manually get the first PR which has comments
-        pr_index = server_with_pr_index.pr_index
+        pr_index = server_with_pr_index.index_manager.pr_index
         prs_data = pr_index.get("prs", {})
         pr = prs_data.get("123")
 
@@ -405,14 +405,14 @@ class TestPRContextInResults:
 
     def test_pr_info_no_prs(self, server_with_pr_index):
         """Should return None when no PRs found"""
-        pr_info = server_with_pr_index._get_recent_pr_info("nonexistent.ex")
+        pr_info = server_with_pr_index.pr_handler.get_recent_pr_info("nonexistent.ex")
 
         assert pr_info is None
 
     def test_pr_context_in_module_output(self, server_with_pr_index):
         """Should include PR context in module search output"""
-        module_data = server_with_pr_index.index["modules"]["TestModule"]
-        pr_info = server_with_pr_index._get_recent_pr_info(module_data["file"])
+        module_data = server_with_pr_index.index_manager.index["modules"]["TestModule"]
+        pr_info = server_with_pr_index.pr_handler.get_recent_pr_info(module_data["file"])
 
         result = ModuleFormatter.format_module_markdown("TestModule", module_data, pr_info=pr_info)
 
@@ -447,7 +447,7 @@ class TestExceptionHandling:
     def test_staleness_check_handles_missing_files(self, server_with_bad_config):
         """Should handle missing files gracefully"""
         # Should not crash, just return None
-        staleness = server_with_bad_config._check_index_staleness()
+        staleness = server_with_bad_config.index_manager.check_staleness()
 
         # Should handle the error and return None
         assert staleness is None
@@ -476,7 +476,7 @@ class TestExceptionHandling:
         # Make index file unreadable (if running as non-root)
         try:
             os.chmod(index_path, 0o000)
-            staleness = server._check_index_staleness()
+            staleness = server.index_manager.check_staleness()
             assert staleness is None
         finally:
             # Restore permissions

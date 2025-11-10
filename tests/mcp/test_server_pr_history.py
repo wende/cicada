@@ -64,7 +64,7 @@ class TestFindPRForLine:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        result = await server._find_pr_for_line("test.ex", 42, "text")
+        result = await server.pr_handler.find_pr_for_line("test.ex", 42, "text")
 
         assert len(result) == 1
         assert "PR index not found" in result[0].text
@@ -73,7 +73,8 @@ class TestFindPRForLine:
     @pytest.mark.asyncio
     async def test_finds_pr_with_mock(self, test_server_with_pr_index):
         """Should find PR using mocked PRFinder"""
-        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
+        # After refactoring, PRFinder is imported in pr_handlers
+        with patch("cicada.mcp.handlers.pr_handlers.PRFinder") as mock_finder_class:
             mock_finder = Mock()
             mock_finder.find_pr_for_line.return_value = {
                 "pr": {"number": 123, "title": "Test PR"},
@@ -82,7 +83,9 @@ class TestFindPRForLine:
             mock_finder.format_result.return_value = "PR #123: Test PR"
             mock_finder_class.return_value = mock_finder
 
-            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
+            result = await test_server_with_pr_index.pr_handler.find_pr_for_line(
+                "test.ex", 42, "text"
+            )
 
             assert len(result) == 1
             assert "PR #123" in result[0].text
@@ -108,9 +111,10 @@ class TestGetFunctionBlame:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        server.git_helper = None
+        server.git_handler.git_helper = None
 
-        result = await server._get_function_history("test.ex", 1, 10)
+        # After refactoring, use git_handler.get_function_blame
+        result = await server.git_handler.get_function_blame("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "not available" in result[0].text.lower()
@@ -133,10 +137,11 @@ class TestGetFunctionBlame:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        server.git_helper = Mock()
-        server.git_helper.get_function_history.return_value = []
+        server.git_handler.git_helper = Mock()
+        server.git_handler.git_helper.get_function_history.return_value = []
 
-        result = await server._get_function_history("test.ex", 1, 10)
+        # After refactoring, use git_handler.get_function_blame
+        result = await server.git_handler.get_function_blame("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "No blame information found" in result[0].text
@@ -221,7 +226,7 @@ class TestGetFilePRHistory:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        result = await server._get_file_pr_history("lib/test.ex")
+        result = await server.pr_handler.get_file_pr_history("lib/test.ex")
 
         assert len(result) == 1
         assert "PR index not available" in result[0].text
@@ -230,7 +235,7 @@ class TestGetFilePRHistory:
     @pytest.mark.asyncio
     async def test_file_not_found(self, test_server_with_pr_data):
         """Should return message when file has no PRs"""
-        result = await test_server_with_pr_data._get_file_pr_history("lib/nonexistent.ex")
+        result = await test_server_with_pr_data.pr_handler.get_file_pr_history("lib/nonexistent.ex")
 
         assert len(result) == 1
         assert "No pull requests found" in result[0].text
@@ -238,7 +243,7 @@ class TestGetFilePRHistory:
     @pytest.mark.asyncio
     async def test_successful_retrieval(self, test_server_with_pr_data):
         """Should retrieve and format PR history"""
-        result = await test_server_with_pr_data._get_file_pr_history("lib/test.ex")
+        result = await test_server_with_pr_data.pr_handler.get_file_pr_history("lib/test.ex")
 
         assert len(result) == 1
         text = result[0].text
@@ -296,7 +301,7 @@ class TestExtractCompleteCall:
     )
     def test_extracts_code_with_context(self, lines, line_num, should_contain, test_server):
         """Should extract code with appropriate context"""
-        result = test_server._extract_complete_call(lines, line_num)
+        result = test_server.function_handler._extract_complete_call(lines, line_num)
 
         assert result is not None
         for expected in should_contain:
@@ -311,7 +316,7 @@ class TestExtractCompleteCall:
             "  end\n",
         ]
 
-        result = test_server._extract_complete_call(lines, 3)
+        result = test_server.function_handler._extract_complete_call(lines, 3)
 
         assert result is not None
         assert not result.startswith("    ")
@@ -321,7 +326,7 @@ class TestExtractCompleteCall:
     def test_invalid_line_numbers(self, line_num, test_server):
         """Should return None for invalid line numbers"""
         lines = ["line1\n", "line2\n"]
-        result = test_server._extract_complete_call(lines, line_num)
+        result = test_server.function_handler._extract_complete_call(lines, line_num)
         assert result is None
 
 
@@ -345,14 +350,15 @@ class TestGetCommitHistoryWithEvolution:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        server.git_helper = Mock()
+        # After refactoring, mock git_helper in git_handler
+        server.git_handler.git_helper = Mock()
 
         return server
 
     @pytest.mark.asyncio
     async def test_with_evolution_metadata(self, test_server_with_git):
         """Should show evolution metadata when requested"""
-        test_server_with_git.git_helper.get_function_history_precise.return_value = [
+        test_server_with_git.git_handler.git_helper.get_function_history_precise.return_value = [
             {
                 "sha": "abc123",
                 "summary": "Add feature",
@@ -362,14 +368,14 @@ class TestGetCommitHistoryWithEvolution:
                 "message": "Add feature\n\nDetailed description",
             }
         ]
-        test_server_with_git.git_helper.get_function_evolution.return_value = {
+        test_server_with_git.git_handler.git_helper.get_function_evolution.return_value = {
             "created_at": {"date": "2024-01-01", "author": "dev1", "sha": "abc123"},
             "last_modified": {"date": "2024-01-10", "author": "dev2", "sha": "def456"},
             "total_modifications": 5,
             "modification_frequency": 2.5,
         }
 
-        result = await test_server_with_git._get_file_history(
+        result = await test_server_with_git.git_handler.get_file_history(
             "test.ex",
             function_name="test_func",
             start_line=1,
@@ -391,9 +397,9 @@ class TestGetCommitHistoryWithEvolution:
     @pytest.mark.asyncio
     async def test_no_commits_found(self, test_server_with_git):
         """Should return message when no commits found"""
-        test_server_with_git.git_helper.get_file_history.return_value = []
+        test_server_with_git.git_handler.git_helper.get_file_history.return_value = []
 
-        result = await test_server_with_git._get_file_history("test.ex", max_commits=10)
+        result = await test_server_with_git.git_handler.get_file_history("test.ex", max_commits=10)
 
         assert len(result) == 1
         assert "No commit history found" in result[0].text
@@ -401,7 +407,7 @@ class TestGetCommitHistoryWithEvolution:
     @pytest.mark.asyncio
     async def test_with_full_commit_message(self, test_server_with_git):
         """Should show full commit message when different from summary"""
-        test_server_with_git.git_helper.get_file_history.return_value = [
+        test_server_with_git.git_handler.git_helper.get_file_history.return_value = [
             {
                 "sha": "abc123",
                 "summary": "Short summary",
@@ -412,7 +418,7 @@ class TestGetCommitHistoryWithEvolution:
             }
         ]
 
-        result = await test_server_with_git._get_file_history("test.ex", max_commits=10)
+        result = await test_server_with_git.git_handler.get_file_history("test.ex", max_commits=10)
 
         assert len(result) == 1
         text = result[0].text
@@ -454,7 +460,7 @@ class TestFindPRForLineNetworkFallback:
     @pytest.mark.asyncio
     async def test_network_fallback_finds_pr(self, test_server_with_pr_index):
         """Should suggest index update when network fallback finds PR"""
-        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
+        with patch("cicada.mcp.handlers.pr_handlers.PRFinder") as mock_finder_class:
             # Index finder: commit but no PR
             mock_index_finder = Mock()
             mock_index_finder.find_pr_for_line.return_value = {
@@ -471,7 +477,9 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
+            result = await test_server_with_pr_index.pr_handler.find_pr_for_line(
+                "test.ex", 42, "text"
+            )
 
             assert len(result) == 1
             assert "incomplete" in result[0].text.lower() or "update" in result[0].text.lower()
@@ -479,7 +487,7 @@ class TestFindPRForLineNetworkFallback:
     @pytest.mark.asyncio
     async def test_no_pr_in_both(self, test_server_with_pr_index):
         """Should not suggest update when commit truly has no PR"""
-        with patch("cicada.mcp.server.PRFinder") as mock_finder_class:
+        with patch("cicada.mcp.handlers.pr_handlers.PRFinder") as mock_finder_class:
             mock_index_finder = Mock()
             mock_index_finder.find_pr_for_line.return_value = {
                 "pr": None,
@@ -495,7 +503,9 @@ class TestFindPRForLineNetworkFallback:
 
             mock_finder_class.side_effect = [mock_index_finder, mock_network_finder]
 
-            result = await test_server_with_pr_index._find_pr_for_line("test.ex", 42, "text")
+            result = await test_server_with_pr_index.pr_handler.find_pr_for_line(
+                "test.ex", 42, "text"
+            )
 
             assert len(result) == 1
             assert "Commit abc123" in result[0].text

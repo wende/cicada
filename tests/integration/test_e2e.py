@@ -81,11 +81,11 @@ def test_mcp_server_initialization(index_path):
         server = CicadaServer(test_config_path)
 
         # Verify index was loaded
-        assert server.index is not None, "Index not loaded"
-        assert "modules" in server.index, "Index missing modules"
+        assert server.index_manager.index is not None, "Index not loaded"
+        assert "modules" in server.index_manager.index, "Index missing modules"
 
         print("  ✓ Server initialized successfully")
-        print(f"  ✓ Loaded {len(server.index['modules'])} module(s)")
+        print(f"  ✓ Loaded {len(server.index_manager.index['modules'])} module(s)")
 
     finally:
         # Cleanup
@@ -119,7 +119,7 @@ def test_module_not_found(tmp_path):
         # Search for non-existent module
         import asyncio
 
-        result = asyncio.run(server._search_module("NonExistent.Module"))
+        result = asyncio.run(server.module_handler.search_module("NonExistent.Module"))
 
         # Check the markdown response
         response_text = result[0].text

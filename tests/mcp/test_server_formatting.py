@@ -35,14 +35,15 @@ class TestGetFunctionBlameFormatting:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        server.git_helper = Mock()
+        # After refactoring, mock the git_helper in git_handler
+        server.git_handler.git_helper = Mock()
 
         return server
 
     @pytest.mark.asyncio
     async def test_with_multiple_authorship_groups(self, test_server_with_git):
         """Should format blame with multiple authorship groups"""
-        test_server_with_git.git_helper.get_function_history.return_value = [
+        test_server_with_git.git_handler.git_helper.get_function_history.return_value = [
             {
                 "author": "dev1",
                 "author_email": "dev1@example.com",
@@ -71,7 +72,8 @@ class TestGetFunctionBlameFormatting:
             },
         ]
 
-        result = await test_server_with_git._get_function_history("test.ex", 10, 13)
+        # After refactoring, call git_handler.get_function_blame
+        result = await test_server_with_git.git_handler.get_function_blame("test.ex", 10, 13)
 
         assert len(result) == 1
         text = result[0].text
@@ -93,9 +95,12 @@ class TestGetFunctionBlameFormatting:
     @pytest.mark.asyncio
     async def test_error_handling(self, test_server_with_git):
         """Should handle errors gracefully"""
-        test_server_with_git.git_helper.get_function_history.side_effect = Exception("Git error")
+        test_server_with_git.git_handler.git_helper.get_function_history.side_effect = Exception(
+            "Git error"
+        )
 
-        result = await test_server_with_git._get_function_history("test.ex", 1, 10)
+        # After refactoring, call git_handler.get_function_blame
+        result = await test_server_with_git.git_handler.get_function_blame("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "Error getting blame information" in result[0].text
@@ -165,7 +170,9 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_long_description_trimmed(self, test_server_with_long_description):
         """Should trim long PR descriptions"""
-        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            "lib/test.ex"
+        )
 
         assert len(result) == 1
         text = result[0].text
@@ -176,7 +183,9 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_comment_variations(self, test_server_with_long_description):
         """Should handle different comment formats"""
-        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            "lib/test.ex"
+        )
 
         assert len(result) == 1
         text = result[0].text
@@ -195,7 +204,9 @@ class TestGetFilePRHistoryFormatting:
         """Should handle absolute paths outside repository"""
         outside_path = Path("/totally/different/path/file.ex")
 
-        result = await test_server_with_long_description._get_file_pr_history(str(outside_path))
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            str(outside_path)
+        )
 
         assert len(result) == 1
         assert "not within repository" in result[0].text

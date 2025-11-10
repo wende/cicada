@@ -44,7 +44,7 @@ async def test_search_function(tmp_path):
 
     # Test 1: Search for create_user with usage examples
     print("Test 1: Search for 'create_user' with usage examples")
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "create_user", "markdown", include_usage_examples=True, max_examples=3
     )
     print(result[0].text)
@@ -52,37 +52,37 @@ async def test_search_function(tmp_path):
 
     # Test 2: Search for create_user/2 (with arity)
     print("Test 2: Search for 'create_user/2'")
-    result = await server._search_function("create_user/2", "json")
+    result = await server.function_handler.search_function("create_user/2", "json")
     print(result[0].text)
     print()
 
     # Test 3: Search for find_user
     print("Test 3: Search for 'find_user'")
-    result = await server._search_function("find_user", "markdown")
+    result = await server.function_handler.search_function("find_user", "markdown")
     print(result[0].text)
     print()
 
     # Test 4: Search for a function that doesn't exist
     print("Test 4: Search for non-existent function")
-    result = await server._search_function("nonexistent_function", "markdown")
+    result = await server.function_handler.search_function("nonexistent_function", "markdown")
     print(result[0].text)
     print()
 
     # Test 5: Search with wildcard pattern
     print("Test 5: Search for 'create*' (wildcard pattern)")
-    result = await server._search_function("create*", "markdown")
+    result = await server.function_handler.search_function("create*", "markdown")
     print(result[0].text)
     print()
 
     # Test 6: Search with OR pattern
     print("Test 6: Search for 'create_user|find_user' (OR pattern)")
-    result = await server._search_function("create_user|find_user", "markdown")
+    result = await server.function_handler.search_function("create_user|find_user", "markdown")
     print(result[0].text)
     print()
 
     # Test 7: Search with wildcard OR pattern
     print("Test 7: Search for 'create*|find*' (wildcard OR pattern)")
-    result = await server._search_function("create*|find*", "markdown")
+    result = await server.function_handler.search_function("create*|find*", "markdown")
     print(result[0].text)
     print()
 
@@ -112,13 +112,13 @@ async def test_wildcard_function_search(tmp_path):
     server = CicadaServer(config_path=str(config_path))
 
     # Test wildcard pattern matching
-    result = await server._search_function("create*", "markdown")
+    result = await server.function_handler.search_function("create*", "markdown")
     assert result[0].text
     # Should find functions starting with "create"
     assert "create" in result[0].text.lower()
 
     # Test OR pattern
-    result = await server._search_function("create*|find*", "markdown")
+    result = await server.function_handler.search_function("create*|find*", "markdown")
     assert result[0].text
     # Should find both create and find functions
 
@@ -154,14 +154,16 @@ async def test_wildcard_module_search(tmp_path):
         # Test wildcard pattern - match all modules with a prefix
         if "." in module_names[0]:
             prefix = module_names[0].split(".")[0]
-            result = await server._search_module(f"{prefix}.*", "markdown")
+            result = await server.module_handler.search_module(f"{prefix}.*", "markdown")
             assert result[0].text
             # Should find modules with that prefix
             assert "Found" in result[0].text or prefix in result[0].text
 
         # Test OR pattern
         if len(module_names) >= 2:
-            result = await server._search_module(f"{module_names[0]}|{module_names[1]}", "markdown")
+            result = await server.module_handler.search_module(
+                f"{module_names[0]}|{module_names[1]}", "markdown"
+            )
             assert result[0].text
             # Should find both modules
 
@@ -189,7 +191,7 @@ async def test_module_qualified_or_function_search(tmp_path):
 
     server = CicadaServer(config_path=str(config_path))
 
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "MyApp.User.create_user|MyApp.User.validate_email",
         "json",
     )
@@ -223,7 +225,7 @@ async def test_or_patterns_with_different_arities(tmp_path):
 
     server = CicadaServer(config_path=str(config_path))
 
-    result = await server._search_function("create_user/2|validate_email/1", "json")
+    result = await server.function_handler.search_function("create_user/2|validate_email/1", "json")
     payload = json.loads(result[0].text)
     arities = {(entry["function"], entry["arity"]) for entry in payload.get("results", [])}
 
@@ -255,14 +257,14 @@ async def test_file_path_wildcard_function_search(tmp_path):
     server = CicadaServer(config_path=str(config_path))
 
     # Should match create_user in lib/my_app/user.ex
-    result = await server._search_function("lib/my_app/*.ex:create*", "json")
+    result = await server.function_handler.search_function("lib/my_app/*.ex:create*", "json")
     payload = json.loads(result[0].text)
     matched = {entry["full_name"] for entry in payload.get("results", [])}
 
     assert "MyApp.User.create_user/2" in matched
 
     # Combining two file-scoped patterns via OR should union their matches
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "lib/my_app/*.ex:create*|lib/my_app_web/controllers/*.ex:create", "json"
     )
     payload = json.loads(result[0].text)
@@ -317,7 +319,7 @@ async def test_module_wildcard_with_nested_segments(tmp_path):
 
     server = CicadaServer(config_path=str(config_path))
 
-    result = await server._search_module("MyApp.*.Module", "markdown")
+    result = await server.module_handler.search_module("MyApp.*.Module", "markdown")
     text = result[0].text
 
     assert "MyApp.Sub.Module" in text
@@ -382,7 +384,7 @@ async def test_search_function_with_changed_since(tmp_path):
     server = CicadaServer(config_path=str(config_path))
 
     # Test: Search with changed_since='7d' should only return create_user
-    result = await server._search_function("*_user", "json", changed_since="7d")
+    result = await server.function_handler.search_function("*_user", "json", changed_since="7d")
     data = json.loads(result[0].text)
 
     # JSON format returns dict with "results" key
@@ -390,7 +392,7 @@ async def test_search_function_with_changed_since(tmp_path):
     assert data["results"][0]["function"] == "create_user"
 
     # Test: Search without changed_since should return both
-    result = await server._search_function("*_user", "json")
+    result = await server.function_handler.search_function("*_user", "json")
     data = json.loads(result[0].text)
 
     assert data["total_matches"] == 2
@@ -438,7 +440,9 @@ async def test_search_function_changed_since_no_timestamp(tmp_path):
     server = CicadaServer(config_path=str(config_path))
 
     # Functions without timestamps should be skipped when using changed_since
-    result = await server._search_function("legacy_function", "json", changed_since="7d")
+    result = await server.function_handler.search_function(
+        "legacy_function", "json", changed_since="7d"
+    )
     data = json.loads(result[0].text)
 
     # No results returns error structure

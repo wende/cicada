@@ -104,7 +104,13 @@ def mock_server_with_dependencies(tmp_path):
 
     # Create server
     server = CicadaServer(config_path=str(config_path))
-    server.index = test_index
+    # After refactoring, index is accessed through handlers
+    # Update the private _index in index_manager and handler references
+    server.index_manager._index = test_index
+    server.dependency_handler.index = test_index
+    server.module_handler.index = test_index
+    server.function_handler.index = test_index
+    server.analysis_handler.index = test_index
     return server
 
 
@@ -114,7 +120,7 @@ class TestGetModuleDependencies:
     @pytest.mark.asyncio
     async def test_get_module_dependencies_markdown(self, mock_server_with_dependencies):
         """Test getting module dependencies in markdown format."""
-        result = await mock_server_with_dependencies._get_module_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_module_dependencies(
             "MyApp.User", "markdown", depth=1
         )
 
@@ -129,7 +135,7 @@ class TestGetModuleDependencies:
     @pytest.mark.asyncio
     async def test_get_module_dependencies_json(self, mock_server_with_dependencies):
         """Test getting module dependencies in JSON format."""
-        result = await mock_server_with_dependencies._get_module_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_module_dependencies(
             "MyApp.User", "json", depth=1
         )
 
@@ -144,7 +150,7 @@ class TestGetModuleDependencies:
     @pytest.mark.asyncio
     async def test_get_module_dependencies_transitive(self, mock_server_with_dependencies):
         """Test getting transitive dependencies."""
-        result = await mock_server_with_dependencies._get_module_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_module_dependencies(
             "MyApp.User", "markdown", depth=2
         )
 
@@ -159,7 +165,7 @@ class TestGetModuleDependencies:
     @pytest.mark.asyncio
     async def test_get_module_dependencies_not_found(self, mock_server_with_dependencies):
         """Test error handling for non-existent module."""
-        result = await mock_server_with_dependencies._get_module_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_module_dependencies(
             "MyApp.Users", "markdown", depth=1
         )
 
@@ -173,14 +179,14 @@ class TestGetModuleDependencies:
     async def test_get_module_dependencies_no_deps(self, mock_server_with_dependencies):
         """Test module with no dependencies."""
         # Add a module with no dependencies
-        mock_server_with_dependencies.index["modules"]["MyApp.Empty"] = {
+        mock_server_with_dependencies.dependency_handler.index["modules"]["MyApp.Empty"] = {
             "file": "lib/my_app/empty.ex",
             "line": 1,
             "functions": [],
             "dependencies": {"modules": [], "has_dynamic_calls": False},
         }
 
-        result = await mock_server_with_dependencies._get_module_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_module_dependencies(
             "MyApp.Empty", "markdown", depth=1
         )
 
@@ -196,7 +202,7 @@ class TestGetFunctionDependencies:
     @pytest.mark.asyncio
     async def test_get_function_dependencies_markdown(self, mock_server_with_dependencies):
         """Test getting function dependencies in markdown format."""
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "MyApp.User", "create_user", 2, "markdown", False
         )
 
@@ -212,7 +218,7 @@ class TestGetFunctionDependencies:
     @pytest.mark.asyncio
     async def test_get_function_dependencies_json(self, mock_server_with_dependencies):
         """Test getting function dependencies in JSON format."""
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "MyApp.User", "create_user", 2, "json", False
         )
 
@@ -253,7 +259,7 @@ end
         # Update config to point to tmp_path
         mock_server_with_dependencies.config["repository"]["path"] = str(tmp_path)
 
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "MyApp.User", "create_user", 2, "markdown", True
         )
 
@@ -266,7 +272,7 @@ end
     @pytest.mark.asyncio
     async def test_get_function_dependencies_module_not_found(self, mock_server_with_dependencies):
         """Test error handling for non-existent module."""
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "NonExistent.Module", "some_func", 1, "markdown", False
         )
 
@@ -279,7 +285,7 @@ end
         self, mock_server_with_dependencies
     ):
         """Test error handling for non-existent function."""
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "MyApp.User", "nonexistent_func", 1, "markdown", False
         )
 
@@ -292,7 +298,7 @@ end
     @pytest.mark.asyncio
     async def test_get_function_dependencies_no_deps(self, mock_server_with_dependencies):
         """Test function with no dependencies."""
-        result = await mock_server_with_dependencies._get_function_dependencies(
+        result = await mock_server_with_dependencies.dependency_handler.get_function_dependencies(
             "MyApp.User", "validate_attrs", 1, "markdown", False
         )
 
@@ -303,12 +309,12 @@ end
 
 
 class TestLookupModuleWithError:
-    """Test _lookup_module_with_error helper."""
+    """Test lookup_module_with_error helper (moved to ModuleSearchHandler)."""
 
     def test_lookup_module_success(self, mock_server_with_dependencies):
         """Test successful module lookup."""
-        module_data, error_msg = mock_server_with_dependencies._lookup_module_with_error(
-            "MyApp.User"
+        module_data, error_msg = (
+            mock_server_with_dependencies.module_handler.lookup_module_with_error("MyApp.User")
         )
 
         assert module_data is not None
@@ -317,8 +323,10 @@ class TestLookupModuleWithError:
 
     def test_lookup_module_not_found_with_suggestions(self, mock_server_with_dependencies):
         """Test module not found with suggestions."""
-        module_data, error_msg = mock_server_with_dependencies._lookup_module_with_error(
-            "MyApp.Users", include_suggestions=True
+        module_data, error_msg = (
+            mock_server_with_dependencies.module_handler.lookup_module_with_error(
+                "MyApp.Users", include_suggestions=True
+            )
         )
 
         assert module_data is None
@@ -329,8 +337,10 @@ class TestLookupModuleWithError:
 
     def test_lookup_module_not_found_without_suggestions(self, mock_server_with_dependencies):
         """Test module not found without suggestions."""
-        module_data, error_msg = mock_server_with_dependencies._lookup_module_with_error(
-            "NonExistent.Module", include_suggestions=False
+        module_data, error_msg = (
+            mock_server_with_dependencies.module_handler.lookup_module_with_error(
+                "NonExistent.Module", include_suggestions=False
+            )
         )
 
         assert module_data is None
@@ -347,7 +357,7 @@ class TestFormatDependencyWithContext:
         dep = {"module": "MyApp.User", "function": "validate", "arity": 1, "line": 10}
         context_lines = {}
 
-        lines = mock_server_with_dependencies._format_dependency_with_context(
+        lines = mock_server_with_dependencies.dependency_handler._format_dependency_with_context(
             dep, context_lines, include_context=False, include_module=False
         )
 
@@ -358,7 +368,7 @@ class TestFormatDependencyWithContext:
         dep = {"module": "MyApp.Repo", "function": "insert", "arity": 1, "line": 12}
         context_lines = {}
 
-        lines = mock_server_with_dependencies._format_dependency_with_context(
+        lines = mock_server_with_dependencies.dependency_handler._format_dependency_with_context(
             dep, context_lines, include_context=False, include_module=True
         )
 
@@ -369,7 +379,7 @@ class TestFormatDependencyWithContext:
         dep = {"module": "MyApp.Repo", "function": "insert", "arity": 1, "line": 12}
         context_lines = {12: "    Repo.insert(changeset)"}
 
-        lines = mock_server_with_dependencies._format_dependency_with_context(
+        lines = mock_server_with_dependencies.dependency_handler._format_dependency_with_context(
             dep, context_lines, include_context=True, include_module=True
         )
 
@@ -385,7 +395,7 @@ class TestFormatDependencyWithContext:
         dep = {"module": "MyApp.Repo", "function": "insert", "arity": 1, "line": 12}
         context_lines = {}  # No context for line 12
 
-        lines = mock_server_with_dependencies._format_dependency_with_context(
+        lines = mock_server_with_dependencies.dependency_handler._format_dependency_with_context(
             dep, context_lines, include_context=True, include_module=True
         )
 

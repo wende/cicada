@@ -73,7 +73,7 @@ async def test_search_module_json_format():
 @pytest.mark.asyncio
 async def test_search_function_basic(server):
     """Test basic function search functionality."""
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2", output_format="markdown", include_usage_examples=False
     )
     assert len(result) > 0
@@ -84,7 +84,7 @@ async def test_search_function_basic(server):
 @pytest.mark.asyncio
 async def test_search_function_with_examples(server):
     """Test function search with usage examples included."""
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2",
         output_format="markdown",
         include_usage_examples=True,
@@ -100,7 +100,7 @@ async def test_search_function_with_examples(server):
 @pytest.mark.asyncio
 async def test_search_function_with_test_examples_only(server):
     """Test function search showing only examples from test files."""
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2",
         output_format="markdown",
         include_usage_examples=True,
@@ -115,7 +115,7 @@ async def test_search_function_with_test_examples_only(server):
 @pytest.mark.asyncio
 async def test_search_function_with_limit(server):
     """Test function search with example limit."""
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2",
         output_format="markdown",
         include_usage_examples=True,
@@ -130,7 +130,7 @@ async def test_search_function_with_limit(server):
 async def test_search_function_includes_doc(server):
     """Test that function @doc and examples are properly displayed."""
     # Use a function that likely has documentation
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2", output_format="markdown", include_usage_examples=False
     )
     assert len(result) > 0
@@ -143,7 +143,7 @@ async def test_search_function_includes_doc(server):
 @pytest.mark.asyncio
 async def test_search_function_json_format(server):
     """Test function search with JSON output format."""
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2", output_format="json", include_usage_examples=True
     )
     assert len(result) > 0
@@ -158,7 +158,7 @@ async def test_search_function_json_format(server):
 async def test_function_history_basic(server):
     """Test basic function history tracking."""
     # Use a file from the cicada codebase itself
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py", function_name="get_recent_commits", max_commits=5
     )
     assert len(result) > 0
@@ -170,7 +170,7 @@ async def test_function_history_basic(server):
 @pytest.mark.asyncio
 async def test_function_history_with_evolution(server):
     """Test function history with evolution metadata."""
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py",
         function_name="get_recent_commits",
         show_evolution=True,
@@ -185,7 +185,7 @@ async def test_function_history_with_evolution(server):
 @pytest.mark.asyncio
 async def test_function_history_with_limit(server):
     """Test function history with commit limit."""
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py", function_name="get_recent_commits", max_commits=3
     )
     assert len(result) > 0
@@ -196,7 +196,7 @@ async def test_function_history_with_limit(server):
 @pytest.mark.asyncio
 async def test_line_based_history_tracking(server):
     """Test line-based history tracking mode."""
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py", start_line=1, end_line=50, max_commits=5
     )
     assert len(result) > 0
@@ -207,7 +207,7 @@ async def test_line_based_history_tracking(server):
 @pytest.mark.asyncio
 async def test_line_based_history_with_evolution(server):
     """Test line-based tracking with evolution metadata."""
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py",
         start_line=1,
         end_line=50,
@@ -222,7 +222,7 @@ async def test_line_based_history_with_evolution(server):
 @pytest.mark.asyncio
 async def test_function_history_with_line_fallback(server):
     """Test function tracking with fallback line numbers."""
-    result = await server._get_file_history(
+    result = await server.git_handler.get_file_history(
         "cicada/git_helper.py",
         function_name="get_recent_commits",
         start_line=10,
@@ -241,7 +241,7 @@ async def test_function_history_with_line_fallback(server):
 async def test_acceptance_full_workflow_module_to_function(server):
     """Test a complete workflow: search module, then search its functions."""
     # First, search for a module
-    module_result = await server._search_module("AB.Generators", "markdown")
+    module_result = await server.module_handler.search_module("AB.Generators", "markdown")
     assert len(module_result) > 0
     module_text = module_result[0].text
     assert "AB.Generators" in module_text
@@ -257,13 +257,15 @@ async def test_acceptance_output_format_consistency(server):
     function_name = "add_numbers/2"
 
     # Get markdown output
-    markdown_result = await server._search_function(function_name, output_format="markdown")
+    markdown_result = await server.function_handler.search_function(
+        function_name, output_format="markdown"
+    )
     assert len(markdown_result) > 0
     markdown_text = markdown_result[0].text
     assert function_name.split("/")[0] in markdown_text
 
     # Get JSON output
-    json_result = await server._search_function(function_name, output_format="json")
+    json_result = await server.function_handler.search_function(function_name, output_format="json")
     assert len(json_result) > 0
     json_text = json_result[0].text
     assert json_text.strip()
@@ -276,7 +278,9 @@ async def test_acceptance_output_format_consistency(server):
 @pytest.mark.asyncio
 async def test_acceptance_error_handling_nonexistent_module(server):
     """Test error handling when searching for nonexistent module."""
-    result = await server._search_module("NonexistentModule.That.DoesNotExist", "markdown")
+    result = await server.module_handler.search_module(
+        "NonexistentModule.That.DoesNotExist", "markdown"
+    )
     assert len(result) > 0
     text = result[0].text
     # Should have some response, even if it's an error message
@@ -286,7 +290,9 @@ async def test_acceptance_error_handling_nonexistent_module(server):
 @pytest.mark.asyncio
 async def test_acceptance_error_handling_nonexistent_function(server):
     """Test error handling when searching for nonexistent function."""
-    result = await server._search_function("nonexistent_function_xyz/99", output_format="markdown")
+    result = await server.function_handler.search_function(
+        "nonexistent_function_xyz/99", output_format="markdown"
+    )
     assert len(result) > 0
     text = result[0].text
     # Should have some response, even if it's an error message
@@ -301,7 +307,7 @@ async def test_shell_script_search_module_compatibility(config_path):
     """Test that mimics search_module.sh behavior."""
     # This test replicates exactly what the shell script does
     server = CicadaServer(config_path=config_path)
-    result = await server._search_module("AB.Generators", "markdown")
+    result = await server.module_handler.search_module("AB.Generators", "markdown")
     assert len(result) > 0
     text = result[0].text
     assert text.strip()
@@ -313,7 +319,7 @@ async def test_shell_script_search_module_compatibility(config_path):
 async def test_shell_script_search_function_compatibility(config_path):
     """Test that mimics search_function.sh behavior."""
     server = CicadaServer(config_path=config_path)
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "add_numbers/2",
         output_format="markdown",
         include_usage_examples=False,
@@ -330,7 +336,7 @@ async def test_shell_script_search_function_compatibility(config_path):
 async def test_shell_script_check_moduledoc_compatibility(config_path):
     """Test that mimics check_moduledoc.sh behavior."""
     server = CicadaServer(config_path=config_path)
-    result = await server._search_module("AB.Generators", "markdown")
+    result = await server.module_handler.search_module("AB.Generators", "markdown")
     assert len(result) > 0
     text = result[0].text
     assert text.strip()
@@ -342,7 +348,9 @@ async def test_shell_script_check_moduledoc_compatibility(config_path):
 async def test_shell_script_check_functiondoc_compatibility(config_path):
     """Test that mimics check_functiondoc.sh behavior."""
     server = CicadaServer(config_path=config_path)
-    result = await server._search_function("add_numbers/2", output_format="markdown")
+    result = await server.function_handler.search_function(
+        "add_numbers/2", output_format="markdown"
+    )
     assert len(result) > 0
     text = result[0].text
     assert text.strip()
@@ -356,7 +364,7 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
 @pytest.mark.asyncio
 async def test_keyword_search_basic(server):
     """Test basic keyword search functionality."""
-    result = await server._search_by_keywords(["add"])
+    result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     assert "add" in text.lower()
@@ -366,7 +374,7 @@ async def test_keyword_search_basic(server):
 @pytest.mark.asyncio
 async def test_keyword_search_multiple_keywords(server):
     """Test keyword search with multiple keywords."""
-    result = await server._search_by_keywords(["add", "number"])
+    result = await server.analysis_handler.search_by_keywords(["add", "number"])
     assert len(result) > 0
     text = result[0].text
     # Should find results matching these keywords
@@ -378,7 +386,7 @@ async def test_keyword_search_multiple_keywords(server):
 @pytest.mark.asyncio
 async def test_keyword_search_with_bm25_scoring(server):
     """Test that BM25 scoring is applied in keyword search results."""
-    result = await server._search_by_keywords(["add"])
+    result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Check for BM25 score in output
@@ -390,7 +398,7 @@ async def test_keyword_search_with_bm25_scoring(server):
 @pytest.mark.asyncio
 async def test_keyword_search_identifier_boost(server):
     """Test that identifier names are prioritized in keyword search."""
-    result = await server._search_by_keywords(["add"])
+    result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Should find functions with "add" in their name
@@ -401,7 +409,7 @@ async def test_keyword_search_identifier_boost(server):
 @pytest.mark.asyncio
 async def test_keyword_search_no_results(server):
     """Test keyword search with keywords that have no matches."""
-    result = await server._search_by_keywords(["xyzabc123nonexistent"])
+    result = await server.analysis_handler.search_by_keywords(["xyzabc123nonexistent"])
     assert len(result) > 0
     text = result[0].text
     # Should show empty results or no results message
@@ -411,7 +419,7 @@ async def test_keyword_search_no_results(server):
 @pytest.mark.asyncio
 async def test_keyword_search_json_format(server):
     """Test keyword search with JSON output format."""
-    result = await server._search_by_keywords(["add"])
+    result = await server.analysis_handler.search_by_keywords(["add"])
     # Keyword search only supports markdown format
     # But verify it returns proper results
     assert len(result) > 0
@@ -422,7 +430,7 @@ async def test_keyword_search_json_format(server):
 @pytest.mark.asyncio
 async def test_keyword_search_matched_keywords_display(server):
     """Test that matched keywords are displayed in results."""
-    result = await server._search_by_keywords(["add"])
+    result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
     # Should show which keywords matched
