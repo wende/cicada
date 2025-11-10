@@ -98,6 +98,20 @@ class TestGetMcpConfigForEditor:
         assert "env" in server_config
         assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
 
+    def test_opencode_config_structure(self, mock_repo, mock_storage_dir):
+        """OpenCode config should have correct structure"""
+        with patch("shutil.which", return_value="cicada-server"):
+            config_path, config = get_mcp_config_for_editor("opencode", mock_repo, mock_storage_dir)
+
+        assert config_path == mock_repo / ".opencode.json"
+        assert "mcpServers" in config
+        assert "cicada" in config["mcpServers"]
+
+        server_config = config["mcpServers"]["cicada"]
+        assert "command" in server_config
+        assert "env" in server_config
+        assert server_config["env"]["CICADA_CONFIG_DIR"] == str(mock_storage_dir)
+
     def test_with_cicada_server_installed(self, mock_repo, mock_storage_dir):
         """Should always use uvx cicada-mcp for maximum compatibility"""
         _, config = get_mcp_config_for_editor("claude", mock_repo, mock_storage_dir)

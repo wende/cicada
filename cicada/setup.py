@@ -22,7 +22,7 @@ from cicada.utils import (
     get_index_path,
 )
 
-EditorType = Literal["claude", "cursor", "vs", "gemini", "codex"]
+EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode"]
 
 
 def _load_existing_config(config_path: Path) -> dict:
@@ -126,6 +126,11 @@ def get_mcp_config_for_editor(
             "config_path": repo_path / ".codex" / "mcp.json",
             "config_key": "mcpServers",
             "needs_dir": True,
+        },
+        "opencode": {
+            "config_path": repo_path / ".opencode.json",
+            "config_key": "mcpServers",
+            "needs_dir": False,
         },
     }
 
@@ -544,8 +549,8 @@ def main():
     )
     parser.add_argument(
         "editor",
-        choices=["claude", "cursor", "vs"],
-        help="Editor to configure (claude=Claude Code, cursor=Cursor, vs=VS Code)",
+        choices=["claude", "cursor", "vs", "opencode"],
+        help="Editor to configure (claude=Claude Code, cursor=Cursor, vs=VS Code, opencode=OpenCode)",
     )
     parser.add_argument(
         "repo",

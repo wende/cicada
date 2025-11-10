@@ -24,7 +24,7 @@
 ## What's New in 0.3
 
 - **Dependency analysis tools** - New `get_module_dependencies` and `get_function_dependencies` with transitive depth support
-- **Expanded editor support** - Added Gemini CLI and Codex (now 5 editors supported)
+- **Expanded editor support** - Added Gemini CLI, Codex, and OpenCode (now 6 editors supported)
 - **Watch mode** - Automatic reindexing with `cicada watch` or `--watch` flag
 - **Better discoverability** - Smart error suggestions, inline PR context, staleness warnings
 - **Wildcard & OR patterns** - Search with `MyApp.*`, `create*|update*` across modules and functions
@@ -63,7 +63,7 @@ uv tool install cicada-mcp
 
 # 3. Index your Elixir project
 cd /path/to/project
-cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex
+cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cicada opencode
 
 # 4. Restart your editor
 ```
@@ -82,7 +82,7 @@ Runs CICADA on demand (slower after the first run, but zero install).
 </div>
 
 **Available commands after installation:**
-- `cicada [claude|cursor|vs|gemini|codex]` - One-command setup per project
+- `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
 - `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
@@ -112,7 +112,7 @@ Ask your assistant:
   ├─ hashes.json     # incremental indexing cache
   └─ pr_index.json   # optional PR metadata + reviews
   ```
-  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json`).
+  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/mcp.json`, `.codex/mcp.json`, or `.opencode.json`).
 
 ---
 
@@ -124,7 +124,7 @@ Ask your assistant:
 
 ```bash
 cd /path/to/project
-cicada claude   # or cicada cursor / cicada vs / cicada gemini / cicada codex
+cicada claude   # or cicada cursor / cicada vs / cicada gemini / cicada codex / cicada opencode
 ```
 
 This command:

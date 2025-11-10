@@ -29,6 +29,9 @@ _EDITOR_OPTIONS = (
     ("Claude Code - AI-powered code editor", "claude"),
     ("Cursor - AI-first code editor", "cursor"),
     ("VS Code - Visual Studio Code", "vs"),
+    ("Gemini CLI - Google Gemini command line interface", "gemini"),
+    ("Codex - AI code editor", "codex"),
+    ("OpenCode - Terminal-based AI coding agent", "opencode"),
 )
 
 EDITOR_ITEMS = [label for label, _ in _EDITOR_OPTIONS]
