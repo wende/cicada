@@ -43,7 +43,7 @@ def extract_module_dependencies(module_data: dict) -> dict:
 
     # Add dependencies from various sources
     # Note: we use aliases.values() to get full names, not short names
-    for source_key, extract_values in [
+    for _source_key, extract_values in [
         ("aliases", lambda: aliases.values()),
         ("imports", lambda: module_data.get("imports", [])),
         ("uses", lambda: module_data.get("uses", [])),
@@ -62,7 +62,7 @@ def extract_module_dependencies(module_data: dict) -> dict:
                 dependencies.add(resolved_module)
 
     return {
-        "modules": sorted(list(dependencies)),
+        "modules": sorted(dependencies),
         "has_dynamic_calls": False,  # Could be enhanced to detect apply() etc.
     }
 
@@ -97,7 +97,9 @@ def extract_function_dependencies(
     function_calls = [
         call
         for call in all_module_calls
-        if function_start_line <= call["line"] <= function_end_line
+        if function_start_line is not None
+        and call.get("line") is not None
+        and function_start_line <= call["line"] <= function_end_line
     ]
 
     dependencies = []
@@ -136,7 +138,10 @@ def calculate_function_end_line(function_data: dict, next_function_line: int | N
     if next_function_line:
         # Function ends just before the next function
         return next_function_line - 1
-    else:
+    elif function_line is not None:
         # Last function - use a large number as end line
         # This is a heuristic; ideally we'd get the actual end line from the AST
         return function_line + 10000
+    else:
+        # If no line info, return a large number
+        return 99999999

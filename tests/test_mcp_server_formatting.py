@@ -201,5 +201,71 @@ class TestGetFilePRHistoryFormatting:
         assert "not within repository" in result[0].text
 
 
+class TestFormatPRContext:
+    """Test _format_pr_context helper method."""
+
+    def test_format_pr_context_with_pr_info(self):
+        """Should format PR context when PR info is available"""
+        from cicada.format import ModuleFormatter
+
+        pr_info = {
+            "number": 123,
+            "title": "Add new feature",
+            "author": "developer",
+            "comment_count": 5,
+        }
+
+        result = ModuleFormatter._format_pr_context(pr_info, "lib/test.ex")
+
+        assert len(result) > 0
+        text = "\n".join(result)
+        assert "PR #123" in text
+        assert "Add new feature" in text
+        assert "@developer" in text
+        assert "5 review comment(s)" in text
+        assert "get_file_pr_history" in text
+
+    def test_format_pr_context_with_pr_info_no_comments(self):
+        """Should format PR context without comments section"""
+        from cicada.format import ModuleFormatter
+
+        pr_info = {
+            "number": 456,
+            "title": "Bug fix",
+            "author": "dev2",
+            "comment_count": 0,
+        }
+
+        result = ModuleFormatter._format_pr_context(pr_info, "lib/test.ex")
+
+        text = "\n".join(result)
+        assert "PR #456" in text
+        assert "Bug fix" in text
+        assert "@dev2" in text
+        assert "review comment" not in text  # No comment section
+
+    def test_format_pr_context_without_pr_info(self):
+        """Should suggest building PR index when PR info unavailable"""
+        from cicada.format import ModuleFormatter
+
+        result = ModuleFormatter._format_pr_context(None, "lib/test.ex")
+
+        text = "\n".join(result)
+        assert "Want to know why this code exists?" in text
+        assert "cicada index-pr" in text
+        assert "get_commit_history" in text
+        assert "lib/test.ex" in text
+
+    def test_format_pr_context_with_function_name(self):
+        """Should include function name in git history suggestion"""
+        from cicada.format import ModuleFormatter
+
+        result = ModuleFormatter._format_pr_context(None, "lib/user.ex", "create_user")
+
+        text = "\n".join(result)
+        assert 'function_name="create_user"' in text
+        assert "lib/user.ex" in text
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1303,3 +1303,125 @@ end
         # Index should still be updated
         assert index is not None
         assert "modules" in index
+
+
+class TestTimestampComputation:
+    """Test git history timestamp computation during indexing."""
+
+    def test_compute_timestamps_enabled(self, tmp_path, monkeypatch):
+        """Test that timestamps are computed when enabled."""
+        from cicada.indexer import ElixirIndexer
+        from unittest.mock import Mock, MagicMock
+
+        # Create a test Elixir file
+        test_file = tmp_path / "lib" / "test.ex"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text(
+            """
+defmodule TestModule do
+  def test_function(x), do: x * 2
+end
+"""
+        )
+
+        # Mock GitHelper
+        mock_git_helper = Mock()
+        mock_evolution = {
+            "created_at": {"date": "2024-01-01T12:00:00", "sha": "abc123"},
+            "last_modified": {"date": "2024-03-15T10:30:00", "sha": "def456"},
+            "total_modifications": 5,
+        }
+        mock_git_helper.get_function_evolution.return_value = mock_evolution
+        mock_git_helper.repo_path = tmp_path
+
+        # Patch GitHelper to return our mock
+        def mock_git_helper_init(repo_path):
+            return mock_git_helper
+
+        monkeypatch.setattr("cicada.indexer.GitHelper", mock_git_helper_init)
+
+        # Create indexer and run with compute_timestamps=True
+        indexer = ElixirIndexer(verbose=False)
+        output_path = tmp_path / "index.json"
+
+        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
+
+        # Verify timestamps were added to functions
+        assert "TestModule" in index["modules"]
+        functions = index["modules"]["TestModule"]["functions"]
+        assert len(functions) > 0
+
+        func = functions[0]
+        assert "created_at" in func
+        assert "last_modified_at" in func
+        assert "last_modified_sha" in func
+        assert "modification_count" in func
+        assert func["created_at"] == "2024-01-01T12:00:00"
+        assert func["last_modified_at"] == "2024-03-15T10:30:00"
+        assert func["modification_count"] == 5
+
+    def test_compute_timestamps_disabled(self, tmp_path):
+        """Test that timestamps are not computed when disabled."""
+        from cicada.indexer import ElixirIndexer
+
+        # Create a test Elixir file
+        test_file = tmp_path / "lib" / "test.ex"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text(
+            """
+defmodule TestModule do
+  def test_function(x), do: x * 2
+end
+"""
+        )
+
+        # Create indexer and run with compute_timestamps=False (default)
+        indexer = ElixirIndexer(verbose=False)
+        output_path = tmp_path / "index.json"
+
+        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=False)
+
+        # Verify timestamps were NOT added
+        functions = index["modules"]["TestModule"]["functions"]
+        func = functions[0]
+        assert "created_at" not in func
+        assert "last_modified_at" not in func
+
+    def test_timestamp_computation_error_handling(self, tmp_path, monkeypatch, capsys):
+        """Test that timestamp computation errors are handled gracefully."""
+        from cicada.indexer import ElixirIndexer
+        from unittest.mock import Mock
+
+        # Create a test Elixir file
+        test_file = tmp_path / "lib" / "test.ex"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text(
+            """
+defmodule TestModule do
+  def test_function(x), do: x * 2
+end
+"""
+        )
+
+        # Mock GitHelper to raise exception
+        mock_git_helper = Mock()
+        mock_git_helper.get_function_evolution.side_effect = Exception("Git error")
+        mock_git_helper.repo_path = tmp_path
+
+        def mock_git_helper_init(repo_path):
+            return mock_git_helper
+
+        monkeypatch.setattr("cicada.indexer.GitHelper", mock_git_helper_init)
+
+        # Create indexer and run
+        indexer = ElixirIndexer(verbose=True)
+        output_path = tmp_path / "index.json"
+
+        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
+
+        # Should not crash, should show warning
+        captured = capsys.readouterr()
+        assert "Could not compute timestamps" in captured.err
+
+        # Index should still be created
+        assert "TestModule" in index["modules"]

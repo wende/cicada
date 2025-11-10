@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Time-Based Function Filtering** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
+  - New `changed_since` parameter for `search_function` tool to find recently modified functions
+  - Support for multiple date formats: ISO dates (`2024-01-15`), relative dates (`7d`, `2w`, `3m`, `1y`), and git refs
+  - Automatic timestamp computation during indexing (`created_at`, `last_modified_at`, `modification_count`)
+  - Timezone-aware datetime handling for accurate cross-timezone filtering
+
+- **Enhanced Proactive PR Suggestions** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
+  - Contextual prompts when no call sites are found for functions
+  - Automatic suggestions to build PR index when PR information is unavailable
+  - Deletion hints in function-not-found errors to guide troubleshooting
+  - Staleness warnings linked to PR history suggestions for outdated indexes
+
+- **Advanced Filtering and Relationship Features** ([#90](https://github.com/wende/cicada/pull/90))
+  - Score threshold filtering for `search_by_keywords` with `min_score` parameter
+  - Usage type filtering for `search_module_usage`: filter by all/test_only/production_only
+  - Inline relationship display in `search_function` with `show_relationships` parameter
+  - Granular module dependencies with `granular` parameter showing function-level dependency tracking
+  - Time and author filters for `get_commit_history`: `since_date`, `until_date`, `author`, `min_changes` parameters
+  - New `cicada/mcp/filter_utils.py` module with shared filtering utilities
+
 - **Module and Function Dependency Analysis** ([#87](https://github.com/wende/cicada/pull/87))
   - New MCP tool `get_module_dependencies` - Shows which modules a module depends on
   - New MCP tool `get_function_dependencies` - Shows which functions a function calls
@@ -60,6 +80,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Simplified to use only `CICADA_CONFIG_DIR` for configuration
   - Reduced complexity in environment variable handling
   - Updated documentation to reflect the change
+
+### Fixed
+
+- **Git Blame Parsing with Repeated Commits** ([#88](https://github.com/wende/cicada/pull/88), [#90](https://github.com/wende/cicada/pull/90))
+  - Fixed KeyError when git blame encountered consecutive lines from the same commit
+  - Added commit metadata cache to store and reuse author info by SHA
+  - Git's porcelain format optimization now properly handled
+  - Comprehensive regression tests added to prevent recurrence
+
+- **Dependency Analysis Null Safety** ([#90](https://github.com/wende/cicada/pull/90))
+  - Added null check in dependency analyzer to prevent TypeError when call sites have missing line numbers
+  - Optimized git blame parsing performance by pre-validating commits once instead of per-line checking
 
 ## [0.2.3] - 2025-11-03
 

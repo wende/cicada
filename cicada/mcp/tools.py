@@ -91,6 +91,20 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Only show call sites from test files. Defaults to false.",
                     },
+                    "changed_since": {
+                        "type": "string",
+                        "description": (
+                            "Filter functions changed after this date/time. "
+                            "Formats: ISO date ('2024-01-15'), relative ('7d', '2w', '3m', '1y'), "
+                            "or git ref ('HEAD~10', 'v1.0.0'). "
+                            "Examples: '2024-01-01', '7d' (last 7 days), '2w' (last 2 weeks). "
+                            "Requires index to be built with timestamp support."
+                        ),
+                    },
+                    "show_relationships": {
+                        "type": "boolean",
+                        "description": "Show inline relationship information: what functions this calls and what calls this function. Defaults to true.",
+                    },
                 },
                 "required": ["function_name"],
             },
@@ -118,6 +132,11 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "enum": ["markdown", "json"],
                         "description": "Output format. Defaults to 'markdown'.",
+                    },
+                    "usage_type": {
+                        "type": "string",
+                        "enum": ["all", "test_only", "production_only"],
+                        "description": "Filter usage sites by file type. 'all' shows everything, 'test_only' shows only test files, 'production_only' shows only non-test files. Defaults to 'all'.",
                     },
                 },
                 "required": ["module_name"],
@@ -200,6 +219,22 @@ def get_tool_definitions() -> list[Tool]:
                     "max_commits": {
                         "type": "integer",
                         "description": "Maximum number of commits to return. Defaults to 10.",
+                    },
+                    "since_date": {
+                        "type": "string",
+                        "description": "Only include commits after this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y). Examples: '2024-01-01', '30d'.",
+                    },
+                    "until_date": {
+                        "type": "string",
+                        "description": "Only include commits before this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y).",
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Filter by author name (substring match, case-insensitive). Example: 'john' matches 'John Doe'.",
+                    },
+                    "min_changes": {
+                        "type": "integer",
+                        "description": "Minimum number of lines changed (insertions + deletions) in the file. Useful for finding substantial changes.",
                     },
                 },
                 "required": ["file_path"],
@@ -292,6 +327,10 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["all", "modules", "functions"],
                         "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
                     },
+                    "min_score": {
+                        "type": "number",
+                        "description": "Minimum relevance score threshold (0.0 to 1.0). Only results with scores >= this value will be shown. Default: 0.0 (no filtering).",
+                    },
                 },
                 "required": ["keywords"],
             },
@@ -380,6 +419,10 @@ def get_tool_definitions() -> list[Tool]:
                     "depth": {
                         "type": "integer",
                         "description": "Depth for transitive dependencies. 1 = direct only, 2 = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "granular": {
+                        "type": "boolean",
+                        "description": "Show which specific functions use which dependencies. When true, displays function-level dependency details. Defaults to false.",
                     },
                 },
                 "required": ["module_name"],

@@ -16,6 +16,7 @@ from cicada.dependency_analyzer import (
     extract_function_dependencies,
     extract_module_dependencies,
 )
+from cicada.git_helper import GitHelper
 from cicada.parser import ElixirParser
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
@@ -115,6 +116,7 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
+        compute_timestamps: bool = False,
     ):
         """
         Index an Elixir repository.
@@ -123,6 +125,7 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
+            compute_timestamps: If True, compute git history timestamps for functions
 
         Returns:
             Dictionary containing the index data
@@ -177,6 +180,19 @@ class ElixirIndexer:
                     print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                     print("Continuing without keyword extraction...")
                 extract_keywords = False
+
+        # Initialize git helper if timestamps are requested
+        git_helper = None
+        if compute_timestamps:
+            try:
+                git_helper = GitHelper(str(repo_path_obj))
+                if self.verbose:
+                    print("Git history tracking enabled - computing function timestamps")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize git helper: {e}")
+                    print("Continuing without timestamp computation...")
+                compute_timestamps = False
 
         # Find all Elixir files
         elixir_files = self._find_elixir_files(repo_path_obj)
@@ -254,63 +270,92 @@ class ElixirIndexer:
                                         file=sys.stderr,
                                     )
 
-                        # Extract and expand keywords from function docs
-                        if keyword_extractor:
-                            for func in functions:
-                                if func.get("doc"):
-                                    func_name = func.get("name", "")
-                                    try:
-                                        # Include function name in text for keyword extraction
-                                        # This ensures the function name identifier gets 10x weight
-                                        text_for_keywords = f"{func_name} {func['doc']}"
-                                        # Step 1: Extract keywords with scores
-                                        extraction_result = keyword_extractor.extract_keywords(
-                                            text_for_keywords, top_n=10
+                        # Enrich function metadata (keywords and timestamps)
+                        for func in functions:
+                            func_name = func.get("name", "")
+
+                            # Extract and expand keywords from function docs
+                            if keyword_extractor and func.get("doc"):
+                                try:
+                                    # Include function name in text for keyword extraction
+                                    # This ensures the function name identifier gets 10x weight
+                                    text_for_keywords = f"{func_name} {func['doc']}"
+                                    # Step 1: Extract keywords with scores
+                                    extraction_result = keyword_extractor.extract_keywords(
+                                        text_for_keywords, top_n=10
+                                    )
+                                    extracted_keywords = [
+                                        kw for kw, _ in extraction_result["top_keywords"]
+                                    ]
+                                    keyword_scores = {
+                                        kw.lower(): score
+                                        for kw, score in extraction_result["top_keywords"]
+                                    }
+
+                                    # Step 2: Expand keywords with scores
+                                    if keyword_expander and extracted_keywords:
+                                        expansion_result = keyword_expander.expand_keywords(
+                                            extracted_keywords,
+                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                            return_scores=True,
+                                            keyword_scores=keyword_scores,
                                         )
-                                        extracted_keywords = [
-                                            kw for kw, _ in extraction_result["top_keywords"]
+                                        # Convert to dict: word -> max_score
+                                        func_keywords = {}
+                                        # When return_scores=True, expansion_result is a dict
+                                        if not isinstance(expansion_result, dict):
+                                            raise TypeError(
+                                                "Expected dict from expand_keywords with return_scores=True"
+                                            )
+                                        for item in expansion_result["words"]:
+                                            word = item["word"]
+                                            score = item["score"]
+                                            if (
+                                                word not in func_keywords
+                                                or score > func_keywords[word]
+                                            ):
+                                                func_keywords[word] = score
+                                    else:
+                                        func_keywords = keyword_scores
+
+                                    if func_keywords:
+                                        func["keywords"] = func_keywords
+                                except Exception as e:
+                                    keyword_extraction_failures += 1
+                                    if self.verbose:
+                                        print(
+                                            f"Warning: Keyword extraction failed for {module_name}.{func_name}: {e}",
+                                            file=sys.stderr,
+                                        )
+
+                            # Compute git history timestamps if enabled
+                            if git_helper and func_name:
+                                try:
+                                    # Get function evolution metadata
+                                    evolution = git_helper.get_function_evolution(
+                                        file_path=str(file_path.relative_to(repo_path_obj)),
+                                        function_name=func_name,
+                                    )
+
+                                    if evolution:
+                                        # Add timestamp fields to function
+                                        func["created_at"] = evolution["created_at"]["date"]
+                                        func["last_modified_at"] = evolution["last_modified"][
+                                            "date"
                                         ]
-                                        keyword_scores = {
-                                            kw.lower(): score
-                                            for kw, score in extraction_result["top_keywords"]
-                                        }
-
-                                        # Step 2: Expand keywords with scores
-                                        if keyword_expander and extracted_keywords:
-                                            expansion_result = keyword_expander.expand_keywords(
-                                                extracted_keywords,
-                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                return_scores=True,
-                                                keyword_scores=keyword_scores,
-                                            )
-                                            # Convert to dict: word -> max_score
-                                            func_keywords = {}
-                                            # When return_scores=True, expansion_result is a dict
-                                            if not isinstance(expansion_result, dict):
-                                                raise TypeError(
-                                                    "Expected dict from expand_keywords with return_scores=True"
-                                                )
-                                            for item in expansion_result["words"]:
-                                                word = item["word"]
-                                                score = item["score"]
-                                                if (
-                                                    word not in func_keywords
-                                                    or score > func_keywords[word]
-                                                ):
-                                                    func_keywords[word] = score
-                                        else:
-                                            func_keywords = keyword_scores
-
-                                        if func_keywords:
-                                            func["keywords"] = func_keywords
-                                    except Exception as e:
-                                        keyword_extraction_failures += 1
-                                        if self.verbose:
-                                            print(
-                                                f"Warning: Keyword extraction failed for {module_name}.{func_name}: {e}",
-                                                file=sys.stderr,
-                                            )
+                                        func["last_modified_sha"] = evolution["last_modified"][
+                                            "sha"
+                                        ]
+                                        func["modification_count"] = evolution[
+                                            "total_modifications"
+                                        ]
+                                except Exception as e:
+                                    if self.verbose:
+                                        print(
+                                            f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
+                                            file=sys.stderr,
+                                        )
 
                         # Extract dependencies
                         module_dependencies, functions = self._extract_dependencies(

@@ -324,5 +324,127 @@ async def test_module_wildcard_with_nested_segments(tmp_path):
     assert "MyApp.User" not in text  # ensure suffix constraint is respected
 
 
+@pytest.mark.asyncio
+async def test_search_function_with_changed_since(tmp_path):
+    """Test changed_since filtering in search_function."""
+    import json
+    import yaml
+    from datetime import datetime, timedelta, timezone
+
+    # Create test index with functions having different timestamps (timezone-aware)
+    old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+
+    test_index = {
+        "modules": {
+            "MyApp.User": {
+                "file": "lib/user.ex",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "create_user",
+                        "arity": 2,
+                        "line": 10,
+                        "type": "def",
+                        "created_at": old_date,
+                        "last_modified_at": recent_date,  # Modified recently
+                        "modification_count": 5,
+                    },
+                    {
+                        "name": "delete_user",
+                        "arity": 1,
+                        "line": 20,
+                        "type": "def",
+                        "created_at": old_date,
+                        "last_modified_at": old_date,  # Not modified recently
+                        "modification_count": 1,
+                    },
+                ],
+                "public_functions": 2,
+                "private_functions": 0,
+            }
+        },
+        "metadata": {"total_modules": 1, "repo_path": str(tmp_path)},
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Test: Search with changed_since='7d' should only return create_user
+    result = await server._search_function("*_user", "json", changed_since="7d")
+    data = json.loads(result[0].text)
+
+    # JSON format returns dict with "results" key
+    assert data["total_matches"] == 1
+    assert data["results"][0]["function"] == "create_user"
+
+    # Test: Search without changed_since should return both
+    result = await server._search_function("*_user", "json")
+    data = json.loads(result[0].text)
+
+    assert data["total_matches"] == 2
+
+
+@pytest.mark.asyncio
+async def test_search_function_changed_since_no_timestamp(tmp_path):
+    """Test that functions without timestamps are skipped when using changed_since."""
+    import json
+    import yaml
+
+    test_index = {
+        "modules": {
+            "MyApp.User": {
+                "file": "lib/user.ex",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "legacy_function",
+                        "arity": 0,
+                        "line": 10,
+                        "type": "def",
+                        # No timestamp fields
+                    }
+                ],
+                "public_functions": 1,
+                "private_functions": 0,
+            }
+        },
+        "metadata": {"total_modules": 1, "repo_path": str(tmp_path)},
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Functions without timestamps should be skipped when using changed_since
+    result = await server._search_function("legacy_function", "json", changed_since="7d")
+    data = json.loads(result[0].text)
+
+    # No results returns error structure
+    assert "error" in data
+    assert data["error"] == "Function not found"
+
+
 if __name__ == "__main__":
     asyncio.run(test_search_function())
