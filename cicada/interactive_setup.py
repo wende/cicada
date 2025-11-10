@@ -396,7 +396,8 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     if add_to_claude_md_flag:
         add_to_claude_md(repo_path)
-        
+
+
 def _text_based_editor_selection() -> str:
     """
     Fallback text-based editor selection for terminals that don't support simple-term-menu.

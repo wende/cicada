@@ -120,9 +120,7 @@ class TestIndexerDependencyExtraction:
         assert "MyApp.Auth" in user_module["dependencies"]["modules"]
 
         # Check function-level dependencies
-        create_user_func = next(
-            f for f in user_module["functions"] if f["name"] == "create_user"
-        )
+        create_user_func = next(f for f in user_module["functions"] if f["name"] == "create_user")
         assert "dependencies" in create_user_func
         assert len(create_user_func["dependencies"]) > 0
 
@@ -134,9 +132,7 @@ class TestIndexerDependencyExtraction:
         output_path = sample_elixir_file / ".cicada" / "index.json"
 
         # Do initial index
-        indexer.index_repository(
-            str(sample_elixir_file), str(output_path), extract_keywords=False
-        )
+        indexer.index_repository(str(sample_elixir_file), str(output_path), extract_keywords=False)
 
         # Modify the file
         user_file = sample_elixir_file / "lib" / "user.ex"
@@ -159,9 +155,7 @@ class TestIndexerDependencyExtraction:
         assert "MyApp.Repo" in user_module["dependencies"]["modules"]
 
         # Check function-level dependencies
-        create_user_func = next(
-            f for f in user_module["functions"] if f["name"] == "create_user"
-        )
+        create_user_func = next(f for f in user_module["functions"] if f["name"] == "create_user")
         assert "dependencies" in create_user_func
 
     def test_function_dependencies_line_range(self, sample_elixir_file):

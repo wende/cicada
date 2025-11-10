@@ -264,9 +264,7 @@ end
         assert "```elixir" in text
 
     @pytest.mark.asyncio
-    async def test_get_function_dependencies_module_not_found(
-        self, mock_server_with_dependencies
-    ):
+    async def test_get_function_dependencies_module_not_found(self, mock_server_with_dependencies):
         """Test error handling for non-existent module."""
         result = await mock_server_with_dependencies._get_function_dependencies(
             "NonExistent.Module", "some_func", 1, "markdown", False

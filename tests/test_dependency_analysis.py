@@ -246,9 +246,7 @@ class TestFunctionDependencyExtraction:
         # Check local calls
         local_calls = [d for d in deps if d["module"] == "MyApp.User"]
         assert len(local_calls) == 2
-        assert any(
-            d["function"] == "validate_attrs" and d["arity"] == 1 for d in local_calls
-        )
+        assert any(d["function"] == "validate_attrs" and d["arity"] == 1 for d in local_calls)
         assert any(d["function"] == "hash_password" and d["arity"] == 1 for d in local_calls)
 
         # Check external call with resolved alias
@@ -339,9 +337,7 @@ class TestFunctionDependencyExtraction:
 
         # Check that aliases were resolved
         assert any(d["module"] == "MyApp.Repo" and d["function"] == "insert" for d in deps)
-        assert any(
-            d["module"] == "MyApp.Auth" and d["function"] == "hash_password" for d in deps
-        )
+        assert any(d["module"] == "MyApp.Auth" and d["function"] == "hash_password" for d in deps)
 
 
 class TestDependencyEdgeCases:

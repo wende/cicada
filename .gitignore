@@ -57,6 +57,7 @@ coverage_acceptance.json
 # Cicada data and generated files
 data/
 .cicada/
+.claude
 .mcp.json
 config.yaml
 test_config.yaml
