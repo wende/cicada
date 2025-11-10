@@ -989,20 +989,25 @@ def handle_clean(args):
 
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
-    from cicada.utils.storage import get_link_info, get_storage_dir, is_linked, resolve_storage_dir
+    from cicada.utils.storage import get_storage_dir
 
     repo_path = Path(args.repo).resolve()
 
     try:
         storage_dir = get_storage_dir(repo_path)
+        link_path = storage_dir / "link.yaml"
 
         # Check if the repository is linked
-        if is_linked(repo_path):
-            link_info = get_link_info(repo_path)
-            resolved_dir = resolve_storage_dir(repo_path)
+        if link_path.exists():
+            import yaml
+
+            with open(link_path) as f:
+                link_info = yaml.safe_load(f)
+
+            source_storage_dir = Path(link_info["source_storage_dir"])
             print(f"Storage directory: {storage_dir}")
-            print(f"Linked to: {link_info['source_repo_path']}")  # type: ignore
-            print(f"Resolved storage: {resolved_dir}")
+            print(f"Linked to: {link_info['source_repo_path']}")
+            print(f"Resolved storage: {source_storage_dir}")
         else:
             print(str(storage_dir))
     except Exception as e:

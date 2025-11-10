@@ -190,8 +190,9 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
         ValueError: If source repository is not indexed or target is already linked
         FileNotFoundError: If source or target repository doesn't exist
     """
-    import yaml
     from datetime import datetime, timezone
+
+    import yaml
 
     # Resolve paths
     target_path = Path(target_repo).resolve()
@@ -220,7 +221,7 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
         )
 
     # Create target storage directory if it doesn't exist
-    target_storage_dir = create_storage_dir(target_path)
+    create_storage_dir(target_path)
 
     # Get source storage directory
     source_storage_dir = get_storage_dir(source_path)

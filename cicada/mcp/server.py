@@ -2131,7 +2131,6 @@ def _auto_setup_if_needed():
     from cicada.setup import create_config_yaml, index_repository
     from cicada.utils import (
         create_storage_dir,
-        get_config_path,
         get_index_path,
     )
 
