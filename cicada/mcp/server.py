@@ -21,8 +21,9 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from cicada.command_logger import get_logger
-from cicada.format import ModuleFormatter
-from cicada.git_helper import GitHelper
+from cicada.elixir.format import ModuleFormatter
+from cicada.git import GitHelper
+from cicada.github import PRFinder
 from cicada.mcp.pattern_utils import (
     FunctionPattern,
     has_wildcards,
@@ -31,7 +32,6 @@ from cicada.mcp.pattern_utils import (
     split_or_patterns,
 )
 from cicada.mcp.tools import get_tool_definitions
-from cicada.pr_finder import PRFinder
 from cicada.utils import find_similar_names, get_config_path, get_pr_index_path, load_index
 
 
@@ -1754,7 +1754,7 @@ class CicadaServer:
             return [TextContent(type="text", text=result)]
 
         # Format results
-        from cicada.format import ModuleFormatter
+        from cicada.elixir.format import ModuleFormatter
 
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
             keywords, results, show_scores=True

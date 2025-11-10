@@ -16,7 +16,7 @@ from unittest.mock import Mock
 import pytest
 import yaml
 
-from cicada.format.formatter import ModuleFormatter
+from cicada.elixir.format.formatter import ModuleFormatter
 from cicada.mcp.server import CicadaServer
 from cicada.utils.storage import get_pr_index_path, get_storage_dir
 

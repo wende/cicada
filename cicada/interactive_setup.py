@@ -11,7 +11,7 @@ except ImportError:
     TerminalMenu = None  # type: ignore
     has_terminal_menu = False
 
-from cicada.format import BOLD, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
+from cicada.elixir.format import BOLD, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
 from cicada.interactive_setup_helpers import (
     CLAUDE_MD_ITEMS,
     EDITOR_ITEMS,

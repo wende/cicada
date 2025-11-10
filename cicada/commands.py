@@ -848,7 +848,7 @@ def handle_watch(args):
 
 
 def handle_index_pr(args):
-    from cicada.pr_indexer import PRIndexer
+    from cicada.github.pr_indexer import PRIndexer
     from cicada.utils import get_pr_index_path
     from cicada.version_check import check_for_updates
 

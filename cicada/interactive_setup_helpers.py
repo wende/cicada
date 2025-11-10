@@ -5,7 +5,7 @@ from typing import cast
 
 import yaml
 
-from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET
+from cicada.elixir.format import BOLD, GREEN, GREY, PRIMARY, RESET
 from cicada.setup import EditorType
 
 
@@ -211,7 +211,7 @@ def run_pr_indexing(repo_path: Path) -> None:
     Args:
         repo_path: Path to the repository to index
     """
-    from cicada.pr_indexer.indexer import PRIndexer
+    from cicada.github.pr_indexer.indexer import PRIndexer
     from cicada.utils.storage import get_pr_index_path
 
     print()

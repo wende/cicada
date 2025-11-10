@@ -18,9 +18,12 @@ def setup_test_environment():
     Create minimal index and config files for tests that need them.
     This runs once per test session before any tests execute.
     """
+    # Get the tests directory
+    tests_dir = Path(__file__).parent
+
     # Create .cicada directory if it doesn't exist
     os.makedirs(".cicada", exist_ok=True)
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(tests_dir / "data", exist_ok=True)
 
     # Create minimal index
     minimal_index = {"modules": {}, "metadata": {"total_modules": 0, "repo_path": "."}}
@@ -104,7 +107,7 @@ def setup_test_environment():
         "metadata": {"total_modules": 3, "repo_path": "."},
     }
 
-    test_index_path = "data/test_index.json"
+    test_index_path = tests_dir / "data" / "test_index.json"
     with open(test_index_path, "w") as f:
         json.dump(test_index, f, indent=2)
 
