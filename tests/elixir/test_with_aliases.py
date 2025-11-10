@@ -34,7 +34,7 @@ async def test_aliased_calls():
     print("=" * 60)
     print("Test 1: Search for 'new' in MyApp.User (called via 'User' alias)")
     print("=" * 60)
-    result = await server._search_function("new", "markdown")
+    result = await server.function_handler.search_function("new", "markdown")
     # Filter to only show MyApp.User results
     print(result[0].text[:1500])
     print()
@@ -43,7 +43,7 @@ async def test_aliased_calls():
     print("=" * 60)
     print("Test 2: Search for 'insert' (called via 'DB' alias)")
     print("=" * 60)
-    result = await server._search_function("insert", "markdown")
+    result = await server.function_handler.search_function("insert", "markdown")
     print(result[0].text)
     print()
 

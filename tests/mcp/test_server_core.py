@@ -57,7 +57,8 @@ class TestServerInitialization:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        assert server.pr_index is None
+        # After refactoring, pr_index is accessed through index_manager
+        assert server.index_manager.pr_index is None
 
 
 class TestToolInputValidation:
@@ -177,7 +178,7 @@ class TestResolveFileToModule:
     )
     def test_resolve_file_to_module(self, file_path, expected, test_server):
         """Should resolve file paths to module names"""
-        result = test_server._resolve_file_to_module(file_path)
+        result = test_server.module_handler.resolve_file_to_module(file_path)
         assert result == expected
 
 
@@ -233,14 +234,16 @@ class TestSearchModuleUsage:
     @pytest.mark.asyncio
     async def test_module_not_found(self, test_server):
         """Should return error when module doesn't exist"""
-        result = await test_server._search_module_usage("NonExistent.Module", "markdown")
+        result = await test_server.module_handler.search_module_usage(
+            "NonExistent.Module", "markdown"
+        )
         assert len(result) == 1
         assert "not found in index" in result[0].text
 
     @pytest.mark.asyncio
     async def test_finds_usage_patterns(self, test_server):
         """Should find aliases, imports, and function calls"""
-        result = await test_server._search_module_usage("MyApp.User", "markdown")
+        result = await test_server.module_handler.search_module_usage("MyApp.User", "markdown")
         assert len(result) == 1
         text = result[0].text
         assert "MyApp.Account" in text
@@ -377,7 +380,7 @@ class TestAddCodeExamples:
             }
         ]
 
-        test_server_with_files._add_code_examples(call_sites)
+        test_server_with_files.function_handler._add_code_examples(call_sites)
 
         assert "code_line" in call_sites[0]
         assert "call_target()" in str(call_sites[0]["code_line"])
@@ -386,7 +389,7 @@ class TestAddCodeExamples:
         """Should skip code examples for missing files"""
         call_sites = [{"file": "lib/nonexistent.ex", "line": 10, "calling_module": "Test"}]
 
-        test_server_with_files._add_code_examples(call_sites)
+        test_server_with_files.function_handler._add_code_examples(call_sites)
 
         assert "code_line" not in call_sites[0]
 
@@ -416,7 +419,7 @@ class TestParseChangedSince:
         """Should parse ISO date format and ensure timezone-aware"""
         from datetime import datetime, timezone
 
-        result = test_server._parse_changed_since("2024-01-15")
+        result = test_server.git_handler.parse_changed_since("2024-01-15")
         assert isinstance(result, datetime)
         assert result.year == 2024
         assert result.month == 1
@@ -429,7 +432,7 @@ class TestParseChangedSince:
         """Should parse relative days format and ensure timezone-aware"""
         from datetime import datetime, timedelta, timezone
 
-        result = test_server._parse_changed_since("7d")
+        result = test_server.git_handler.parse_changed_since("7d")
         expected = datetime.now(timezone.utc) - timedelta(days=7)
         assert isinstance(result, datetime)
         # Should be timezone-aware
@@ -441,7 +444,7 @@ class TestParseChangedSince:
         """Should parse relative weeks format and ensure timezone-aware"""
         from datetime import datetime, timedelta, timezone
 
-        result = test_server._parse_changed_since("2w")
+        result = test_server.git_handler.parse_changed_since("2w")
         expected = datetime.now(timezone.utc) - timedelta(weeks=2)
         assert isinstance(result, datetime)
         assert result.tzinfo is not None
@@ -451,7 +454,7 @@ class TestParseChangedSince:
         """Should parse relative months format and ensure timezone-aware"""
         from datetime import datetime, timedelta, timezone
 
-        result = test_server._parse_changed_since("3m")
+        result = test_server.git_handler.parse_changed_since("3m")
         expected = datetime.now(timezone.utc) - timedelta(days=3 * 30)
         assert isinstance(result, datetime)
         assert result.tzinfo is not None
@@ -461,7 +464,7 @@ class TestParseChangedSince:
         """Should parse relative years format and ensure timezone-aware"""
         from datetime import datetime, timedelta, timezone
 
-        result = test_server._parse_changed_since("1y")
+        result = test_server.git_handler.parse_changed_since("1y")
         expected = datetime.now(timezone.utc) - timedelta(days=365)
         assert isinstance(result, datetime)
         assert result.tzinfo is not None
@@ -470,13 +473,13 @@ class TestParseChangedSince:
     def test_invalid_format_raises_error(self, test_server):
         """Should raise ValueError for invalid format"""
         with pytest.raises(ValueError, match="Invalid changed_since format"):
-            test_server._parse_changed_since("invalid")
+            test_server.git_handler.parse_changed_since("invalid")
 
     def test_parse_iso_datetime(self, test_server):
         """Should parse full ISO datetime with time and ensure timezone-aware"""
         from datetime import datetime, timezone
 
-        result = test_server._parse_changed_since("2024-03-20T14:30:00")
+        result = test_server.git_handler.parse_changed_since("2024-03-20T14:30:00")
         assert isinstance(result, datetime)
         assert result.year == 2024
         assert result.month == 3
@@ -492,7 +495,7 @@ class TestParseChangedSince:
         from datetime import datetime, timezone, timedelta
 
         # Test with explicit timezone
-        result = test_server._parse_changed_since("2024-03-20T14:30:00+05:00")
+        result = test_server.git_handler.parse_changed_since("2024-03-20T14:30:00+05:00")
         assert isinstance(result, datetime)
         assert result.tzinfo is not None
         # Should preserve the provided timezone (UTC+5)
@@ -503,9 +506,9 @@ class TestParseChangedSince:
         from datetime import datetime, timezone
 
         # All these should return timezone-aware datetimes that can be compared
-        dt1 = test_server._parse_changed_since("2024-01-15")
-        dt2 = test_server._parse_changed_since("7d")
-        dt3 = test_server._parse_changed_since("2024-03-20T14:30:00")
+        dt1 = test_server.git_handler.parse_changed_since("2024-01-15")
+        dt2 = test_server.git_handler.parse_changed_since("7d")
+        dt3 = test_server.git_handler.parse_changed_since("2024-03-20T14:30:00")
 
         # These comparisons should not raise TypeError
         assert dt1 < dt3  # ISO date vs ISO datetime
@@ -515,37 +518,37 @@ class TestParseChangedSince:
     def test_negative_value_raises_error(self, test_server):
         """Should reject negative time values"""
         with pytest.raises(ValueError, match="Time amount must be positive"):
-            test_server._parse_changed_since("-5d")
+            test_server.git_handler.parse_changed_since("-5d")
 
     def test_zero_value_raises_error(self, test_server):
         """Should reject zero time values"""
         with pytest.raises(ValueError, match="Time amount must be positive"):
-            test_server._parse_changed_since("0d")
+            test_server.git_handler.parse_changed_since("0d")
 
     def test_negative_weeks_raises_error(self, test_server):
         """Should reject negative weeks"""
         with pytest.raises(ValueError, match="Time amount must be positive"):
-            test_server._parse_changed_since("-2w")
+            test_server.git_handler.parse_changed_since("-2w")
 
     def test_zero_months_raises_error(self, test_server):
         """Should reject zero months"""
         with pytest.raises(ValueError, match="Time amount must be positive"):
-            test_server._parse_changed_since("0m")
+            test_server.git_handler.parse_changed_since("0m")
 
     def test_malformed_relative_format(self, test_server):
         """Should reject malformed relative formats"""
         with pytest.raises(ValueError, match="Invalid changed_since format"):
-            test_server._parse_changed_since("abc")
+            test_server.git_handler.parse_changed_since("abc")
 
     def test_empty_amount(self, test_server):
         """Should reject relative format without amount"""
         with pytest.raises(ValueError):
-            test_server._parse_changed_since("d")
+            test_server.git_handler.parse_changed_since("d")
 
     def test_invalid_unit(self, test_server):
         """Should reject invalid time units"""
         with pytest.raises(ValueError, match="Invalid changed_since format"):
-            test_server._parse_changed_since("5x")  # 'x' is not a valid unit
+            test_server.git_handler.parse_changed_since("5x")  # 'x' is not a valid unit
 
 
 if __name__ == "__main__":

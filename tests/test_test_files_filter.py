@@ -47,7 +47,7 @@ async def test_test_files_filter(tmp_path):
     print("Test 1: Search for function - ALL call sites")
     print("=" * 60)
     # Pick a function that exists in your index
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "create_user",  # Replace with a function name from your actual index
         output_format="markdown",
         include_usage_examples=False,
@@ -61,7 +61,7 @@ async def test_test_files_filter(tmp_path):
     print("=" * 60)
     print("Test 2: Search for same function - TEST FILES ONLY")
     print("=" * 60)
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "create_user",  # Same function
         output_format="markdown",
         include_usage_examples=False,
@@ -75,7 +75,7 @@ async def test_test_files_filter(tmp_path):
     print("=" * 60)
     print("Test 3: With usage examples from test files only")
     print("=" * 60)
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "create_user",
         output_format="markdown",
         include_usage_examples=True,
