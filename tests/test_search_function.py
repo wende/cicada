@@ -329,11 +329,11 @@ async def test_search_function_with_changed_since(tmp_path):
     """Test changed_since filtering in search_function."""
     import json
     import yaml
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    # Create test index with functions having different timestamps
-    old_date = (datetime.now() - timedelta(days=60)).isoformat()
-    recent_date = (datetime.now() - timedelta(days=5)).isoformat()
+    # Create test index with functions having different timestamps (timezone-aware)
+    old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
 
     test_index = {
         "modules": {
