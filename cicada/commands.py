@@ -35,6 +35,8 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "find-dead-code",
     "clean",
     "dir",
+    "link",
+    "unlink",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
@@ -522,6 +524,51 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    link_parser = subparsers.add_parser(
+        "link",
+        help="Link current repository to use another repository's index",
+        description="Create a link from the current (or target) repository to use an existing index from a source repository",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada link /path/to/source/repo          # Link current repo to source repo's index
+  cicada link --to /target /path/to/source  # Link target repo to source repo's index
+
+Use cases:
+  - Monorepo: Link child projects to parent project's index
+  - Testing: Link test repository to main repository
+  - Development: Share index across multiple working directories
+        """,
+    )
+    link_parser.add_argument(
+        "source",
+        help="Path to the source repository (must be indexed)",
+    )
+    link_parser.add_argument(
+        "--to",
+        dest="target",
+        default=".",
+        help="Path to the target repository (default: current directory)",
+    )
+
+    unlink_parser = subparsers.add_parser(
+        "unlink",
+        help="Remove link from repository",
+        description="Remove the link from a repository, allowing it to have its own index again",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada unlink              # Remove link from current repo
+  cicada unlink /target/repo # Remove link from target repo
+        """,
+    )
+    unlink_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
     return parser
 
 
@@ -548,6 +595,8 @@ def handle_command(args) -> bool:
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "dir": handle_dir,
+        "link": handle_link,
+        "unlink": handle_unlink,
     }
 
     if args.command is None:
@@ -940,13 +989,81 @@ def handle_clean(args):
 
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
-    from cicada.utils.storage import get_storage_dir
+    from cicada.utils.storage import get_link_info, get_storage_dir, is_linked, resolve_storage_dir
 
     repo_path = Path(args.repo).resolve()
 
     try:
         storage_dir = get_storage_dir(repo_path)
-        print(str(storage_dir))
+
+        # Check if the repository is linked
+        if is_linked(repo_path):
+            link_info = get_link_info(repo_path)
+            resolved_dir = resolve_storage_dir(repo_path)
+            print(f"Storage directory: {storage_dir}")
+            print(f"Linked to: {link_info['source_repo_path']}")  # type: ignore
+            print(f"Resolved storage: {resolved_dir}")
+        else:
+            print(str(storage_dir))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_link(args):
+    """Link target repository to source repository's index."""
+    from cicada.utils.storage import create_link, get_link_info
+
+    target_path = Path(args.target).resolve()
+    source_path = Path(args.source).resolve()
+
+    try:
+        # Create the link
+        create_link(target_path, source_path)
+
+        # Show success message with link info
+        link_info = get_link_info(target_path)
+        print(f"✓ Successfully linked {target_path}")
+        print(f"  → Source: {link_info['source_repo_path']}")  # type: ignore
+        print(f"  → Storage: {link_info['source_storage_dir']}")  # type: ignore
+        print()
+        print("The target repository will now use the source repository's index.")
+        print("Run 'cicada unlink' to remove this link.")
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_unlink(args):
+    """Remove link from repository."""
+    from cicada.utils.storage import get_link_info, is_linked, remove_link
+
+    repo_path = Path(args.repo).resolve()
+
+    try:
+        # Check if linked
+        if not is_linked(repo_path):
+            print(f"Repository is not linked: {repo_path}")
+            print("Nothing to do.")
+            sys.exit(0)
+
+        # Get link info before removing
+        link_info = get_link_info(repo_path)
+        source_repo = link_info["source_repo_path"] if link_info else "unknown"  # type: ignore
+
+        # Remove the link
+        if remove_link(repo_path):
+            print(f"✓ Successfully unlinked {repo_path}")
+            print(f"  Previously linked to: {source_repo}")
+            print()
+            print("The repository can now have its own index.")
+            print("Run 'cicada index' to create a new index for this repository.")
+        else:
+            print(f"Failed to remove link from {repo_path}")
+            sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

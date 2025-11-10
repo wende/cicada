@@ -81,6 +81,8 @@ class CicadaServer:
         Returns:
             Path to the config file
         """
+        from cicada.utils.storage import resolve_storage_dir
+
         # Check if CICADA_CONFIG_DIR is set (direct path to storage directory)
         config_dir = os.environ.get("CICADA_CONFIG_DIR")
         if config_dir:
@@ -105,8 +107,9 @@ class CicadaServer:
         if not repo_path:
             repo_path = str(Path.cwd().resolve())
 
-        # Calculate config path from repository path
-        config_path = get_config_path(repo_path)
+        # Resolve storage directory (following links if present)
+        storage_dir = resolve_storage_dir(repo_path)
+        config_path = storage_dir / "config.yaml"
         return str(config_path)
 
     def _load_config(self, config_path: str) -> dict:

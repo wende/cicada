@@ -7,13 +7,19 @@ from pathlib import Path
 import pytest
 
 from cicada.utils.storage import (
+    create_link,
     create_storage_dir,
     get_config_path,
     get_hashes_path,
     get_index_path,
+    get_link_info,
+    get_link_path,
     get_pr_index_path,
     get_repo_hash,
     get_storage_dir,
+    is_linked,
+    remove_link,
+    resolve_storage_dir,
 )
 
 
@@ -292,3 +298,210 @@ class TestEdgeCases:
 
         assert isinstance(repo_hash, str), "Should return hash string"
         assert len(repo_hash) == 16, "Hash should be correct length"
+
+
+class TestLinkFunctionality:
+    """Tests for repository linking functionality"""
+
+    @pytest.fixture
+    def setup_repos(self, tmp_path, mock_home_dir):
+        """Setup source and target repositories for testing"""
+        # Create source repository with an index
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+
+        # Create target repository
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create storage and index for source
+        source_storage = create_storage_dir(source_repo)
+        source_index = source_storage / "index.json"
+        source_index.write_text('{"modules": {}}')
+
+        return source_repo, target_repo
+
+    def test_get_link_path(self, tmp_path, mock_home_dir):
+        """Should return correct link.yaml path"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        link_path = get_link_path(repo_path)
+
+        assert link_path.name == "link.yaml", "Should end with link.yaml"
+
+        # Should be under storage dir
+        storage_dir = get_storage_dir(repo_path)
+        assert link_path.parent == storage_dir, "Should be in storage dir"
+
+    def test_is_linked_false_for_unlinked_repo(self, tmp_path, mock_home_dir):
+        """Should return False for repository without link"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        assert not is_linked(repo_path), "Unlinked repo should return False"
+
+    def test_is_linked_true_for_linked_repo(self, setup_repos):
+        """Should return True for repository with link"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        assert is_linked(target_repo), "Linked repo should return True"
+
+    def test_create_link_success(self, setup_repos):
+        """Should successfully create link between repositories"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Verify link file exists
+        link_path = get_link_path(target_repo)
+        assert link_path.exists(), "Link file should be created"
+
+        # Verify link info
+        link_info = get_link_info(target_repo)
+        assert link_info is not None, "Link info should be available"
+        assert link_info["source_repo_path"] == str(source_repo.resolve())
+        assert "source_storage_dir" in link_info
+        assert "linked_at" in link_info
+
+    def test_create_link_fails_if_source_not_indexed(self, tmp_path, mock_home_dir):
+        """Should fail if source repository has no index"""
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Don't create index for source
+        with pytest.raises(ValueError, match="Source repository is not indexed"):
+            create_link(target_repo, source_repo)
+
+    def test_create_link_fails_if_already_linked(self, setup_repos):
+        """Should fail if target is already linked"""
+        source_repo, target_repo = setup_repos
+
+        # Create first link
+        create_link(target_repo, source_repo)
+
+        # Try to create second link
+        with pytest.raises(ValueError, match="already linked"):
+            create_link(target_repo, source_repo)
+
+    def test_create_link_fails_if_source_not_exists(self, tmp_path, mock_home_dir):
+        """Should fail if source repository doesn't exist"""
+        source_repo = tmp_path / "nonexistent_source"
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        with pytest.raises(FileNotFoundError, match="Source repository not found"):
+            create_link(target_repo, source_repo)
+
+    def test_create_link_fails_if_target_not_exists(self, tmp_path, mock_home_dir):
+        """Should fail if target repository doesn't exist"""
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+
+        # Create index for source
+        source_storage = create_storage_dir(source_repo)
+        source_index = source_storage / "index.json"
+        source_index.write_text('{"modules": {}}')
+
+        target_repo = tmp_path / "nonexistent_target"
+
+        with pytest.raises(FileNotFoundError, match="Target repository not found"):
+            create_link(target_repo, source_repo)
+
+    def test_get_link_info_returns_none_for_unlinked(self, tmp_path, mock_home_dir):
+        """Should return None for repository without link"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        link_info = get_link_info(repo_path)
+
+        assert link_info is None, "Unlinked repo should have no link info"
+
+    def test_get_link_info_returns_data_for_linked(self, setup_repos):
+        """Should return link data for linked repository"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Get link info
+        link_info = get_link_info(target_repo)
+
+        assert link_info is not None, "Link info should exist"
+        assert "source_repo_path" in link_info
+        assert "source_storage_dir" in link_info
+        assert "linked_at" in link_info
+
+    def test_resolve_storage_dir_unlinked(self, tmp_path, mock_home_dir):
+        """Should return own storage dir for unlinked repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        storage_dir = get_storage_dir(repo_path)
+        resolved_dir = resolve_storage_dir(repo_path)
+
+        assert storage_dir == resolved_dir, "Should resolve to own storage"
+
+    def test_resolve_storage_dir_linked(self, setup_repos):
+        """Should return source storage dir for linked repository"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Resolve storage
+        source_storage = get_storage_dir(source_repo)
+        resolved_target = resolve_storage_dir(target_repo)
+
+        assert resolved_target == source_storage, "Should resolve to source storage"
+
+    def test_remove_link_success(self, setup_repos):
+        """Should successfully remove link"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+        assert is_linked(target_repo), "Should be linked"
+
+        # Remove link
+        result = remove_link(target_repo)
+
+        assert result is True, "Should return True when link removed"
+        assert not is_linked(target_repo), "Should no longer be linked"
+
+        # Verify link file is gone
+        link_path = get_link_path(target_repo)
+        assert not link_path.exists(), "Link file should be removed"
+
+    def test_remove_link_returns_false_for_unlinked(self, tmp_path, mock_home_dir):
+        """Should return False when removing non-existent link"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        result = remove_link(repo_path)
+
+        assert result is False, "Should return False for unlinked repo"
+
+    def test_link_creates_target_storage_dir(self, setup_repos):
+        """Should create target storage directory if it doesn't exist"""
+        source_repo, target_repo = setup_repos
+
+        # Remove target storage if it exists
+        target_storage = get_storage_dir(target_repo)
+        if target_storage.exists():
+            import shutil
+
+            shutil.rmtree(target_storage)
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Verify target storage exists
+        assert target_storage.exists(), "Target storage should be created"
