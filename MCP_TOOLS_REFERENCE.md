@@ -4,7 +4,7 @@ Complete documentation of CICADA's Model Context Protocol tools for code intelli
 
 ## Overview
 
-CICADA provides 9 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
+CICADA provides 11 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
 
 ---
 
@@ -90,7 +90,85 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 4. find_pr_for_line
+### 4. get_module_dependencies
+
+**Purpose:** Discover which modules a given module depends on (the reverse of search_module_usage).
+
+**What it does:**
+- Shows all modules that a module depends on or uses
+- Tracks both direct and transitive dependencies
+- Complements `search_module_usage` by answering "what does X use?" instead of "what uses X?"
+- Supports configurable depth for transitive dependency analysis
+
+**Key Features:**
+- Direct dependency tracking (depth=1)
+- Transitive dependency analysis (depth>1)
+- Displays the full dependency tree
+- Shows line numbers where dependencies are referenced
+- Helps understand module coupling and impact of changes
+- Markdown and JSON output formats
+
+**Parameters:**
+- `module_name` (required) - Name of the module to analyze
+- `depth` (optional) - How many levels of dependencies to include (default: 1)
+  - `depth=1`: Direct dependencies only
+  - `depth=2`: Dependencies and their dependencies
+  - `depth=3+`: Full transitive closure up to specified depth
+
+**Use Cases:**
+- Understanding what external modules a module relies on
+- Analyzing the impact of removing or modifying a dependency
+- Identifying tightly coupled modules
+- Refactoring planning to reduce dependencies
+
+**Example:**
+```
+get_module_dependencies("MyApp.User", depth=2)
+```
+Shows all modules that MyApp.User depends on, plus their dependencies.
+
+---
+
+### 5. get_function_dependencies
+
+**Purpose:** Discover which functions a given function calls (function-level dependency analysis).
+
+**What it does:**
+- Shows all functions that a specific function calls
+- Tracks both direct and transitive function calls
+- Works at the function level, complementing module-level dependency analysis
+- Supports configurable depth for transitive call analysis
+
+**Key Features:**
+- Direct function call tracking (depth=1)
+- Transitive call analysis (depth>1)
+- Displays the full call tree
+- Shows line numbers where function calls occur
+- Helps understand function coupling and complexity
+- Markdown and JSON output formats
+
+**Parameters:**
+- `function_query` (required) - Function to analyze (name, name/arity, or Module.name/arity)
+- `depth` (optional) - How many levels of calls to include (default: 1)
+  - `depth=1`: Direct calls only
+  - `depth=2`: Calls and calls from those functions
+  - `depth=3+`: Full transitive closure up to specified depth
+
+**Use Cases:**
+- Understanding the complexity and reach of a function
+- Identifying circular dependencies between functions
+- Analyzing the impact of modifying a function's behavior
+- Refactoring to reduce coupling between functions
+
+**Example:**
+```
+get_function_dependencies("create_user/2", depth=2)
+```
+Shows all functions that create_user/2 calls, plus functions those call.
+
+---
+
+### 6. find_pr_for_line
 
 **Purpose:** Discover which pull request introduced a specific line of code.
 
@@ -112,7 +190,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 5. get_file_pr_history
+### 7. get_file_pr_history
 
 **Purpose:** Get all pull requests that modified a specific file with descriptions and review comments.
 
@@ -134,7 +212,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 6. get_commit_history
+### 8. get_commit_history
 
 **Purpose:** Get commit history for a file or function with precise tracking.
 
@@ -156,7 +234,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 7. get_blame
+### 9. get_blame
 
 **Purpose:** Show line-by-line authorship with grouped consecutive lines by same author.
 
@@ -176,7 +254,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 8. search_by_keywords
+### 10. search_by_keywords
 
 **Purpose:** Search for modules and functions by semantic keywords extracted from documentation (EXPERIMENTAL).
 
@@ -218,7 +296,7 @@ CICADA provides 9 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
-### 9. find_dead_code
+### 11. find_dead_code
 
 **Purpose:** Identify potentially unused public functions in your codebase.
 
@@ -264,6 +342,8 @@ All tools support flexible output formats:
 | `search_module` | Module name/pattern/file path | Functions & signatures | Find module contents (supports `*` and `\|`) |
 | `search_function` | Function name/pattern ± arity ± module | Definition & call sites | Understand function usage (supports `*` and `\|`) |
 | `search_module_usage` | Module name | Imports & function calls | Track module dependencies |
+| `get_module_dependencies` | Module name ± depth | Dependency tree | Discover what modules a module uses |
+| `get_function_dependencies` | Function query ± depth | Call tree | Discover what functions a function calls |
 | `find_pr_for_line` | File path & line number | PR info & author | Code attribution |
 | `get_file_pr_history` | File path | PR list with reviews | File change history |
 | `get_commit_history` | File path ± function | Commits & evolution | Track modifications |

@@ -21,6 +21,17 @@
 
 ---
 
+## What's New in 0.3
+
+- **Dependency analysis tools** - New `get_module_dependencies` and `get_function_dependencies` with transitive depth support
+- **Expanded editor support** - Added Gemini CLI and Codex (now 5 editors supported)
+- **Watch mode** - Automatic reindexing with `cicada watch` or `--watch` flag
+- **Better discoverability** - Smart error suggestions, inline PR context, staleness warnings
+- **Wildcard & OR patterns** - Search with `MyApp.*`, `create*|update*` across modules and functions
+- **Breaking:** Removed `CICADA_REPO_PATH` environment variable
+
+---
+
 ## Why CICADA?
 
 Traditional AI assistants treat your repo like a pile of text. That leads to:
@@ -52,7 +63,7 @@ uv tool install cicada-mcp
 
 # 3. Index your Elixir project
 cd /path/to/project
-cicada claude   # or: cicada cursor, cicada vs
+cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex
 
 # 4. Restart your editor
 ```
@@ -71,7 +82,7 @@ Runs CICADA on demand (slower after the first run, but zero install).
 </div>
 
 **Available commands after installation:**
-- `cicada [claude|cursor|vs]` - One-command setup per project
+- `cicada [claude|cursor|vs|gemini|codex]` - One-command setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
 - `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
@@ -113,7 +124,7 @@ Ask your assistant:
 
 ```bash
 cd /path/to/project
-cicada claude   # or cicada cursor / cicada vs
+cicada claude   # or cicada cursor / cicada vs / cicada gemini / cicada codex
 ```
 
 This command:
@@ -152,7 +163,6 @@ Enable automatic reindexing when files change by starting the MCP server with th
       "command": "cicada-mcp",
       "args": ["--watch"],
       "env": {
-        "CICADA_REPO_PATH": "/path/to/project",
         "CICADA_CONFIG_DIR": "/home/user/.cicada/projects/<hash>"
       }
     }
@@ -191,8 +201,8 @@ When watch mode is enabled:
 | Command | Purpose | Run When |
 |---------|---------|---------|
 | `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
+| `cicada watch` | Monitor files and auto-reindex on changes | During active development |
 | `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
-antic keywords | After large refactors or enabling AI tier |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
 | `cicada find-dead-code --min-confidence high` | List unused public functions | Cleanup sprints |
 
@@ -318,7 +328,7 @@ More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_IN
 
 ## For AI Assistants
 
-CICADA ships nine focused MCP tools. Use the decision table to pick the right one:
+CICADA ships eleven focused MCP tools. Use the decision table to pick the right one:
 
 ### 🧭 Which Tool Should You Use?
 
@@ -327,6 +337,8 @@ CICADA ships nine focused MCP tools. Use the decision table to pick the right on
 | List a module's API | `search_module` | Supports wildcards (`*`) and OR (`|`) patterns. Includes public/private functions, signatures, specs, docs |
 | Find where a function is defined & called | `search_function` | Supports wildcards (`*`) and OR (`|`) patterns. Resolves aliases/imports, shows code context |
 | Discover who imports/aliases a module | `search_module_usage` | Great for dependency impact analysis |
+| See what modules a module depends on | `get_module_dependencies` | Shows all modules used by a module (with transitive depth support) |
+| See what functions a function calls | `get_function_dependencies` | Shows all functions called by a function (with transitive depth support) |
 | Search by concept ("authentication", `*_user`) | `search_by_features` | Requires keyword tier index |
 | Identify unused code | `find_dead_code` | Confidence-ranked (high, medium, low) |
 | Find PR for a line | `find_pr_for_line` | Needs `cicada index-pr` + `gh` |
@@ -401,7 +413,7 @@ CICADA ships nine focused MCP tools. Use the decision table to pick the right on
 - Module-level grouping with line numbers
 - Excludes test files and `@impl` functions
 
-Detailed parameters + output formats: [docs/MCP_TOOLS_REFERENCE.md](docs/MCP_TOOLS_REFERENCE.md).
+Detailed parameters + output formats: [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFERENCE.md).
 
 ### Token-Friendly Responses
 

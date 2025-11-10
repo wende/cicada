@@ -9,11 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Module and Function Dependency Analysis** ([#87](https://github.com/wende/cicada/pull/87))
+  - New MCP tool `get_module_dependencies` - Shows which modules a module depends on
+  - New MCP tool `get_function_dependencies` - Shows which functions a function calls
+  - Supports transitive dependency analysis with configurable depth parameter
+  - Complements existing "what uses X" tools with "what does X use" analysis
+  - 38 new comprehensive tests added
+
+- **Gemini CLI and Codex Editor Support** ([#82](https://github.com/wende/cicada/pull/82))
+  - New `cicada gemini` command for Gemini CLI setup
+  - New `cicada codex` command for Codex editor setup
+  - Total of 5 supported editors: Claude Code, Cursor, VS Code, Gemini CLI, Codex
+  - Updated AGENTS.md with new editor documentation
+
+- **Watch Mode for Automatic Reindexing** ([#52](https://github.com/wende/cicada/pull/52))
+  - New standalone `cicada watch` command for monitoring file changes
+  - `--watch` flag for MCP server and server subcommand
+  - FileWatcher class with 2-second debouncing to prevent excessive reindexing
+  - Process management for background watch functionality
+  - Automatic cleanup when MCP server stops
+
+- **Redesigned Interactive Setup** ([#81](https://github.com/wende/cicada/pull/81))
+  - Tier-based selection system for better user experience
+  - Watch mode integration in setup flow
+  - Extracted setup helpers into `interactive_setup_helpers.py` for maintainability
+  - Improved error handling and user guidance
+
+- **Enhanced MCP Tool Discoverability** ([#70](https://github.com/wende/cicada/pull/70))
+  - Smart error messages with "Did You Mean" suggestions for misspelled tool names
+  - Inline PR context in search results for better historical understanding
+  - Index staleness warnings to alert users when reindexing is needed
+  - Enhanced tool descriptions with AI usage tips and examples
+
 - **Wildcard and OR Pattern Support for Search Tools** ([#73](https://github.com/wende/cicada/pull/73))
   - `search_module` now supports wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
   - `search_function` now supports wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
   - Patterns work across module names, function names, and file paths
   - Examples: `lib/my_app/*.ex:create*`, `MyApp.*.Module`, `create_user/2|validate_email/1`
+
+### Changed
+
+- **CLI Entrypoint Consolidation** ([#83](https://github.com/wende/cicada/pull/83))
+  - Unified all CLI entry points for better maintainability
+  - Improved command structure and help text
+  - Better error handling across all commands
+
+### Removed
+
+- **CICADA_REPO_PATH Environment Variable** ([#85](https://github.com/wende/cicada/pull/85))
+  - Simplified to use only `CICADA_CONFIG_DIR` for configuration
+  - Reduced complexity in environment variable handling
+  - Updated documentation to reflect the change
 
 ## [0.2.3] - 2025-11-03
 
@@ -207,7 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - docs/BERT_KEYWORD_EXTRACTOR.md - BERT keyword extraction guide
   - docs/FEATURE_MODEL_TRACKING.md - Model tracking feature documentation
   - docs/MODEL_CHANGE_DETECTION.md - Model change detection guide
-  - docs/MCP_TOOLS_REFERENCE.md - MCP tools reference documentation
+  - MCP_TOOLS_REFERENCE.md - MCP tools reference documentation
   - OBJECTIVE_MERGE.md - Merge investigation documentation
 
 - **Updated Documentation**
