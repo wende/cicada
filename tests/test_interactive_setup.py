@@ -845,6 +845,28 @@ class TestTextBasedEditorSelection:
         assert editor == "vs"
 
     @patch("builtins.input")
+    def test_gemini_selection(self, mock_input):
+        """Test selecting Gemini CLI"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "4"
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "gemini"
+
+    @patch("builtins.input")
+    def test_codex_selection(self, mock_input):
+        """Test selecting Codex"""
+        from cicada.interactive_setup import _text_based_editor_selection
+
+        mock_input.return_value = "5"
+
+        editor = _text_based_editor_selection()
+
+        assert editor == "codex"
+
+    @patch("builtins.input")
     def test_default_selection(self, mock_input):
         """Test default selection (empty input defaults to Claude)"""
         from cicada.interactive_setup import _text_based_editor_selection
@@ -905,6 +927,8 @@ class TestTextBasedEditorSelection:
         assert "Claude Code" in captured.out
         assert "Cursor" in captured.out
         assert "VS Code" in captured.out
+        assert "Gemini CLI" in captured.out
+        assert "Codex" in captured.out
 
 
 class TestShowFullInteractiveSetup:

@@ -26,9 +26,11 @@ TIER_MAP_TEXT = {str(idx + 1): methods for idx, methods in TIER_MAP.items()}
 
 # Editor configuration data
 _EDITOR_OPTIONS = (
-    ("Claude Code - AI-powered code editor", "claude"),
-    ("Cursor - AI-first code editor", "cursor"),
-    ("VS Code - Visual Studio Code", "vs"),
+    ("Claude Code", "claude"),
+    ("Cursor", "cursor"),
+    ("VS Code", "vs"),
+    ("Gemini CLI", "gemini"),
+    ("Codex", "codex"),
 )
 
 EDITOR_ITEMS = [label for label, _ in _EDITOR_OPTIONS]
@@ -136,7 +138,7 @@ def display_editor_selection(editor: str) -> None:
     Display confirmation message for editor selection.
 
     Args:
-        editor: The selected editor ('claude', 'cursor', or 'vs')
+        editor: The selected editor ('claude', 'cursor', 'vs', 'gemini', or 'codex')
     """
     print()
     print(f"{GREEN}✓{RESET} Selected: {editor.upper()}")
