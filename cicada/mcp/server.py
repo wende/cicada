@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -673,7 +673,12 @@ class CicadaServer:
                         if not func_modified:
                             continue  # Skip functions without timestamp
 
-                        if datetime.fromisoformat(func_modified) < cutoff_date:
+                        func_modified_dt = datetime.fromisoformat(func_modified)
+                        # Ensure timezone-aware for comparison
+                        if func_modified_dt.tzinfo is None:
+                            func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+
+                        if func_modified_dt < cutoff_date:
                             continue  # Function too old, skip
 
                     key = (module_name, func["name"], func["arity"])
@@ -1039,12 +1044,19 @@ class CicadaServer:
         - Git refs: 'HEAD~10', 'v1.0.0' (if git_helper available)
 
         Returns:
-            datetime object representing the cutoff date
+            datetime object (timezone-aware) representing the cutoff date
+
+        Raises:
+            ValueError: If format is invalid or amount is negative/zero
         """
         # ISO date format (YYYY-MM-DD)
         if "-" in changed_since and len(changed_since) >= 10:
             try:
-                return datetime.fromisoformat(changed_since)
+                dt = datetime.fromisoformat(changed_since)
+                # Ensure timezone-aware - if naive, assume UTC
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             except ValueError:
                 pass
 
@@ -1054,7 +1066,11 @@ class CicadaServer:
                 amount = int(changed_since[:-1])
                 unit = changed_since[-1]
 
-                now = datetime.now()
+                # Validate positive amount
+                if amount <= 0:
+                    raise ValueError(f"Time amount must be positive, got: {amount}{unit}")
+
+                now = datetime.now(timezone.utc)
                 if unit == "d":
                     return now - timedelta(days=amount)
                 elif unit == "w":
@@ -1063,12 +1079,20 @@ class CicadaServer:
                     return now - timedelta(days=amount * 30)
                 elif unit == "y":
                     return now - timedelta(days=amount * 365)
-            except ValueError:
-                pass
+            except ValueError as e:
+                # Re-raise if it's our validation error
+                if "Time amount must be positive" in str(e):
+                    raise
+                # Otherwise, try next format (likely invalid int parsing)
 
         # Git ref format (requires git_helper)
         if self.git_helper:
             try:
+                # Validate git ref format to prevent command injection
+                # Refs should not start with - or -- (could be flags)
+                if changed_since.startswith("-"):
+                    raise ValueError(f"Invalid git ref format (starts with '-'): {changed_since}")
+
                 # Get timestamp of the ref using git show
                 repo_path = self.git_helper.repo_path
                 result = subprocess.run(
@@ -1078,8 +1102,19 @@ class CicadaServer:
                     text=True,
                     check=True,
                 )
-                return datetime.fromisoformat(result.stdout.strip())
+                dt = datetime.fromisoformat(result.stdout.strip())
+                # Git returns timezone-aware datetime, ensure it has tzinfo
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except subprocess.CalledProcessError:
+                # Git command failed - invalid ref or other git error
+                pass
+            except ValueError:
+                # Re-raise validation errors
+                raise
             except Exception:
+                # Other errors (e.g., datetime parsing) - try next format
                 pass
 
         raise ValueError(f"Invalid changed_since format: {changed_since}")
