@@ -29,9 +29,14 @@ def test_blame_with_repeated_commits(git_helper):
     and subsequent lines only have the commit SHA. The code must cache
     and reuse the metadata.
     """
-    # Use a file where we know there are consecutive lines from same commit
-    # This test uses cicada/git_helper.py lines 15-25, which we verified
-    # has consecutive lines from commits
+    # Test file selection rationale:
+    # - Using cicada/git_helper.py (stable core file in this repo)
+    # - Lines 15-25 span the imports section, which typically has multiple
+    #   consecutive lines from the same commit (when imports are added together)
+    # - This creates the exact scenario we're testing: git blame returns full
+    #   metadata for line 15, then just SHA references for lines 16-25
+    # - If this file changes significantly, the test will still pass as long as
+    #   any blame data is returned (we verify structure, not specific content)
     file_path = "cicada/git_helper.py"
     start_line = 15
     end_line = 25
