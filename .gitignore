@@ -47,6 +47,7 @@ coverage.xml
 *.cover
 coverage.json
 coverage_acceptance.json
+cov_annotate/
 
 # mypy
 .mypy_cache/

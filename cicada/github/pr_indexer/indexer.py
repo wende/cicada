@@ -83,7 +83,7 @@ class PRIndexer:
 
             except KeyboardInterrupt:
                 print(
-                    f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/"
+                    f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
                     f"{len(pr_numbers)} PRs."
                 )
                 print("Saving partial index...")
@@ -211,7 +211,7 @@ class PRIndexer:
 
         except KeyboardInterrupt:
             print(
-                f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/"
+                f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
                 f"{len(newer_pr_numbers) + len(older_pr_numbers)} PRs."
             )
             print("Saving partial index...")
@@ -270,7 +270,7 @@ class PRIndexer:
         is_partial = len(prs) < total_prs_in_repo
 
         if is_partial:
-            print(f"⚠️  Partial fetch: got {len(prs)}/{total_prs_in_repo} PRs.")
+            print(f"WARNING: Partial fetch: got {len(prs)}/{total_prs_in_repo} PRs.")
             print("   Setting last_pr_number=0 to allow incremental resume...")
 
             if existing_index:

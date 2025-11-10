@@ -184,7 +184,7 @@ class TestGetFilePRHistoryFormatting:
         # Comment with line number
         assert "Line 15" in text
         assert "reviewer2" in text
-        assert "✓ Resolved" in text
+        assert "[Resolved]" in text
 
         # Comment without line number
         assert "Original line 20" in text or "unmapped" in text.lower()
@@ -245,26 +245,20 @@ class TestFormatPRContext:
         assert "review comment" not in text  # No comment section
 
     def test_format_pr_context_without_pr_info(self):
-        """Should suggest building PR index when PR info unavailable"""
+        """Should return empty list when PR info unavailable"""
         from cicada.elixir.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/test.ex")
 
-        text = "\n".join(result)
-        assert "Want to know why this code exists?" in text
-        assert "cicada index-pr" in text
-        assert "get_commit_history" in text
-        assert "lib/test.ex" in text
+        assert result == []
 
     def test_format_pr_context_with_function_name(self):
-        """Should include function name in git history suggestion"""
+        """Should return empty list when PR info unavailable (even with function name)"""
         from cicada.elixir.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/user.ex", "create_user")
 
-        text = "\n".join(result)
-        assert 'function_name="create_user"' in text
-        assert "lib/user.ex" in text
+        assert result == []
 
 
 if __name__ == "__main__":

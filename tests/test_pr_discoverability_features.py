@@ -254,7 +254,7 @@ class TestStalenessWarnings:
             "TestModule", module_data, staleness_info=staleness_info
         )
 
-        assert "⚠️" in result
+        assert "WARNING:" in result
         assert "may be stale" in result
         assert "2 hours" in result
         assert "Please ask the user to run: cicada index" in result
@@ -272,7 +272,7 @@ class TestStalenessWarnings:
             "test_function", results, staleness_info=staleness_info
         )
 
-        assert "⚠️" in result
+        assert "WARNING:" in result
         assert "may be stale" in result
         assert "3 days" in result
 
@@ -416,7 +416,7 @@ class TestPRContextInResults:
 
         result = ModuleFormatter.format_module_markdown("TestModule", module_data, pr_info=pr_info)
 
-        assert "📝 Last modified:" in result
+        assert "Last modified:" in result
         assert "PR #456" in result
         assert "Update test module" in result
         assert "@contributor" in result

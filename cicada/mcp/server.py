@@ -33,6 +33,7 @@ from cicada.mcp.pattern_utils import (
 )
 from cicada.mcp.tools import get_tool_definitions
 from cicada.utils import find_similar_names, get_config_path, get_pr_index_path, load_index
+from cicada.utils.truncation import TruncationHelper
 
 
 class CicadaServer:
@@ -1428,7 +1429,7 @@ class CicadaServer:
         # Check if any filters are being used (only supported for file-level history)
         has_filters = since_date or until_date or author or min_changes > 0
         if has_filters and (function_name or (start_line and end_line)):
-            warning_msg = "⚠️  Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
+            warning_msg = "WARNING: Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
         else:
             warning_msg = ""
 
@@ -1553,17 +1554,17 @@ class CicadaServer:
 
                 # Add relevance indicator for function searches
                 if "relevance" in commit:
-                    relevance_emoji = "🎯" if commit["relevance"] == "mentioned" else "📝"
                     relevance_text = (
                         "Function mentioned"
                         if commit["relevance"] == "mentioned"
                         else "File changed"
                     )
-                    lines.append(f"- **Relevance:** {relevance_emoji} {relevance_text}")
+                    lines.append(f"- **Relevance:** {relevance_text}")
 
-                # Add full commit message if it's different from summary
+                # Add full commit message if it's different from summary (with automatic truncation)
                 if commit["message"] != commit["summary"]:
-                    lines.append(f"\n**Full message:**\n```\n{commit['message']}\n```")
+                    truncated_message = TruncationHelper.truncate_text(commit["message"])
+                    lines.append(f"\n**Full message:**\n```\n{truncated_message}\n```")
 
                 lines.append("")  # Empty line between commits
 
@@ -1617,13 +1618,20 @@ class CicadaServer:
                 lines.append(f"- **Date:** {group['date'][:10]}")
                 lines.append(f"- **Lines:** {group['line_count']}\n")
 
-                # Show code lines
+                # Show code lines (with automatic truncation for large blocks)
+                code_lines = [line_info["content"] for line_info in group["lines"]]
+                truncated_lines, truncation_msg = TruncationHelper.truncate_code_block(code_lines)
+
                 lines.append("**Code:**")
                 lines.append("```elixir")
-                for line_info in group["lines"]:
-                    # Show line number and content
-                    lines.append(f"{line_info['content']}")
-                lines.append("```\n")
+                for code_line in truncated_lines:
+                    lines.append(code_line)
+                lines.append("```")
+
+                if truncation_msg:
+                    lines.append(f"*{truncation_msg}*")
+
+                lines.append("")
 
             result = "\n".join(lines)
             return [TextContent(type="text", text=result)]
@@ -1724,7 +1732,7 @@ class CicadaServer:
                     else:
                         line_info = "No line info"
 
-                    resolved_marker = " ✓ Resolved" if resolved else ""
+                    resolved_marker = " [Resolved]" if resolved else ""
                     lines.append(f"\n**@{author}** ({line_info}){resolved_marker}:")
 
                     # Indent comment body

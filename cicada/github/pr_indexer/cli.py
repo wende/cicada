@@ -44,7 +44,7 @@ def main():
         print("\nIndexing complete! You can now use the MCP tools for PR history lookups.")
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Indexing interrupted by user.")
+        print("\n\nWARNING: Indexing interrupted by user.")
         print("Partial index may have been saved. Run again to continue (incremental by default).")
         sys.exit(130)  # Standard exit code for SIGINT
 

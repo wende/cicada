@@ -18,6 +18,7 @@ from cicada.utils import (
     SignatureBuilder,
     find_similar_names,
 )
+from cicada.utils.truncation import TruncationHelper
 
 
 class ModuleFormatter:
@@ -51,40 +52,27 @@ class ModuleFormatter:
         pr_info: dict | None, file_path: str, function_name: str | None = None
     ) -> list[str]:
         """
-        Format PR context information with suggestions when unavailable.
+        Format PR context information.
 
         Args:
             pr_info: Optional PR context (number, title, author, comment_count)
             file_path: Path to the file
-            function_name: Optional function name for more specific suggestions
+            function_name: Optional function name (unused, kept for compatibility)
 
         Returns:
-            List of formatted lines to append to output. The first line is always
-            an empty string (for spacing), followed by either:
-            - PR context lines (if pr_info provided): PR title, author, comment count
-            - Suggestion lines (if no pr_info): Instructions on how to get context
+            List of formatted lines to append to output. If pr_info is provided,
+            returns PR title, author, and comment count. Otherwise returns empty list.
         """
         lines = []
         if pr_info:
             lines.append("")
             lines.append(
-                f"📝 Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+                f"Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
             )
             if pr_info["comment_count"] > 0:
                 lines.append(
-                    f"💬 {pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
+                    f"{pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
                 )
-        else:
-            # Suggest how to get context when PR info unavailable
-            lines.append("")
-            lines.append("💭 Want to know why this code exists?")
-            lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
-            if function_name:
-                lines.append(
-                    f'   • Check git history: get_commit_history("{file_path}", function_name="{function_name}")'
-                )
-            else:
-                lines.append(f'   • Check git history: get_commit_history("{file_path}")')
         return lines
 
     @staticmethod
@@ -131,11 +119,11 @@ class ModuleFormatter:
         if staleness_info and staleness_info.get("is_stale"):
             lines.append("")
             lines.append(
-                f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)"
+                f"WARNING: Index may be stale (index is {staleness_info['age_str']} old, files have been modified)"
             )
             lines.append("   Please ask the user to run: cicada index")
             lines.append("")
-            lines.append("   💭 Recent changes might be in merged PRs:")
+            lines.append("   Recent changes might be in merged PRs:")
             lines.append(f"      get_file_pr_history(\"{data['file']}\")")
 
         # Add PR context if available
@@ -250,7 +238,7 @@ class ModuleFormatter:
             Formatted Markdown error message
         """
         lines = [
-            "❌ Module Not Found",
+            "Module Not Found",
             "",
             f"**Query:** `{module_name}`",
             "",
@@ -336,8 +324,12 @@ class ModuleFormatter:
         # Group test sites by caller
         grouped_test = CallSiteFormatter.group_by_caller(test_sites)
         test_count = sum(len(site["lines"]) for site in grouped_test)
+
+        # Apply automatic truncation to call site groups
+        truncated_test, truncation_msg = TruncationHelper.truncate_call_sites(grouped_test)
+
         lines.append(f"{indent}Test ({test_count}):")
-        for site in grouped_test:
+        for site in truncated_test:
             # Format calling location with function if available
             calling_func = site.get("calling_function")
             if calling_func:
@@ -345,9 +337,13 @@ class ModuleFormatter:
             else:
                 caller = site["calling_module"]
 
-            # Show consolidated line numbers
-            line_list = ", ".join(f":{line}" for line in site["lines"])
+            # Show consolidated line numbers (with automatic truncation)
+            line_list = TruncationHelper.truncate_line_numbers(site["lines"])
             lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+
+        if truncation_msg:
+            lines.append(f"{indent}{truncation_msg}")
+
         return lines
 
     @staticmethod
@@ -356,8 +352,12 @@ class ModuleFormatter:
         # Group code sites by caller
         grouped_code = CallSiteFormatter.group_by_caller(code_sites)
         code_count = sum(len(site["lines"]) for site in grouped_code)
+
+        # Apply automatic truncation to call site groups
+        truncated_code, truncation_msg = TruncationHelper.truncate_call_sites(grouped_code)
+
         lines.append(f"{indent}Code ({code_count}):")
-        for site in grouped_code:
+        for site in truncated_code:
             # Format calling location with function if available
             calling_func = site.get("calling_function")
             if calling_func:
@@ -365,9 +365,13 @@ class ModuleFormatter:
             else:
                 caller = site["calling_module"]
 
-            # Show consolidated line numbers
-            line_list = ", ".join(f":{line}" for line in site["lines"])
+            # Show consolidated line numbers (with automatic truncation)
+            line_list = TruncationHelper.truncate_line_numbers(site["lines"])
             lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
+
+        if truncation_msg:
+            lines.append(f"{indent}{truncation_msg}")
+
         return lines
 
     @staticmethod
@@ -400,9 +404,9 @@ class ModuleFormatter:
             else:
                 caller = site["calling_module"]
 
-            # Show consolidated line numbers only if multiple lines
+            # Show consolidated line numbers only if multiple lines (with automatic truncation)
             if len(site["lines"]) > 1:
-                line_list = ", ".join(f":{line}" for line in site["lines"])
+                line_list = TruncationHelper.truncate_line_numbers(site["lines"])
                 lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
             else:
                 lines.append(f"{indent}- {caller} at {site['file']}")
@@ -427,9 +431,9 @@ class ModuleFormatter:
             else:
                 caller = site["calling_module"]
 
-            # Show consolidated line numbers only if multiple lines
+            # Show consolidated line numbers only if multiple lines (with automatic truncation)
             if len(site["lines"]) > 1:
-                line_list = ", ".join(f":{line}" for line in site["lines"])
+                line_list = TruncationHelper.truncate_line_numbers(site["lines"])
                 lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
             else:
                 lines.append(f"{indent}- {caller} at {site['file']}")
@@ -485,8 +489,16 @@ class ModuleFormatter:
         # Group test sites by caller
         grouped_test = CallSiteFormatter.group_by_caller(test_sites_with_examples)
         test_count = sum(len(site["lines"]) for site in grouped_test)
+
+        # Apply automatic truncation to call site groups
+        truncated_test, truncation_msg = TruncationHelper.truncate_call_sites(grouped_test)
+
         lines.append(f"{indent}Test ({test_count}):")
-        lines.extend(ModuleFormatter._format_grouped_test_sites(grouped_test, indent))
+        lines.extend(ModuleFormatter._format_grouped_test_sites(truncated_test, indent))
+
+        if truncation_msg:
+            lines.append(f"{indent}{truncation_msg}")
+
         return lines
 
     @staticmethod
@@ -495,8 +507,16 @@ class ModuleFormatter:
         # Group code sites by caller
         grouped_code = CallSiteFormatter.group_by_caller(code_sites_with_examples)
         code_count = sum(len(site["lines"]) for site in grouped_code)
+
+        # Apply automatic truncation to call site groups
+        truncated_code, truncation_msg = TruncationHelper.truncate_call_sites(grouped_code)
+
         lines.append(f"{indent}Code ({code_count}):")
-        lines.extend(ModuleFormatter._format_grouped_code_sites(grouped_code, indent))
+        lines.extend(ModuleFormatter._format_grouped_code_sites(truncated_code, indent))
+
+        if truncation_msg:
+            lines.append(f"{indent}{truncation_msg}")
+
         return lines
 
     @staticmethod
@@ -598,12 +618,12 @@ class ModuleFormatter:
             # Add staleness warning if applicable
             if staleness_info and staleness_info.get("is_stale"):
                 error_parts.append(
-                    f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)\n"
+                    f"WARNING: Index may be stale (index is {staleness_info['age_str']} old, files have been modified)\n"
                     f"   Please ask the user to run: cicada index\n"
                 )
 
             error_parts.append(
-                f"""❌ Function Not Found
+                f"""Function Not Found
 
 **Query:** `{function_name}`
 
@@ -615,11 +635,11 @@ class ModuleFormatter:
   • Semantic search: search_by_features(['{func_only.lower()}'])
   • Check spelling (function names are case-sensitive)
 
-💡 Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
+Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
 
 ## Was this function recently removed?
 
-💭 If this function was deleted:
+If this function was deleted:
   • Check recent PRs: get_file_pr_history("<file_path>")
   • Search git history for the function name
   • Find what replaced it: search_by_features(['<concept>'])
@@ -647,10 +667,10 @@ class ModuleFormatter:
         # Add staleness warning at the top if applicable
         if staleness_info and staleness_info.get("is_stale"):
             lines = [
-                f"⚠️  Index may be stale (index is {staleness_info['age_str']} old, files have been modified)",
+                f"WARNING: Index may be stale (index is {staleness_info['age_str']} old, files have been modified)",
                 "   Please ask the user to run: cicada index",
                 "",
-                "   💭 Recent changes might be in merged PRs - use get_file_pr_history() for specific files",
+                "   Recent changes might be in merged PRs - use get_file_pr_history() for specific files",
                 "",
             ]
         else:
@@ -709,7 +729,7 @@ class ModuleFormatter:
                 # For multi-result, adjust comment count message to be more concise
                 if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
                     # Replace the last line with shorter version for multi-result display
-                    pr_lines[-1] = f"💬 {pr_info['comment_count']} review comment(s) available"
+                    pr_lines[-1] = f"{pr_info['comment_count']} review comment(s) available"
                 lines.extend(pr_lines)
 
             # Add documentation if present
@@ -762,7 +782,7 @@ class ModuleFormatter:
             else:
                 lines.append(f"{indent}*No call sites found*")
                 lines.append("")
-                lines.append(f"{indent}💭 Possible reasons:")
+                lines.append(f"{indent}Possible reasons:")
                 lines.append(f"{indent}   • Dead code → Use find_dead_code() to verify")
                 lines.append(f"{indent}   • Public API → Not called internally but used by clients")
                 lines.append(f"{indent}   • New code → Check when added with get_commit_history()")
@@ -919,8 +939,8 @@ class ModuleFormatter:
 
                 for call in fc["calls"]:
                     alias_info = f" (via `{call['alias_used']}`)" if call["alias_used"] else ""
-                    # Show unique line numbers for this function
-                    line_list = ", ".join(f":{line}" for line in sorted(call["lines"]))
+                    # Show unique line numbers for this function (with automatic truncation)
+                    line_list = TruncationHelper.truncate_line_numbers(call["lines"])
                     lines.append(
                         f"  - `{call['function']}/{call['arity']}`{alias_info} — {line_list}"
                     )
