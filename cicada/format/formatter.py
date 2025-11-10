@@ -47,7 +47,9 @@ class ModuleFormatter:
         )
 
     @staticmethod
-    def _format_pr_context(pr_info: dict | None, file_path: str, function_name: str | None = None) -> list[str]:
+    def _format_pr_context(
+        pr_info: dict | None, file_path: str, function_name: str | None = None
+    ) -> list[str]:
         """
         Format PR context information with suggestions when unavailable.
 
@@ -75,9 +77,11 @@ class ModuleFormatter:
             lines.append("💭 Want to know why this code exists?")
             lines.append("   • Build PR index: Ask user to run 'cicada index-pr'")
             if function_name:
-                lines.append(f"   • Check git history: get_commit_history(\"{file_path}\", function_name=\"{function_name}\")")
+                lines.append(
+                    f'   • Check git history: get_commit_history("{file_path}", function_name="{function_name}")'
+                )
             else:
-                lines.append(f"   • Check git history: get_commit_history(\"{file_path}\")")
+                lines.append(f'   • Check git history: get_commit_history("{file_path}")')
         return lines
 
     @staticmethod
@@ -680,7 +684,7 @@ class ModuleFormatter:
                 )
 
                 # Add PR context for single results
-                lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path, func['name']))
+                lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path, func["name"]))
             else:
                 lines.extend(
                     [
@@ -742,9 +746,13 @@ class ModuleFormatter:
                 # Smart suggestion based on available data
                 if pr_info:
                     if pr_info.get("comment_count", 0) > 0:
-                        lines.append(f"{indent}   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")")
+                        lines.append(
+                            f"{indent}   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")"
+                        )
                     else:
-                        lines.append(f"{indent}   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")")
+                        lines.append(
+                            f"{indent}   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")"
+                        )
 
         # Add closing separator for single results
         if len(consolidated_results) == 1:

@@ -15,7 +15,6 @@ from cicada.format import BOLD, GREY, PRIMARY, RESET, SELECTED, generate_gradien
 from cicada.interactive_setup_helpers import (
     CLAUDE_MD_ITEMS,
     EDITOR_ITEMS,
-    EDITOR_MAP,
     EDITOR_MAP_TEXT,
     PR_ITEMS,
     TIER_ITEMS,
@@ -325,14 +324,6 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print()
     print(f"{BOLD}Step 1/4: Choose your editor{RESET}")
 
-    editor_items = [
-        "Claude Code - AI-powered code editor",
-        "Cursor - AI-first code editor",
-        "VS Code - Visual Studio Code",
-        "Gemini CLI - Google Gemini command line interface",
-        "Codex - AI code editor",
-    ]
-
     if has_terminal_menu:
         try:
             if TerminalMenu is None:
@@ -396,7 +387,8 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     if add_to_claude_md_flag:
         add_to_claude_md(repo_path)
-        
+
+
 def _text_based_editor_selection() -> str:
     """
     Fallback text-based editor selection for terminals that don't support simple-term-menu.

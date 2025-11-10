@@ -1344,9 +1344,7 @@ end
         indexer = ElixirIndexer(verbose=False)
         output_path = tmp_path / "index.json"
 
-        index = indexer.index_repository(
-            str(tmp_path), str(output_path), compute_timestamps=True
-        )
+        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
 
         # Verify timestamps were added to functions
         assert "TestModule" in index["modules"]
@@ -1419,9 +1417,7 @@ end
         indexer = ElixirIndexer(verbose=True)
         output_path = tmp_path / "index.json"
 
-        index = indexer.index_repository(
-            str(tmp_path), str(output_path), compute_timestamps=True
-        )
+        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
 
         # Should not crash, should show warning
         captured = capsys.readouterr()
