@@ -282,12 +282,20 @@ class CicadaServer:
 
     def _reload_index_if_changed(self):
         """Reload index if file has been modified."""
+        import json
+
         current_mtime = self._get_index_mtime()
         if current_mtime and current_mtime != self._index_mtime:
-            self.index = self._load_index()
-            self._has_keywords = self._check_keywords_available()
-            self._index_mtime = current_mtime
-            self._pr_index = None  # Invalidate PR index cache as well
+            try:
+                new_index = self._load_index()
+                # Only update if reload succeeded (no corruption/incomplete write)
+                self.index = new_index
+                self._has_keywords = self._check_keywords_available()
+                self._index_mtime = current_mtime
+                self._pr_index = None  # Invalidate PR index cache as well
+            except (json.JSONDecodeError, FileNotFoundError, RuntimeError):
+                # Index file is being written or corrupted - keep serving old index
+                pass
 
     async def list_tools(self) -> list[Tool]:
         """List available MCP tools."""
