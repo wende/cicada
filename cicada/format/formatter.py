@@ -568,7 +568,10 @@ class ModuleFormatter:
 
     @staticmethod
     def format_function_results_markdown(
-        function_name: str, results: list[dict[str, Any]], staleness_info: dict | None = None
+        function_name: str,
+        results: list[dict[str, Any]],
+        staleness_info: dict | None = None,
+        show_relationships: bool = True,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -577,6 +580,7 @@ class ModuleFormatter:
             function_name: The searched function name
             results: List of function matches with module context
             staleness_info: Optional staleness info (is_stale, age_str)
+            show_relationships: Whether to show relationship information (what this calls / what calls this)
 
         Returns:
             Formatted Markdown string
@@ -726,6 +730,23 @@ class ModuleFormatter:
                     lines.append(f"  Guards: when {guards_str}")
                 else:
                     lines.extend(["", f"**Guards:** `when {guards_str}`"])
+
+            # Add relationship information if enabled
+            if show_relationships:
+                dependencies = result.get("dependencies", [])
+                if dependencies:
+                    lines.append("")
+                    lines.append(f"{indent}📞 Calls these functions:")
+                    for dep in dependencies[:5]:  # Limit to 5 for brevity
+                        dep_module = dep.get("module", "?")
+                        dep_func = dep.get("function", "?")
+                        dep_arity = dep.get("arity", "?")
+                        dep_line = dep.get("line", "?")
+                        lines.append(
+                            f"{indent}   • {dep_module}.{dep_func}/{dep_arity} (line {dep_line})"
+                        )
+                    if len(dependencies) > 5:
+                        lines.append(f"{indent}   ... and {len(dependencies) - 5} more")
 
             # Add call sites
             call_sites = result.get("call_sites", [])
@@ -942,7 +963,7 @@ class ModuleFormatter:
 
     @staticmethod
     def format_keyword_search_results_markdown(
-        _keywords: list[str], results: list[dict[str, Any]]
+        _keywords: list[str], results: list[dict[str, Any]], show_scores: bool = True
     ) -> str:
         """
         Format keyword search results as Markdown.
@@ -950,6 +971,7 @@ class ModuleFormatter:
         Args:
             keywords: The search keywords
             results: List of search result dictionaries
+            show_scores: Whether to show relevance scores. Defaults to True.
 
         Returns:
             Formatted Markdown string
@@ -968,7 +990,8 @@ class ModuleFormatter:
             # Compact format with type indication
             type_label = "Module" if result_type == "module" else "Function"
             lines.append(f"{type_label}: {name}")
-            lines.append(f"Score: {score:.4f}")
+            if show_scores:
+                lines.append(f"Score: {score:.4f}")
             lines.append(f"Path: {file_path}:{line}")
             lines.append(f"Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}")
 

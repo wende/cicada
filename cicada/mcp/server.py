@@ -338,6 +338,7 @@ class CicadaServer:
             max_examples = arguments.get("max_examples", 5)
             test_files_only = arguments.get("test_files_only", False)
             changed_since = arguments.get("changed_since")
+            show_relationships = arguments.get("show_relationships", True)
 
             if not function_name:
                 error_msg = "'function_name' is required"
@@ -350,16 +351,22 @@ class CicadaServer:
                 max_examples,
                 test_files_only,
                 changed_since,
+                show_relationships,
             )
         elif name == "search_module_usage":
             module_name = arguments.get("module_name")
             output_format = arguments.get("format", "markdown")
+            usage_type = arguments.get("usage_type", "all")
 
             if not module_name:
                 error_msg = "'module_name' is required"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self._search_module_usage(module_name, output_format)
+            if usage_type not in ("all", "test_only", "production_only"):
+                error_msg = "'usage_type' must be one of: 'all', 'test_only', 'production_only'"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self._search_module_usage(module_name, output_format, usage_type)
         elif name == "find_pr_for_line":
             file_path = arguments.get("file_path")
             line_number = arguments.get("line_number")
@@ -382,6 +389,10 @@ class CicadaServer:
             precise_tracking = arguments.get("precise_tracking", False)
             show_evolution = arguments.get("show_evolution", False)
             max_commits = arguments.get("max_commits", 10)
+            since_date = arguments.get("since_date")
+            until_date = arguments.get("until_date")
+            author = arguments.get("author")
+            min_changes = arguments.get("min_changes", 0)
 
             if not file_path:
                 error_msg = "'file_path' is required"
@@ -400,6 +411,10 @@ class CicadaServer:
                 precise_tracking,
                 show_evolution,
                 max_commits,
+                since_date,
+                until_date,
+                author,
+                min_changes,
             )
         elif name == "get_blame":
             file_path = arguments.get("file_path")
@@ -428,6 +443,7 @@ class CicadaServer:
             # search_by_keywords is deprecated but still functional
             keywords = arguments.get("keywords")
             filter_type = arguments.get("filter_type", "all")
+            min_score = arguments.get("min_score", 0.0)
 
             if not keywords:
                 error_msg = "'keywords' is required"
@@ -441,7 +457,11 @@ class CicadaServer:
                 error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self._search_by_keywords(keywords, filter_type)
+            if not isinstance(min_score, (int, float)) or min_score < 0.0 or min_score > 1.0:
+                error_msg = "'min_score' must be a number between 0.0 and 1.0"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self._search_by_keywords(keywords, filter_type, min_score)
         elif name == "find_dead_code":
             min_confidence = arguments.get("min_confidence", "high")
             output_format = arguments.get("format", "markdown")
@@ -453,8 +473,9 @@ class CicadaServer:
                 raise ValueError("module_name is required")
             output_format = arguments.get("format", "markdown")
             depth = arguments.get("depth", 1)
+            granular = arguments.get("granular", False)
 
-            return await self._get_module_dependencies(module_name, output_format, depth)
+            return await self._get_module_dependencies(module_name, output_format, depth, granular)
         elif name == "get_function_dependencies":
             module_name = arguments.get("module_name")
             function_name = arguments.get("function_name")
@@ -637,6 +658,7 @@ class CicadaServer:
         max_examples: int = 5,
         test_files_only: bool = False,
         changed_since: str | None = None,
+        show_relationships: bool = True,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -704,6 +726,11 @@ class CicadaServer:
                     # Get PR context for this function
                     pr_info = self._get_recent_pr_info(module_data["file"])
 
+                    # Get function dependencies if show_relationships is enabled
+                    dependencies = []
+                    if show_relationships:
+                        dependencies = func.get("dependencies", [])
+
                     results.append(
                         {
                             "module": module_name,
@@ -713,6 +740,7 @@ class CicadaServer:
                             "call_sites": call_sites,
                             "call_sites_with_examples": call_sites_with_examples,
                             "pr_info": pr_info,
+                            "dependencies": dependencies,
                         }
                     )
 
@@ -724,13 +752,13 @@ class CicadaServer:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info
+                function_name, results, staleness_info, show_relationships
             )
 
         return [TextContent(type="text", text=result)]
 
     async def _search_module_usage(
-        self, module_name: str, output_format: str = "markdown"
+        self, module_name: str, output_format: str = "markdown", usage_type: str = "all"
     ) -> list[TextContent]:
         """
         Search for all locations where a module is used (aliased/imported and called).
@@ -738,6 +766,7 @@ class CicadaServer:
         Args:
             module_name: The module to search for (e.g., "MyApp.User")
             output_format: Output format ('markdown' or 'json')
+            usage_type: Filter by file type ('all', 'test_only', 'production_only')
 
         Returns:
             TextContent with usage information
@@ -851,6 +880,21 @@ class CicadaServer:
                         "calls": list(module_calls.values()),
                     }
                 )
+
+        # Apply usage type filter if not 'all'
+        if usage_type != "all":
+            from cicada.mcp.filter_utils import filter_by_file_type
+
+            # Filter each category that has file information
+            for category in [
+                "aliases",
+                "imports",
+                "requires",
+                "uses",
+                "value_mentions",
+                "function_calls",
+            ]:
+                usage_results[category] = filter_by_file_type(usage_results[category], usage_type)
 
         # Format results
         if output_format == "json":
@@ -1274,6 +1318,10 @@ class CicadaServer:
         _precise_tracking: bool = False,
         show_evolution: bool = False,
         max_commits: int = 10,
+        since_date: str | None = None,
+        until_date: str | None = None,
+        author: str | None = None,
+        min_changes: int = 0,
     ) -> list[TextContent]:
         """
         Get git commit history for a file or function.
@@ -1286,6 +1334,10 @@ class CicadaServer:
             precise_tracking: Deprecated (function tracking is always used when function_name provided)
             show_evolution: Include function evolution metadata
             max_commits: Maximum number of commits to return
+            since_date: Only include commits after this date (ISO format or relative like '7d', '2w')
+            until_date: Only include commits before this date (ISO format or relative)
+            author: Filter by author name (substring match)
+            min_changes: Minimum number of lines changed
 
         Returns:
             TextContent with formatted commit history
@@ -1295,10 +1347,26 @@ class CicadaServer:
             - Function tracking works even as the function moves in the file
             - Line numbers are used as fallback if function tracking fails
             - Requires .gitattributes with "*.ex diff=elixir" for function tracking
+            - Date filters only work with file-level history (not function/line tracking)
         """
         if not self.git_helper:
             error_msg = "Git history is not available (repository may not be a git repo)"
             return [TextContent(type="text", text=error_msg)]
+
+        # Parse date filters if provided
+        since_datetime = None
+        until_datetime = None
+        if since_date:
+            since_datetime = self._parse_changed_since(since_date)
+        if until_date:
+            until_datetime = self._parse_changed_since(until_date)
+
+        # Check if any filters are being used (only supported for file-level history)
+        has_filters = since_date or until_date or author or min_changes > 0
+        if has_filters and (function_name or (start_line and end_line)):
+            warning_msg = "⚠️  Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
+        else:
+            warning_msg = ""
 
         try:
             evolution = None
@@ -1344,7 +1412,17 @@ class CicadaServer:
                     )
             else:
                 # File-level history
-                commits = self.git_helper.get_file_history(file_path, max_commits)
+                if has_filters:
+                    commits = self.git_helper.get_file_history_filtered(
+                        file_path,
+                        max_commits=max_commits,
+                        since_date=since_datetime,
+                        until_date=until_datetime,
+                        author=author,
+                        min_changes=min_changes,
+                    )
+                else:
+                    commits = self.git_helper.get_file_history(file_path, max_commits)
                 title = f"Git History for {file_path}"
 
             if not commits:
@@ -1353,6 +1431,23 @@ class CicadaServer:
 
             # Format the results as markdown
             lines = [f"# {title}\n"]
+
+            # Add warning if filters were specified but not used
+            if warning_msg:
+                lines.append(warning_msg)
+
+            # Add filter information if filters were used
+            if has_filters and not (function_name or (start_line and end_line)):
+                filter_parts = []
+                if since_date:
+                    filter_parts.append(f"since {since_date}")
+                if until_date:
+                    filter_parts.append(f"until {until_date}")
+                if author:
+                    filter_parts.append(f"author: {author}")
+                if min_changes > 0:
+                    filter_parts.append(f"min changes: {min_changes}")
+                lines.append(f"*Filters: {', '.join(filter_parts)}*\n")
 
             # Add tracking method info
             if tracking_method == "function":
@@ -1580,7 +1675,7 @@ class CicadaServer:
         return [TextContent(type="text", text=result)]
 
     async def _search_by_keywords(
-        self, keywords: list[str], filter_type: str = "all"
+        self, keywords: list[str], filter_type: str = "all", min_score: float = 0.0
     ) -> list[TextContent]:
         """
         Search for modules and functions by keywords.
@@ -1588,11 +1683,13 @@ class CicadaServer:
         Args:
             keywords: List of keywords to search for
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
+            min_score: Minimum relevance score threshold (0.0 to 1.0). Defaults to 0.0.
 
         Returns:
             TextContent with formatted search results
         """
         from cicada.keyword_search import KeywordSearcher
+        from cicada.mcp.filter_utils import filter_by_score_threshold
 
         # Check if keywords are available (cached at initialization)
         if not self._has_keywords:
@@ -1608,16 +1705,25 @@ class CicadaServer:
 
         # Perform the search
         searcher = KeywordSearcher(self.index)
-        results = searcher.search(keywords, top_n=5, filter_type=filter_type)
+        results = searcher.search(keywords, top_n=20, filter_type=filter_type)
+
+        # Apply score threshold filter
+        if min_score > 0.0:
+            results = filter_by_score_threshold(results, min_score)
 
         if not results:
-            result = f"No results found for keywords: {', '.join(keywords)}"
+            if min_score > 0.0:
+                result = f"No results found for keywords: {', '.join(keywords)} with min_score >= {min_score}"
+            else:
+                result = f"No results found for keywords: {', '.join(keywords)}"
             return [TextContent(type="text", text=result)]
 
         # Format results
         from cicada.format import ModuleFormatter
 
-        formatted_result = ModuleFormatter.format_keyword_search_results_markdown(keywords, results)
+        formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
+            keywords, results, show_scores=(min_score > 0.0)
+        )
 
         return [TextContent(type="text", text=formatted_result)]
 
@@ -1652,7 +1758,7 @@ class CicadaServer:
         return [TextContent(type="text", text=output)]
 
     async def _get_module_dependencies(
-        self, module_name: str, output_format: str, depth: int
+        self, module_name: str, output_format: str, depth: int, granular: bool = False
     ) -> list[TextContent]:
         """
         Get all modules that a given module depends on.
@@ -1661,6 +1767,7 @@ class CicadaServer:
             module_name: Module name to analyze
             output_format: Output format ('markdown' or 'json')
             depth: Depth for transitive dependencies (1 = direct only, 2 = include dependencies of dependencies)
+            granular: Show which specific functions use which dependencies
 
         Returns:
             TextContent with formatted dependency information
@@ -1678,6 +1785,27 @@ class CicadaServer:
         # Get dependencies from the index
         dependencies = module_data.get("dependencies", {})
         direct_modules = dependencies.get("modules", [])
+
+        # Collect granular dependency information if requested
+        granular_info: dict[str, list[dict[str, Any]]] = {}
+        if granular:
+            # Build a mapping of dependency_module -> [functions that use it]
+            for func in module_data.get("functions", []):
+                func_deps = func.get("dependencies", [])
+                for dep in func_deps:
+                    dep_module = dep.get("module", "")
+                    if dep_module in direct_modules:
+                        if dep_module not in granular_info:
+                            granular_info[dep_module] = []
+                        granular_info[dep_module].append(
+                            {
+                                "function": func.get("name"),
+                                "arity": func.get("arity"),
+                                "line": func.get("line"),
+                                "calls": f"{dep.get('function')}/{dep.get('arity')}",
+                                "call_line": dep.get("line"),
+                            }
+                        )
 
         # If depth > 1, collect transitive dependencies
         all_modules = set(direct_modules)
@@ -1711,6 +1839,8 @@ class CicadaServer:
                     "depth": depth,
                 },
             }
+            if granular:
+                result["granular"] = granular_info  # type: ignore
             output = json.dumps(result, indent=2)
         else:
             # Markdown format
@@ -1720,6 +1850,16 @@ class CicadaServer:
                 lines.append(f"## Direct Dependencies ({len(direct_modules)})\n")
                 for dep in sorted(direct_modules):
                     lines.append(f"- {dep}")
+                    # Add granular information if available
+                    if granular and dep in granular_info:
+                        uses = granular_info[dep]
+                        lines.append(f"  Used by {len(uses)} function(s):")
+                        for use in uses[:3]:  # Limit to 3 examples
+                            lines.append(
+                                f"    • {use['function']}/{use['arity']} (line {use['line']}) → calls {use['calls']} (line {use['call_line']})"
+                            )
+                        if len(uses) > 3:
+                            lines.append(f"    ... and {len(uses) - 3} more")
                 lines.append("")
 
             if depth > 1 and len(all_modules) > len(direct_modules):

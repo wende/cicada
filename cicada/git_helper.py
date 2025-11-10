@@ -11,6 +11,7 @@ Author: Cursor(Auto)
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import git
 
@@ -602,6 +603,104 @@ class GitHelper:
                     break
 
         return results
+
+    def get_file_history_filtered(
+        self,
+        file_path: str,
+        max_commits: int = 10,
+        since_date: datetime | None = None,
+        until_date: datetime | None = None,
+        author: str | None = None,
+        min_changes: int = 0,
+    ) -> list[dict]:
+        """
+        Get commit history for a file with advanced filtering options.
+
+        Args:
+            file_path: Relative path to file from repo root
+            max_commits: Maximum number of commits to return
+            since_date: Only include commits after this date
+            until_date: Only include commits before this date
+            author: Filter by author name (substring match, case-insensitive)
+            min_changes: Minimum number of lines changed (insertions + deletions)
+
+        Returns:
+            List of commit information dictionaries with keys:
+            - sha: Short commit SHA (8 chars)
+            - full_sha: Full commit SHA
+            - author: Author name
+            - author_email: Author email
+            - date: Commit date in ISO format
+            - message: Full commit message
+            - summary: First line of commit message
+            - insertions: Number of lines inserted (if min_changes > 0)
+            - deletions: Number of lines deleted (if min_changes > 0)
+        """
+        commits = []
+        author_lower = author.lower() if author else None
+
+        try:
+            # Get commits that touched this file
+            for commit in self.repo.iter_commits(paths=file_path):
+                # Apply date filters
+                commit_date = commit.committed_datetime.replace(tzinfo=None)
+                if since_date and commit_date < since_date:
+                    continue
+                if until_date and commit_date > until_date:
+                    continue
+
+                # Apply author filter
+                if author_lower and author_lower not in str(commit.author).lower():
+                    continue
+
+                # Apply min_changes filter if specified
+                if min_changes > 0:
+                    try:
+                        # Get stats for this specific file in this commit
+                        file_stats = commit.stats.files.get(file_path, {})
+                        insertions = int(file_stats.get("insertions", 0)) if file_stats else 0  # type: ignore
+                        deletions = int(file_stats.get("deletions", 0)) if file_stats else 0  # type: ignore
+                        total_changes = insertions + deletions
+
+                        if total_changes < min_changes:
+                            continue
+                    except Exception:
+                        # If we can't get stats, skip the filter
+                        pass
+
+                # Build commit info
+                commit_info: dict[str, Any] = {
+                    "sha": commit.hexsha[:8],
+                    "full_sha": commit.hexsha,
+                    "author": str(commit.author),
+                    "author_email": commit.author.email,
+                    "date": commit.committed_datetime.isoformat(),
+                    "message": commit.message.strip(),
+                    "summary": commit.summary,
+                }
+
+                # Add change stats if min_changes was specified
+                if min_changes > 0:
+                    try:
+                        file_stats = commit.stats.files.get(file_path, {})
+                        # Type: ignore - file_stats is dict with string keys, values can be int
+                        insertions = int(file_stats.get("insertions", 0)) if file_stats else 0  # type: ignore
+                        deletions = int(file_stats.get("deletions", 0)) if file_stats else 0  # type: ignore
+                        commit_info["insertions"] = insertions
+                        commit_info["deletions"] = deletions
+                    except Exception:
+                        commit_info["insertions"] = 0
+                        commit_info["deletions"] = 0
+
+                commits.append(commit_info)
+
+                if len(commits) >= max_commits:
+                    break
+
+        except Exception as e:
+            print(f"Error getting filtered history for {file_path}: {e}")
+
+        return commits
 
 
 def main():
