@@ -5,7 +5,7 @@ from typing import cast
 
 import yaml
 
-from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET
+from cicada.elixir.format import BOLD, GREEN, GREY, PRIMARY, RESET
 from cicada.setup import EditorType
 
 
@@ -26,9 +26,12 @@ TIER_MAP_TEXT = {str(idx + 1): methods for idx, methods in TIER_MAP.items()}
 
 # Editor configuration data
 _EDITOR_OPTIONS = (
-    ("Claude Code - AI-powered code editor", "claude"),
-    ("Cursor - AI-first code editor", "cursor"),
-    ("VS Code - Visual Studio Code", "vs"),
+    ("Claude Code", "claude"),
+    ("Cursor", "cursor"),
+    ("VS Code", "vs"),
+    ("Gemini CLI", "gemini"),
+    ("Codex", "codex"),
+    ("OpenCode", "opencode"),
 )
 
 EDITOR_ITEMS = [label for label, _ in _EDITOR_OPTIONS]
@@ -136,7 +139,7 @@ def display_editor_selection(editor: str) -> None:
     Display confirmation message for editor selection.
 
     Args:
-        editor: The selected editor ('claude', 'cursor', or 'vs')
+        editor: The selected editor ('claude', 'cursor', 'vs', 'gemini', or 'codex')
     """
     print()
     print(f"{GREEN}✓{RESET} Selected: {editor.upper()}")
@@ -211,7 +214,7 @@ def run_pr_indexing(repo_path: Path) -> None:
     Args:
         repo_path: Path to the repository to index
     """
-    from cicada.pr_indexer.indexer import PRIndexer
+    from cicada.github.pr_indexer.indexer import PRIndexer
     from cicada.utils.storage import get_pr_index_path
 
     print()

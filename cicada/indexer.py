@@ -11,13 +11,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from cicada.dependency_analyzer import (
+from cicada.elixir.dependency_analyzer import (
     calculate_function_end_line,
     extract_function_dependencies,
     extract_module_dependencies,
 )
-from cicada.git_helper import GitHelper
-from cicada.parser import ElixirParser
+from cicada.elixir.parser import ElixirParser
+from cicada.git import GitHelper
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
     load_index,
@@ -159,12 +159,12 @@ class ElixirIndexer:
 
                 # Initialize extraction method
                 if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                    from cicada.elixir.extractors.keybert import KeyBERTExtractor
 
                     keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
                     # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
+                    from cicada.elixir.extractors.keyword import RegularKeywordExtractor
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
@@ -594,12 +594,12 @@ class ElixirIndexer:
 
                 # Initialize extraction method
                 if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                    from cicada.elixir.extractors.keybert import KeyBERTExtractor
 
                     keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
                 else:
                     # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
+                    from cicada.elixir.extractors.keyword import RegularKeywordExtractor
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 

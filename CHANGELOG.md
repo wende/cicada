@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-rc0] - 2025-11-10
+## [0.3.1rc2] - 2025-11-10
+
+### Added
+
+- **OpenCode editor support** ([#92](https://github.com/wende/cicada/pull/92)) - Support for OpenCode editor integration
+- **Enhanced interactive setup menu** ([#94](https://github.com/wende/cicada/pull/94)) - Added Gemini CLI and Codex editor options to setup workflow
+
+### Fixed
+
+- **OpenCode configuration path** - Fixed OpenCode to use `.mcp.json` instead of `.opencode.json` to match Claude Code convention
+
+## [0.3.0] - 2025-11-10
 
 ### Search & Filtering Enhancements
 
@@ -362,8 +373,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.3.0-rc0...HEAD
-[0.3.0-rc0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0-rc0
+[Unreleased]: https://github.com/wende/cicada/compare/v0.3.1rc2...HEAD
+[0.3.1rc2]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1rc2
+[0.3.0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/wende/cicada/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/wende/cicada/compare/v0.2.0...v0.2.2
 [0.2.0]: https://github.com/wende/cicada/compare/v0.1.2...v0.2.0

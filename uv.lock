@@ -184,7 +184,7 @@ wheels = [
 
 [[package]]
 name = "cicada-mcp"
-version = "0.3.0"
+version = "0.3.1rc2"
 source = { editable = "." }
 dependencies = [
     { name = "gensim" },
