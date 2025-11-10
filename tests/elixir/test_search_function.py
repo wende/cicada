@@ -21,7 +21,7 @@ async def test_search_function(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     # Create temporary config and index
@@ -93,7 +93,7 @@ async def test_wildcard_function_search(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     # Create temporary config and index
@@ -129,7 +129,7 @@ async def test_wildcard_module_search(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     # Create temporary config and index
@@ -172,7 +172,7 @@ async def test_module_qualified_or_function_search(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     index_path = tmp_path / "index.json"
@@ -206,7 +206,7 @@ async def test_or_patterns_with_different_arities(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     index_path = tmp_path / "index.json"
@@ -237,7 +237,7 @@ async def test_file_path_wildcard_function_search(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     index_path = tmp_path / "index.json"
@@ -278,7 +278,7 @@ async def test_module_wildcard_with_nested_segments(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     # Add a nested module to verify multi-segment wildcard matching

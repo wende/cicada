@@ -13,23 +13,23 @@ from cicada.mcp.server import CicadaServer
 
 
 @pytest.fixture
-def index_path():
+def index_path(tmp_path):
     """Fixture to create test index."""
     indexer = ElixirIndexer()
-    output_path = "data/test_e2e_index.json"
-    indexer.index_repository("tests/fixtures", output_path)
-    yield output_path
+    output_path = tmp_path / "test_e2e_index.json"
+    indexer.index_repository("tests/fixtures", str(output_path))
+    yield str(output_path)
 
 
-def test_indexer():
+def test_indexer(tmp_path):
     """Test that the indexer creates a valid index."""
     print("Testing indexer...")
 
     # Index test fixtures
     indexer = ElixirIndexer()
-    output_path = "data/test_e2e_index.json"
+    output_path = tmp_path / "test_e2e_index.json"
 
-    index = indexer.index_repository("tests/fixtures", output_path)
+    index = indexer.index_repository("tests/fixtures", str(output_path))
 
     # Verify index exists
     assert Path(output_path).exists(), "Index file was not created"
@@ -93,13 +93,18 @@ def test_mcp_server_initialization(index_path):
             os.remove(test_config_path)
 
 
-def test_module_not_found():
+def test_module_not_found(tmp_path):
     """Test error handling when module is not found."""
     print("\nTesting module not found error...")
 
+    # First create an index
+    indexer = ElixirIndexer()
+    index_path = tmp_path / "test_e2e_index.json"
+    indexer.index_repository("tests/fixtures", str(index_path))
+
     test_config = {
         "repository": {"path": "/Users/wende/projects/ab"},
-        "storage": {"index_path": "data/test_e2e_index.json"},
+        "storage": {"index_path": str(index_path)},
     }
 
     import yaml
@@ -133,15 +138,20 @@ if __name__ == "__main__":
     print("Running end-to-end tests...\n")
 
     try:
+        from pathlib import Path
+        import tempfile
+
+        tmp_dir = Path(tempfile.mkdtemp())
+
         # Test indexer
-        test_indexer()
-        index_path = "data/test_e2e_index.json"
+        test_indexer(tmp_dir)
+        index_path = str(tmp_dir / "test_e2e_index.json")
 
         # Test MCP server
         test_mcp_server_initialization(index_path)
 
         # Test error handling
-        test_module_not_found()
+        test_module_not_found(tmp_dir)
 
         print("\n" + "=" * 50)
         print("All end-to-end tests passed!")

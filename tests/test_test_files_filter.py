@@ -21,7 +21,7 @@ async def test_test_files_filter(tmp_path):
     import json
     import yaml
 
-    with open("data/test_index.json") as f:
+    with open("tests/data/test_index.json") as f:
         test_index = json.load(f)
 
     # Create temporary config and index
