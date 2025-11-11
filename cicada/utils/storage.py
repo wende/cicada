@@ -6,6 +6,15 @@ Handles creation and management of storage directories for index files.
 
 import hashlib
 from pathlib import Path
+from typing import TypedDict
+
+
+class LinkInfo(TypedDict):
+    """Type definition for link information."""
+
+    source_repo_path: str
+    source_storage_dir: str
+    linked_at: str
 
 
 def get_repo_hash(repo_path: str | Path) -> str:
@@ -139,7 +148,7 @@ def is_linked(repo_path: str | Path) -> bool:
     return link_path.exists()
 
 
-def get_link_info(repo_path: str | Path) -> dict | None:
+def get_link_info(repo_path: str | Path) -> LinkInfo | None:
     """
     Get link information for a repository.
 
@@ -147,7 +156,7 @@ def get_link_info(repo_path: str | Path) -> dict | None:
         repo_path: Path to the repository
 
     Returns:
-        Dictionary with link info (source_repo_path, source_storage_dir, linked_at) or None if not linked
+        LinkInfo dictionary with link info (source_repo_path, source_storage_dir, linked_at) or None if not linked
     """
     import yaml
 
@@ -171,10 +180,22 @@ def resolve_storage_dir(repo_path: str | Path) -> Path:
 
     Returns:
         Path to the actual storage directory (source if linked, own if not)
+
+    Raises:
+        ValueError: If the link is broken (source index doesn't exist)
     """
     link_info = get_link_info(repo_path)
     if link_info and "source_storage_dir" in link_info:
-        return Path(link_info["source_storage_dir"])
+        source_storage = Path(link_info["source_storage_dir"])
+        # Validate source storage still has an index
+        if not (source_storage / "index.json").exists():
+            source_repo = link_info.get("source_repo_path", "unknown")
+            raise ValueError(
+                f"Link is broken: source index not found at {source_storage}\n"
+                f"Source repository: {source_repo}\n"
+                f"Run 'cicada unlink' to remove the broken link, then re-index or re-link."
+            )
+        return source_storage
     return get_storage_dir(repo_path)
 
 
@@ -215,10 +236,26 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
     # Check if target is already linked
     if is_linked(target_path):
         existing_link = get_link_info(target_path)
+        source_path_str = (
+            existing_link.get("source_repo_path", "unknown") if existing_link else "unknown"
+        )
         raise ValueError(
-            f"Target repository is already linked to: {existing_link.get('source_repo_path')}\n"  # type: ignore
+            f"Target repository is already linked to: {source_path_str}\n"
             f"Run 'cicada unlink' first to remove the existing link."
         )
+
+    # Check for circular links: prevent A → B when B → A already exists
+    source_link_info = get_link_info(source_path)
+    if source_link_info:
+        # Source is linked to another repository
+        source_source_storage = Path(source_link_info["source_storage_dir"])
+        target_storage = get_storage_dir(target_path)
+        if source_source_storage == target_storage:
+            raise ValueError(
+                f"Cannot create circular link: source repository '{source_path.name}' "
+                f"is already linked to target repository '{target_path.name}'\n"
+                f"This would create a circular reference."
+            )
 
     # Create target storage directory if it doesn't exist
     create_storage_dir(target_path)

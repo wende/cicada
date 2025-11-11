@@ -315,6 +315,34 @@ class TestCleanRepository:
         captured = capsys.readouterr()
         assert "No Cicada configuration found" in captured.out
 
+    def test_shows_warning_for_linked_repository(self, tmp_path, capsys):
+        """Should show warning when cleaning a linked repository"""
+        repo_path = tmp_path / "linked_repo"
+        repo_path.mkdir()
+        storage_dir = tmp_path / ".cicada" / "projects" / "test_hash"
+        storage_dir.mkdir(parents=True)
+
+        source_repo = tmp_path / "source_repo"
+
+        link_info = {
+            "source_repo_path": str(source_repo),
+            "source_storage_dir": str(tmp_path / "source_storage"),
+            "linked_at": "2025-01-01T00:00:00Z",
+        }
+
+        with (
+            patch("cicada.clean.get_storage_dir", return_value=storage_dir),
+            patch("cicada.utils.storage.is_linked", return_value=True),
+            patch("cicada.utils.storage.get_link_info", return_value=link_info),
+        ):
+            clean_repository(repo_path, force=True)
+
+        captured = capsys.readouterr()
+        assert "⚠ This repository is linked" in captured.out
+        assert str(source_repo) in captured.out
+        assert "Cleaning will only remove the link file" in captured.out
+        assert "cicada unlink" in captured.out
+
 
 class TestMainFunction:
     """Tests for main CLI entry point"""

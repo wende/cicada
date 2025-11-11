@@ -1038,12 +1038,13 @@ def handle_link(args):
 
         # Show success message with link info
         link_info = get_link_info(target_path)
-        print(f"✓ Successfully linked {target_path}")
-        print(f"  → Source: {link_info['source_repo_path']}")  # type: ignore
-        print(f"  → Storage: {link_info['source_storage_dir']}")  # type: ignore
-        print()
-        print("The target repository will now use the source repository's index.")
-        print("Run 'cicada unlink' to remove this link.")
+        if link_info:
+            print(f"✓ Successfully linked {target_path}")
+            print(f"  → Source: {link_info['source_repo_path']}")
+            print(f"  → Storage: {link_info['source_storage_dir']}")
+            print()
+            print("The target repository will now use the source repository's index.")
+            print("Run 'cicada unlink' to remove this link.")
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -1067,7 +1068,7 @@ def handle_unlink(args):
 
         # Get link info before removing
         link_info = get_link_info(repo_path)
-        source_repo = link_info["source_repo_path"] if link_info else "unknown"  # type: ignore
+        source_repo = link_info["source_repo_path"] if link_info else "unknown"
 
         # Remove the link
         if remove_link(repo_path):

@@ -203,7 +203,8 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     if is_linked(repo_path):
         link_info = get_link_info(repo_path)
         print("⚠ This repository is linked to another repository's index:")
-        print(f"  Source: {link_info['source_repo_path']}")  # type: ignore
+        if link_info:
+            print(f"  Source: {link_info['source_repo_path']}")
         print()
         print("Cleaning will only remove the link file, not the source index.")
         print("To unlink without removing other files, use: cicada unlink")

@@ -505,3 +505,54 @@ class TestLinkFunctionality:
 
         # Verify target storage exists
         assert target_storage.exists(), "Target storage should be created"
+
+    def test_create_link_prevents_circular_links(self, tmp_path, mock_home_dir):
+        """Should prevent circular links (A → B when B → A exists)"""
+        # Create three repositories
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+
+        # Create indices for both
+        storage_a = create_storage_dir(repo_a)
+        storage_b = create_storage_dir(repo_b)
+        (storage_a / "index.json").write_text('{"modules": {}}')
+        (storage_b / "index.json").write_text('{"modules": {}}')
+
+        # Create link A → B
+        create_link(repo_a, repo_b)
+
+        # Try to create link B → A (should fail)
+        with pytest.raises(ValueError, match="circular link"):
+            create_link(repo_b, repo_a)
+
+    def test_resolve_storage_dir_detects_broken_link(self, setup_repos):
+        """Should detect and report broken links when source index is deleted"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Delete source index to break the link
+        source_index = get_index_path(source_repo)
+        source_index.unlink()
+
+        # Attempting to resolve should raise ValueError
+        with pytest.raises(ValueError, match="Link is broken"):
+            resolve_storage_dir(target_repo)
+
+    def test_get_link_info_handles_corrupted_yaml(self, setup_repos):
+        """Should return None for corrupted link.yaml file"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Corrupt the link file
+        link_path = get_link_path(target_repo)
+        link_path.write_text("invalid: yaml: content: [[[")
+
+        # Should return None for corrupted file
+        link_info = get_link_info(target_repo)
+        assert link_info is None, "Should return None for corrupted YAML"
