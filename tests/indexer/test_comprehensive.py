@@ -757,8 +757,10 @@ end
         indexer = ElixirIndexer()
         indexer.index_repository(str(tmp_path), str(output_path))
 
-        # Mock sys.argv with --full flag
-        monkeypatch.setattr(sys, "argv", ["indexer.py", str(tmp_path), "--full"])
+        # Mock sys.argv with --full flag and explicit output path
+        monkeypatch.setattr(
+            sys, "argv", ["indexer.py", str(tmp_path), "--full", "--output", str(output_path)]
+        )
 
         # Mock check_for_updates
         def mock_check(*_args, **_kwargs):

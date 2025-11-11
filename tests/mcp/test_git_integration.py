@@ -15,11 +15,22 @@ from cicada.mcp.server import CicadaServer
 @pytest.fixture
 def test_server():
     """Fixture to create a test MCP server instance."""
-    # Use the shared index created by conftest.py
+    # Create a minimal valid index for testing
+    os.makedirs(".cicada", exist_ok=True)
+
+    minimal_index = {
+        "modules": {},
+        "metadata": {"total_modules": 0, "repo_path": "."},
+    }
+
+    index_path = ".cicada/index.json"
+    with open(index_path, "w") as f:
+        json.dump(minimal_index, f)
+
     # Create a test config
     test_config = {
         "repository": {"path": "."},
-        "storage": {"index_path": ".cicada/index.json"},
+        "storage": {"index_path": index_path},
     }
 
     test_config_path = "test_mcp_git_config.yaml"
@@ -30,9 +41,11 @@ def test_server():
         server = CicadaServer(test_config_path)
         yield server
     finally:
-        # Cleanup - only remove the config file, not the shared index
+        # Cleanup - remove test-specific files
         if os.path.exists(test_config_path):
             os.remove(test_config_path)
+        if os.path.exists(index_path):
+            os.remove(index_path)
 
 
 def test_server_has_git_helper(test_server):
