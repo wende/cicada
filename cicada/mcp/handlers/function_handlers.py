@@ -328,7 +328,7 @@ class FunctionSearchHandler:
         output_format: str = "markdown",
         include_usage_examples: bool = False,
         max_examples: int = 5,
-        test_files_only: bool = False,
+        usage_type: str = "source",
         changed_since: str | None = None,
         show_relationships: bool = True,
     ) -> list[TextContent]:
@@ -388,9 +388,11 @@ class FunctionSearchHandler:
                         target_arity=func["arity"],
                     )
 
-                    # Filter for test files only if requested
-                    if test_files_only:
-                        call_sites = self._filter_test_call_sites(call_sites)
+                    # Filter call sites by file type if not 'all'
+                    if usage_type != "all":
+                        from cicada.mcp.filter_utils import filter_by_file_type
+
+                        call_sites = filter_by_file_type(call_sites, usage_type)
 
                     # Optionally include usage examples (actual code lines)
                     call_sites_with_examples = []

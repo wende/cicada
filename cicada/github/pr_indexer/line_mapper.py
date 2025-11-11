@@ -72,7 +72,7 @@ class LineMapper:
 
         except KeyboardInterrupt:
             print(
-                f"\n\n⚠️  Line mapping interrupted. "
+                f"\n\nWARNING: Line mapping interrupted. "
                 f"Mapped {mapped_count}/{total_comments} comments."
             )
             print("Saving index with partial line mappings...")

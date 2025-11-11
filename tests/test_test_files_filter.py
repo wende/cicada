@@ -52,7 +52,7 @@ async def test_test_files_filter(tmp_path):
         output_format="markdown",
         include_usage_examples=False,
         max_examples=5,
-        test_files_only=False,
+        usage_type="all",
     )
     print(result[0].text)
     print()
@@ -66,7 +66,7 @@ async def test_test_files_filter(tmp_path):
         output_format="markdown",
         include_usage_examples=False,
         max_examples=5,
-        test_files_only=True,
+        usage_type="tests",
     )
     print(result[0].text)
     print()
@@ -80,7 +80,7 @@ async def test_test_files_filter(tmp_path):
         output_format="markdown",
         include_usage_examples=True,
         max_examples=3,
-        test_files_only=True,
+        usage_type="tests",
     )
     print(result[0].text)
     print()

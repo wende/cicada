@@ -13,39 +13,39 @@ from cicada.mcp.server import CicadaServer
 
 
 @pytest.fixture
-def test_server():
+def test_server(tmp_path):
     """Fixture to create a test MCP server instance."""
-    # Create a minimal valid index for testing
-    os.makedirs(".cicada", exist_ok=True)
+    # Create a minimal valid index for testing in isolated tmp directory
+    cicada_dir = tmp_path / ".cicada"
+    cicada_dir.mkdir()
 
     minimal_index = {
         "modules": {},
-        "metadata": {"total_modules": 0, "repo_path": "."},
+        "metadata": {"total_modules": 0, "repo_path": str(tmp_path)},
     }
 
-    index_path = ".cicada/index.json"
+    index_path = cicada_dir / "index.json"
     with open(index_path, "w") as f:
         json.dump(minimal_index, f)
 
     # Create a test config
     test_config = {
-        "repository": {"path": "."},
-        "storage": {"index_path": index_path},
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
     }
 
-    test_config_path = "test_mcp_git_config.yaml"
+    test_config_path = tmp_path / "test_mcp_git_config.yaml"
     with open(test_config_path, "w") as f:
         yaml.dump(test_config, f)
 
-    try:
-        server = CicadaServer(test_config_path)
-        yield server
-    finally:
-        # Cleanup - remove test-specific files
-        if os.path.exists(test_config_path):
-            os.remove(test_config_path)
-        if os.path.exists(index_path):
-            os.remove(index_path)
+    server = CicadaServer(str(test_config_path))
+    # Override git_helper to use the actual repo root, not tmp_path
+    from cicada.git import GitHelper
+
+    server.git_helper = GitHelper(".")
+    server.git_handler.git_helper = server.git_helper
+
+    yield server
 
 
 def test_server_has_git_helper(test_server):
@@ -95,8 +95,9 @@ def test_get_commit_history_basic(test_server):
     text = result[0].text
     assert "Git History for README.md" in text, "Should contain file name in title"
     assert "commit(s)" in text.lower(), "Should mention commits"
-    assert "Commit:" in text, "Should include commit information"
-    assert "Author:" in text, "Should include author information"
+    assert "•" in text, "Should include bullet separator in commit line"
+    # Check for numbered commits (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 4)), "Should have numbered commits"
 
     print("  ✓ File history retrieved successfully")
     print(f"  ✓ Response length: {len(text)} characters")
@@ -201,53 +202,45 @@ def test_call_tool_missing_file_path(test_server):
     print("  ✓ Missing parameter error handled correctly")
 
 
-def test_git_helper_not_available():
+def test_git_helper_not_available(tmp_path):
     """Test behavior when git helper is not available."""
     print("\nTesting behavior when git is not available...")
 
-    # Create a unique minimal valid index for this test
-    os.makedirs(".cicada", exist_ok=True)
+    # Create a minimal valid index for this test in isolated tmp directory
+    cicada_dir = tmp_path / ".cicada"
+    cicada_dir.mkdir()
 
     minimal_index = {
         "modules": {},
-        "metadata": {"total_modules": 0, "repo_path": "/tmp"},
+        "metadata": {"total_modules": 0, "repo_path": str(tmp_path)},
     }
 
-    # Use a unique index file for this test
-    index_path = ".cicada/test_nogit_index.json"
+    index_path = cicada_dir / "test_nogit_index.json"
     with open(index_path, "w") as f:
         json.dump(minimal_index, f)
 
     # Create a config pointing to a non-git directory
     test_config = {
-        "repository": {"path": "/tmp"},
-        "storage": {"index_path": index_path},
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
     }
 
-    test_config_path = "test_nogit_config.yaml"
+    test_config_path = tmp_path / "test_nogit_config.yaml"
     with open(test_config_path, "w") as f:
         yaml.dump(test_config, f)
 
-    try:
-        server = CicadaServer(test_config_path)
+    server = CicadaServer(str(test_config_path))
 
-        # git_helper should be None
-        assert server.git_helper is None, "git_helper should be None for non-git repo"
+    # git_helper should be None
+    assert server.git_helper is None, "git_helper should be None for non-git repo"
 
-        # Try to get file history
-        result = asyncio.run(server.git_handler.get_file_history("README.md"))
+    # Try to get file history
+    result = asyncio.run(server.git_handler.get_file_history("README.md"))
 
-        text = result[0].text
-        assert "not available" in text.lower(), "Should indicate git is not available"
+    text = result[0].text
+    assert "not available" in text.lower(), "Should indicate git is not available"
 
-        print("  ✓ Non-git repo handled gracefully")
-
-    finally:
-        # Clean up test-specific files only
-        if os.path.exists(test_config_path):
-            os.remove(test_config_path)
-        if os.path.exists(index_path):
-            os.remove(index_path)
+    print("  ✓ Non-git repo handled gracefully")
 
 
 def test_get_commit_history_markdown_format(test_server):
@@ -259,9 +252,9 @@ def test_get_commit_history_markdown_format(test_server):
 
     # Check for markdown elements
     assert text.startswith("# "), "Should start with h1 header"
-    assert "## " in text, "Should have h2 headers for commits"
-    assert "- **" in text, "Should have bold list items"
-    assert "`" in text, "Should have code formatting for SHA"
+    assert "•" in text, "Should have bullet separators in commit lines"
+    # Check for numbered list items (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 3)), "Should have numbered commits"
 
     # Check structure
     lines = text.split("\n")
@@ -293,15 +286,15 @@ def test_git_history_includes_all_fields(test_server):
     result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=1))
     text = result[0].text
 
-    # Check for all expected fields in the output
-    expected_fields = [
-        "Commit:",
-        "Author:",
-        "Date:",
-    ]
+    # Check for all expected information in the compact format (SHA • Author • Date)
+    assert "•" in text, "Should have bullet separator"
+    assert "1." in text, "Should have numbered commit"
+    # Check that we have a date in YYYY-MM-DD format
+    import re
 
-    for field in expected_fields:
-        assert field in text, f"Output should include '{field}'"
+    assert re.search(r"\d{4}-\d{2}-\d{2}", text), "Should include date in YYYY-MM-DD format"
+    # Check that we have a SHA (8 hex chars)
+    assert re.search(r"[0-9a-f]{8}", text), "Should include commit SHA"
 
     print("  ✓ All expected fields present in output")
 

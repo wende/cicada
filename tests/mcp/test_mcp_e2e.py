@@ -325,7 +325,25 @@ class TestToolIntegration:
             "search_function",
             {
                 "function_name": "create_user",
-                "test_files_only": True,
+                "usage_type": "tests",
+                "format": "markdown",
+            },
+        )
+
+        assert len(result) == 1
+        text = result[0].text
+        # Should only show calls from test files
+        if "call" in text.lower():
+            assert "test" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_function_backward_compat_test_files_only(self, e2e_server):
+        """Test backward compatibility with test_files_only parameter."""
+        result = await e2e_server.call_tool(
+            "search_function",
+            {
+                "function_name": "create_user",
+                "test_files_only": True,  # Old parameter
                 "format": "markdown",
             },
         )

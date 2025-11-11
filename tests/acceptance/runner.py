@@ -28,7 +28,7 @@ async def search_function(
     output_format: str = "markdown",
     include_usage_examples: bool = False,
     max_examples: int = 5,
-    test_files_only: bool = False,
+    usage_type: str = "source",
 ) -> str:
     """Search for a function and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
@@ -37,7 +37,7 @@ async def search_function(
         output_format=output_format,
         include_usage_examples=include_usage_examples,
         max_examples=max_examples,
-        test_files_only=test_files_only,
+        usage_type=usage_type,
     )
     return result[0].text if result else "No results found"
 
@@ -120,7 +120,7 @@ def main():
                 search_function(
                     function_name,
                     include_usage_examples=include_examples,
-                    test_files_only=test_only,
+                    usage_type="test" if test_only else "source",
                     max_examples=max_examples,
                 )
             )

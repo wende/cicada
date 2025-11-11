@@ -48,7 +48,7 @@ class PRFinder:
             elif not self.index:
                 # Always show warning (even in non-verbose mode) with color
                 print(
-                    "\033[33m⚠️  No PR index found - using slower network lookups. Create index: cicada index-pr\033[0m",
+                    "\033[33mWARNING: No PR index found - using slower network lookups. Create index: cicada index-pr\033[0m",
                     file=sys.stderr,
                 )
 

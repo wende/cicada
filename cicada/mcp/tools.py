@@ -17,13 +17,15 @@ def get_tool_definitions() -> list[Tool]:
                 "PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers.\n\n"
                 "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
-                "Control visibility with private_functions: 'exclude' (default), 'include', or 'only'.\n\n"
+                "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
                 "Returns public functions in markdown format by default. Start here when exploring modules.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 "• Use this when you know the exact module name (e.g., from search_by_features)\n"
                 "• Don't ask user for module names - use search_by_features first to find modules\n"
                 "• Returns: full API surface, function signatures, line numbers for navigation\n"
-                "• If module not found, error will suggest alternatives - try those suggestions!"
+                "• If module not found, error will suggest alternatives - try those suggestions!\n"
+                "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
+                "• Output is automatically truncated for large results to prevent token overflow"
             ),
             inputSchema={
                 "type": "object",
@@ -41,10 +43,10 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["markdown", "json"],
                         "description": "Output format. Defaults to 'markdown'.",
                     },
-                    "private_functions": {
+                    "type": {
                         "type": "string",
-                        "enum": ["exclude", "include", "only"],
-                        "description": "Control private function visibility. Defaults to 'exclude'.",
+                        "enum": ["public", "private", "all"],
+                        "description": "Which functions to show. Defaults to 'public'.",
                     },
                 },
             },
@@ -57,12 +59,13 @@ def get_tool_definitions() -> list[Tool]:
                 "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
                 "Returns definition location, signature, documentation, and all call sites. "
                 "Use include_usage_examples to see actual code snippets where the function is called.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 "• Use this for impact analysis - see where functions are called before modifying\n"
                 "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
-                "• Use test_files_only=true to see how functions are tested\n"
+                "• Use usage_type='tests' to see only how functions are tested\n"
                 "• Returns: definition + ALL call sites with file:line references\n"
-                "• If you see function references in code, search them to understand what they do"
+                "• If you see function references in code, search them to understand what they do\n"
+                "• Call sites and line numbers are automatically truncated for popular functions (>20 sites)"
             ),
             inputSchema={
                 "type": "object",
@@ -87,9 +90,10 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "integer",
                         "description": "Maximum number of code examples to include. Defaults to 5.",
                     },
-                    "test_files_only": {
-                        "type": "boolean",
-                        "description": "Only show call sites from test files. Defaults to false.",
+                    "usage_type": {
+                        "type": "string",
+                        "enum": ["all", "tests", "source"],
+                        "description": "Filter call sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
                     },
                     "changed_since": {
                         "type": "string",
@@ -115,11 +119,12 @@ def get_tool_definitions() -> list[Tool]:
                 "PREFERRED for Elixir: Find all module usage and dependencies for impact analysis.\n\n"
                 "Shows where a module is imported, aliased, required, and all locations where its functions are called.\n\n"
                 "Returns aliases, imports, function calls, and dependency relationships.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 "• Use BEFORE modifying a module - see what depends on it to avoid breaking changes\n"
                 "• Shows: aliases, imports, requires, uses, and ALL function call sites\n"
                 "• Critical for refactoring - identify all affected modules before making changes\n"
-                "• If a module has many dependents, changes may have wide impact"
+                "• If a module has many dependents, changes may have wide impact\n"
+                "• Function call line numbers are automatically truncated for heavily-used modules (>30 lines)"
             ),
             inputSchema={
                 "type": "object",
@@ -135,8 +140,8 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "usage_type": {
                         "type": "string",
-                        "enum": ["all", "test_only", "production_only"],
-                        "description": "Filter usage sites by file type. 'all' shows everything, 'test_only' shows only test files, 'production_only' shows only non-test files. Defaults to 'all'.",
+                        "enum": ["all", "tests", "source"],
+                        "description": "Filter usage sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
                     },
                 },
                 "required": ["module_name"],
@@ -149,7 +154,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Find the pull request that introduced a specific line of code. "
                 "Requires PR index (run 'cicada index-pr' first).\n\n"
                 "Returns PR number, title, description, and author.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use when you need context: "Why does this code exist? What problem did it solve?"\n'
                 "• Perfect for understanding complex/confusing code - read the PR discussion\n"
                 "• Provides: PR title, description, author, and link to full discussion\n"
@@ -182,7 +187,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Get the git commit history for a file or function. When function_name is provided, uses git's "
                 "function tracking which works even as the function moves around in the file.\n\n"
                 "Returns commits with dates, authors, and messages. Optionally shows function evolution metadata.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use for understanding evolution: "How has this function changed over time?"\n'
                 "• Set show_evolution=true to see: creation date, total modifications, frequency\n"
                 "• Provide function_name for precise tracking (even as function moves in file)\n"
@@ -247,11 +252,12 @@ def get_tool_definitions() -> list[Tool]:
                 "Get line-by-line authorship information for a code section using git blame. "
                 "Groups consecutive lines with the same authorship together.\n\n"
                 "Returns author name, email, commit hash, and date for each authorship group.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use when you need to know: "Who wrote this code? When?"\n'
                 "• Shows line-by-line authorship with commit hashes for each change\n"
                 "• Requires start_line and end_line (from search_function results)\n"
-                "• Groups consecutive lines by same author for readability"
+                "• Groups consecutive lines by same author for readability\n"
+                "• Large code blocks (>50 lines) are automatically truncated to show head and tail"
             ),
             inputSchema={
                 "type": "object",
@@ -279,7 +285,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Returns a chronological list of pull requests that modified the specified file, "
                 "including descriptions and code review comments specific to that file.\n\n"
                 "Requires PR index (run 'cicada index-pr' first).\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use for deep context: "What\'s the full history of changes to this file?"\n'
                 "• Shows ALL PRs that touched the file + review comments (discussions, decisions)\n"
                 "• Review comments reveal: design decisions, concerns, tradeoffs, bugs found\n"
@@ -300,12 +306,12 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_by_features",
             description=(
-                "🎯 USE THIS FIRST when exploring code or when you don't know exact module/function names.\n\n"
+                "USE THIS FIRST when exploring code or when you don't know exact module/function names.\n\n"
                 "Search for code by concepts and features - find code by describing what it does, not what it's called. "
                 "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
                 "Examples: ['authentication', 'login'], ['api', 'key', 'storage'], ['email', 'validation']\n\n"
                 "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 "• **USE THIS FIRST** - don't ask user for module names when you can search for concepts\n"
                 "• Try broad queries first: ['authentication'], then narrow: ['oauth', 'token']\n"
                 "• Multiple searches are NORMAL - try 3-5 different keyword combinations\n"
@@ -338,7 +344,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_by_keywords",
             description=(
-                "⚠️ DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
+                "DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
                 "Search for code by concepts and features when exact names are unknown.\n\n"
                 "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
                 "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
@@ -368,7 +374,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Returns results categorized by confidence level (high, medium, low).\n\n"
                 "Note: Results are best-effort - some unused functions may be part of the public API, "
                 "used dynamically via atom introspection, or used in external packages.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use for cleanup: "What code can potentially be removed?"\n'
                 "• Start with min_confidence='high' to find most likely unused code\n"
                 "• VERIFY before deleting - may be public API, dynamic calls, or external usage\n"
@@ -397,7 +403,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Shows which modules the target module imports, aliases, uses, requires, and calls. "
                 "Complements search_module_usage (which shows who depends on this module).\n\n"
                 "Returns list of dependent modules with dependency types (alias, import, use, require, call).\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use for understanding: "What does this module need to work?"\n'
                 "• Pair with search_module_usage for full dependency graph (in + out)\n"
                 "• Helps identify coupling - modules with many dependencies may need refactoring\n"
@@ -435,7 +441,7 @@ def get_tool_definitions() -> list[Tool]:
                 "Shows which functions are called within the target function, including both "
                 "internal (same module) and external (other modules) calls.\n\n"
                 "Returns list of called functions with module, name, arity, and line numbers.\n\n"
-                "🤖 AI USAGE TIPS:\n"
+                "AI USAGE TIPS:\n"
                 '• Use for understanding: "What does this function do? What does it call?"\n'
                 "• Helps identify function complexity - many dependencies = complex function\n"
                 "• Shows exact line numbers where each dependency is called\n"
