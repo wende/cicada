@@ -9,8 +9,12 @@ from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET
 from cicada.setup import EditorType
 
 
-class NotElixirProjectError(Exception):
-    """Raised when the given path is not an Elixir project."""
+class UnsupportedProjectError(Exception):
+    """Raised when the given path is not a supported project type."""
+
+
+# Backward compatibility alias
+NotElixirProjectError = UnsupportedProjectError
 
 
 # Tier configuration data
@@ -291,15 +295,17 @@ def add_to_claude_md(repo_path: Path) -> None:
 
 def check_elixir_project(repo_path: Path) -> None:
     """
-    Check if the given path is an Elixir project.
+    Check if the given path is a supported project type.
 
     Args:
         repo_path: Path to check
 
     Raises:
-        NotElixirProjectError: If the path is not an Elixir project
+        UnsupportedProjectError: If the path is not a supported project type
     """
-    if not (repo_path / "mix.exs").exists():
-        raise NotElixirProjectError(
-            f"{repo_path} does not appear to be an Elixir project (mix.exs not found)"
-        )
+    from cicada.setup import detect_project_language
+
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        raise UnsupportedProjectError(str(e)) from e

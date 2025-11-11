@@ -211,12 +211,13 @@ def _auto_setup_if_needed():
         return
 
     # Setup needed - create storage and index (silent mode)
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
+    # Validate it's a supported project type
+    from cicada.setup import detect_project_language
+
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -224,7 +225,7 @@ def _auto_setup_if_needed():
         storage_dir = create_storage_dir(repo_path)
 
         # Index repository (silent mode)
-        index_repository(repo_path, verbose=False)
+        index_repository(repo_path, language, verbose=False)
 
         # Create config.yaml (silent mode)
         create_config_yaml(repo_path, storage_dir, verbose=False)

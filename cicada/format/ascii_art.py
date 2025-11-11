@@ -55,6 +55,6 @@ def get_welcome_banner():
     """Generate complete welcome banner with ASCII art and welcome message."""
     banner = CICADA_ASCII_ART
     banner += f"{CYAN}{'=' * 66}{RESET}\n"
-    banner += f"{YELLOW} Welcome to CICADA - Elixir Code Intelligence{RESET}\n"
+    banner += f"{YELLOW} Welcome to CICADA - Code Intelligence{RESET}\n"
     banner += f"{CYAN}{'=' * 66}{RESET}\n"
     return banner

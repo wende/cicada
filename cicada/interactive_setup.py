@@ -20,7 +20,7 @@ from cicada.interactive_setup_helpers import (
     TIER_ITEMS,
     TIER_MAP,
     TIER_MAP_TEXT,
-    NotElixirProjectError,
+    UnsupportedProjectError,
     add_to_claude_md,
     check_elixir_project,
     display_claude_md_selection,
@@ -51,7 +51,7 @@ def _print_first_time_intro(show_header: bool) -> None:
     if show_header:
         print(generate_gradient_ascii_art())
         print(f"{PRIMARY}{'=' * 70}{RESET}")
-        print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+        print(f"{SELECTED}🦗 Welcome to CICADA - Code Intelligence{RESET}")
         print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"This is your first time running CICADA in this project.{RESET}")
@@ -285,7 +285,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     This is the main entry point when running `cicada` with no arguments or a path.
 
     Args:
-        repo_path: Path to the Elixir repository. Defaults to current directory.
+        repo_path: Path to the repository. Defaults to current directory.
     """
 
     # Helper to run setup with error handling
@@ -302,14 +302,16 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
             print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
             sys.exit(1)
 
-    # Check if we're in an Elixir project
+    # Check if we're in a supported project
     repo_path = Path.cwd() if repo_path is None else Path(repo_path).resolve()
     try:
         check_elixir_project(repo_path)
-    except NotElixirProjectError as e:
+    except UnsupportedProjectError as e:
         print(f"{PRIMARY}Error: {e}{RESET}")
         print()
-        print("Please run cicada from the root of an Elixir project.")
+        print(
+            "Please run cicada from the root of a supported project (Python, Elixir, or TypeScript)."
+        )
         sys.exit(1)
 
     # Display ASCII art
@@ -317,7 +319,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
 
     # Step 1: Choose editor
     print(f"{PRIMARY}{'=' * 70}{RESET}")
-    print(f"{SELECTED}🦗 Welcome to CICADA - Elixir Code Intelligence{RESET}")
+    print(f"{SELECTED}🦗 Welcome to CICADA - Code Intelligence{RESET}")
     print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"Let's set up Cicada for your editor and project.{RESET}")

@@ -183,7 +183,7 @@ class LanguageRegistry:
 LanguageRegistry.register_language(
     language="elixir",
     parser_class="cicada.languages.elixir.parser.ElixirParser",
-    indexer_class="cicada.languages.elixir.indexer.ElixirIndexer",
+    indexer_class="cicada.indexer.ElixirIndexer",
     config=LanguageConfig.default_elixir(),
 )
 

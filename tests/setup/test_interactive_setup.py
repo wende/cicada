@@ -1079,14 +1079,13 @@ class TestShowFullInteractiveSetup:
         """Test that non-Elixir project shows error and exits"""
         from cicada.interactive_setup import show_full_interactive_setup
 
-        # No mix.exs file
+        # No project marker files
         with pytest.raises(SystemExit) as exc_info:
             show_full_interactive_setup(tmp_path)
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "does not appear to be an Elixir project" in captured.out
-        assert "mix.exs not found" in captured.out
+        assert "Could not detect project language" in captured.out
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")

@@ -210,6 +210,18 @@ class PythonSCIPIndexer(BaseIndexer):
         Raises:
             RuntimeError: If scip-python execution fails
         """
+        # Create temporary pyrightconfig.json to exclude .venv and dependencies
+        pyright_config_path = repo_path / "pyrightconfig.json"
+        temp_pyright_config = False
+
+        if not pyright_config_path.exists():
+            temp_pyright_config = True
+            pyright_config = {"exclude": list(self.excluded_dirs)}
+            with open(pyright_config_path, "w") as f:
+                json.dump(pyright_config, f, indent=2)
+            if self.verbose:
+                print("  Created temporary pyrightconfig.json to exclude dependencies")
+
         # Create temporary file for .scip output
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".scip", delete=False, dir=repo_path
@@ -258,6 +270,10 @@ class PythonSCIPIndexer(BaseIndexer):
             if scip_file.exists():
                 scip_file.unlink()
             raise
+        finally:
+            # Clean up temporary pyrightconfig if we created it
+            if temp_pyright_config and pyright_config_path.exists():
+                pyright_config_path.unlink()
 
     def _save_index(self, index: dict, output_path: Path):
         """

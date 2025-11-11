@@ -111,7 +111,7 @@ def get_argument_parser():
         "repo",
         nargs="?",
         default=None,
-        help="Path to Elixir repository (default: current directory)",
+        help="Path to project repository (default: current directory)",
     )
     install_parser.add_argument(
         "--claude",
@@ -163,7 +163,7 @@ def get_argument_parser():
         "repo",
         nargs="?",
         default=None,
-        help="Path to Elixir repository (default: current directory)",
+        help="Path to project repository (default: current directory)",
     )
     server_parser.add_argument(
         "--claude",
@@ -325,7 +325,7 @@ def get_argument_parser():
         "repo",
         nargs="?",
         default=".",
-        help="Path to the Elixir repository to watch (default: current directory)",
+        help="Path to the project repository to watch (default: current directory)",
     )
     watch_parser.add_argument(
         "--debounce",
@@ -352,14 +352,14 @@ def get_argument_parser():
 
     index_parser = subparsers.add_parser(
         "index",
-        help="Index an Elixir repository to extract modules and functions",
-        description="Index current Elixir repository to extract modules and functions",
+        help="Index a project repository to extract code symbols",
+        description="Index current project repository to extract code symbols",
     )
     index_parser.add_argument(
         "repo",
         nargs="?",
         default=".",
-        help="Path to the Elixir repository to index (default: current directory)",
+        help="Path to the project repository to index (default: current directory)",
     )
     index_parser.add_argument(
         "--fast",
@@ -570,7 +570,7 @@ def handle_editor_setup(args, editor: str) -> None:
     """
     from typing import cast
 
-    from cicada.setup import EditorType, setup
+    from cicada.setup import EditorType, detect_project_language, setup
     from cicada.utils.storage import get_config_path, get_index_path
 
     # Validate tier flags
@@ -578,10 +578,11 @@ def handle_editor_setup(args, editor: str) -> None:
 
     repo_path = Path.cwd()
 
-    # Verify it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
+    # Detect and validate project language
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     config_path = get_config_path(repo_path)
@@ -681,13 +682,18 @@ def handle_index_test_expansion_mode(args):
 
 def handle_index_main(args) -> None:
     """Handle main repository indexing."""
-    from cicada.indexer import ElixirIndexer
+    from cicada.languages import LanguageRegistry
+    from cicada.setup import detect_project_language
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
     # Validate tier flags
     validate_tier_flags(args, require_force=True)
 
     repo_path = Path(args.repo).resolve()
+
+    # Detect project language
+    language = detect_project_language(repo_path)
+
     config_path = get_config_path(repo_path)
     storage_dir = create_storage_dir(repo_path)
     index_path = get_index_path(repo_path)
@@ -708,13 +714,30 @@ def handle_index_main(args) -> None:
         sys.exit(2)
 
     # Perform indexing
-    indexer = ElixirIndexer(verbose=True)
-    indexer.incremental_index_repository(
-        str(repo_path),
-        str(index_path),
-        extract_keywords=True,
-        force_full=False,
-    )
+    indexer = LanguageRegistry.get_indexer(language)
+    if hasattr(indexer, "verbose"):
+        indexer.verbose = True  # type: ignore[misc]
+
+    # Different indexers have different APIs
+    if hasattr(indexer, "incremental_index_repository"):
+        # Elixir-style API
+        indexer.incremental_index_repository(
+            str(repo_path),
+            str(index_path),
+            extract_keywords=True,
+            force_full=False,
+        )
+    elif hasattr(indexer, "index_repository"):
+        # Python-style API
+        indexer.index_repository(
+            repo_path=str(repo_path),
+            output_path=str(index_path),
+            force=False,
+            verbose=True,
+            config_path=str(config_path),
+        )
+    else:
+        raise AttributeError(f"Indexer for {language} has no index_repository method")
 
 
 def _handle_index_config_update(
@@ -968,7 +991,7 @@ def handle_install(args) -> None:
 
     # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
-    _validate_elixir_project(repo_path)
+    _validate_project_language(repo_path)
 
     # Validate tier flags
     validate_tier_flags(args)
@@ -1020,18 +1043,24 @@ def handle_install(args) -> None:
         sys.exit(1)
 
 
-def _validate_elixir_project(repo_path: Path) -> None:
-    """Validate that the repository is an Elixir project.
+def _validate_project_language(repo_path: Path) -> str:
+    """Validate that the repository is a supported project type and return its language.
 
     Args:
         repo_path: Path to the repository
 
+    Returns:
+        The detected language (e.g., 'python', 'elixir', 'typescript')
+
     Raises:
-        SystemExit: If not an Elixir project
+        SystemExit: If not a supported project type
     """
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project", file=sys.stderr)
-        print("(mix.exs not found)", file=sys.stderr)
+    from cicada.setup import detect_project_language
+
+    try:
+        return detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1119,7 +1148,7 @@ def handle_server(args) -> None:
 
     # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
-    _validate_elixir_project(repo_path)
+    _validate_project_language(repo_path)
 
     # Validate tier flags
     validate_tier_flags(args)
@@ -1168,7 +1197,10 @@ def _perform_silent_setup(
         extraction_method: Extraction method or None for defaults
         expansion_method: Expansion method or None for defaults
     """
-    from cicada.setup import create_config_yaml, index_repository
+    from cicada.setup import create_config_yaml, detect_project_language, index_repository
+
+    # Detect project language
+    language = detect_project_language(repo_path)
 
     # If no tier specified, default to fast tier (fastest, no downloads)
     if extraction_method is None:
@@ -1180,7 +1212,7 @@ def _perform_silent_setup(
 
     # Index repository (silent)
     try:
-        index_repository(repo_path, force_full=False, verbose=False)
+        index_repository(repo_path, language, force_full=False, verbose=False)
     except Exception as e:
         print(f"Error during indexing: {e}", file=sys.stderr)
         sys.exit(1)
