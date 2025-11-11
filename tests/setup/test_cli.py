@@ -30,6 +30,7 @@ def make_index_args(**overrides):
         "max": False,
         "regular": False,
         "force": False,
+        "default": False,
         "repo": ".",
         "test": False,
         "test_expansion": False,
