@@ -795,6 +795,35 @@ class TestHandleDir:
         captured = capsys.readouterr()
         assert "Storage error" in captured.err
 
+    def test_prints_linked_repository_info(self, tmp_path, capsys, mock_home_dir):
+        """Should print link info when repository is linked"""
+        from cicada.utils.storage import create_link, create_storage_dir
+
+        # Create source and target repositories
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create source storage and index
+        source_storage = create_storage_dir(source_repo)
+        (source_storage / "index.json").write_text('{"modules": {}}')
+
+        # Link target to source
+        create_link(target_repo, source_repo)
+
+        # Test handle_dir on linked repository
+        args = MagicMock(repo=str(target_repo))
+
+        handle_dir(args)
+
+        captured = capsys.readouterr()
+        assert "Storage directory:" in captured.out
+        assert "Linked to:" in captured.out
+        assert str(source_repo) in captured.out
+        assert "Resolved storage:" in captured.out
+        assert str(source_storage) in captured.out
+
 
 class TestHandleWatch:
     """Tests for handle_watch() command"""
