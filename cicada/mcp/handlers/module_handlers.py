@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp.types import TextContent
 
-from cicada.elixir.format import ModuleFormatter
+from cicada.format import ModuleFormatter
 from cicada.mcp.pattern_utils import has_wildcards, match_any_pattern, split_or_patterns
 from cicada.utils import find_similar_names
 

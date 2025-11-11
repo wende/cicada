@@ -37,7 +37,7 @@ class AnalysisHandler:
         Returns:
             TextContent with formatted search results
         """
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
         from cicada.keyword_search import KeywordSearcher
         from cicada.mcp.filter_utils import filter_by_score_threshold
 

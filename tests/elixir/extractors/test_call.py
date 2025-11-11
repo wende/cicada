@@ -6,7 +6,7 @@ import pytest
 import tree_sitter_elixir
 from tree_sitter import Language, Parser
 
-from cicada.elixir.extractors.call import extract_function_calls
+from cicada.languages.elixir.extractors.call import extract_function_calls
 
 
 class TestExtractFunctionCalls:

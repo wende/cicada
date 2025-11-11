@@ -344,7 +344,7 @@ class FunctionSearchHandler:
             - "MyApp.*.create/1" - matches create/1 in any module under MyApp
             - "lib/*/user.ex:create*" - matches create* functions in files matching path pattern
         """
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         # Support OR syntax by splitting first, then parsing each component individually
         parsed_patterns: list[FunctionPattern] = parse_function_patterns(function_name)

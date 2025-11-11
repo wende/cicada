@@ -5,7 +5,7 @@ from typing import cast
 
 import yaml
 
-from cicada.elixir.format import BOLD, GREEN, GREY, PRIMARY, RESET
+from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET
 from cicada.setup import EditorType
 
 

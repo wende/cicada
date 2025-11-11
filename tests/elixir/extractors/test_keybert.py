@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cicada.elixir.extractors.keybert import KeyBERTExtractor
+from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
 from cicada.utils import extract_code_identifiers
 
 

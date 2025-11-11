@@ -2,7 +2,7 @@
 Comprehensive tests for cicada/parser.py
 """
 
-from cicada.elixir.parser import ElixirParser
+from cicada.languages.elixir.parser import ElixirParser
 
 
 class TestElixirParserErrorHandling:

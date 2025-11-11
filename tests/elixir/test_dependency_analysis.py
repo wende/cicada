@@ -27,7 +27,7 @@ class TestModuleDependencyExtraction:
             "calls": [],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -46,7 +46,7 @@ class TestModuleDependencyExtraction:
             "calls": [],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -63,7 +63,7 @@ class TestModuleDependencyExtraction:
             "calls": [],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -91,7 +91,7 @@ class TestModuleDependencyExtraction:
             ],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -116,7 +116,7 @@ class TestModuleDependencyExtraction:
             ],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -150,7 +150,7 @@ class TestModuleDependencyExtraction:
             ],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -171,7 +171,7 @@ class TestModuleDependencyExtraction:
             "calls": [],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -191,7 +191,7 @@ class TestModuleDependencyExtraction:
             ],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -235,7 +235,7 @@ class TestFunctionDependencyExtraction:
             "aliases": {"Repo": "MyApp.Repo"},
         }
 
-        from cicada.elixir.dependency_analyzer import extract_function_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_function_dependencies
 
         deps = extract_function_dependencies(
             module_data, function_data, function_calls, function_end_line=14
@@ -293,7 +293,7 @@ class TestFunctionDependencyExtraction:
             "aliases": {},
         }
 
-        from cicada.elixir.dependency_analyzer import extract_function_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_function_dependencies
 
         deps = extract_function_dependencies(
             module_data,
@@ -329,7 +329,7 @@ class TestFunctionDependencyExtraction:
             },
         }
 
-        from cicada.elixir.dependency_analyzer import extract_function_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_function_dependencies
 
         deps = extract_function_dependencies(
             module_data, function_data, function_calls, function_end_line=13
@@ -353,7 +353,7 @@ class TestDependencyEdgeCases:
             "calls": [],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -368,7 +368,7 @@ class TestDependencyEdgeCases:
             # Missing imports, uses, calls
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
@@ -391,7 +391,7 @@ class TestDependencyEdgeCases:
             ],
         }
 
-        from cicada.elixir.dependency_analyzer import extract_module_dependencies
+        from cicada.languages.elixir.dependency_analyzer import extract_module_dependencies
 
         deps = extract_module_dependencies(module_data)
 
