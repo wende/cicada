@@ -15,6 +15,7 @@ from cicada.mcp.server import CicadaServer
 
 
 @pytest.mark.asyncio
+@pytest.mark.xdist_group(name="file_io")
 async def test_call_sites(tmp_path):
     """Test the call site resolution."""
     # Load test index

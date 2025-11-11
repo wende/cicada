@@ -47,6 +47,7 @@ class TestKeywordExpanderInitialization:
         assert expander.verbose is True
 
 
+@pytest.mark.xdist_group(name="model_cache")
 class TestKeywordExpanderModelLoading:
     """Tests for model loading functionality"""
 
@@ -268,6 +269,7 @@ class TestGetModelInfo:
         assert info["embedding_vector_size"] == 300
 
 
+@pytest.mark.xdist_group(name="model_cache")
 class TestModelCaching:
     """Tests for model caching behavior"""
 
