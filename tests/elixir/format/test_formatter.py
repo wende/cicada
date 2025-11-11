@@ -405,7 +405,7 @@ def test_format_function_results_markdown_with_additional_call_sites():
 
 
 def test_format_module_markdown_with_private_functions_only():
-    """Test formatting module with private_functions='only'."""
+    """Test formatting module with type='private'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -423,7 +423,7 @@ def test_format_module_markdown_with_private_functions_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="private")
 
     # Should show only private functions
     assert "private_func" in result
@@ -432,7 +432,7 @@ def test_format_module_markdown_with_private_functions_only():
 
 
 def test_format_module_markdown_with_private_functions_include():
-    """Test formatting module with private_functions='include'."""
+    """Test formatting module with type='all'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -450,7 +450,7 @@ def test_format_module_markdown_with_private_functions_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="include")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="all")
 
     # Should show both public and private
     assert "private_func" in result
@@ -471,7 +471,9 @@ def test_format_module_markdown_no_functions():
 
     result = ModuleFormatter.format_module_markdown("TestModule", data)
 
-    assert "*No functions found*" in result
+    # Should show 0 counts instead of "*No functions found*"
+    assert "0 public • 0 private" in result
+    assert "*No functions found*" not in result
 
 
 def test_format_module_markdown_no_private_when_only_requested():
@@ -484,13 +486,13 @@ def test_format_module_markdown_no_private_when_only_requested():
         "private_functions": 0,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="private")
 
     assert "*No private functions found*" in result
 
 
 def test_format_module_json_with_private_only():
-    """Test JSON formatting with private_functions='only'."""
+    """Test JSON formatting with type='private'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -509,7 +511,7 @@ def test_format_module_json_with_private_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_json("TestModule", data, visibility="private")
     parsed = json.loads(result)
 
     # Should only have private function
@@ -518,7 +520,7 @@ def test_format_module_json_with_private_only():
 
 
 def test_format_module_json_with_private_include():
-    """Test JSON formatting with private_functions='include'."""
+    """Test JSON formatting with type='all'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -537,7 +539,7 @@ def test_format_module_json_with_private_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="include")
+    result = ModuleFormatter.format_module_json("TestModule", data, visibility="all")
     parsed = json.loads(result)
 
     # Should have both functions
@@ -1037,8 +1039,14 @@ def test_format_module_usage_markdown_function_calls_with_alias():
                 "file": "lib/account.ex",
                 "calls": [
                     {
-                        "function": "create",
-                        "arity": 1,
+                        "called_function": "create",
+                        "called_arity": 1,
+                        "calling_function": {
+                            "name": "setup",
+                            "arity": 0,
+                            "start_line": 5,
+                            "end_line": 25,
+                        },
                         "lines": [10, 20],
                         "alias_used": "U",
                     }
@@ -1048,4 +1056,36 @@ def test_format_module_usage_markdown_function_calls_with_alias():
     }
 
     result = ModuleFormatter.format_module_usage_markdown("MyApp.User", usage_results)
-    assert "(via `U`)" in result
+    # Should show the called function at top level
+    assert "create/1" in result
+    # Should show total calls
+    assert "2 calls" in result
+
+
+def test_format_module_compact():
+    """Test compact module format for lists."""
+    data = {
+        "file": "lib/litmus/try_catch.ex",
+        "line": 1,
+        "public_functions": 1,
+        "private_functions": 14,
+        "functions": [
+            {"name": "func1", "arity": 1, "type": "def", "line": 10, "args": []},
+            {"name": "func2", "arity": 0, "type": "defp", "line": 20, "args": []},
+            {"name": "func3", "arity": 1, "type": "defp", "line": 30, "args": []},
+        ],
+    }
+
+    result = ModuleFormatter.format_module_compact("Litmus.TryCatch", data)
+
+    # Should show file path without line number
+    assert "lib/litmus/try_catch.ex" in result
+    # Should show module name with dash separators and counts
+    assert "Litmus.TryCatch - " in result
+    assert " public - " in result
+    assert " private" in result
+    # Should NOT contain colon (no line number)
+    assert ":1" not in result
+    # Should be compact (2 lines)
+    lines = result.split("\n")
+    assert len(lines) == 2

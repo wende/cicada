@@ -167,7 +167,7 @@ class GitHistoryHandler:
         # Check if any filters are being used (only supported for file-level history)
         has_filters = since_date or until_date or author or min_changes > 0
         if has_filters and (function_name or (start_line and end_line)):
-            warning_msg = "⚠️  Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
+            warning_msg = "WARNING: Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
         else:
             warning_msg = ""
 
@@ -285,24 +285,20 @@ class GitHistoryHandler:
             lines.append(f"Found {len(commits)} commit(s)\n")
 
             for i, commit in enumerate(commits, 1):
-                lines.append(f"## {i}. {commit['summary']}")
-                lines.append(f"- **Commit:** `{commit['sha']}`")
-                lines.append(f"- **Author:** {commit['author']} ({commit['author_email']})")
-                lines.append(f"- **Date:** {commit['date']}")
+                # Extract just the date (YYYY-MM-DD) from the full datetime string
+                date_only = commit["date"][:10] if len(commit["date"]) >= 10 else commit["date"]
+
+                lines.append(f"{i}. {commit['summary']}")
+                lines.append(f"   {commit['sha']} • {commit['author']} • {date_only}")
 
                 # Add relevance indicator for function searches
                 if "relevance" in commit:
-                    relevance_emoji = "🎯" if commit["relevance"] == "mentioned" else "📝"
                     relevance_text = (
-                        "Function mentioned"
+                        "[Function mentioned]"
                         if commit["relevance"] == "mentioned"
-                        else "File changed"
+                        else "[File changed]"
                     )
-                    lines.append(f"- **Relevance:** {relevance_emoji} {relevance_text}")
-
-                # Add full commit message if it's different from summary
-                if commit["message"] != commit["summary"]:
-                    lines.append(f"\n**Full message:**\n```\n{commit['message']}\n```")
+                    lines.append(f"   {relevance_text}")
 
                 lines.append("")  # Empty line between commits
 
@@ -343,26 +339,21 @@ class GitHistoryHandler:
             lines.append(f"Found {len(blame_groups)} authorship group(s)\n")
 
             for i, group in enumerate(blame_groups, 1):
-                # Group header
-                line_range = (
-                    f"lines {group['line_start']}-{group['line_end']}"
-                    if group["line_start"] != group["line_end"]
-                    else f"line {group['line_start']}"
-                )
-                lines.append(f"## Group {i}: {group['author']} ({line_range})")
+                # Compact header: ## 1/3
+                lines.append(f"## {i}/{len(blame_groups)}")
 
-                lines.append(f"- **Author:** {group['author']} ({group['author_email']})")
-                lines.append(f"- **Commit:** `{group['sha']}`")
-                lines.append(f"- **Date:** {group['date'][:10]}")
-                lines.append(f"- **Lines:** {group['line_count']}\n")
+                # Compact metadata line: :150-156 • wende • 0d89fb7b • 2025-10-16
+                line_range = f":{group['line_start']}-{group['line_end']}"
+                lines.append(
+                    f" {line_range} • {group['author']} • {group['sha']} • {group['date'][:10]}"
+                )
 
                 # Show code lines
-                lines.append("**Code:**")
-                lines.append("```elixir")
+                lines.append(" ```elixir")
                 for line_info in group["lines"]:
-                    # Show line number and content
-                    lines.append(f"{line_info['content']}")
-                lines.append("```\n")
+                    # Show line content with leading space for proper indentation
+                    lines.append(f"  {line_info['content']}")
+                lines.append(" ```\n")
 
             result = "\n".join(lines)
             return [TextContent(type="text", text=result)]

@@ -58,7 +58,7 @@ def format_markdown(results: dict) -> str:
             lines.append(f"### {module}")
             lines.append(f"{funcs[0]['file']}\n")
             for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
+                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
 
     # Medium confidence
@@ -93,7 +93,7 @@ def format_markdown(results: dict) -> str:
             lines.append("")
 
             for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
+                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
 
     # Low confidence
@@ -127,7 +127,7 @@ def format_markdown(results: dict) -> str:
             lines.append("")
 
             for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` (line {func['line']})")
+                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
 
     if summary["total_candidates"] == 0:
@@ -150,32 +150,15 @@ def format_json(results: dict) -> str:
 
 
 def filter_by_confidence(results: dict, min_confidence: str) -> dict:
-    """
-    Filter results to only show candidates at or above minimum confidence level.
-
-    Args:
-        results: Analysis results
-        min_confidence: Minimum confidence level ("high", "medium", or "low")
-
-    Returns:
-        Filtered results
-    """
+    """Filter results by confidence level."""
     if min_confidence == "low":
-        # Show all
         return results
-    elif min_confidence == "medium":
-        # Show only medium and high
-        results["candidates"]["low"] = []
-    else:  # high
-        # Show only high
-        results["candidates"]["medium"] = []
-        results["candidates"]["low"] = []
 
-    # Recalculate total
-    results["summary"]["total_candidates"] = sum(
-        len(results["candidates"][level]) for level in ["high", "medium", "low"]
-    )
+    levels_to_clear = {"high": ["medium", "low"], "medium": ["low"]}
+    for level in levels_to_clear.get(min_confidence, []):
+        results["candidates"][level] = []
 
+    results["summary"]["total_candidates"] = sum(len(v) for v in results["candidates"].values())
     return results
 
 

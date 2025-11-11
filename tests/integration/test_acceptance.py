@@ -104,7 +104,7 @@ async def test_search_function_with_test_examples_only(server):
         "add_numbers/2",
         output_format="markdown",
         include_usage_examples=True,
-        test_files_only=True,
+        usage_type="tests",
         max_examples=10,
     )
     assert len(result) > 0
@@ -324,7 +324,7 @@ async def test_shell_script_search_function_compatibility(config_path):
         output_format="markdown",
         include_usage_examples=False,
         max_examples=5,
-        test_files_only=False,
+        usage_type="all",
     )
     assert len(result) > 0
     text = result[0].text

@@ -4,7 +4,7 @@ Module Search Tool Handlers.
 Handles tools for searching modules and analyzing module usage.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from mcp.types import TextContent
 
@@ -26,6 +26,44 @@ class ModuleSearchHandler:
         """
         self.index = index
         self.config = config
+
+    def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
+        """
+        Find the function that contains a specific line number.
+
+        Args:
+            module_name: The module to search in
+            line: The line number
+
+        Returns:
+            Dictionary with 'name', 'arity', 'start_line', 'end_line', or None if not found
+        """
+        if module_name not in self.index["modules"]:
+            return None
+
+        module_data = cast(dict[str, Any], self.index["modules"][module_name])
+        functions: list[Any] = module_data.get("functions", [])
+
+        # Find the function whose definition line is closest before the target line
+        best_match: dict[str, Any] | None = None
+        for i, func in enumerate(functions):
+            func_line = func["line"]
+            # The function must be defined before or at the line
+            # Keep the closest one
+            if func_line <= line and (best_match is None or func_line > best_match["line"]):
+                # Calculate end_line: either the next function's line - 1, or approximate end
+                end_line = (
+                    functions[i + 1]["line"] - 1 if i + 1 < len(functions) else func_line + 100
+                )
+                best_match = {
+                    "name": func["name"],
+                    "arity": func["arity"],
+                    "line": func_line,
+                    "start_line": func_line,
+                    "end_line": end_line,
+                }
+
+        return best_match
 
     def lookup_module_with_error(
         self, module_name: str, include_suggestions: bool = True
@@ -84,7 +122,7 @@ class ModuleSearchHandler:
         self,
         module_name: str,
         output_format: str = "markdown",
-        private_functions: str = "exclude",
+        visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
     ) -> list[TextContent]:
@@ -122,17 +160,25 @@ class ModuleSearchHandler:
                     error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
                 return [TextContent(type="text", text=error_result)]
 
+            # Apply limit to prevent overwhelming results (max 20 modules)
+            max_wildcard_results = 20
+            total_matches = len(matching_modules)
+            truncated = total_matches > max_wildcard_results
+            if truncated:
+                matching_modules = matching_modules[:max_wildcard_results]
+
             # Format all matching modules
+            # Use compact format when showing 4+ modules
+            use_compact = total_matches >= 4 and output_format == "markdown"
+
             results: list[str] = []
             for mod_name, mod_data in matching_modules:
                 if output_format == "json":
-                    result = ModuleFormatter.format_module_json(
-                        mod_name, mod_data, private_functions
-                    )
+                    result = ModuleFormatter.format_module_json(mod_name, mod_data, visibility)
+                elif use_compact:
+                    result = ModuleFormatter.format_module_compact(mod_name, mod_data)
                 else:
-                    result = ModuleFormatter.format_module_markdown(
-                        mod_name, mod_data, private_functions
-                    )
+                    result = ModuleFormatter.format_module_markdown(mod_name, mod_data, visibility)
                 results.append(result)
 
             # Combine results with separator for markdown, or as array for JSON
@@ -140,11 +186,20 @@ class ModuleSearchHandler:
                 # For JSON, wrap in array notation
                 combined = "[\n" + ",\n".join(results) + "\n]"
             else:
-                # For markdown, separate with horizontal rules
-                header = (
-                    f"Found {len(matching_modules)} module(s) matching pattern '{module_name}':\n\n"
-                )
-                combined = header + "\n\n---\n\n".join(results)
+                # For markdown, separate with horizontal rules (or blank lines for compact)
+                header = f"Found {total_matches} module(s) matching pattern '{module_name}'"
+                if truncated:
+                    header += f" (showing first {max_wildcard_results}, use more specific pattern to see others)"
+                header += ":\n\n"
+
+                if use_compact:
+                    # Compact format: separate with horizontal rules (no extra newlines)
+                    combined = header + "\n---\n".join(results)
+                    # Add info message about compacted results
+                    combined += "\n---\nResults compacted. Use a more specific module name to see full information."
+                else:
+                    # Full format: separate with horizontal rules
+                    combined = header + "\n\n---\n\n".join(results)
 
             return [TextContent(type="text", text=combined)]
 
@@ -153,10 +208,10 @@ class ModuleSearchHandler:
             data = self.index["modules"][module_name]
 
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(module_name, data, private_functions)
+                result = ModuleFormatter.format_module_json(module_name, data, visibility)
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, private_functions, pr_info, staleness_info
+                    module_name, data, visibility, pr_info, staleness_info
                 )
 
             return [TextContent(type="text", text=result)]
@@ -179,7 +234,7 @@ class ModuleSearchHandler:
         return [TextContent(type="text", text=error_result)]
 
     async def search_module_usage(
-        self, module_name: str, output_format: str = "markdown", usage_type: str = "all"
+        self, module_name: str, output_format: str = "markdown", usage_type: str = "source"
     ) -> list[TextContent]:
         """
         Search for all locations where a module is used (aliased/imported and called).
@@ -187,7 +242,7 @@ class ModuleSearchHandler:
         Args:
             module_name: The module to search for (e.g., "MyApp.User")
             output_format: Output format ('markdown' or 'json')
-            usage_type: Filter by file type ('all', 'test_only', 'production_only')
+            usage_type: Filter by file type ('source', 'tests', 'all')
 
         Returns:
             TextContent with usage information
@@ -226,48 +281,25 @@ class ModuleSearchHandler:
                     )
 
             # Check imports
-            imports = module_data.get("imports", [])
-            if module_name in imports:
-                usage_results["imports"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
+            def record_simple_usage(
+                category: str,
+                _module_data: dict = module_data,
+                _caller_module: str = caller_module,
+            ) -> None:
+                if module_name in _module_data.get(category, []):
+                    usage_results[category].append(
+                        {
+                            "importing_module": _caller_module,
+                            "file": _module_data["file"],
+                        }
+                    )
 
-            # Check requires
-            requires = module_data.get("requires", [])
-            if module_name in requires:
-                usage_results["requires"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
-
-            # Check uses
-            uses = module_data.get("uses", [])
-            if module_name in uses:
-                usage_results["uses"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
-
-            # Check value mentions
-            value_mentions = module_data.get("value_mentions", [])
-            if module_name in value_mentions:
-                usage_results["value_mentions"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
+            for category in ("imports", "requires", "uses", "value_mentions"):
+                record_simple_usage(category)
 
             # Check function calls
             calls = module_data.get("calls", [])
-            module_calls = {}  # Track calls grouped by function
+            module_calls = {}  # Track calls grouped by (called_function, calling_function)
 
             for call in calls:
                 call_module = call.get("module")
@@ -277,20 +309,33 @@ class ModuleSearchHandler:
                     resolved_module = aliases.get(call_module, call_module)
 
                     if resolved_module == module_name:
-                        # Track which function is being called
-                        func_key = f"{call['function']}/{call['arity']}"
+                        # Find which function in the calling module contains this call
+                        calling_function = self._find_function_at_line(caller_module, call["line"])
 
-                        if func_key not in module_calls:
-                            module_calls[func_key] = {
-                                "function": call["function"],
-                                "arity": call["arity"],
+                        # Create keys for both the called function and calling function
+                        called_func_key = f"{call['function']}/{call['arity']}"
+                        if calling_function:
+                            calling_func_key = (
+                                f"{calling_function['name']}/{calling_function['arity']}"
+                            )
+                            compound_key = f"{called_func_key}|{calling_func_key}"
+                        else:
+                            # Module-level call (not inside any function)
+                            calling_func_key = None
+                            compound_key = f"{called_func_key}|module_level"
+
+                        if compound_key not in module_calls:
+                            module_calls[compound_key] = {
+                                "called_function": call["function"],
+                                "called_arity": call["arity"],
+                                "calling_function": calling_function,  # Full info including line range
                                 "lines": [],
                                 "alias_used": (
                                     call_module if call_module != resolved_module else None
                                 ),
                             }
 
-                        module_calls[func_key]["lines"].append(call["line"])
+                        module_calls[compound_key]["lines"].append(call["line"])
 
             # Add call information if there are any calls
             if module_calls:

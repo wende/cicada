@@ -9,6 +9,15 @@ import pytest
 import yaml
 
 
+def _set_index_for_all_handlers(server, index):
+    """Update index for server and all handlers."""
+    server.index_manager._index = index
+    server.dependency_handler.index = index
+    server.module_handler.index = index
+    server.function_handler.index = index
+    server.analysis_handler.index = index
+
+
 @pytest.fixture
 def mock_server_with_dependencies(tmp_path):
     """Create a mock MCP server with dependency data."""
@@ -104,13 +113,7 @@ def mock_server_with_dependencies(tmp_path):
 
     # Create server
     server = CicadaServer(config_path=str(config_path))
-    # After refactoring, index is accessed through handlers
-    # Update the private _index in index_manager and handler references
-    server.index_manager._index = test_index
-    server.dependency_handler.index = test_index
-    server.module_handler.index = test_index
-    server.function_handler.index = test_index
-    server.analysis_handler.index = test_index
+    _set_index_for_all_handlers(server, test_index)
     return server
 
 
@@ -210,10 +213,10 @@ class TestGetFunctionDependencies:
         text = result[0].text
         assert "# Dependencies for MyApp.User.create_user/2" in text
         assert "## Internal Calls (1)" in text
-        assert "- validate_attrs/1 (line 11)" in text
+        assert "- validate_attrs/1 :11" in text
         assert "## External Calls (2)" in text
-        assert "- MyApp.Repo.insert/1 (line 12)" in text
-        assert "- MyApp.Auth.hash_password/1 (line 13)" in text
+        assert "- MyApp.Repo.insert/1 :12" in text
+        assert "- MyApp.Auth.hash_password/1 :13" in text
 
     @pytest.mark.asyncio
     async def test_get_function_dependencies_json(self, mock_server_with_dependencies):
@@ -361,7 +364,7 @@ class TestFormatDependencyWithContext:
             dep, context_lines, include_context=False, include_module=False
         )
 
-        assert lines == ["- validate/1 (line 10)"]
+        assert lines == ["- validate/1 :10"]
 
     def test_format_with_module_no_context(self, mock_server_with_dependencies):
         """Test formatting with module name and without context."""
@@ -372,7 +375,7 @@ class TestFormatDependencyWithContext:
             dep, context_lines, include_context=False, include_module=True
         )
 
-        assert lines == ["- MyApp.Repo.insert/1 (line 12)"]
+        assert lines == ["- MyApp.Repo.insert/1 :12"]
 
     def test_format_with_context(self, mock_server_with_dependencies):
         """Test formatting with code context."""
@@ -384,7 +387,7 @@ class TestFormatDependencyWithContext:
         )
 
         assert lines == [
-            "- MyApp.Repo.insert/1 (line 12)",
+            "- MyApp.Repo.insert/1 :12",
             "  ```elixir",
             "      Repo.insert(changeset)",  # 2 spaces added for markdown indentation
             "  ```",
@@ -400,4 +403,4 @@ class TestFormatDependencyWithContext:
         )
 
         # Should only show the dependency line, no code block
-        assert lines == ["- MyApp.Repo.insert/1 (line 12)"]
+        assert lines == ["- MyApp.Repo.insert/1 :12"]

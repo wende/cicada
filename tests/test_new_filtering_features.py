@@ -99,7 +99,7 @@ class TestFileTypeFiltering:
         assert classified["production"][0]["file"] == "lib/my_module.ex"
 
     def test_filter_by_file_type_test_only(self):
-        """Test filtering for test files only."""
+        """Test filtering for test files only (backward compatibility)."""
         usage_sites = [
             {"file": "test/my_test.ex"},
             {"file": "lib/my_module.ex"},
@@ -109,14 +109,36 @@ class TestFileTypeFiltering:
         assert len(filtered) == 1
         assert "test" in filtered[0]["file"]
 
+    def test_filter_by_file_type_tests(self):
+        """Test filtering for test files using new 'tests' value."""
+        usage_sites = [
+            {"file": "test/my_test.ex"},
+            {"file": "lib/my_module.ex"},
+        ]
+
+        filtered = filter_by_file_type(usage_sites, "tests")
+        assert len(filtered) == 1
+        assert "test" in filtered[0]["file"]
+
     def test_filter_by_file_type_production_only(self):
-        """Test filtering for production files only."""
+        """Test filtering for production files only (backward compatibility)."""
         usage_sites = [
             {"file": "test/my_test.ex"},
             {"file": "lib/my_module.ex"},
         ]
 
         filtered = filter_by_file_type(usage_sites, "production_only")
+        assert len(filtered) == 1
+        assert "lib" in filtered[0]["file"]
+
+    def test_filter_by_file_type_source(self):
+        """Test filtering for source files using new 'source' value."""
+        usage_sites = [
+            {"file": "test/my_test.ex"},
+            {"file": "lib/my_module.ex"},
+        ]
+
+        filtered = filter_by_file_type(usage_sites, "source")
         assert len(filtered) == 1
         assert "lib" in filtered[0]["file"]
 
@@ -131,14 +153,16 @@ class TestFileTypeFiltering:
         assert len(filtered) == 2
 
     def test_filter_by_file_type_invalid(self):
-        """Test that invalid type defaults to 'all'."""
+        """Test that invalid type defaults to 'source'."""
         usage_sites = [
             {"file": "test/my_test.ex"},
             {"file": "lib/my_module.ex"},
         ]
 
         filtered = filter_by_file_type(usage_sites, "invalid_type")
-        assert len(filtered) == 2
+        # Should default to 'source' (production files only)
+        assert len(filtered) == 1
+        assert "lib" in filtered[0]["file"]
 
 
 class TestGitHelperFiltering:

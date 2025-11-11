@@ -238,8 +238,8 @@ def test_format_markdown_high_confidence_plural(results_with_high_only):
     assert "Functions with zero usage in codebase" in output
     assert "### MyApp.UserService" in output
     assert "lib/my_app/user_service.ex" in output
-    assert "`get_user/1` (line 10)" in output
-    assert "`delete_user/1` (line 20)" in output
+    assert "`get_user/1` :10" in output
+    assert "`delete_user/1` :20" in output
 
 
 def test_format_markdown_medium_confidence(results_with_medium):
@@ -251,7 +251,7 @@ def test_format_markdown_medium_confidence(results_with_medium):
     assert "### MyApp.GenServer" in output
     assert "**Behaviours:** GenServer" in output
     assert "**Uses:** GenServer" in output
-    assert "`extra_func/0` (line 30)" in output
+    assert "`extra_func/0` :30" in output
 
 
 def test_format_markdown_low_confidence(results_with_low):
@@ -263,7 +263,7 @@ def test_format_markdown_low_confidence(results_with_low):
     assert "### MyApp.Handler" in output
     assert "**Module mentioned as value in:**" in output
     assert "- MyApp.Router (lib/my_app/router.ex)" in output
-    assert "`handle/1` (line 10)" in output
+    assert "`handle/1` :10" in output
 
 
 def test_format_markdown_all_levels(results_with_all_levels):
