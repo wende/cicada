@@ -74,7 +74,19 @@ class ToolRouter:
             module_name = arguments.get("module_name")
             file_path = arguments.get("file_path")
             output_format = arguments.get("format", "markdown")
-            private_functions = arguments.get("private_functions", "exclude")
+
+            # Handle new 'type' parameter with backward compatibility for 'private_functions'
+            type_param = arguments.get("type")
+            private_functions = arguments.get("private_functions")
+
+            if type_param:
+                visibility = type_param
+            elif private_functions:
+                # Map old parameter values to new ones
+                mapping = {"exclude": "public", "only": "private", "include": "all"}
+                visibility = mapping.get(private_functions, "public")
+            else:
+                visibility = "public"
 
             # Validate that at least one is provided
             if not module_name and not file_path:
@@ -102,7 +114,7 @@ class ToolRouter:
 
             assert module_name is not None, "module_name must be provided"
             return await self.module_handler.search_module(
-                module_name, output_format, private_functions, pr_info, staleness_info
+                module_name, output_format, visibility, pr_info, staleness_info
             )
 
         elif name == "search_function":

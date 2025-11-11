@@ -17,7 +17,7 @@ def get_tool_definitions() -> list[Tool]:
                 "PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers.\n\n"
                 "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
-                "Control visibility with private_functions: 'exclude' (default), 'include', or 'only'.\n\n"
+                "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
                 "Returns public functions in markdown format by default. Start here when exploring modules.\n\n"
                 "AI USAGE TIPS:\n"
                 "• Use this when you know the exact module name (e.g., from search_by_features)\n"
@@ -43,10 +43,10 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["markdown", "json"],
                         "description": "Output format. Defaults to 'markdown'.",
                     },
-                    "private_functions": {
+                    "type": {
                         "type": "string",
-                        "enum": ["exclude", "include", "only"],
-                        "description": "Control private function visibility. Defaults to 'exclude'.",
+                        "enum": ["public", "private", "all"],
+                        "description": "Which functions to show. Defaults to 'public'.",
                     },
                 },
             },

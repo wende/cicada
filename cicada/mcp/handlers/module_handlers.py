@@ -122,7 +122,7 @@ class ModuleSearchHandler:
         self,
         module_name: str,
         output_format: str = "markdown",
-        private_functions: str = "exclude",
+        visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
     ) -> list[TextContent]:
@@ -174,15 +174,11 @@ class ModuleSearchHandler:
             results: list[str] = []
             for mod_name, mod_data in matching_modules:
                 if output_format == "json":
-                    result = ModuleFormatter.format_module_json(
-                        mod_name, mod_data, private_functions
-                    )
+                    result = ModuleFormatter.format_module_json(mod_name, mod_data, visibility)
                 elif use_compact:
                     result = ModuleFormatter.format_module_compact(mod_name, mod_data)
                 else:
-                    result = ModuleFormatter.format_module_markdown(
-                        mod_name, mod_data, private_functions
-                    )
+                    result = ModuleFormatter.format_module_markdown(mod_name, mod_data, visibility)
                 results.append(result)
 
             # Combine results with separator for markdown, or as array for JSON
@@ -212,10 +208,10 @@ class ModuleSearchHandler:
             data = self.index["modules"][module_name]
 
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(module_name, data, private_functions)
+                result = ModuleFormatter.format_module_json(module_name, data, visibility)
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, private_functions, pr_info, staleness_info
+                    module_name, data, visibility, pr_info, staleness_info
                 )
 
             return [TextContent(type="text", text=result)]
@@ -285,44 +281,21 @@ class ModuleSearchHandler:
                     )
 
             # Check imports
-            imports = module_data.get("imports", [])
-            if module_name in imports:
-                usage_results["imports"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
+            def record_simple_usage(
+                category: str,
+                _module_data: dict = module_data,
+                _caller_module: str = caller_module,
+            ) -> None:
+                if module_name in _module_data.get(category, []):
+                    usage_results[category].append(
+                        {
+                            "importing_module": _caller_module,
+                            "file": _module_data["file"],
+                        }
+                    )
 
-            # Check requires
-            requires = module_data.get("requires", [])
-            if module_name in requires:
-                usage_results["requires"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
-
-            # Check uses
-            uses = module_data.get("uses", [])
-            if module_name in uses:
-                usage_results["uses"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
-
-            # Check value mentions
-            value_mentions = module_data.get("value_mentions", [])
-            if module_name in value_mentions:
-                usage_results["value_mentions"].append(
-                    {
-                        "importing_module": caller_module,
-                        "file": module_data["file"],
-                    }
-                )
+            for category in ("imports", "requires", "uses", "value_mentions"):
+                record_simple_usage(category)
 
             # Check function calls
             calls = module_data.get("calls", [])

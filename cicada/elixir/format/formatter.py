@@ -25,6 +25,45 @@ class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
 
     @staticmethod
+    def _group_functions_by_visibility(
+        data: dict[str, Any],
+    ) -> tuple[
+        dict[tuple[str, int], list[dict[str, Any]]], dict[tuple[str, int], list[dict[str, Any]]]
+    ]:
+        """
+        Helper to group public and private functions once for reuse.
+
+        Args:
+            data: Module data dictionary from the index (with "functions" key)
+
+        Returns:
+            Tuple of (public_grouped, private_grouped) dictionaries keyed by (name, arity)
+        """
+        functions = data.get("functions", [])
+        public_funcs = [f for f in functions if f["type"] == "def"]
+        private_funcs = [f for f in functions if f["type"] == "defp"]
+
+        return (
+            FunctionGrouper.group_by_name_arity(public_funcs),
+            FunctionGrouper.group_by_name_arity(private_funcs),
+        )
+
+    @staticmethod
+    def _count_functions(data: dict[str, Any]) -> tuple[int, int]:
+        """Return (public_count, private_count) for a module."""
+        public_grouped, private_grouped = ModuleFormatter._group_functions_by_visibility(data)
+        return len(public_grouped), len(private_grouped)
+
+    @staticmethod
+    def _split_call_sites(
+        call_sites: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Split call sites into code (non-test files) and test buckets."""
+        code_sites = [site for site in call_sites if "test" not in site["file"].lower()]
+        test_sites = [site for site in call_sites if "test" in site["file"].lower()]
+        return code_sites, test_sites
+
+    @staticmethod
     def _group_call_sites_by_caller(call_sites):
         return CallSiteFormatter.group_by_caller(call_sites)
 
@@ -49,31 +88,38 @@ class ModuleFormatter:
 
     @staticmethod
     def _format_pr_context(
-        pr_info: dict | None, file_path: str, function_name: str | None = None
+        pr_info: dict | None, file_path: str, _function_name: str | None = None
     ) -> list[str]:
-        """
-        Format PR context information.
+        """Format PR context if available (function name kept for compatibility)."""
+        if not pr_info:
+            return []
 
-        Args:
-            pr_info: Optional PR context (number, title, author, comment_count)
-            file_path: Path to the file
-            function_name: Optional function name (unused, kept for compatibility)
-
-        Returns:
-            List of formatted lines to append to output. If pr_info is provided,
-            returns PR title, author, and comment count. Otherwise returns empty list.
-        """
-        lines = []
-        if pr_info:
-            lines.append("")
+        lines = [
+            "",
+            f"Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}",
+        ]
+        if pr_info["comment_count"] > 0:
             lines.append(
-                f"Last modified: PR #{pr_info['number']} \"{pr_info['title']}\" by @{pr_info['author']}"
+                f"{pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
             )
-            if pr_info["comment_count"] > 0:
-                lines.append(
-                    f"{pr_info['comment_count']} review comment(s) • Use: get_file_pr_history(\"{file_path}\")"
-                )
         return lines
+
+    @staticmethod
+    def _append_function_section(
+        lines: list[str],
+        grouped_funcs: dict[tuple[str, int], list[dict[str, Any]]],
+        title: str,
+    ) -> bool:
+        """Append a formatted function section. Returns True if anything was added."""
+        if not grouped_funcs:
+            return False
+
+        lines.extend(["", f"{title}:", ""])
+        for (_, _), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
+            func = clauses[0]
+            func_sig = SignatureBuilder.build(func)
+            lines.append(f"{func['line']:>5}: {func_sig}")
+        return True
 
     @staticmethod
     def format_module_compact(module_name: str, data: dict[str, Any]) -> str:
@@ -87,23 +133,14 @@ class ModuleFormatter:
         Returns:
             Compact formatted string (file, name, counts only)
         """
-        # Count public/private functions same way as full format
-        public_funcs = [f for f in data["functions"] if f["type"] == "def"]
-        private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
-
-        public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
-        private_grouped = FunctionGrouper.group_by_name_arity(private_funcs)
-
-        public_count = len(public_grouped)
-        private_count = len(private_grouped)
-
+        public_count, private_count = ModuleFormatter._count_functions(data)
         return f"{data['file']}\n{module_name} - {public_count} public - {private_count} private"
 
     @staticmethod
     def format_module_markdown(
         module_name: str,
         data: dict[str, Any],
-        private_functions: str = "exclude",
+        visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
     ) -> str:
@@ -113,20 +150,14 @@ class ModuleFormatter:
         Args:
             module_name: The name of the module
             data: The module data dictionary from the index
-            private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+            visibility: Which functions to show: 'public' (default), 'private', or 'all'
             pr_info: Optional PR context (number, title, comment_count)
             staleness_info: Optional staleness info (is_stale, age_str)
 
         Returns:
             Formatted Markdown string
         """
-        # Group functions by type (def = public, defp = private)
-        public_funcs = [f for f in data["functions"] if f["type"] == "def"]
-        private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
-
-        # Group by name/arity to deduplicate function clauses
-        public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
-        private_grouped = FunctionGrouper.group_by_name_arity(private_funcs)
+        public_grouped, private_grouped = ModuleFormatter._group_functions_by_visibility(data)
 
         # Count unique functions, not function clauses
         public_count = len(public_grouped)
@@ -161,40 +192,24 @@ class ModuleFormatter:
                 first_para = first_para[:200] + "..."
             lines.extend(["", first_para])
 
-        # Show public functions (unless private_functions == "only")
-        if public_grouped and private_functions != "only":
-            lines.extend(["", "Public:", ""])
-            # Sort by line number instead of function name
-            for (_, _), clauses in sorted(public_grouped.items(), key=lambda x: x[1][0]["line"]):
-                # Use the first clause for display (they all have same name/arity)
-                func = clauses[0]
-                func_sig = SignatureBuilder.build(func)
-                lines.append(f"{func['line']:>5}: {func_sig}")
+        private_shown = False
 
-        # Show private functions (if private_functions == "include" or "only")
-        if private_grouped and private_functions in ["include", "only"]:
-            lines.extend(["", "Private:", ""])
-            # Sort by line number instead of function name
-            for (_, _), clauses in sorted(private_grouped.items(), key=lambda x: x[1][0]["line"]):
-                # Use the first clause for display (they all have same name/arity)
-                func = clauses[0]
-                func_sig = SignatureBuilder.build(func)
-                lines.append(f"{func['line']:>5}: {func_sig}")
+        if visibility != "private":
+            ModuleFormatter._append_function_section(lines, public_grouped, "Public")
 
-        # Check if there are no functions to display based on the filter
-        has_functions_to_show = (private_functions != "only" and public_grouped) or (
-            private_functions in ["include", "only"] and private_grouped
-        )
+        if visibility in ["all", "private"]:
+            private_shown = ModuleFormatter._append_function_section(
+                lines, private_grouped, "Private"
+            )
 
-        if not has_functions_to_show and private_functions == "only" and not private_grouped:
+        if visibility == "private" and not private_shown:
             lines.extend(["", "*No private functions found*"])
-            # No need to show "*No functions found*" - it's clear from "• 0 public • 0 private"
 
         return "\n".join(lines)
 
     @staticmethod
     def format_module_json(
-        module_name: str, data: dict[str, Any], private_functions: str = "exclude"
+        module_name: str, data: dict[str, Any], visibility: str = "public"
     ) -> str:
         """
         Format module data as JSON.
@@ -202,24 +217,20 @@ class ModuleFormatter:
         Args:
             module_name: The name of the module
             data: The module data dictionary from the index
-            private_functions: How to handle private functions: 'exclude' (hide), 'include' (show all), or 'only' (show only private)
+            visibility: Which functions to show: 'public' (default), 'private', or 'all'
 
         Returns:
             Formatted JSON string
         """
-        # Filter functions based on private_functions parameter
-        if private_functions == "exclude":
-            # Only public functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "def"]
-        elif private_functions == "only":
-            # Only private functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "defp"]
-        else:  # "include"
-            # All functions
-            filtered_funcs = data["functions"]
+        public_grouped, private_grouped = ModuleFormatter._group_functions_by_visibility(data)
 
-        # Group functions by name/arity to deduplicate function clauses
-        grouped = FunctionGrouper.group_by_name_arity(filtered_funcs)
+        # Filter functions based on visibility parameter
+        if visibility == "public":
+            grouped = public_grouped
+        elif visibility == "private":
+            grouped = private_grouped
+        else:  # "all"
+            grouped = {**public_grouped, **private_grouped}
 
         # Compact function format - one entry per unique name/arity
         functions = [
@@ -321,89 +332,51 @@ class ModuleFormatter:
         return json.dumps(error_result, indent=2)
 
     @staticmethod
-    def _format_remaining_code_sites(remaining_code, indent):
-        lines = []
-        grouped_remaining_code = CallSiteFormatter.group_by_caller(remaining_code)
-        remaining_code_count = sum(len(site["lines"]) for site in grouped_remaining_code)
-        lines.append(f"{indent}Code ({remaining_code_count}):")
-        for site in grouped_remaining_code:
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
+    def _format_call_site_section(
+        label: str,
+        sites: list[dict[str, Any]],
+        indent: str,
+        *,
+        prepend_blank: bool = False,
+        include_examples: bool = False,
+    ) -> list[str]:
+        if not sites:
+            return []
 
-            line_list = ", ".join(f":{line}" for line in site["lines"])
-            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-        return lines
-
-    @staticmethod
-    def _format_test_sites_without_examples(test_sites, code_sites, indent):
-        lines = []
-        if code_sites:
-            lines.append("")  # Blank line between sections
-        # Group test sites by caller
-        grouped_test = CallSiteFormatter.group_by_caller(test_sites)
-        test_count = sum(len(site["lines"]) for site in grouped_test)
-
-        # Apply automatic truncation to call site groups
-        truncated_test, truncation_msg = TruncationHelper.truncate_call_sites(grouped_test)
-
-        lines.append(f"{indent}Test ({test_count}):")
-        for site in truncated_test:
-            # Format calling location with function if available
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
-
-            # Show consolidated line numbers (with automatic truncation)
-            line_list = TruncationHelper.truncate_line_numbers(site["lines"])
-            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-
-        if truncation_msg:
-            lines.append(f"{indent}{truncation_msg}")
-
-        return lines
-
-    @staticmethod
-    def _format_code_sites_without_examples(code_sites, indent):
-        lines = []
-        # Group code sites by caller
-        grouped_code = CallSiteFormatter.group_by_caller(code_sites)
-        code_count = sum(len(site["lines"]) for site in grouped_code)
-
-        # Apply automatic truncation to call site groups
-        truncated_code, truncation_msg = TruncationHelper.truncate_call_sites(grouped_code)
-
-        lines.append(f"{indent}Code ({code_count}):")
-        for site in truncated_code:
-            # Format calling location with function if available
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
-
-            # Show consolidated line numbers (with automatic truncation)
-            line_list = TruncationHelper.truncate_line_numbers(site["lines"])
-            lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-
-        if truncation_msg:
-            lines.append(f"{indent}{truncation_msg}")
-
-        return lines
-
-    @staticmethod
-    def _format_remaining_test_sites(remaining_test, remaining_code, indent):
-        lines = []
-        if remaining_code:
+        lines: list[str] = []
+        if prepend_blank:
             lines.append("")
-        grouped_remaining_test = CallSiteFormatter.group_by_caller(remaining_test)
-        remaining_test_count = sum(len(site["lines"]) for site in grouped_remaining_test)
-        lines.append(f"{indent}Test ({remaining_test_count}):")
-        for site in grouped_remaining_test:
+
+        grouped_sites = CallSiteFormatter.group_by_caller(sites)
+        site_count = sum(len(site["lines"]) for site in grouped_sites)
+
+        truncated_sites, truncation_msg = TruncationHelper.truncate_call_sites(grouped_sites)
+
+        lines.append(f"{indent}{label} ({site_count}):")
+        lines.extend(
+            ModuleFormatter._format_grouped_sites(truncated_sites, indent, include_examples)
+        )
+
+        if truncation_msg:
+            lines.append(f"{indent}{truncation_msg}")
+
+        return lines
+
+    @staticmethod
+    def _format_remaining_sites(
+        label: str, sites: list[dict[str, Any]], indent: str, prepend_blank: bool = False
+    ) -> list[str]:
+        if not sites:
+            return []
+
+        lines = []
+        if prepend_blank:
+            lines.append("")
+
+        grouped_sites = CallSiteFormatter.group_by_caller(sites)
+        remaining_count = sum(len(site["lines"]) for site in grouped_sites)
+        lines.append(f"{indent}{label} ({remaining_count}):")
+        for site in grouped_sites:
             calling_func = site.get("calling_function")
             if calling_func:
                 caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
@@ -415,9 +388,9 @@ class ModuleFormatter:
         return lines
 
     @staticmethod
-    def _format_grouped_test_sites(grouped_test, indent):
-        lines = []
-        for site in grouped_test:
+    def _format_grouped_sites(grouped_sites, indent, include_examples: bool) -> list[str]:
+        lines: list[str] = []
+        for site in grouped_sites:
             # Format calling location with function if available
             calling_func = site.get("calling_function")
             if calling_func:
@@ -433,34 +406,7 @@ class ModuleFormatter:
                 lines.append(f"{indent}- {caller} at {site['file']}")
 
             # Add the actual code lines if available
-            if site.get("code_lines"):
-                for code_entry in site["code_lines"]:
-                    # Properly indent each line of the code block
-                    code_lines = code_entry["code"].split("\n")
-                    for code_line in code_lines:
-                        lines.append(f"{indent}  {code_line}")
-        return lines
-
-    @staticmethod
-    def _format_grouped_code_sites(grouped_code, indent):
-        lines = []
-        for site in grouped_code:
-            # Format calling location with function if available
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
-
-            # Show consolidated line numbers only if multiple lines (with automatic truncation)
-            if len(site["lines"]) > 1:
-                line_list = TruncationHelper.truncate_line_numbers(site["lines"])
-                lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
-            else:
-                lines.append(f"{indent}- {caller} at {site['file']}")
-
-            # Add the actual code lines if available
-            if site.get("code_lines"):
+            if include_examples and site.get("code_lines"):
                 for code_entry in site["code_lines"]:
                     # Properly indent each line of the code block
                     code_lines = code_entry["code"].split("\n")
@@ -490,62 +436,22 @@ class ModuleFormatter:
             lines.append(f"{indent}Other Call Sites:")
 
             if remaining_code:
-                lines.extend(ModuleFormatter._format_remaining_code_sites(remaining_code, indent))
+                lines.extend(
+                    ModuleFormatter._format_remaining_sites("Code", remaining_code, indent)
+                )
 
             if remaining_test:
                 lines.extend(
-                    ModuleFormatter._format_remaining_test_sites(
-                        remaining_test, remaining_code, indent
+                    ModuleFormatter._format_remaining_sites(
+                        "Test", remaining_test, indent, prepend_blank=bool(remaining_code)
                     )
                 )
         return lines
 
     @staticmethod
-    def _format_test_sites_with_examples(
-        test_sites_with_examples, code_sites_with_examples, indent
-    ):
-        lines = []
-        if code_sites_with_examples:
-            lines.append("")  # Blank line between sections
-        # Group test sites by caller
-        grouped_test = CallSiteFormatter.group_by_caller(test_sites_with_examples)
-        test_count = sum(len(site["lines"]) for site in grouped_test)
-
-        # Apply automatic truncation to call site groups
-        truncated_test, truncation_msg = TruncationHelper.truncate_call_sites(grouped_test)
-
-        lines.append(f"{indent}Test ({test_count}):")
-        lines.extend(ModuleFormatter._format_grouped_test_sites(truncated_test, indent))
-
-        if truncation_msg:
-            lines.append(f"{indent}{truncation_msg}")
-
-        return lines
-
-    @staticmethod
-    def _format_code_sites_with_examples(code_sites_with_examples, indent):
-        lines = []
-        # Group code sites by caller
-        grouped_code = CallSiteFormatter.group_by_caller(code_sites_with_examples)
-        code_count = sum(len(site["lines"]) for site in grouped_code)
-
-        # Apply automatic truncation to call site groups
-        truncated_code, truncation_msg = TruncationHelper.truncate_call_sites(grouped_code)
-
-        lines.append(f"{indent}Code ({code_count}):")
-        lines.extend(ModuleFormatter._format_grouped_code_sites(truncated_code, indent))
-
-        if truncation_msg:
-            lines.append(f"{indent}{truncation_msg}")
-
-        return lines
-
-    @staticmethod
     def _format_call_sites_without_examples(call_sites, indent):
         lines = []
-        # Separate into code and test call sites
-        code_sites = [s for s in call_sites if "test" not in s["file"].lower()]
-        test_sites = [s for s in call_sites if "test" in s["file"].lower()]
+        code_sites, test_sites = ModuleFormatter._split_call_sites(call_sites)
 
         call_count = len(call_sites)
         lines.append("")
@@ -553,11 +459,21 @@ class ModuleFormatter:
         lines.append("")
 
         if code_sites:
-            lines.extend(ModuleFormatter._format_code_sites_without_examples(code_sites, indent))
+            lines.extend(
+                ModuleFormatter._format_call_site_section(
+                    "Code", code_sites, indent, include_examples=False
+                )
+            )
 
         if test_sites:
             lines.extend(
-                ModuleFormatter._format_test_sites_without_examples(test_sites, code_sites, indent)
+                ModuleFormatter._format_call_site_section(
+                    "Test",
+                    test_sites,
+                    indent,
+                    prepend_blank=bool(code_sites),
+                    include_examples=False,
+                )
             )
         lines.append("")
         return lines
@@ -565,25 +481,30 @@ class ModuleFormatter:
     @staticmethod
     def _format_call_sites_with_examples(call_sites, call_sites_with_examples, indent):
         lines = []
-        # Separate into code and test call sites WITH examples
-        code_sites_with_examples = [
-            s for s in call_sites_with_examples if "test" not in s["file"].lower()
-        ]
-        test_sites_with_examples = [
-            s for s in call_sites_with_examples if "test" in s["file"].lower()
-        ]
+        code_sites_with_examples, test_sites_with_examples = ModuleFormatter._split_call_sites(
+            call_sites_with_examples
+        )
 
         lines.append(f"{indent}Usage Examples:")
 
         if code_sites_with_examples:
             lines.extend(
-                ModuleFormatter._format_code_sites_with_examples(code_sites_with_examples, indent)
+                ModuleFormatter._format_call_site_section(
+                    "Code",
+                    code_sites_with_examples,
+                    indent,
+                    include_examples=True,
+                )
             )
 
         if test_sites_with_examples:
             lines.extend(
-                ModuleFormatter._format_test_sites_with_examples(
-                    test_sites_with_examples, code_sites_with_examples, indent
+                ModuleFormatter._format_call_site_section(
+                    "Test",
+                    test_sites_with_examples,
+                    indent,
+                    prepend_blank=bool(code_sites_with_examples),
+                    include_examples=True,
                 )
             )
 
@@ -608,6 +529,105 @@ class ModuleFormatter:
             )
         else:
             lines.extend(ModuleFormatter._format_call_sites_without_examples(call_sites, indent))
+        return lines
+
+    @staticmethod
+    def _format_function_entry(
+        result: dict[str, Any], single_result: bool, show_relationships: bool
+    ) -> list[str]:
+        """Format a single function search result (either single or multi layout)."""
+        module_name = result["module"]
+        func = result["function"]
+        file_path = result["file"]
+        pr_info = result.get("pr_info")
+        sig = SignatureBuilder.build(func)
+        call_sites = result.get("call_sites", [])
+        call_sites_with_examples = result.get("call_sites_with_examples", [])
+
+        lines: list[str] = []
+
+        if single_result:
+            lines.extend(
+                [
+                    f"{file_path}:{func['line']}",
+                    f"{module_name}.{func['name']}/{func['arity']}",
+                    f"Type: {sig}",
+                ]
+            )
+            lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path))
+        else:
+            lines.extend(
+                [
+                    "",
+                    "---",
+                    "",
+                    f"{module_name}.{func['name']}/{func['arity']}",
+                    f"{file_path}:{func['line']} • {func['type']}",
+                    "",
+                    "Signature:",
+                    f"{sig}",
+                ]
+            )
+            pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
+            if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
+                pr_lines[-1] = f"{pr_info['comment_count']} review comment(s) available"
+            lines.extend(pr_lines)
+
+        if func.get("doc"):
+            doc_lines = ['Documentation: """', func["doc"], '"""']
+            if single_result:
+                lines.extend(doc_lines)
+            else:
+                lines.extend(["", *doc_lines])
+
+        if func.get("examples"):
+            lines.extend(["", "Examples:", "", func["examples"]])
+
+        if func.get("guards"):
+            guards_str = ", ".join(func["guards"])
+            if single_result:
+                lines.append(f"  Guards: when {guards_str}")
+            else:
+                lines.extend(["", f"**Guards:** `when {guards_str}`"])
+
+        if show_relationships:
+            dependencies = result.get("dependencies", [])
+            if dependencies:
+                lines.append("")
+                lines.append("Calls these functions:")
+                for dep in dependencies[:5]:
+                    dep_module = dep.get("module", "?")
+                    dep_func = dep.get("function", "?")
+                    dep_arity = dep.get("arity", "?")
+                    dep_line = dep.get("line", "?")
+                    lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                if len(dependencies) > 5:
+                    lines.append(f"   ... and {len(dependencies) - 5} more")
+
+        if call_sites:
+            lines.extend(
+                ModuleFormatter._format_call_sites(call_sites, call_sites_with_examples, "")
+            )
+        else:
+            lines.append("*No call sites found*")
+            lines.append("")
+            lines.append("Possible reasons:")
+            lines.append("   • Dead code → Use find_dead_code() to verify")
+            lines.append("   • Public API → Not called internally but used by clients")
+            lines.append("   • New code → Check when added with get_commit_history()")
+
+            if pr_info:
+                if pr_info.get("comment_count", 0) > 0:
+                    lines.append(
+                        f"   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")"
+                    )
+                else:
+                    lines.append(
+                        f"   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")"
+                    )
+
+            lines.append("")
+
         return lines
 
     @staticmethod
@@ -697,8 +717,10 @@ If this function was deleted:
         else:
             lines = []
 
+        single_result = len(consolidated_results) == 1
+
         # For single results (e.g., MFA search), use simpler header
-        if len(consolidated_results) == 1:
+        if single_result:
             lines.append("---")
         else:
             lines.extend(
@@ -710,117 +732,12 @@ If this function was deleted:
             )
 
         for result in consolidated_results:
-            module_name = result["module"]
-            func = result["function"]
-            file_path = result["file"]
-            pr_info = result.get("pr_info")
-
-            # No indentation for single results
-            indent = ""
-
-            # Add signature first (right after file path)
-            sig = SignatureBuilder.build(func)
-
-            # Skip the section header for single results
-            if len(consolidated_results) == 1:
-                lines.extend(
-                    [
-                        f"{file_path}:{func['line']}",
-                        f"{module_name}.{func['name']}/{func['arity']}",
-                        f"Type: {sig}",
-                    ]
-                )
-
-                # Add PR context for single results
-                lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path, func["name"]))
-            else:
-                lines.extend(
-                    [
-                        "",
-                        "---",
-                        "",
-                        f"{module_name}.{func['name']}/{func['arity']}",
-                    ]
-                )
-                lines.append(f"{file_path}:{func['line']} • {func['type']}")
-                lines.extend(["", "Signature:", f"{sig}"])
-
-                # Add PR context for multi-result format
-                pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
-                # For multi-result, adjust comment count message to be more concise
-                if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
-                    # Replace the last line with shorter version for multi-result display
-                    pr_lines[-1] = f"{pr_info['comment_count']} review comment(s) available"
-                lines.extend(pr_lines)
-
-            # Add documentation if present
-            if func.get("doc"):
-                if len(consolidated_results) == 1:
-                    lines.extend(['Documentation: """', func["doc"], '"""'])
-                else:
-                    lines.extend(["", 'Documentation: """', func["doc"], '"""'])
-
-            # Add examples if present
-            if func.get("examples"):
-                if len(consolidated_results) == 1:
-                    lines.extend(["", f"{indent}Examples:", "", f"{indent}{func['examples']}"])
-                else:
-                    lines.extend(["", "Examples:", "", func["examples"]])
-
-            # Add guards if present (on separate line for idiomatic Elixir style)
-            if func.get("guards"):
-                guards_str = ", ".join(func["guards"])
-                if len(results) == 1:
-                    lines.append(f"  Guards: when {guards_str}")
-                else:
-                    lines.extend(["", f"**Guards:** `when {guards_str}`"])
-
-            # Add relationship information if enabled
-            if show_relationships:
-                dependencies = result.get("dependencies", [])
-                if dependencies:
-                    lines.append("")
-                    lines.append(f"{indent}Calls these functions:")
-                    for dep in dependencies[:5]:  # Limit to 5 for brevity
-                        dep_module = dep.get("module", "?")
-                        dep_func = dep.get("function", "?")
-                        dep_arity = dep.get("arity", "?")
-                        dep_line = dep.get("line", "?")
-                        lines.append(
-                            f"{indent}   • {dep_module}.{dep_func}/{dep_arity} (line {dep_line})"
-                        )
-                    if len(dependencies) > 5:
-                        lines.append(f"{indent}   ... and {len(dependencies) - 5} more")
-
-            # Add call sites
-            call_sites = result.get("call_sites", [])
-            call_sites_with_examples = result.get("call_sites_with_examples", [])
-
-            if call_sites:
-                lines.extend(
-                    ModuleFormatter._format_call_sites(call_sites, call_sites_with_examples, indent)
-                )
-            else:
-                lines.append(f"{indent}*No call sites found*")
-                lines.append("")
-                lines.append(f"{indent}Possible reasons:")
-                lines.append(f"{indent}   • Dead code → Use find_dead_code() to verify")
-                lines.append(f"{indent}   • Public API → Not called internally but used by clients")
-                lines.append(f"{indent}   • New code → Check when added with get_commit_history()")
-
-                # Smart suggestion based on available data
-                if pr_info:
-                    if pr_info.get("comment_count", 0) > 0:
-                        lines.append(
-                            f"{indent}   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")"
-                        )
-                    else:
-                        lines.append(
-                            f"{indent}   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")"
-                        )
+            lines.extend(
+                ModuleFormatter._format_function_entry(result, single_result, show_relationships)
+            )
 
         # Add closing separator for single results
-        if len(consolidated_results) == 1:
+        if single_result:
             lines.append("---")
 
         return "\n".join(lines)
@@ -1099,7 +1016,7 @@ If this function was deleted:
             type_label = "Module" if result_type == "module" else "Function"
             lines.append(f"{type_label}: {name}")
             if show_scores:
-                lines.append(f"Score: {score:.4f}")
+                lines.append(f"Score: {score:.2f}")
             lines.append(f"Path: {file_path}:{line}")
             lines.append(f"Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}")
 

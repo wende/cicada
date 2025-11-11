@@ -45,7 +45,7 @@ class DependencyHandler:
             List of formatted lines
         """
         lines = []
-        line_info = f"(line {dep['line']})"
+        line_info = f":{dep['line']}"
 
         if include_module:
             lines.append(f"- {dep['module']}.{dep['function']}/{dep['arity']} {line_info}")
@@ -162,7 +162,7 @@ class DependencyHandler:
                         lines.append(f"  Used by {len(uses)} function(s):")
                         for use in uses[:3]:  # Limit to 3 examples
                             lines.append(
-                                f"    • {use['function']}/{use['arity']} (line {use['line']}) → calls {use['calls']} (line {use['call_line']})"
+                                f"    • {use['function']}/{use['arity']} :{use['line']} → calls {use['calls']} :{use['call_line']}"
                             )
                         if len(uses) > 3:
                             lines.append(f"    ... and {len(uses) - 3} more")

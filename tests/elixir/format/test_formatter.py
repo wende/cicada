@@ -405,7 +405,7 @@ def test_format_function_results_markdown_with_additional_call_sites():
 
 
 def test_format_module_markdown_with_private_functions_only():
-    """Test formatting module with private_functions='only'."""
+    """Test formatting module with type='private'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -423,7 +423,7 @@ def test_format_module_markdown_with_private_functions_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="private")
 
     # Should show only private functions
     assert "private_func" in result
@@ -432,7 +432,7 @@ def test_format_module_markdown_with_private_functions_only():
 
 
 def test_format_module_markdown_with_private_functions_include():
-    """Test formatting module with private_functions='include'."""
+    """Test formatting module with type='all'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -450,7 +450,7 @@ def test_format_module_markdown_with_private_functions_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="include")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="all")
 
     # Should show both public and private
     assert "private_func" in result
@@ -486,13 +486,13 @@ def test_format_module_markdown_no_private_when_only_requested():
         "private_functions": 0,
     }
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_markdown("TestModule", data, visibility="private")
 
     assert "*No private functions found*" in result
 
 
 def test_format_module_json_with_private_only():
-    """Test JSON formatting with private_functions='only'."""
+    """Test JSON formatting with type='private'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -511,7 +511,7 @@ def test_format_module_json_with_private_only():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="only")
+    result = ModuleFormatter.format_module_json("TestModule", data, visibility="private")
     parsed = json.loads(result)
 
     # Should only have private function
@@ -520,7 +520,7 @@ def test_format_module_json_with_private_only():
 
 
 def test_format_module_json_with_private_include():
-    """Test JSON formatting with private_functions='include'."""
+    """Test JSON formatting with type='all'."""
     data = {
         "file": "lib/test.ex",
         "line": 1,
@@ -539,7 +539,7 @@ def test_format_module_json_with_private_include():
         "private_functions": 1,
     }
 
-    result = ModuleFormatter.format_module_json("TestModule", data, private_functions="include")
+    result = ModuleFormatter.format_module_json("TestModule", data, visibility="all")
     parsed = json.loads(result)
 
     # Should have both functions
