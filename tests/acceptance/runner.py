@@ -19,7 +19,7 @@ DEFAULT_CONFIG = "tests/fixtures/.cicada/config.yaml"
 async def search_module(module_name: str, output_format: str = "markdown") -> str:
     """Search for a module and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
-    result = await server._search_module(module_name, output_format)
+    result = await server.module_handler.search_module(module_name, output_format)
     return result[0].text if result else "No results found"
 
 
@@ -28,16 +28,16 @@ async def search_function(
     output_format: str = "markdown",
     include_usage_examples: bool = False,
     max_examples: int = 5,
-    test_files_only: bool = False,
+    usage_type: str = "source",
 ) -> str:
     """Search for a function and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         function_name,
         output_format=output_format,
         include_usage_examples=include_usage_examples,
         max_examples=max_examples,
-        test_files_only=test_files_only,
+        usage_type=usage_type,
     )
     return result[0].text if result else "No results found"
 
@@ -45,7 +45,7 @@ async def search_function(
 async def search_by_features(*keywords: str) -> str:
     """Search by keywords and return formatted output."""
     server = CicadaServer(config_path=DEFAULT_CONFIG)
-    result = await server._search_by_keywords(list(keywords))
+    result = await server.analysis_handler.search_by_keywords(list(keywords))
     return result[0].text if result else f"No results found for keywords: {', '.join(keywords)}"
 
 
@@ -120,7 +120,7 @@ def main():
                 search_function(
                     function_name,
                     include_usage_examples=include_examples,
-                    test_files_only=test_only,
+                    usage_type="test" if test_only else "source",
                     max_examples=max_examples,
                 )
             )

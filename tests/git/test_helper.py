@@ -113,7 +113,6 @@ def test_get_function_history():
     commits = helper.get_function_history_heuristic(
         "cicada/git_helper.py",
         "get_file_history",
-        28,  # Approximate line number
         max_commits=3,
     )
 
@@ -308,7 +307,7 @@ def test_get_function_history_no_mentions():
 
     # Test with a function name that likely doesn't exist in commit messages
     commits = helper.get_function_history_heuristic(
-        "README.md", "nonexistent_function_xyz123", 1, max_commits=3
+        "README.md", "nonexistent_function_xyz123", max_commits=3
     )
 
     # Should still return some commits (file changes)
@@ -329,7 +328,7 @@ def test_get_function_history_max_commits_limit():
 
     helper = GitHelper(".")
 
-    commits = helper.get_function_history_heuristic("README.md", "test", 1, max_commits=2)
+    commits = helper.get_function_history_heuristic("README.md", "test", max_commits=2)
 
     # Should not exceed max_commits
     assert len(commits) <= 2

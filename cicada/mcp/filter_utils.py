@@ -84,11 +84,11 @@ def classify_usage_type(usage_sites: list[dict[str, Any]]) -> dict[str, list[dic
 
 def filter_by_file_type(usage_sites: list[dict[str, Any]], usage_type: str) -> list[dict[str, Any]]:
     """
-    Filter usage sites by file type (test vs production).
+    Filter usage sites by file type (test vs source).
 
     Args:
         usage_sites: List of usage sites with 'file' field
-        usage_type: One of 'all', 'test_only', 'production_only'
+        usage_type: One of 'all', 'tests', 'source'
 
     Returns:
         Filtered list of usage sites
@@ -98,10 +98,10 @@ def filter_by_file_type(usage_sites: list[dict[str, Any]], usage_type: str) -> l
 
     classified = classify_usage_type(usage_sites)
 
-    if usage_type == "test_only":
+    if usage_type == "tests" or usage_type == "test_only":  # Keep backward compatibility
         return classified["test"]
-    elif usage_type == "production_only":
+    elif usage_type == "source" or usage_type == "production_only":  # Keep backward compatibility
         return classified["production"]
     else:
-        # Default to all if invalid type
-        return usage_sites
+        # Default to source for invalid type
+        return classified["production"]

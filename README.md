@@ -133,13 +133,6 @@ This command:
 3. Creates the correct MCP config for your editor.
 4. Configures `.gitattributes` so git can track functions through refactors.
 
-### Re-indexing
-
-- **Incremental update:** `cicada claude` (or cursor/vs) detects changed files only.
-- **Force rebuild:** `rm ~/.cicada/projects/<hash>/hashes.json && cicada index .`
-- **Switch keyword tier:** `cicada index --force --fast|--regular|--max .`
-
-
 ### Enable PR Attribution (optional)
 
 ```bash
@@ -460,8 +453,8 @@ For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPL
 |-----------|-------------|
 | Elixir indexing + AST search | Python + TypeScript support |
 | Semantic keyword tiers (`--fast/regular/max`) | Shared/team indexes |
-| PR attribution + review scraping | Native IDE plugins (no MCP bridge) |
-| Dead-code + dependency analysis | Optional remote index storage |
+| PR attribution + review scraping | |
+| Dead-code + dependency analysis | |
 
 ---
 

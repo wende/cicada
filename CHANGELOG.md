@@ -5,15 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.1rc2] - 2025-11-10
+## [0.3.1] - 2025-11-11
 
 ### Added
 
+- **Automatic output truncation** ([#97](https://github.com/wende/cicada/pull/97)) - Intelligent truncation across MCP tools to prevent token overflow
+  - Conservative thresholds: 30 line numbers, 20 call sites, 50-line code blocks, 300-char commit messages
+  - Automatic indicators like "... (47 more)" for truncated content
+  - 52 comprehensive unit tests with >90% coverage
+- **Automatic index reloading** ([#91](https://github.com/wende/cicada/pull/91)) - MCP server now detects and reloads indexes when files change
+  - Eliminates need to restart server after reindexing
+  - Graceful handling of concurrent reindexing operations
 - **OpenCode editor support** ([#92](https://github.com/wende/cicada/pull/92)) - Support for OpenCode editor integration
 - **Enhanced interactive setup menu** ([#94](https://github.com/wende/cicada/pull/94)) - Added Gemini CLI and Codex editor options to setup workflow
 
+### Changed
+
+- **MCP server architecture refactored** ([#96](https://github.com/wende/cicada/pull/96)) - Modular handler architecture for better maintainability
+  - Split monolithic server.py into separate handler modules
+  - New modules: config_manager.py, index_manager.py, router.py, handlers/
+  - Improved testability and code organization
+- **Enhanced MCP output formatting** ([#97](https://github.com/wende/cicada/pull/97)) - Improved readability and usability
+  - Compact module format for wildcard searches (4+ results)
+  - Restructured module usage display with calling function context
+  - Compact git history format without full commit messages
+  - Compact git blame format (`:150-156 • author • sha • date`)
+  - Improved function search output with triple-quoted docs
+  - 20-module limit for wildcard searches with helpful messaging
+- **Parameter standardization** ([#97](https://github.com/wende/cicada/pull/97))
+  - Renamed `private_functions` to `visibility` across module search operations
+  - New values: "public" (default), "private", "all" (was "exclude", "only", "include")
+  - Replaced `test_files_only` boolean with `usage_type` enum (all/tests/source)
+  - Source files now default filter (excluding tests)
+  - Backward compatibility maintained for deprecated parameters
+- **Code cleanup** ([#97](https://github.com/wende/cicada/pull/97), [#95](https://github.com/wende/cicada/pull/95)) - Reduced ~110 lines of duplicated code
+  - Extracted helper functions for common operations
+  - Removed all emojis from output messages
+  - Fixed linter warnings and improved code consistency
+
 ### Fixed
 
+- **Index caching issue** ([#91](https://github.com/wende/cicada/pull/91)) - Server was using stale data after reindexing until restart
+- **Race condition during concurrent reindexing** ([#91](https://github.com/wende/cicada/pull/91)) - Graceful handling when index is being written
 - **OpenCode configuration path** - Fixed OpenCode to use `.mcp.json` instead of `.opencode.json` to match Claude Code convention
 
 ## [0.3.0] - 2025-11-10
@@ -373,8 +406,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.3.1rc2...HEAD
-[0.3.1rc2]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1rc2
+[Unreleased]: https://github.com/wende/cicada/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/wende/cicada/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/wende/cicada/compare/v0.2.0...v0.2.2

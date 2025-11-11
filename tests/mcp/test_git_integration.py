@@ -74,7 +74,7 @@ def test_get_commit_history_basic(test_server):
     """Test basic file history retrieval."""
     print("\nTesting basic file history...")
 
-    result = asyncio.run(test_server._get_file_history("README.md", max_commits=3))
+    result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=3))
 
     assert len(result) == 1, "Should return one TextContent"
     assert result[0].type == "text", "Should return text content"
@@ -82,8 +82,9 @@ def test_get_commit_history_basic(test_server):
     text = result[0].text
     assert "Git History for README.md" in text, "Should contain file name in title"
     assert "commit(s)" in text.lower(), "Should mention commits"
-    assert "Commit:" in text, "Should include commit information"
-    assert "Author:" in text, "Should include author information"
+    assert "•" in text, "Should include bullet separator in commit line"
+    # Check for numbered commits (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 4)), "Should have numbered commits"
 
     print("  ✓ File history retrieved successfully")
     print(f"  ✓ Response length: {len(text)} characters")
@@ -94,7 +95,7 @@ def test_get_commit_history_with_limit(test_server):
     print("\nTesting max_commits parameter...")
 
     # Get history with limit of 2
-    result = asyncio.run(test_server._get_file_history("README.md", max_commits=2))
+    result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=2))
 
     text = result[0].text
 
@@ -112,7 +113,7 @@ def test_get_commit_history_function_specific(test_server):
 
     # Use a file that actually has history - cicada/mcp_server.py
     result = asyncio.run(
-        test_server._get_file_history(
+        test_server.git_handler.get_file_history(
             "cicada/mcp_server.py",
             function_name="__init__",
             start_line=25,
@@ -142,7 +143,9 @@ def test_get_commit_history_nonexistent_file(test_server):
     """Test handling of non-existent file."""
     print("\nTesting non-existent file handling...")
 
-    result = asyncio.run(test_server._get_file_history("nonexistent_file.txt", max_commits=5))
+    result = asyncio.run(
+        test_server.git_handler.get_file_history("nonexistent_file.txt", max_commits=5)
+    )
 
     assert len(result) == 1, "Should return one TextContent"
     text = result[0].text
@@ -220,7 +223,7 @@ def test_git_helper_not_available():
         assert server.git_helper is None, "git_helper should be None for non-git repo"
 
         # Try to get file history
-        result = asyncio.run(server._get_file_history("README.md"))
+        result = asyncio.run(server.git_handler.get_file_history("README.md"))
 
         text = result[0].text
         assert "not available" in text.lower(), "Should indicate git is not available"
@@ -239,14 +242,14 @@ def test_get_commit_history_markdown_format(test_server):
     """Test that the output is properly formatted markdown."""
     print("\nTesting markdown formatting...")
 
-    result = asyncio.run(test_server._get_file_history("README.md", max_commits=2))
+    result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=2))
     text = result[0].text
 
     # Check for markdown elements
     assert text.startswith("# "), "Should start with h1 header"
-    assert "## " in text, "Should have h2 headers for commits"
-    assert "- **" in text, "Should have bold list items"
-    assert "`" in text, "Should have code formatting for SHA"
+    assert "•" in text, "Should have bullet separators in commit lines"
+    # Check for numbered list items (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 3)), "Should have numbered commits"
 
     # Check structure
     lines = text.split("\n")
@@ -262,7 +265,7 @@ def test_multiple_files_history(test_server):
     files = ["README.md", "pyproject.toml", "cicada/mcp_server.py"]
 
     for file_path in files:
-        result = asyncio.run(test_server._get_file_history(file_path, max_commits=1))
+        result = asyncio.run(test_server.git_handler.get_file_history(file_path, max_commits=1))
 
         assert len(result) == 1, f"Should return result for {file_path}"
         text = result[0].text
@@ -275,18 +278,18 @@ def test_git_history_includes_all_fields(test_server):
     """Test that git history includes all expected fields."""
     print("\nTesting completeness of git history data...")
 
-    result = asyncio.run(test_server._get_file_history("README.md", max_commits=1))
+    result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=1))
     text = result[0].text
 
-    # Check for all expected fields in the output
-    expected_fields = [
-        "Commit:",
-        "Author:",
-        "Date:",
-    ]
+    # Check for all expected information in the compact format (SHA • Author • Date)
+    assert "•" in text, "Should have bullet separator"
+    assert "1." in text, "Should have numbered commit"
+    # Check that we have a date in YYYY-MM-DD format
+    import re
 
-    for field in expected_fields:
-        assert field in text, f"Output should include '{field}'"
+    assert re.search(r"\d{4}-\d{2}-\d{2}", text), "Should include date in YYYY-MM-DD format"
+    # Check that we have a SHA (8 hex chars)
+    assert re.search(r"[0-9a-f]{8}", text), "Should include commit SHA"
 
     print("  ✓ All expected fields present in output")
 

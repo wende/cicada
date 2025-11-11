@@ -83,7 +83,7 @@ class PRIndexer:
 
             except KeyboardInterrupt:
                 print(
-                    f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/"
+                    f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
                     f"{len(pr_numbers)} PRs."
                 )
                 print("Saving partial index...")
@@ -211,7 +211,7 @@ class PRIndexer:
 
         except KeyboardInterrupt:
             print(
-                f"\n\n⚠️  Interrupted by user. Fetched {len(detailed_prs)}/"
+                f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
                 f"{len(newer_pr_numbers) + len(older_pr_numbers)} PRs."
             )
             print("Saving partial index...")
@@ -245,18 +245,16 @@ class PRIndexer:
                 index = self.index_builder.merge_indexes(existing_index, new_prs)
             else:
                 print("No existing index found. Performing full index...")
-                index = self._perform_full_index(output_path, existing_index)
+                index = self._perform_full_index(existing_index)
         else:
             # Full index (--clean)
-            index = self._perform_full_index(output_path, existing_index)
+            index = self._perform_full_index(existing_index)
 
         # Save index
         self.index_builder.save_index(index, output_path)
         return index
 
-    def _perform_full_index(
-        self, _output_path: str, existing_index: dict[str, Any] | None
-    ) -> dict[str, Any]:
+    def _perform_full_index(self, existing_index: dict[str, Any] | None) -> dict[str, Any]:
         """Perform a full index build."""
         total_prs_in_repo = self.api_client.get_total_pr_count()
         print(f"Starting clean rebuild ({total_prs_in_repo} PRs in repository)...")
@@ -270,7 +268,7 @@ class PRIndexer:
         is_partial = len(prs) < total_prs_in_repo
 
         if is_partial:
-            print(f"⚠️  Partial fetch: got {len(prs)}/{total_prs_in_repo} PRs.")
+            print(f"WARNING: Partial fetch: got {len(prs)}/{total_prs_in_repo} PRs.")
             print("   Setting last_pr_number=0 to allow incremental resume...")
 
             if existing_index:

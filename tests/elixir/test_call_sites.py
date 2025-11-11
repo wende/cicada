@@ -44,7 +44,7 @@ async def test_call_sites(tmp_path):
 
     # Test 1: Search for validate_email (has local call) with usage examples
     print("Test 1: Search for 'validate_email' (local call) with usage examples")
-    result = await server._search_function(
+    result = await server.function_handler.search_function(
         "validate_email", "markdown", include_usage_examples=True, max_examples=5
     )
     print(result[0].text)
@@ -52,7 +52,7 @@ async def test_call_sites(tmp_path):
 
     # Test 2: JSON format
     print("Test 2: JSON format for 'validate_email'")
-    result = await server._search_function("validate_email", "json")
+    result = await server.function_handler.search_function("validate_email", "json")
     print(result[0].text)
     print()
 

@@ -75,7 +75,6 @@ class GitHelper:
         self,
         file_path: str,
         function_name: str,
-        _line_number: int,
         max_commits: int = 5,
     ) -> list[dict]:
         """

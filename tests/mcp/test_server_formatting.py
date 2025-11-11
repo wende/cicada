@@ -35,14 +35,15 @@ class TestGetFunctionBlameFormatting:
             yaml.dump(config, f)
 
         server = CicadaServer(str(config_path))
-        server.git_helper = Mock()
+        # After refactoring, mock the git_helper in git_handler
+        server.git_handler.git_helper = Mock()
 
         return server
 
     @pytest.mark.asyncio
     async def test_with_multiple_authorship_groups(self, test_server_with_git):
         """Should format blame with multiple authorship groups"""
-        test_server_with_git.git_helper.get_function_history.return_value = [
+        test_server_with_git.git_handler.git_helper.get_function_history.return_value = [
             {
                 "author": "dev1",
                 "author_email": "dev1@example.com",
@@ -71,20 +72,21 @@ class TestGetFunctionBlameFormatting:
             },
         ]
 
-        result = await test_server_with_git._get_function_history("test.ex", 10, 13)
+        # After refactoring, call git_handler.get_function_blame
+        result = await test_server_with_git.git_handler.get_function_blame("test.ex", 10, 13)
 
         assert len(result) == 1
         text = result[0].text
 
-        # Check for multiple groups
-        assert "Group 1:" in text
-        assert "Group 2:" in text
+        # Check for multiple groups with new format
+        assert "## 1/2" in text
+        assert "## 2/2" in text
         assert "dev1" in text
         assert "dev2" in text
 
-        # Check line ranges
-        assert "lines 10-12" in text
-        assert "line 13" in text
+        # Check line ranges with new format
+        assert ":10-12" in text
+        assert ":13-13" in text
 
         # Check code content
         assert "def function do" in text
@@ -93,9 +95,12 @@ class TestGetFunctionBlameFormatting:
     @pytest.mark.asyncio
     async def test_error_handling(self, test_server_with_git):
         """Should handle errors gracefully"""
-        test_server_with_git.git_helper.get_function_history.side_effect = Exception("Git error")
+        test_server_with_git.git_handler.git_helper.get_function_history.side_effect = Exception(
+            "Git error"
+        )
 
-        result = await test_server_with_git._get_function_history("test.ex", 1, 10)
+        # After refactoring, call git_handler.get_function_blame
+        result = await test_server_with_git.git_handler.get_function_blame("test.ex", 1, 10)
 
         assert len(result) == 1
         assert "Error getting blame information" in result[0].text
@@ -165,7 +170,9 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_long_description_trimmed(self, test_server_with_long_description):
         """Should trim long PR descriptions"""
-        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            "lib/test.ex"
+        )
 
         assert len(result) == 1
         text = result[0].text
@@ -176,7 +183,9 @@ class TestGetFilePRHistoryFormatting:
     @pytest.mark.asyncio
     async def test_comment_variations(self, test_server_with_long_description):
         """Should handle different comment formats"""
-        result = await test_server_with_long_description._get_file_pr_history("lib/test.ex")
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            "lib/test.ex"
+        )
 
         assert len(result) == 1
         text = result[0].text
@@ -184,7 +193,7 @@ class TestGetFilePRHistoryFormatting:
         # Comment with line number
         assert "Line 15" in text
         assert "reviewer2" in text
-        assert "✓ Resolved" in text
+        assert "Resolved" in text
 
         # Comment without line number
         assert "Original line 20" in text or "unmapped" in text.lower()
@@ -195,7 +204,9 @@ class TestGetFilePRHistoryFormatting:
         """Should handle absolute paths outside repository"""
         outside_path = Path("/totally/different/path/file.ex")
 
-        result = await test_server_with_long_description._get_file_pr_history(str(outside_path))
+        result = await test_server_with_long_description.pr_handler.get_file_pr_history(
+            str(outside_path)
+        )
 
         assert len(result) == 1
         assert "not within repository" in result[0].text
@@ -245,26 +256,20 @@ class TestFormatPRContext:
         assert "review comment" not in text  # No comment section
 
     def test_format_pr_context_without_pr_info(self):
-        """Should suggest building PR index when PR info unavailable"""
+        """Should return empty list when PR info unavailable"""
         from cicada.elixir.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/test.ex")
 
-        text = "\n".join(result)
-        assert "Want to know why this code exists?" in text
-        assert "cicada index-pr" in text
-        assert "get_commit_history" in text
-        assert "lib/test.ex" in text
+        assert result == []
 
     def test_format_pr_context_with_function_name(self):
-        """Should include function name in git history suggestion"""
+        """Should return empty list when PR info unavailable (even with function name)"""
         from cicada.elixir.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/user.ex", "create_user")
 
-        text = "\n".join(result)
-        assert 'function_name="create_user"' in text
-        assert "lib/user.ex" in text
+        assert result == []
 
 
 if __name__ == "__main__":
