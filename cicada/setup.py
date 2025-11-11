@@ -25,6 +25,53 @@ from cicada.utils import (
 EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode"]
 
 
+def detect_project_language(repo_path: Path) -> str:
+    """
+    Detect project language from marker files.
+
+    Args:
+        repo_path: Repository root path
+
+    Returns:
+        Language name ('elixir', 'python', etc.)
+
+    Raises:
+        ValueError: If no recognized project type found
+    """
+    # Check for Python markers
+    python_markers = [
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+    ]
+
+    for marker in python_markers:
+        if (repo_path / marker).exists():
+            return "python"
+
+    # Check for Elixir marker
+    if (repo_path / "mix.exs").exists():
+        return "elixir"
+
+    # Check for TypeScript/JavaScript markers
+    ts_markers = ["tsconfig.json", "package.json"]
+    for marker in ts_markers:
+        if (repo_path / marker).exists():
+            # Check if it's TypeScript or plain JavaScript
+            if (repo_path / "tsconfig.json").exists():
+                return "typescript"
+            return "javascript"
+
+    # No recognized language
+    raise ValueError(
+        f"Could not detect project language in {repo_path}\n"
+        "Expected Python markers (pyproject.toml, setup.py, etc.), "
+        "Elixir marker (mix.exs), or TypeScript/JavaScript markers"
+    )
+
+
 def _load_existing_config(config_path: Path) -> dict:
     """
     Load existing configuration file with error handling.
