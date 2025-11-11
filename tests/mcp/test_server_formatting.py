@@ -78,15 +78,15 @@ class TestGetFunctionBlameFormatting:
         assert len(result) == 1
         text = result[0].text
 
-        # Check for multiple groups
-        assert "Group 1:" in text
-        assert "Group 2:" in text
+        # Check for multiple groups with new format
+        assert "## 1/2" in text
+        assert "## 2/2" in text
         assert "dev1" in text
         assert "dev2" in text
 
-        # Check line ranges
-        assert "lines 10-12" in text
-        assert "line 13" in text
+        # Check line ranges with new format
+        assert ":10-12" in text
+        assert ":13-13" in text
 
         # Check code content
         assert "def function do" in text

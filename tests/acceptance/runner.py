@@ -120,7 +120,7 @@ def main():
                 search_function(
                     function_name,
                     include_usage_examples=include_examples,
-                    test_files_only=test_only,
+                    usage_type="test" if test_only else "source",
                     max_examples=max_examples,
                 )
             )

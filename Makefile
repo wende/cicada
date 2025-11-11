@@ -31,7 +31,7 @@ dev:
 	@uv tool uninstall cicada-mcp 2>/dev/null || true
 	@echo "4. Installing from fresh build..."
 	@uv tool install --reinstall dist/cicada_mcp-*-py3-none-any.whl
-	@echo "✓ cicada installed from fresh build"
+	@echo "cicada installed from fresh build"
 	@echo "  Commands: cicada, cicada-mcp, cicada-server"
 	@echo "  Installed from: $(PWD)/dist/"
 
@@ -39,21 +39,21 @@ dev:
 install-deps:
 	@echo "Installing dependencies with uv..."
 	@uv sync --dev
-	@echo "✓ Dependencies installed (models will be downloaded on first use if needed)"
+	@echo "Dependencies installed (models will be downloaded on first use if needed)"
 
 # Full installation (deps + tool)
 install: install-deps
 	@echo ""
 	@echo "Installing cicada tool to ~/.local/bin/..."
 	@uv tool install --editable . --force
-	@echo "✓ cicada installed in editable mode"
+	@echo "cicada installed in editable mode"
 	@echo "  Command 'cicada' now uses code from $(PWD)"
 
 
 uninstall: clean
 	@echo "Uninstalling cicada tool..."
 	@uv tool uninstall cicada-mcp 2>/dev/null || true
-	@echo "✓ cicada uninstalled"
+	@echo "cicada uninstalled"
 
 # Setup test fixtures
 setup-fixtures:
@@ -84,7 +84,7 @@ format: install
 lint-fix: install
 	@echo "Running ruff with auto-fix..."
 	@uv run ruff check cicada --fix
-	@echo "✓ Auto-fixable issues resolved"
+	@echo "Auto-fixable issues resolved"
 
 # Check code formatting with ruff linter, pyrefly type checker and vulture dead code detector
 lint: install
@@ -105,18 +105,33 @@ pre-commit: install
 	@echo "Fetching latest tags..."
 	@git fetch --tags --quiet 2>/dev/null || true
 	@echo "Updating version hash..."
-	@GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	@set -e; \
+	GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	GIT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown"); \
-	echo "\"\"\"Auto-generated file containing build-time git tag and hash.\"\"\"" > cicada/_version_hash.py; \
-	echo "" >> cicada/_version_hash.py; \
-	echo "GIT_TAG = \"$$GIT_TAG\"" >> cicada/_version_hash.py; \
-	echo "GIT_HASH = \"$$GIT_HASH\"" >> cicada/_version_hash.py; \
+	{ \
+		echo '"""Auto-generated file containing build-time git tag and hash."""'; \
+		echo ''; \
+		echo "GIT_TAG = \"$$GIT_TAG\""; \
+		echo "GIT_HASH = \"$$GIT_HASH\""; \
+	} > cicada/_version_hash.py; \
 	git add cicada/_version_hash.py
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
-	@$(MAKE) lint
-	@$(MAKE) cover
+	@echo "Running linter..."
+	@FAILED=0; \
+	echo "Running ruff linter..."; \
+	uv run ruff check cicada || FAILED=1; \
+	echo ""; \
+	echo "Running pyrefly type checker..."; \
+	uv run pyrefly check cicada --project-excludes tests || FAILED=1; \
+	echo ""; \
+	echo "Running vulture dead code detector..."; \
+	uv run vulture cicada --min-confidence 80 || FAILED=1; \
+	exit $$FAILED
+	@echo "Running tests with coverage..."
+	@bash tests/setup_fixtures.sh
+	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment

@@ -743,7 +743,7 @@ If this function was deleted:
                     ]
                 )
                 lines.append(f"{file_path}:{func['line']} • {func['type']}")
-                lines.extend(["", "Signature:", "", f"{sig}"])
+                lines.extend(["", "Signature:", f"{sig}"])
 
                 # Add PR context for multi-result format
                 pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
@@ -758,7 +758,7 @@ If this function was deleted:
                 if len(consolidated_results) == 1:
                     lines.extend(['Documentation: """', func["doc"], '"""'])
                 else:
-                    lines.extend(["", "Documentation:", "", func["doc"]])
+                    lines.extend(["", 'Documentation: """', func["doc"], '"""'])
 
             # Add examples if present
             if func.get("examples"):
@@ -780,7 +780,7 @@ If this function was deleted:
                 dependencies = result.get("dependencies", [])
                 if dependencies:
                     lines.append("")
-                    lines.append(f"{indent}📞 Calls these functions:")
+                    lines.append(f"{indent}Calls these functions:")
                     for dep in dependencies[:5]:  # Limit to 5 for brevity
                         dep_module = dep.get("module", "?")
                         dep_func = dep.get("function", "?")
