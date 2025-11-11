@@ -168,6 +168,7 @@ This project uses **uv** as the primary Python package manager and build tool. W
 - **Run commands:** `uv run <command>` (e.g., `uv run python -m pytest`)
 - **Install the project:** `uv pip install -e .` for development installation
 - **Tool installation:** `uv tool install cicada-mcp`
+- **Reinstall after changes:** Run `make dev` to reinstall the project (updates the installed `cicada` command)
 
 The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
 

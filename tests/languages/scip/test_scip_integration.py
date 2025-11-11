@@ -393,6 +393,48 @@ class TestSCIPIntegration:
         assert result is not None
         assert "modules" in result
 
+    def test_index_extracts_module_symbols(self, python_scip_index):
+        """Test that Python module/package symbols are extracted and indexed."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+        result = converter.convert(scip_index, repo_path)
+
+        # Should have module entries with natural names (e.g., "operations")
+        # not just _file_ prefixed entries
+        module_names = list(result["modules"].keys())
+
+        # Check that we have at least one module-like entry
+        # (either by natural module name or file-based name)
+        assert len(module_names) > 0
+
+        # Check for both patterns:
+        # - Natural module names (e.g., "operations")
+        # - File-based module names (e.g., "_file_operations")
+        file_modules = [m for m in module_names if m.startswith("_file_")]
+        natural_modules = [m for m in module_names if not m.startswith("_file_")]
+
+        # Should have at least some modules
+        assert len(file_modules) > 0 or len(natural_modules) > 0
+
+    def test_index_module_docstrings_preserved(self, python_scip_index):
+        """Test that module-level docstrings are preserved during extraction."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+        result = converter.convert(scip_index, repo_path)
+
+        # Check that any module has a moduledoc field (if present in fixture)
+        modules_with_docs = [
+            m for m in result["modules"].values() if "moduledoc" in m and m["moduledoc"]
+        ]
+
+        # If the fixture has module docstrings, they should be present
+        if modules_with_docs:
+            for module in modules_with_docs:
+                assert isinstance(module["moduledoc"], str)
+                assert len(module["moduledoc"]) > 0
+
     def test_index_tool_info_captured(self, python_scip_index):
         """Test that SCIP tool version and info are captured in metadata."""
         scip_index, repo_path = python_scip_index

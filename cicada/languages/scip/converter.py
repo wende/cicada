@@ -146,6 +146,7 @@ class SCIPConverter:
 
         # Separate symbols by type
         classes = []
+        module_symbols = []  # Module/package symbols
         functions = []
         methods = {}  # Maps class symbol -> list of methods
 
@@ -155,6 +156,9 @@ class SCIPConverter:
 
             if symbol_type == "class":
                 classes.append(symbol_info)
+            elif symbol_type == "module":
+                # This is a module/package symbol
+                module_symbols.append(symbol_info)
             elif symbol_type == "method":
                 # This is a method - find its parent class
                 parent_symbol = self._get_parent_symbol(symbol_info.symbol)
@@ -163,7 +167,7 @@ class SCIPConverter:
             elif symbol_type == "function":
                 # Top-level function
                 functions.append(symbol_info)
-            # Skip parameters, modules, and other symbol types
+            # Skip parameters and other symbol types
 
         # Convert classes to modules
         for class_info in classes:
@@ -213,6 +217,56 @@ class SCIPConverter:
             )
 
             modules[class_name] = module_data
+
+        # Convert module symbols to module entries
+        for module_info in module_symbols:
+            module_name = self._extract_module_name_from_descriptor(module_info.symbol)
+
+            # Only create module if we got a valid name
+            if not module_name:
+                continue
+
+            # Skip if this module is already in our modules dict (shouldn't happen)
+            if module_name in modules:
+                continue
+
+            # Module entries represent packages/namespaces, not collections of functions
+            # Functions belong to classes or are captured in _file_ entries
+            # This is just metadata about the module itself
+            module_data = {
+                "file": file_path,
+                "line": self._get_definition_line(module_info.symbol, doc),
+                "functions": [],  # Module entries don't contain functions directly
+                "calls": [],  # Module-level calls (not extracted yet)
+                "dependencies": dependencies,
+                "total_functions": 0,
+                "public_functions": 0,
+                "private_functions": 0,
+            }
+
+            # Add documentation if available
+            if module_info.documentation:
+                moduledoc = "\n".join(module_info.documentation)
+                module_data["moduledoc"] = moduledoc
+
+                # Extract keywords from module documentation
+                if self.extract_keywords and self.keyword_extractor:
+                    try:
+                        # Combine module name and documentation for keyword extraction
+                        module_text = f"{module_name} {moduledoc}"
+                        results = self.keyword_extractor.extract_keywords(module_text, top_n=10)
+                        # Convert list of tuples to dict
+                        module_keywords: dict[str, float] = dict(results["top_keywords"])
+                        if module_keywords:
+                            module_data["keywords"] = module_keywords  # type: ignore[typeddict-item]
+                    except Exception as e:
+                        if self.verbose:
+                            print(
+                                f"Warning: Module keyword extraction failed for {module_name}: {e}",
+                                file=sys.stderr,
+                            )
+
+            modules[module_name] = module_data
 
         # If there are top-level functions, create a pseudo-module for the file
         if functions:
@@ -713,6 +767,52 @@ class SCIPConverter:
             return descriptor
 
         return None
+
+    def _extract_module_name_from_descriptor(self, symbol: str) -> str:
+        """
+        Extract fully-qualified module name from SCIP module symbol.
+
+        Converts SCIP descriptor format to Python module naming convention.
+
+        Examples:
+            "scip-python python pkg 1.0 calculator/__init__:" -> "calculator"
+            "scip-python python pkg 1.0 cicada/mcp/__init__:" -> "cicada.mcp"
+            "scip-python python pkg 1.0 cicada/mcp/server/__init__:" -> "cicada.mcp.server"
+            "scip-python python pkg 1.0 utils:" -> "utils"
+            "scip-python python pkg 1.0 `cicada/mcp/__init__`:" -> "cicada.mcp"
+            "scip-python python pkg 1.0 `cicada.mcp.server`/__init__:" -> "cicada.mcp.server"
+
+        Args:
+            symbol: SCIP symbol string for a module (must end with :)
+
+        Returns:
+            Python module name with dot-separated path components
+        """
+        parts = symbol.split()
+        if len(parts) < 5:
+            return ""
+
+        descriptor = " ".join(parts[4:])
+
+        # Remove trailing : for module symbols
+        descriptor = descriptor.rstrip(":")
+
+        # Remove backticks if present (SCIP wraps module names in backticks)
+        # Format: `module.name` or `module/path`/__init__ or variations
+        descriptor = descriptor.replace("`", "")
+
+        # Remove /__init__ suffix if present
+        if descriptor.endswith("/__init__"):
+            descriptor = descriptor[: -len("/__init__")]
+
+        # Handle .py file extension if present
+        if descriptor.endswith(".py"):
+            descriptor = descriptor[: -len(".py")]
+
+        # Convert path separators (/) to module separators (.)
+        module_name = descriptor.replace("/", ".")
+
+        return module_name
 
     def _is_builtin_module(self, module_name: str) -> bool:
         """

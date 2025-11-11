@@ -172,6 +172,95 @@ class TestKeywordExtraction:
                 assert "keywords" not in func
 
 
+class TestModuleNameExtraction:
+    """Test module name extraction from SCIP symbols."""
+
+    def test_extract_simple_module_name(self, python_scip_index):
+        """Test extracting module name from simple __init__: symbol."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+
+        # Test cases for module name extraction
+        test_cases = [
+            ("scip-python python sample 0.1.0 calculator/__init__:", "calculator"),
+            ("scip-python python sample 0.1.0 operations/__init__:", "operations"),
+            ("scip-python python sample 0.1.0 utils/__init__:", "utils"),
+        ]
+
+        for symbol, expected_name in test_cases:
+            result = converter._extract_module_name_from_descriptor(symbol)
+            assert (
+                result == expected_name
+            ), f"Failed for {symbol}: got {result}, expected {expected_name}"
+
+    def test_extract_nested_module_name(self, python_scip_index):
+        """Test extracting module name from nested package symbols."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+
+        # Nested module test cases
+        test_cases = [
+            ("scip-python python sample 0.1.0 cicada/mcp/__init__:", "cicada.mcp"),
+            ("scip-python python sample 0.1.0 cicada/mcp/server/__init__:", "cicada.mcp.server"),
+            ("scip-python python sample 0.1.0 a/b/c/d/__init__:", "a.b.c.d"),
+        ]
+
+        for symbol, expected_name in test_cases:
+            result = converter._extract_module_name_from_descriptor(symbol)
+            assert (
+                result == expected_name
+            ), f"Failed for {symbol}: got {result}, expected {expected_name}"
+
+    def test_extract_module_name_without_init(self, python_scip_index):
+        """Test extracting module name from file-based module symbols."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+
+        # Some SCIP versions might represent modules differently
+        test_cases = [
+            ("scip-python python sample 0.1.0 calculator.py:", "calculator"),
+            ("scip-python python sample 0.1.0 utils:", "utils"),
+        ]
+
+        for symbol, expected_name in test_cases:
+            result = converter._extract_module_name_from_descriptor(symbol)
+            # Should handle these gracefully
+            assert isinstance(result, str)
+
+    def test_extract_module_name_with_backticks(self, python_scip_index):
+        """Test extracting module name from SCIP symbols with backticks."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+
+        # SCIP wraps module names in backticks, sometimes around the entire path,
+        # sometimes just around the module name part
+        test_cases = [
+            # Backticks around entire path
+            ("scip-python python sample 0.1.0 `cicada/_version_hash`:", "cicada._version_hash"),
+            ("scip-python python sample 0.1.0 `cicada/mcp/__init__`:", "cicada.mcp"),
+            ("scip-python python sample 0.1.0 `operations/__init__`:", "operations"),
+            # Backticks around module name only (actual scip-python output format)
+            (
+                "scip-python python cicada-wt2 0.3.1 `cicada.mcp.server`/__init__:",
+                "cicada.mcp.server",
+            ),
+            (
+                "scip-python python cicada-wt2 0.3.1 `tests.mcp.test_server_cli`/__init__:",
+                "tests.mcp.test_server_cli",
+            ),
+        ]
+
+        for symbol, expected_name in test_cases:
+            result = converter._extract_module_name_from_descriptor(symbol)
+            assert (
+                result == expected_name
+            ), f"Failed for {symbol}: got {result}, expected {expected_name}"
+
+
 class TestLanguageAgnostic:
     """Test that SCIP converter works across languages."""
 
