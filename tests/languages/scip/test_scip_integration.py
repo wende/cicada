@@ -5,7 +5,6 @@ including Python and TypeScript support, schema validation, keyword
 extraction, and multi-file project handling.
 """
 
-import json
 import pytest
 from pathlib import Path
 

@@ -1,7 +1,6 @@
 """Comprehensive tests for SCIP Python installer utilities."""
 
 import pytest
-import subprocess
 from unittest.mock import patch, Mock
 
 from cicada.languages.python.scip_installer import SCIPPythonInstaller

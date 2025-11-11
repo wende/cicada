@@ -1,8 +1,6 @@
 """Comprehensive tests for SCIP reader."""
 
 import pytest
-import tempfile
-from pathlib import Path
 
 from cicada.languages.scip import scip_pb2
 from cicada.languages.scip.reader import SCIPReader

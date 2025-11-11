@@ -5,7 +5,6 @@ SCIP reading, and conversion to Cicada format.
 """
 
 import pytest
-from pathlib import Path
 
 from cicada.setup import detect_project_language
 from cicada.languages.python.scip_installer import SCIPPythonInstaller

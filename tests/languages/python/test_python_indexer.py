@@ -3,8 +3,7 @@
 import json
 import pytest
 import subprocess
-from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import patch, Mock
 
 from cicada.languages.python.indexer import PythonSCIPIndexer
 from cicada.languages.python.scip_installer import SCIPPythonInstaller
@@ -336,7 +335,7 @@ class TestPythonSCIPIndexer:
         output_path = tmp_path / "output" / "index.json"
 
         scip_index = scip_pb2.Index()
-        doc = scip_index.documents.add()
+        scip_index.documents.add()
 
         with patch.object(verbose_indexer, "_ensure_scip_python_installed"):
             with patch.object(verbose_indexer, "_run_scip_python") as mock_run_scip:

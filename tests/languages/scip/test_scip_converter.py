@@ -1,7 +1,6 @@
 """Tests for SCIP converter signature and keyword extraction."""
 
 import pytest
-from pathlib import Path
 
 from cicada.languages.scip.reader import SCIPReader
 from cicada.languages.scip.converter import SCIPConverter

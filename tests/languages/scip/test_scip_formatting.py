@@ -6,7 +6,6 @@ utilities that were designed for Elixir but should work generically.
 """
 
 import pytest
-from pathlib import Path
 
 from cicada.languages.scip.reader import SCIPReader
 from cicada.languages.scip.converter import SCIPConverter
@@ -57,14 +56,10 @@ class TestModuleFormatter:
         calc = python_index["modules"]["Calculator"]
         functions = {f["name"]: f for f in calc["functions"]}
 
-        formatter = ModuleFormatter()
-
-        # Format a specific function
+        # Get a specific function
         add_func = functions["add"]
 
-        # Formatter should handle the function dict
-        # (specific method depends on ModuleFormatter API)
-
+        # Function should have signature and doc attributes
         assert "signature" in add_func
         assert "doc" in add_func
 
@@ -75,11 +70,7 @@ class TestModuleFormatter:
         # If call sites are extracted
         for func in calc.get("functions", []):
             if "calls" in func and func["calls"]:
-                formatter = CallSiteFormatter()
-
-                # Should be able to format call sites
-                # (specific API depends on CallSiteFormatter)
-
+                # Call sites can be formatted
                 calls = func["calls"]
                 assert isinstance(calls, list)
                 return
@@ -139,8 +130,6 @@ class TestMarkdownOutput:
         functions = {f["name"]: f for f in calc["functions"]}
 
         add_func = functions["add"]
-
-        builder = SignatureBuilder()
 
         # Should be able to build signature from SCIP data
         # (API may vary - this tests compatibility)
