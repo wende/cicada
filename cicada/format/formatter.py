@@ -108,9 +108,9 @@ class ModuleFormatter:
         Returns:
             Formatted Markdown string
         """
-        # Group functions by type (def = public, defp = private)
-        public_funcs = [f for f in data["functions"] if f["type"] == "def"]
-        private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
+        # Group functions by type (def/public = public, defp/private = private)
+        public_funcs = [f for f in data["functions"] if f["type"] in ("def", "public")]
+        private_funcs = [f for f in data["functions"] if f["type"] in ("defp", "private")]
 
         # Group by name/arity to deduplicate function clauses
         public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
@@ -200,11 +200,11 @@ class ModuleFormatter:
         """
         # Filter functions based on private_functions parameter
         if private_functions == "exclude":
-            # Only public functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "def"]
+            # Only public functions (def/public)
+            filtered_funcs = [f for f in data["functions"] if f["type"] in ("def", "public")]
         elif private_functions == "only":
-            # Only private functions
-            filtered_funcs = [f for f in data["functions"] if f["type"] == "defp"]
+            # Only private functions (defp/private)
+            filtered_funcs = [f for f in data["functions"] if f["type"] in ("defp", "private")]
         else:  # "include"
             # All functions
             filtered_funcs = data["functions"]
@@ -227,8 +227,8 @@ class ModuleFormatter:
             "location": f"{data['file']}:{data['line']}",
             "moduledoc": data.get("moduledoc"),
             "counts": {
-                "public": data["public_functions"],
-                "private": data["private_functions"],
+                "public": data.get("public_functions", 0),
+                "private": data.get("private_functions", 0),
             },
             "functions": functions,
         }

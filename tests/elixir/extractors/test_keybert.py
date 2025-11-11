@@ -16,7 +16,7 @@ from cicada.utils import extract_code_identifiers
 class TestKeyBERTExtractorInitialization:
     """Tests for KeyBERTExtractor initialization"""
 
-    @patch("cicada.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None)
+    @patch("cicada.languages.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None)
     def test_keybert_import_failure(self):
         """Test that missing KeyBERT raises helpful ImportError"""
         with patch.dict("sys.modules", {"keybert": None}):
@@ -32,7 +32,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.languages.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -57,7 +57,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_instance = MagicMock()
         mock_keybert_class.return_value = mock_keybert_instance
 
-        with patch("cicada.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.languages.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):
@@ -81,7 +81,7 @@ class TestKeyBERTExtractorInitialization:
         mock_keybert_class = MagicMock()
         mock_keybert_class.side_effect = Exception("Model download failed")
 
-        with patch("cicada.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
+        with patch("cicada.languages.elixir.extractors.keybert.KeyBERTExtractor._KeyBERT", None):
             with patch("builtins.__import__") as mock_import:
 
                 def import_side_effect(name, *args, **kwargs):

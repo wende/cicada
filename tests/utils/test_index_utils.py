@@ -22,20 +22,49 @@ def sample_index():
     return {
         "modules": {
             "lib/my_module.ex": {
+                "file": "lib/my_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "my_func", "arity": 2, "type": "def"},
-                    {"name": "private_func", "arity": 1, "type": "defp"},
-                ]
+                    {
+                        "name": "my_func",
+                        "arity": 2,
+                        "args": ["x", "y"],
+                        "type": "def",
+                        "line": 2,
+                        "signature": "my_func(x, y)",
+                    },
+                    {
+                        "name": "private_func",
+                        "arity": 1,
+                        "args": ["x"],
+                        "type": "defp",
+                        "line": 5,
+                        "signature": "private_func(x)",
+                    },
+                ],
             },
             "lib/other_module.ex": {
+                "file": "lib/other_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "other_func", "arity": 0, "type": "def"},
-                ]
+                    {
+                        "name": "other_func",
+                        "arity": 0,
+                        "args": [],
+                        "type": "def",
+                        "line": 2,
+                        "signature": "other_func()",
+                    },
+                ],
             },
         },
         "metadata": {
-            "version": "1.0",
-            "timestamp": "2025-01-01T00:00:00Z",
+            "indexed_at": "2025-01-01T00:00:00Z",
+            "total_modules": 2,
+            "total_functions": 3,
+            "repo_path": "/test/repo",
+            "language": "elixir",
+            "version": "2.0",
         },
     }
 

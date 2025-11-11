@@ -40,7 +40,7 @@ class TestModuleFormatter:
         formatter = ModuleFormatter()
 
         # Format the module
-        output = formatter.format_module("Calculator", calc)
+        output = formatter.format_module_json("Calculator", calc)
 
         # Should produce markdown output
         assert isinstance(output, str)
@@ -112,7 +112,7 @@ class TestMarkdownOutput:
         calc = python_index["modules"]["Calculator"]
 
         formatter = ModuleFormatter()
-        output = formatter.format_module("Calculator", calc)
+        output = formatter.format_module_markdown("Calculator", calc)
 
         # Should have markdown structure
         # Note: formatter uses plain text formatting, not markdown "#" headers
@@ -169,7 +169,7 @@ class TestTypeCompatibility:
         # Formatter should handle both types
         formatter = ModuleFormatter()
         # Include private functions to test both types
-        output = formatter.format_module("Calculator", calc, private_functions="include")
+        output = formatter.format_module_json("Calculator", calc, private_functions="include")
 
         # Should contain both public and private functions
         assert "_private_method" in output
@@ -216,7 +216,7 @@ class TestEmptyFormatting:
         formatter = ModuleFormatter()
 
         # Should not crash on empty module
-        output = formatter.format_module("EmptyModule", empty_module)
+        output = formatter.format_module_json("EmptyModule", empty_module)
 
         assert isinstance(output, str)
 
@@ -232,7 +232,7 @@ class TestEmptyFormatting:
         formatter = ModuleFormatter()
 
         # Should still work without optional fields
-        output = formatter.format_module("Calculator", calc_copy)
+        output = formatter.format_module_json("Calculator", calc_copy)
 
         assert isinstance(output, str)
         assert "Calculator" in output
@@ -246,7 +246,7 @@ class TestLineNumberDisplay:
         calc = python_index["modules"]["Calculator"]
 
         formatter = ModuleFormatter()
-        output = formatter.format_module("Calculator", calc)
+        output = formatter.format_module_json("Calculator", calc)
 
         # Should contain line number references
         # (exact format depends on formatter implementation)
@@ -303,7 +303,7 @@ class TestTypescriptFormatting:
         calc = result["modules"]["Calculator"]
 
         formatter = ModuleFormatter()
-        output = formatter.format_module("Calculator", calc)
+        output = formatter.format_module_json("Calculator", calc)
 
         # Should handle TypeScript-specific elements
         assert isinstance(output, str)

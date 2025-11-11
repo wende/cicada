@@ -191,9 +191,9 @@ class SCIPConverter:
                     try:
                         # Combine class name and documentation for keyword extraction
                         module_text = f"{class_name} {moduledoc}"
-                        module_keywords = self.keyword_extractor.extract_keywords_simple(
-                            module_text, top_n=10
-                        )
+                        results = self.keyword_extractor.extract_keywords(module_text, top_n=10)
+                        # Convert list of tuples to dict
+                        module_keywords = dict(results["top_keywords"])
                         if module_keywords:
                             module_data["keywords"] = module_keywords
                     except Exception as e:
@@ -324,9 +324,9 @@ class SCIPConverter:
                 try:
                     # Combine function name and documentation for keyword extraction
                     func_text = f"{name} {docstring}"
-                    func_keywords = self.keyword_extractor.extract_keywords_simple(
-                        func_text, top_n=10
-                    )
+                    results = self.keyword_extractor.extract_keywords(func_text, top_n=10)
+                    # Convert list of tuples to dict
+                    func_keywords = dict(results["top_keywords"])
                     if func_keywords:
                         func_data["keywords"] = func_keywords
                 except Exception as e:
