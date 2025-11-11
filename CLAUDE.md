@@ -178,5 +178,4 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - Write tests for new features
 - Keep functions focused and modular
 - Use make to run tests
-
-
+- Always use uv to run any python commands. Don't just run python without that

@@ -93,7 +93,7 @@ lint: install
 	uv run ruff check cicada || FAILED=1; \
 	echo ""; \
 	echo "Running pyrefly type checker..."; \
-	uv run pyrefly check cicada --project-excludes tests || FAILED=1; \
+	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip/scip_pb2.py --project-excludes cicada/languages/scip/scip_pb2.pyi || FAILED=1; \
 	echo ""; \
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \

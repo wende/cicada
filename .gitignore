@@ -68,3 +68,7 @@ tests/fixtures/elixir_project
 tests/fixtures/test_project
 tests/fixtures/sample_typescript/
 .env
+
+# Auto-generated protobuf files
+*_pb2.py
+*_pb2.pyi

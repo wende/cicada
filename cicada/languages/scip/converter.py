@@ -193,9 +193,9 @@ class SCIPConverter:
                         module_text = f"{class_name} {moduledoc}"
                         results = self.keyword_extractor.extract_keywords(module_text, top_n=10)
                         # Convert list of tuples to dict
-                        module_keywords = dict(results["top_keywords"])
+                        module_keywords: dict[str, float] = dict(results["top_keywords"])
                         if module_keywords:
-                            module_data["keywords"] = module_keywords
+                            module_data["keywords"] = module_keywords  # type: ignore[typeddict-item]
                     except Exception as e:
                         if self.verbose:
                             print(
@@ -326,9 +326,9 @@ class SCIPConverter:
                     func_text = f"{name} {docstring}"
                     results = self.keyword_extractor.extract_keywords(func_text, top_n=10)
                     # Convert list of tuples to dict
-                    func_keywords = dict(results["top_keywords"])
+                    func_keywords: dict[str, float] = dict(results["top_keywords"])
                     if func_keywords:
-                        func_data["keywords"] = func_keywords
+                        func_data["keywords"] = func_keywords  # type: ignore[typeddict-item]
                 except Exception as e:
                     if self.verbose:
                         print(

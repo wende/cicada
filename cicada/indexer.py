@@ -11,13 +11,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from cicada.git import GitHelper
 from cicada.languages.elixir.dependency_analyzer import (
     calculate_function_end_line,
     extract_function_dependencies,
     extract_module_dependencies,
 )
 from cicada.languages.elixir.parser import ElixirParser
-from cicada.git import GitHelper
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
     load_index,
@@ -378,7 +378,9 @@ class ElixirIndexer:
                             "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
-                            "dependencies": module_dependencies,
+                            "dependencies": [
+                                {"module": mod} for mod in sorted(module_dependencies["modules"])
+                            ],
                         }
 
                         # Add module keywords if extracted
@@ -752,7 +754,9 @@ class ElixirIndexer:
                             "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
-                            "dependencies": module_dependencies,
+                            "dependencies": [
+                                {"module": mod} for mod in sorted(module_dependencies["modules"])
+                            ],
                         }
 
                         # Add module keywords if extracted
