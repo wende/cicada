@@ -39,6 +39,9 @@ ENV/
 # pytest
 .pytest_cache/
 
+# ruff
+.ruff_cache/
+
 # Coverage
 .coverage
 .coverage.*
