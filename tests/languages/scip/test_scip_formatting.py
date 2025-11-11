@@ -169,7 +169,7 @@ class TestTypeCompatibility:
         # Formatter should handle both types
         formatter = ModuleFormatter()
         # Include private functions to test both types
-        output = formatter.format_module_json("Calculator", calc, private_functions="include")
+        output = formatter.format_module_json("Calculator", calc, visibility="all")
 
         # Should contain both public and private functions
         assert "_private_method" in output

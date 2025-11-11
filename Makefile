@@ -93,7 +93,7 @@ lint: install
 	uv run ruff check cicada || FAILED=1; \
 	echo ""; \
 	echo "Running pyrefly type checker..."; \
-	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip/scip_pb2.py --project-excludes cicada/languages/scip/scip_pb2.pyi || FAILED=1; \
+	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip || FAILED=1; \
 	echo ""; \
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \
@@ -124,11 +124,17 @@ pre-commit: install
 	uv run ruff check cicada || FAILED=1; \
 	echo ""; \
 	echo "Running pyrefly type checker..."; \
-	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip/scip_pb2.py --project-excludes cicada/languages/scip/scip_pb2.pyi || FAILED=1; \
+	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip || FAILED=1; \
 	echo ""; \
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \
 	exit $$FAILED
+	@echo "Generating SCIP protobuf files..."
+	@if command -v protoc >/dev/null 2>&1; then \
+		cd cicada/languages/scip && protoc -I. --python_out=. --pyi_out=. scip.proto && echo "✓ SCIP protobuf files generated"; \
+	else \
+		echo "⚠ protoc not found - SCIP tests will be skipped (install with: brew install protobuf)"; \
+	fi
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80

@@ -40,8 +40,9 @@ class ModuleFormatter:
             Tuple of (public_grouped, private_grouped) dictionaries keyed by (name, arity)
         """
         functions = data.get("functions", [])
-        public_funcs = [f for f in functions if f["type"] == "def"]
-        private_funcs = [f for f in functions if f["type"] == "defp"]
+        # Support both Elixir (def/defp) and SCIP/Python (public/private) type conventions
+        public_funcs = [f for f in functions if f["type"] in ("def", "public")]
+        private_funcs = [f for f in functions if f["type"] in ("defp", "private")]
 
         return (
             FunctionGrouper.group_by_name_arity(public_funcs),
@@ -258,13 +259,20 @@ class ModuleFormatter:
             for (_, _), clauses in sorted(grouped.items())
         ]
 
+        # Calculate function counts if not provided
+        if "public_functions" in data and "private_functions" in data:
+            public_count = data["public_functions"]
+            private_count = data["private_functions"]
+        else:
+            public_count, private_count = ModuleFormatter._count_functions(data)
+
         result = {
             "module": module_name,
             "location": f"{data['file']}:{data['line']}",
             "moduledoc": data.get("moduledoc"),
             "counts": {
-                "public": data["public_functions"],
-                "private": data["private_functions"],
+                "public": public_count,
+                "private": private_count,
             },
             "functions": functions,
         }
