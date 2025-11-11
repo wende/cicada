@@ -152,6 +152,8 @@ extend-exclude = [
     "buck-out",
     "build",
     "dist",
+    "cicada/languages/scip/scip_pb2.py",
+    "cicada/languages/scip/scip_pb2.pyi",
 ]
 
 [tool.ruff.lint]

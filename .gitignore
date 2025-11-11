@@ -79,8 +79,6 @@ tests/fixtures/**/*lock.json
 tests/fixtures/**/uv.lock
 tests/fixtures/**/node_modules/
 
-# Auto-generated protobuf files (except SCIP which is needed at runtime)
+# Auto-generated protobuf files (generated before tests/builds, not tracked in git)
 *_pb2.py
 *_pb2.pyi
-!cicada/languages/scip/scip_pb2.py
-!cicada/languages/scip/scip_pb2.pyi
