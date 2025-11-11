@@ -5,7 +5,7 @@ Provides functionality to load and parse .scip files (Protocol Buffer format).
 
 from pathlib import Path
 
-from cicada.languages.scip import scip_pb2
+import cicada.languages.scip.scip_pb2 as scip_pb2
 
 
 class SCIPReader:

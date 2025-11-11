@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from cicada.languages.scip import scip_pb2
+import cicada.languages.scip.scip_pb2 as scip_pb2
 
 
 class SCIPConverter:
