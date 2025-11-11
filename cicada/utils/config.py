@@ -35,12 +35,9 @@ class Config:
         Raises:
             ConfigValidationError: If validation fails
         """
-        # Require 'language' field
+        # Default to 'elixir' for backward compatibility
         if "language" not in self.data:
-            raise ConfigValidationError(
-                "Missing required field 'language' in config.yaml. "
-                "Please specify the programming language (e.g., 'elixir', 'python')."
-            )
+            self.data["language"] = "elixir"
 
         language = self.data["language"]
         if not isinstance(language, str):
