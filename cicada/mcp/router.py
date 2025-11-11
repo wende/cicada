@@ -168,7 +168,7 @@ class ToolRouter:
         elif name == "search_module_usage":
             module_name = arguments.get("module_name")
             output_format = arguments.get("format", "markdown")
-            usage_type = arguments.get("usage_type", "all")
+            usage_type = arguments.get("usage_type", "source")
 
             if not module_name:
                 error_msg = "'module_name' is required"
