@@ -167,7 +167,7 @@ class GitHistoryHandler:
         # Check if any filters are being used (only supported for file-level history)
         has_filters = since_date or until_date or author or min_changes > 0
         if has_filters and (function_name or (start_line and end_line)):
-            warning_msg = "⚠️  Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
+            warning_msg = "WARNING: Date/author/min_changes filters only work with file-level history (without function_name or line range)\n\n"
         else:
             warning_msg = ""
 
@@ -293,13 +293,12 @@ class GitHistoryHandler:
 
                 # Add relevance indicator for function searches
                 if "relevance" in commit:
-                    relevance_emoji = "🎯" if commit["relevance"] == "mentioned" else "📝"
                     relevance_text = (
-                        "Function mentioned"
+                        "[Function mentioned]"
                         if commit["relevance"] == "mentioned"
-                        else "File changed"
+                        else "[File changed]"
                     )
-                    lines.append(f"   {relevance_emoji} {relevance_text}")
+                    lines.append(f"   {relevance_text}")
 
                 lines.append("")  # Empty line between commits
 

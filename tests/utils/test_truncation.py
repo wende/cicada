@@ -5,8 +5,6 @@ Tests cover all truncation methods with edge cases, different data types,
 and performance considerations.
 """
 
-import pytest
-
 from cicada.utils.truncation import TruncationHelper
 
 
@@ -392,7 +390,7 @@ class TestEdgeCases:
         """Test with negative threshold (edge case - list slicing with negative)."""
         items, msg = TruncationHelper.truncate_list([1, 2, 3], threshold=-1)
         # Python list slicing with negative values has special behavior
-        # list[:−1] returns all but the last element
+        # list[:-1] returns all but the last element
         # This is an edge case and shouldn't be used in practice
         assert isinstance(items, list)
         assert isinstance(msg, str) or msg is None

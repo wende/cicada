@@ -65,7 +65,23 @@ class ModuleFormatter:
 
     @staticmethod
     def _group_call_sites_by_caller(call_sites):
+        """Group call sites by caller (proxy to CallSiteFormatter for testing)."""
         return CallSiteFormatter.group_by_caller(call_sites)
+
+    @staticmethod
+    def _format_caller_name(site: dict[str, Any]) -> str:
+        """Format caller name from a call site.
+
+        Args:
+            site: Call site dictionary with 'calling_module' and optionally 'calling_function'
+
+        Returns:
+            Formatted caller string (e.g., "Module.func/2" or "Module")
+        """
+        calling_func = site.get("calling_function")
+        if calling_func:
+            return f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+        return site["calling_module"]
 
     @staticmethod
     def _find_similar_names(
@@ -377,12 +393,7 @@ class ModuleFormatter:
         remaining_count = sum(len(site["lines"]) for site in grouped_sites)
         lines.append(f"{indent}{label} ({remaining_count}):")
         for site in grouped_sites:
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
-
+            caller = ModuleFormatter._format_caller_name(site)
             line_list = ", ".join(f":{line}" for line in site["lines"])
             lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
         return lines
@@ -391,12 +402,7 @@ class ModuleFormatter:
     def _format_grouped_sites(grouped_sites, indent, include_examples: bool) -> list[str]:
         lines: list[str] = []
         for site in grouped_sites:
-            # Format calling location with function if available
-            calling_func = site.get("calling_function")
-            if calling_func:
-                caller = f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
-            else:
-                caller = site["calling_module"]
+            caller = ModuleFormatter._format_caller_name(site)
 
             # Show consolidated line numbers only if multiple lines (with automatic truncation)
             if len(site["lines"]) > 1:
@@ -1003,7 +1009,7 @@ If this function was deleted:
         """
         lines: list[str] = []
 
-        for _, result in enumerate(results, 1):
+        for result in results:
             result_type = result["type"]
             name = result["name"]
             file_path = result["file"]

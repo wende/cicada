@@ -7,7 +7,6 @@ and text. Truncation is automatically applied when content exceeds conservative
 thresholds, with inline indicators showing how much was truncated.
 """
 
-from collections.abc import Callable
 from typing import Any, TypeVar
 
 T = TypeVar("T")
@@ -71,15 +70,12 @@ class TruncationHelper:
         return f"{line_str} ... ({remaining} more)"
 
     @staticmethod
-    def truncate_list(
-        items: list[T], threshold: int | None = None, formatter: Callable = str
-    ) -> tuple[list[T], str | None]:
+    def truncate_list(items: list[T], threshold: int | None = None) -> tuple[list[T], str | None]:
         """Truncate a generic list and return truncated items plus indicator.
 
         Args:
             items: List to truncate
             threshold: Maximum items to return (default: 50)
-            formatter: Function to format items (default: str)
 
         Returns:
             Tuple of (truncated_items, truncation_message)
@@ -89,7 +85,7 @@ class TruncationHelper:
             >>> truncate_list([1, 2, 3], threshold=5)
             ([1, 2, 3], None)
             >>> truncate_list(list(range(100)), threshold=20)
-            ([0, 1, 2, ...], "... (80 more items)")
+            ([0, 1, 2, ...], "... (80 more)")
         """
         if threshold is None:
             threshold = TruncationHelper.DEFAULT_LIST_THRESHOLD

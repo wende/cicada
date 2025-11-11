@@ -48,6 +48,28 @@ class ToolRouter:
         self.dependency_handler = dependency_handler
         self.analysis_handler = analysis_handler
 
+    @staticmethod
+    def _resolve_visibility_parameter(arguments: dict) -> str:
+        """Resolve visibility parameter with backward compatibility.
+
+        Args:
+            arguments: Tool arguments dictionary
+
+        Returns:
+            Resolved visibility value: 'public', 'private', or 'all'
+        """
+        type_param = arguments.get("type")
+        private_functions = arguments.get("private_functions")
+
+        if type_param:
+            return type_param
+        elif private_functions:
+            # Map old parameter values to new ones
+            mapping = {"exclude": "public", "only": "private", "include": "all"}
+            return mapping.get(private_functions, "public")
+        else:
+            return "public"
+
     async def route_tool(
         self,
         name: str,
@@ -75,18 +97,8 @@ class ToolRouter:
             file_path = arguments.get("file_path")
             output_format = arguments.get("format", "markdown")
 
-            # Handle new 'type' parameter with backward compatibility for 'private_functions'
-            type_param = arguments.get("type")
-            private_functions = arguments.get("private_functions")
-
-            if type_param:
-                visibility = type_param
-            elif private_functions:
-                # Map old parameter values to new ones
-                mapping = {"exclude": "public", "only": "private", "include": "all"}
-                visibility = mapping.get(private_functions, "public")
-            else:
-                visibility = "public"
+            # Resolve visibility parameter with backward compatibility
+            visibility = self._resolve_visibility_parameter(arguments)
 
             # Validate that at least one is provided
             if not module_name and not file_path:
