@@ -152,3 +152,18 @@ def mock_home_dir(tmp_path, monkeypatch):
 def elixir_repo(tmp_path):
     """Provision a sample Elixir repository for watcher-related tests."""
     return create_sample_elixir_repo(tmp_path)
+
+
+@pytest.fixture
+def fixtures_dir():
+    """
+    Return the path to the test fixtures directory.
+
+    This fixture can be used by all tests to access test fixtures
+    without hardcoding relative paths.
+
+    Usage:
+        def test_something(fixtures_dir):
+            sample_file = fixtures_dir / "sample.ex"
+    """
+    return Path(__file__).parent / "fixtures"

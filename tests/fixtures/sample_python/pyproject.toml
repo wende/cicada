@@ -1,0 +1,5 @@
+[project]
+name = "sample-python"
+version = "0.1.0"
+description = "Test fixture for Cicada Python indexing"
+requires-python = ">=3.10"

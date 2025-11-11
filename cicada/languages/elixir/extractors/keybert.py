@@ -13,7 +13,7 @@ from typing import Any
 # Must be set before importing transformers/keybert
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from cicada.elixir.extractors.keyword import BaseKeywordExtractor
+from cicada.languages.elixir.extractors.keyword import BaseKeywordExtractor
 from cicada.utils import extract_code_identifiers
 
 
