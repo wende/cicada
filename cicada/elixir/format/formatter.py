@@ -76,6 +76,30 @@ class ModuleFormatter:
         return lines
 
     @staticmethod
+    def format_module_compact(module_name: str, data: dict[str, Any]) -> str:
+        """
+        Format module data in compact format (for lists of 4+ modules).
+
+        Args:
+            module_name: The name of the module
+            data: The module data dictionary from the index
+
+        Returns:
+            Compact formatted string (file, name, counts only)
+        """
+        # Count public/private functions same way as full format
+        public_funcs = [f for f in data["functions"] if f["type"] == "def"]
+        private_funcs = [f for f in data["functions"] if f["type"] == "defp"]
+
+        public_grouped = FunctionGrouper.group_by_name_arity(public_funcs)
+        private_grouped = FunctionGrouper.group_by_name_arity(private_funcs)
+
+        public_count = len(public_grouped)
+        private_count = len(private_grouped)
+
+        return f"{data['file']}\n{module_name} - {public_count} public - {private_count} private"
+
+    @staticmethod
     def format_module_markdown(
         module_name: str,
         data: dict[str, Any],
@@ -110,9 +134,8 @@ class ModuleFormatter:
 
         # Build the markdown output - compact format
         lines = [
-            module_name,
-            "",
-            f"{data['file']}:{data['line']} • {public_count} public • {private_count} private",
+            f"{data['file']}:{data['line']}",
+            f"{module_name} • {public_count} public • {private_count} private",
         ]
 
         # Add staleness warning if applicable
@@ -163,11 +186,9 @@ class ModuleFormatter:
             private_functions in ["include", "only"] and private_grouped
         )
 
-        if not has_functions_to_show:
-            if private_functions == "only" and not private_grouped:
-                lines.extend(["", "*No private functions found*"])
-            elif not data["functions"]:
-                lines.extend(["", "*No functions found*"])
+        if not has_functions_to_show and private_functions == "only" and not private_grouped:
+            lines.extend(["", "*No private functions found*"])
+            # No need to show "*No functions found*" - it's clear from "• 0 public • 0 private"
 
         return "\n".join(lines)
 
@@ -923,29 +944,93 @@ If this function was deleted:
 
         # Show function calls section
         if function_calls:
-            # Count total calls
-            total_calls = sum(len(fc["calls"]) for fc in function_calls)
+            # Group by called function
+            called_functions = {}
+            for fc in function_calls:
+                calling_module = fc["calling_module"]
+                file_path = fc["file"]
+
+                for call in fc["calls"]:
+                    called_func_key = f"{call['called_function']}/{call['called_arity']}"
+
+                    if called_func_key not in called_functions:
+                        called_functions[called_func_key] = {
+                            "name": call["called_function"],
+                            "arity": call["called_arity"],
+                            "calling_functions": [],
+                            "total_calls": 0,
+                        }
+
+                    # Add calling function info
+                    calling_func = call.get("calling_function")
+                    if calling_func:
+                        called_functions[called_func_key]["calling_functions"].append(
+                            {
+                                "module": calling_module,
+                                "function": calling_func["name"],
+                                "arity": calling_func["arity"],
+                                "start_line": calling_func["start_line"],
+                                "end_line": calling_func["end_line"],
+                                "call_count": len(call["lines"]),
+                                "call_lines": call["lines"],
+                                "file": file_path,
+                            }
+                        )
+                    else:
+                        # Module-level call
+                        called_functions[called_func_key]["calling_functions"].append(
+                            {
+                                "module": calling_module,
+                                "function": None,
+                                "call_count": len(call["lines"]),
+                                "call_lines": call["lines"],
+                                "file": file_path,
+                            }
+                        )
+
+                    called_functions[called_func_key]["total_calls"] += len(call["lines"])
+
             lines.extend(
                 [
-                    f"## Function Calls ({len(function_calls)} module(s), {total_calls} function(s)):",
+                    "## Function Calls:",
                     "",
                 ]
             )
 
-            for fc in function_calls:
-                lines.append(f"### `{fc['calling_module']}`")
-                lines.append(f"  `{fc['file']}`")
-                lines.append("")
+            # Display each called function
+            for func_key, func_data in sorted(called_functions.items()):
+                num_functions = len(func_data["calling_functions"])
+                lines.append(
+                    f"- {func_key} — {func_data['total_calls']} calls in {num_functions} function(s)"
+                )
 
-                for call in fc["calls"]:
-                    alias_info = f" (via `{call['alias_used']}`)" if call["alias_used"] else ""
-                    # Show unique line numbers for this function (with automatic truncation)
-                    line_list = TruncationHelper.truncate_line_numbers(call["lines"])
-                    lines.append(
-                        f"  - `{call['function']}/{call['arity']}`{alias_info} — {line_list}"
-                    )
+                # Display calling functions
+                for caller in func_data["calling_functions"]:
+                    if caller["function"]:
+                        # Regular function call
+                        func_sig = f"{caller['function']}/{caller['arity']}"
+                        line_range = f":{caller['start_line']}-{caller['end_line']}"
+                        call_info = f"{caller['call_count']} calls"
 
-                lines.append("")
+                        # Show specific line numbers only if ≤3 calls
+                        if caller["call_count"] <= 3:
+                            line_nums = ", ".join(
+                                f":{line}" for line in sorted(caller["call_lines"])
+                            )
+                            call_info = f"{caller['call_count']} calls ({line_nums})"
+
+                        lines.append(f"    • {func_sig} {line_range} — {call_info}")
+                    else:
+                        # Module-level call
+                        call_info = f"{caller['call_count']} calls"
+                        if caller["call_count"] <= 3:
+                            line_nums = ", ".join(
+                                f":{line}" for line in sorted(caller["call_lines"])
+                            )
+                            call_info = f"{caller['call_count']} calls ({line_nums})"
+                        lines.append(f"    • {caller['module']} (module-level) — {call_info}")
+
+            lines.append("")
 
         # Show message if no usage found at all
         if not any([aliases, imports, requires, uses, value_mentions, function_calls]):

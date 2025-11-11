@@ -110,7 +110,14 @@ class ToolRouter:
             output_format = arguments.get("format", "markdown")
             include_usage_examples = arguments.get("include_usage_examples", False)
             max_examples = arguments.get("max_examples", 5)
-            test_files_only = arguments.get("test_files_only", False)
+
+            # Handle backward compatibility for test_files_only (deprecated)
+            usage_type = arguments.get("usage_type", "source")
+            test_files_only = arguments.get("test_files_only")
+            if test_files_only is not None:
+                # Convert old boolean parameter to new string parameter
+                usage_type = "tests" if test_files_only else "all"
+
             changed_since = arguments.get("changed_since")
             show_relationships = arguments.get("show_relationships", True)
 
@@ -118,12 +125,18 @@ class ToolRouter:
                 error_msg = "'function_name' is required"
                 return [TextContent(type="text", text=error_msg)]
 
+            # Validate usage_type
+            valid_usage_types = ("all", "tests", "source")
+            if usage_type not in valid_usage_types:
+                error_msg = "'usage_type' must be one of: 'all', 'tests', 'source'"
+                return [TextContent(type="text", text=error_msg)]
+
             return await self.function_handler.search_function(
                 function_name,
                 output_format,
                 include_usage_examples,
                 max_examples,
-                test_files_only,
+                usage_type,
                 changed_since,
                 show_relationships,
             )
@@ -137,8 +150,10 @@ class ToolRouter:
                 error_msg = "'module_name' is required"
                 return [TextContent(type="text", text=error_msg)]
 
-            if usage_type not in ("all", "test_only", "production_only"):
-                error_msg = "'usage_type' must be one of: 'all', 'test_only', 'production_only'"
+            # Accept both old and new values for backward compatibility
+            valid_usage_types = ("all", "tests", "source", "test_only", "production_only")
+            if usage_type not in valid_usage_types:
+                error_msg = "'usage_type' must be one of: 'all', 'tests', 'source' (deprecated: 'test_only', 'production_only')"
                 return [TextContent(type="text", text=error_msg)]
 
             return await self.module_handler.search_module_usage(

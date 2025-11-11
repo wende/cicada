@@ -471,7 +471,9 @@ def test_format_module_markdown_no_functions():
 
     result = ModuleFormatter.format_module_markdown("TestModule", data)
 
-    assert "*No functions found*" in result
+    # Should show 0 counts instead of "*No functions found*"
+    assert "0 public • 0 private" in result
+    assert "*No functions found*" not in result
 
 
 def test_format_module_markdown_no_private_when_only_requested():
@@ -1037,8 +1039,14 @@ def test_format_module_usage_markdown_function_calls_with_alias():
                 "file": "lib/account.ex",
                 "calls": [
                     {
-                        "function": "create",
-                        "arity": 1,
+                        "called_function": "create",
+                        "called_arity": 1,
+                        "calling_function": {
+                            "name": "setup",
+                            "arity": 0,
+                            "start_line": 5,
+                            "end_line": 25,
+                        },
                         "lines": [10, 20],
                         "alias_used": "U",
                     }
@@ -1048,4 +1056,36 @@ def test_format_module_usage_markdown_function_calls_with_alias():
     }
 
     result = ModuleFormatter.format_module_usage_markdown("MyApp.User", usage_results)
-    assert "(via `U`)" in result
+    # Should show the called function at top level
+    assert "create/1" in result
+    # Should show total calls
+    assert "2 calls" in result
+
+
+def test_format_module_compact():
+    """Test compact module format for lists."""
+    data = {
+        "file": "lib/litmus/try_catch.ex",
+        "line": 1,
+        "public_functions": 1,
+        "private_functions": 14,
+        "functions": [
+            {"name": "func1", "arity": 1, "type": "def", "line": 10, "args": []},
+            {"name": "func2", "arity": 0, "type": "defp", "line": 20, "args": []},
+            {"name": "func3", "arity": 1, "type": "defp", "line": 30, "args": []},
+        ],
+    }
+
+    result = ModuleFormatter.format_module_compact("Litmus.TryCatch", data)
+
+    # Should show file path without line number
+    assert "lib/litmus/try_catch.ex" in result
+    # Should show module name with dash separators and counts
+    assert "Litmus.TryCatch - " in result
+    assert " public - " in result
+    assert " private" in result
+    # Should NOT contain colon (no line number)
+    assert ":1" not in result
+    # Should be compact (2 lines)
+    lines = result.split("\n")
+    assert len(lines) == 2

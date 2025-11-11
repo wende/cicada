@@ -285,10 +285,11 @@ class GitHistoryHandler:
             lines.append(f"Found {len(commits)} commit(s)\n")
 
             for i, commit in enumerate(commits, 1):
-                lines.append(f"## {i}. {commit['summary']}")
-                lines.append(f"- **Commit:** `{commit['sha']}`")
-                lines.append(f"- **Author:** {commit['author']} ({commit['author_email']})")
-                lines.append(f"- **Date:** {commit['date']}")
+                # Extract just the date (YYYY-MM-DD) from the full datetime string
+                date_only = commit["date"][:10] if len(commit["date"]) >= 10 else commit["date"]
+
+                lines.append(f"{i}. {commit['summary']}")
+                lines.append(f"   {commit['sha']} • {commit['author']} • {date_only}")
 
                 # Add relevance indicator for function searches
                 if "relevance" in commit:
@@ -298,11 +299,7 @@ class GitHistoryHandler:
                         if commit["relevance"] == "mentioned"
                         else "File changed"
                     )
-                    lines.append(f"- **Relevance:** {relevance_emoji} {relevance_text}")
-
-                # Add full commit message if it's different from summary
-                if commit["message"] != commit["summary"]:
-                    lines.append(f"\n**Full message:**\n```\n{commit['message']}\n```")
+                    lines.append(f"   {relevance_emoji} {relevance_text}")
 
                 lines.append("")  # Empty line between commits
 

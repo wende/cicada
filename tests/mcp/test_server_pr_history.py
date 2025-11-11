@@ -405,8 +405,8 @@ class TestGetCommitHistoryWithEvolution:
         assert "No commit history found" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_with_full_commit_message(self, test_server_with_git):
-        """Should show full commit message when different from summary"""
+    async def test_with_compact_format(self, test_server_with_git):
+        """Should show commit in compact format (SHA • author • date)"""
         test_server_with_git.git_handler.git_helper.get_file_history.return_value = [
             {
                 "sha": "abc123",
@@ -423,8 +423,11 @@ class TestGetCommitHistoryWithEvolution:
         assert len(result) == 1
         text = result[0].text
 
-        assert "Full message:" in text
-        assert "This is a much longer" in text
+        # Verify compact format: summary on first line, SHA • author • date on second line
+        assert "Short summary" in text, "Should show commit summary"
+        assert (
+            "abc123 • dev1 • 2024-01-01" in text
+        ), "Should show compact format with SHA, author, date"
 
 
 class TestFindPRForLineNetworkFallback:

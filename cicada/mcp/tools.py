@@ -24,6 +24,7 @@ def get_tool_definitions() -> list[Tool]:
                 "• Don't ask user for module names - use search_by_features first to find modules\n"
                 "• Returns: full API surface, function signatures, line numbers for navigation\n"
                 "• If module not found, error will suggest alternatives - try those suggestions!\n"
+                "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
                 "• Output is automatically truncated for large results to prevent token overflow"
             ),
             inputSchema={
@@ -61,7 +62,7 @@ def get_tool_definitions() -> list[Tool]:
                 "AI USAGE TIPS:\n"
                 "• Use this for impact analysis - see where functions are called before modifying\n"
                 "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
-                "• Use test_files_only=true to see how functions are tested\n"
+                "• Use usage_type='tests' to see only how functions are tested\n"
                 "• Returns: definition + ALL call sites with file:line references\n"
                 "• If you see function references in code, search them to understand what they do\n"
                 "• Call sites and line numbers are automatically truncated for popular functions (>20 sites)"
@@ -89,9 +90,10 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "integer",
                         "description": "Maximum number of code examples to include. Defaults to 5.",
                     },
-                    "test_files_only": {
-                        "type": "boolean",
-                        "description": "Only show call sites from test files. Defaults to false.",
+                    "usage_type": {
+                        "type": "string",
+                        "enum": ["all", "tests", "source"],
+                        "description": "Filter call sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
                     },
                     "changed_since": {
                         "type": "string",
@@ -138,8 +140,8 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "usage_type": {
                         "type": "string",
-                        "enum": ["all", "test_only", "production_only"],
-                        "description": "Filter usage sites by file type. 'all' shows everything, 'test_only' shows only test files, 'production_only' shows only non-test files. Defaults to 'all'.",
+                        "enum": ["all", "tests", "source"],
+                        "description": "Filter usage sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
                     },
                 },
                 "required": ["module_name"],
@@ -190,8 +192,7 @@ def get_tool_definitions() -> list[Tool]:
                 "• Set show_evolution=true to see: creation date, total modifications, frequency\n"
                 "• Provide function_name for precise tracking (even as function moves in file)\n"
                 "• Helps identify frequently changing code (may indicate complexity/bugs)\n"
-                "• Use max_commits to limit results (default: 10)\n"
-                "• Long commit messages (>300 chars) are automatically truncated"
+                "• Use max_commits to limit results (default: 10)"
             ),
             inputSchema={
                 "type": "object",

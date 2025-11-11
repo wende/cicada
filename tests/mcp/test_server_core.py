@@ -553,3 +553,129 @@ class TestParseChangedSince:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestCompactModuleFormat:
+    """Test compact format when showing 4+ modules."""
+
+    @pytest.fixture
+    def test_server(self, tmp_path):
+        """Create a test server with mock index."""
+        # Create minimal index
+        index = {
+            "modules": {},
+            "metadata": {"total_modules": 0, "repo_path": str(tmp_path)},
+        }
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        return CicadaServer(str(config_path))
+
+    @pytest.mark.asyncio
+    async def test_wildcard_search_with_4_modules_uses_compact_format(self, test_server):
+        """Test that wildcard searches with 4+ results use compact format."""
+        # Create a mock index with 4 modules matching the pattern
+        test_server.module_handler.index = {
+            "modules": {
+                "MyApp.Module1": {
+                    "file": "lib/module1.ex",
+                    "line": 1,
+                    "public_functions": 5,
+                    "private_functions": 2,
+                    "functions": [],
+                },
+                "MyApp.Module2": {
+                    "file": "lib/module2.ex",
+                    "line": 1,
+                    "public_functions": 3,
+                    "private_functions": 1,
+                    "functions": [],
+                },
+                "MyApp.Module3": {
+                    "file": "lib/module3.ex",
+                    "line": 1,
+                    "public_functions": 7,
+                    "private_functions": 0,
+                    "functions": [],
+                },
+                "MyApp.Module4": {
+                    "file": "lib/module4.ex",
+                    "line": 1,
+                    "public_functions": 2,
+                    "private_functions": 4,
+                    "functions": [],
+                },
+            },
+            "metadata": {"total_modules": 4},
+        }
+
+        result = await test_server.module_handler.search_module("MyApp.*", "markdown")
+
+        text = result[0].text
+
+        # Should use compact format (dash separators, no line numbers)
+        assert "MyApp.Module1 - " in text
+        assert " public - " in text
+        assert " private" in text
+        # Should NOT have line numbers with colons
+        assert ":1" not in text
+        # Should have horizontal rule separators
+        assert "---" in text
+        # Should NOT have bullet separators (compact uses dashes)
+        assert "MyApp.Module1 •" not in text
+        # Should have info message about compacted results
+        assert "Results compacted" in text
+        assert "more specific module name" in text
+
+    @pytest.mark.asyncio
+    async def test_wildcard_search_with_3_modules_uses_full_format(self, test_server):
+        """Test that wildcard searches with <4 results use full format."""
+        # Create a mock index with only 3 modules
+        test_server.module_handler.index = {
+            "modules": {
+                "MyApp.Module1": {
+                    "file": "lib/module1.ex",
+                    "line": 1,
+                    "public_functions": 5,
+                    "private_functions": 2,
+                    "functions": [],
+                },
+                "MyApp.Module2": {
+                    "file": "lib/module2.ex",
+                    "line": 1,
+                    "public_functions": 3,
+                    "private_functions": 1,
+                    "functions": [],
+                },
+                "MyApp.Module3": {
+                    "file": "lib/module3.ex",
+                    "line": 1,
+                    "public_functions": 7,
+                    "private_functions": 0,
+                    "functions": [],
+                },
+            },
+            "metadata": {"total_modules": 3},
+        }
+
+        result = await test_server.module_handler.search_module("MyApp.*", "markdown")
+
+        text = result[0].text
+
+        # Should use full format with line numbers
+        assert "lib/module1.ex:1" in text
+        # Should have bullet separators (not dashes)
+        assert "MyApp.Module1 •" in text
+        assert "public •" in text
+        assert "private" in text
+        # Should have horizontal rule separators
+        assert "---" in text

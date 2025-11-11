@@ -82,8 +82,9 @@ def test_get_commit_history_basic(test_server):
     text = result[0].text
     assert "Git History for README.md" in text, "Should contain file name in title"
     assert "commit(s)" in text.lower(), "Should mention commits"
-    assert "Commit:" in text, "Should include commit information"
-    assert "Author:" in text, "Should include author information"
+    assert "•" in text, "Should include bullet separator in commit line"
+    # Check for numbered commits (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 4)), "Should have numbered commits"
 
     print("  ✓ File history retrieved successfully")
     print(f"  ✓ Response length: {len(text)} characters")
@@ -246,9 +247,9 @@ def test_get_commit_history_markdown_format(test_server):
 
     # Check for markdown elements
     assert text.startswith("# "), "Should start with h1 header"
-    assert "## " in text, "Should have h2 headers for commits"
-    assert "- **" in text, "Should have bold list items"
-    assert "`" in text, "Should have code formatting for SHA"
+    assert "•" in text, "Should have bullet separators in commit lines"
+    # Check for numbered list items (e.g., "1. ", "2. ")
+    assert any(f"{i}." in text for i in range(1, 3)), "Should have numbered commits"
 
     # Check structure
     lines = text.split("\n")
@@ -280,15 +281,15 @@ def test_git_history_includes_all_fields(test_server):
     result = asyncio.run(test_server.git_handler.get_file_history("README.md", max_commits=1))
     text = result[0].text
 
-    # Check for all expected fields in the output
-    expected_fields = [
-        "Commit:",
-        "Author:",
-        "Date:",
-    ]
+    # Check for all expected information in the compact format (SHA • Author • Date)
+    assert "•" in text, "Should have bullet separator"
+    assert "1." in text, "Should have numbered commit"
+    # Check that we have a date in YYYY-MM-DD format
+    import re
 
-    for field in expected_fields:
-        assert field in text, f"Output should include '{field}'"
+    assert re.search(r"\d{4}-\d{2}-\d{2}", text), "Should include date in YYYY-MM-DD format"
+    # Check that we have a SHA (8 hex chars)
+    assert re.search(r"[0-9a-f]{8}", text), "Should include commit SHA"
 
     print("  ✓ All expected fields present in output")
 
