@@ -18,6 +18,7 @@ from .doc import extract_docs, match_docs_to_functions
 from .function import extract_functions
 from .module import extract_modules
 from .spec import extract_specs, match_specs_to_functions
+from .string import StringExtractor
 
 __all__ = [
     "extract_modules",
@@ -33,4 +34,5 @@ __all__ = [
     "extract_behaviours",
     "extract_function_calls",
     "extract_value_mentions",
+    "StringExtractor",
 ]

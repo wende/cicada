@@ -1015,14 +1015,55 @@ If this function was deleted:
             line = result["line"]
             score = result["score"]
             matched_keywords = result["matched_keywords"]
+            keyword_sources = result.get("keyword_sources", {})
 
-            # Compact format with type indication
+            # Determine match source indicator
+            match_indicator = ""
+            if keyword_sources:
+                sources = set(keyword_sources.values())
+                if sources == {"docs"}:
+                    match_indicator = " 📄"
+                elif sources == {"strings"}:
+                    match_indicator = " 💬"
+                elif "both" in sources or ({"docs", "strings"}.issubset(sources)):
+                    match_indicator = " 📄💬"
+
+            # Compact format with type indication and match source
             type_label = "Module" if result_type == "module" else "Function"
-            lines.append(f"{type_label}: {name}")
+            lines.append(f"{type_label}: {name}{match_indicator}")
             if show_scores:
                 lines.append(f"Score: {score:.2f}")
             lines.append(f"Path: {file_path}:{line}")
-            lines.append(f"Matched: {', '.join(matched_keywords) if matched_keywords else 'None'}")
+
+            # Show matched keywords with their sources
+            if matched_keywords:
+                kw_with_sources = []
+                for kw in matched_keywords:
+                    source = keyword_sources.get(kw)
+                    if source == "docs":
+                        kw_with_sources.append(kw + " (📄)")
+                    elif source == "strings":
+                        kw_with_sources.append(kw + " (💬)")
+                    elif source == "both":
+                        kw_with_sources.append(kw + " (📄💬)")
+                    else:
+                        kw_with_sources.append(kw)
+                lines.append("Matched: " + ", ".join(kw_with_sources))
+            else:
+                lines.append("Matched: None")
+
+            # Show string sources if available
+            string_sources = result.get("string_sources", [])
+            if string_sources:
+                lines.append("String literals:")
+                for src in string_sources[:3]:  # Show up to 3 strings
+                    # Truncate long strings
+                    string_content = src["string"]
+                    if len(string_content) > 60:
+                        string_content = string_content[:60] + "..."
+                    lines.append(f'  • "{string_content}" (line {src["line"]})')
+                if len(string_sources) > 3:
+                    lines.append(f"  ... and {len(string_sources) - 3} more")
 
             # First line of documentation only
             doc = result.get("doc")

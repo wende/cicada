@@ -158,6 +158,151 @@ When adding or modifying storage-related functionality:
    - Test permission errors, disk full scenarios
    - Verify appropriate logging for debugging
 
+## String-Based Indexing
+
+Cicada supports indexing string literals from function bodies in addition to documentation keywords. This allows searching for code based on actual strings used in the implementation (e.g., SQL queries, error messages, log messages, API endpoints).
+
+### How It Works
+
+1. **String Extraction:**
+   - Extracts string literals from function bodies during indexing
+   - Filters out:
+     - Documentation strings (`@moduledoc`, `@doc`)
+     - Strings shorter than 3 characters
+   - Tracks function context for each string
+   - **Note**: Module names, atoms, and all-caps strings ARE included (no special filtering)
+
+2. **Keyword Extraction:**
+   - Applies the same keyword extraction pipeline (KeyBERT + expansion) to string content
+   - String keywords receive a **1.3x boost** to prioritize implementation over documentation
+
+3. **Index Storage:**
+   - Module-level: `string_keywords` (dict of keyword → score) and `string_sources` (list of string info)
+   - Function-level: same structure within each function object
+
+### Usage
+
+#### Indexing with String Keywords
+
+Enable string keyword extraction when building the index:
+
+```python
+from cicada.indexer import ElixirIndexer
+
+indexer = ElixirIndexer(verbose=True)
+indexer.index_repository(
+    repo_path="/path/to/repo",
+    output_path=".cicada/index.json",
+    extract_keywords=True,          # Extract doc keywords
+    extract_string_keywords=True     # NEW: Extract string keywords
+)
+```
+
+#### Searching with Match Source Filtering
+
+Use the `match_source` parameter to filter search results:
+
+```python
+from cicada.keyword_search import KeywordSearcher
+
+# Search both docs and strings (default)
+searcher = KeywordSearcher(index, match_source="all")
+
+# Search only documentation keywords
+searcher = KeywordSearcher(index, match_source="docs")
+
+# Search only string literal keywords
+searcher = KeywordSearcher(index, match_source="strings")
+
+results = searcher.search(["database", "query"], top_n=10)
+```
+
+#### MCP Tool Usage
+
+The `search_by_features` MCP tool now supports `match_source`:
+
+```json
+{
+  "keywords": ["SELECT", "users", "database"],
+  "match_source": "strings",  // Search string literals only
+  "filter_type": "functions"
+}
+```
+
+### Index Schema
+
+#### Module-Level Fields
+
+```json
+{
+  "modules": {
+    "MyApp.User": {
+      "keywords": {"user": 0.9, "account": 0.8},  // From @moduledoc
+      "string_keywords": {                         // NEW: From string literals
+        "database": 1.1,  // 1.3x boost: 0.85 * 1.3
+        "query": 0.97,
+        "select": 0.91
+      },
+      "string_sources": [                          // NEW: Original strings
+        {
+          "string": "SELECT * FROM users WHERE active = true",
+          "line": 42,
+          "function": "fetch_all"
+        }
+      ],
+      "functions": [...]
+    }
+  }
+}
+```
+
+#### Function-Level Fields
+
+```json
+{
+  "name": "fetch_all",
+  "keywords": {"fetch": 0.9, "user": 0.8},  // From @doc
+  "string_keywords": {                       // NEW: From function's strings
+    "select": 1.17,
+    "users": 1.04,
+    "active": 0.91
+  },
+  "string_sources": [                        // NEW: Strings in this function
+    {
+      "string": "SELECT * FROM users WHERE active = true",
+      "line": 42,
+      "function": "fetch_all"
+    }
+  ]
+}
+```
+
+### Search Result Format
+
+Results now include match source indicators:
+
+```markdown
+Function: MyApp.User.fetch_all/2 💬
+Score: 1.25
+Path: lib/my_app/user.ex:40
+Matched: select (💬), database (💬), query (💬)
+String literals:
+  • "SELECT * FROM users WHERE active = true" (line 42)
+Doc: "Fetches all active users from the database"
+---
+```
+
+**Indicators:**
+- 📄 = Matched via documentation keywords
+- 💬 = Matched via string literal keywords
+- 📄💬 = Matched via both sources
+
+### Implementation Notes
+
+- **StringExtractor** (`cicada/elixir/extractors/string.py`): Tree-sitter based string extraction
+- **KeywordSearcher** (`cicada/keyword_search.py`): Supports `match_source` filtering
+- **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays match source indicators
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:

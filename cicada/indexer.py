@@ -116,6 +116,7 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
+        extract_string_keywords: bool = False,
         compute_timestamps: bool = False,
     ):
         """
@@ -125,6 +126,7 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
+            extract_string_keywords: If True, extract keywords from string literals in function bodies
             compute_timestamps: If True, compute git history timestamps for functions
 
         Returns:
@@ -153,7 +155,7 @@ class ElixirIndexer:
         # Initialize keyword extractor and expander if requested
         keyword_extractor = None
         keyword_expander = None
-        if extract_keywords:
+        if extract_keywords or extract_string_keywords:
             try:
                 # Read keyword extraction config from config.yaml
                 extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
@@ -181,6 +183,22 @@ class ElixirIndexer:
                     print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                     print("Continuing without keyword extraction...")
                 extract_keywords = False
+                extract_string_keywords = False
+
+        # Initialize string extractor if requested
+        string_extractor = None
+        if extract_string_keywords:
+            try:
+                from cicada.elixir.extractors import StringExtractor
+
+                string_extractor = StringExtractor(min_length=3)
+                if self.verbose:
+                    print("String keyword extraction enabled")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize string extractor: {e}")
+                    print("Continuing without string keyword extraction...")
+                extract_string_keywords = False
 
         # Initialize git helper if timestamps are requested
         git_helper = None
@@ -358,6 +376,178 @@ class ElixirIndexer:
                                             file=sys.stderr,
                                         )
 
+                        # Extract string keywords if enabled
+                        module_string_keywords = None
+                        module_string_sources = []
+                        if string_extractor and keyword_extractor:
+                            try:
+                                # Re-parse file to extract strings (need AST access)
+                                import tree_sitter_elixir as ts_elixir
+                                from tree_sitter import Language, Parser
+
+                                with open(file_path, "rb") as f:
+                                    source_code = f.read()
+
+                                ts_parser = Parser(Language(ts_elixir.language()))
+                                tree = ts_parser.parse(source_code)
+
+                                # Find the module node
+                                from cicada.elixir.extractors import extract_modules
+
+                                parsed_modules = extract_modules(tree.root_node, source_code)
+                                if parsed_modules:
+                                    for parsed_mod in parsed_modules:
+                                        if parsed_mod["module"] == module_name:
+                                            do_block = parsed_mod.get("do_block")
+                                            if do_block:
+                                                # Extract strings from module
+                                                extracted_strings = (
+                                                    string_extractor.extract_from_module(
+                                                        do_block, source_code
+                                                    )
+                                                )
+
+                                                # Group strings by function
+                                                function_strings_map = {}
+                                                module_level_strings = []
+
+                                                for string_info in extracted_strings:
+                                                    func_name = string_info.get("function")
+                                                    if func_name:
+                                                        if func_name not in function_strings_map:
+                                                            function_strings_map[func_name] = []
+                                                        function_strings_map[func_name].append(
+                                                            string_info
+                                                        )
+                                                    else:
+                                                        module_level_strings.append(string_info)
+
+                                                # Extract keywords from module-level strings
+                                                if module_level_strings:
+                                                    combined_text = " ".join(
+                                                        [s["string"] for s in module_level_strings]
+                                                    )
+                                                    extraction_result = (
+                                                        keyword_extractor.extract_keywords(
+                                                            combined_text, top_n=10
+                                                        )
+                                                    )
+                                                    extracted_keywords = [
+                                                        kw
+                                                        for kw, _ in extraction_result[
+                                                            "top_keywords"
+                                                        ]
+                                                    ]
+                                                    keyword_scores = {
+                                                        kw.lower(): score
+                                                        * 1.3  # 1.3x boost for strings
+                                                        for kw, score in extraction_result[
+                                                            "top_keywords"
+                                                        ]
+                                                    }
+
+                                                    # Expand keywords
+                                                    if keyword_expander and extracted_keywords:
+                                                        expansion_result = keyword_expander.expand_keywords(
+                                                            extracted_keywords,
+                                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                            return_scores=True,
+                                                            keyword_scores=keyword_scores,
+                                                        )
+                                                        module_string_keywords = {}
+                                                        # Type assertion: expansion_result is dict when return_scores=True
+                                                        assert isinstance(expansion_result, dict)
+                                                        for item in expansion_result["words"]:
+                                                            word = item["word"]
+                                                            score = item["score"]
+                                                            if (
+                                                                word not in module_string_keywords
+                                                                or score
+                                                                > module_string_keywords[word]
+                                                            ):
+                                                                module_string_keywords[word] = score
+                                                    else:
+                                                        module_string_keywords = keyword_scores
+
+                                                    module_string_sources = module_level_strings
+
+                                                # Extract keywords from function strings
+                                                for func in functions:
+                                                    func_name = func.get("name")
+                                                    if func_name in function_strings_map:
+                                                        func_string_list = function_strings_map[
+                                                            func_name
+                                                        ]
+                                                        combined_text = " ".join(
+                                                            [s["string"] for s in func_string_list]
+                                                        )
+
+                                                        # Extract keywords
+                                                        extraction_result = (
+                                                            keyword_extractor.extract_keywords(
+                                                                combined_text, top_n=10
+                                                            )
+                                                        )
+                                                        extracted_keywords = [
+                                                            kw
+                                                            for kw, _ in extraction_result[
+                                                                "top_keywords"
+                                                            ]
+                                                        ]
+                                                        keyword_scores = {
+                                                            kw.lower(): score
+                                                            * 1.3  # 1.3x boost for strings
+                                                            for kw, score in extraction_result[
+                                                                "top_keywords"
+                                                            ]
+                                                        }
+
+                                                        # Expand keywords
+                                                        if keyword_expander and extracted_keywords:
+                                                            expansion_result = keyword_expander.expand_keywords(
+                                                                extracted_keywords,
+                                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                                return_scores=True,
+                                                                keyword_scores=keyword_scores,
+                                                            )
+                                                            func_string_keywords = {}
+                                                            # Type assertion: expansion_result is dict when return_scores=True
+                                                            assert isinstance(
+                                                                expansion_result, dict
+                                                            )
+                                                            for item in expansion_result["words"]:
+                                                                word = item["word"]
+                                                                score = item["score"]
+                                                                if (
+                                                                    word not in func_string_keywords
+                                                                    or score
+                                                                    > func_string_keywords[word]
+                                                                ):
+                                                                    func_string_keywords[word] = (
+                                                                        score
+                                                                    )
+                                                        else:
+                                                            func_string_keywords = keyword_scores
+
+                                                        # Store in function
+                                                        if func_string_keywords:
+                                                            func["string_keywords"] = (
+                                                                func_string_keywords
+                                                            )
+                                                        func["string_sources"] = func_string_list
+
+                                            break
+
+                            except Exception as e:
+                                keyword_extraction_failures += 1
+                                if self.verbose:
+                                    print(
+                                        f"Warning: String keyword extraction failed for module {module_name}: {e}",
+                                        file=sys.stderr,
+                                    )
+
                         # Extract dependencies
                         module_dependencies, functions = self._extract_dependencies(
                             module_data, functions
@@ -385,6 +575,12 @@ class ElixirIndexer:
                         # Add module keywords if extracted
                         if module_keywords:
                             module_info["keywords"] = module_keywords
+
+                        # Add module string keywords and sources if extracted
+                        if module_string_keywords:
+                            module_info["string_keywords"] = module_string_keywords
+                        if module_string_sources:
+                            module_info["string_sources"] = module_string_sources
 
                         all_modules[module_name] = module_info
 

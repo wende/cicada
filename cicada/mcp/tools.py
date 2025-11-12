@@ -311,13 +311,16 @@ def get_tool_definitions() -> list[Tool]:
                 "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
                 "Examples: ['authentication', 'login'], ['api', 'key', 'storage'], ['email', 'validation']\n\n"
                 "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
+                "Searches both documentation keywords AND string literals in code (e.g., SQL queries, error messages).\n"
+                "Use match_source to filter by keyword source: 'all' (default), 'docs' (documentation only), or 'strings' (string literals only).\n\n"
                 "AI USAGE TIPS:\n"
                 "• **USE THIS FIRST** - don't ask user for module names when you can search for concepts\n"
                 "• Try broad queries first: ['authentication'], then narrow: ['oauth', 'token']\n"
                 "• Multiple searches are NORMAL - try 3-5 different keyword combinations\n"
                 "• Empty results? Try broader terms, check spelling, or use wildcards: ['*auth*']\n"
                 "• Results show modules AND functions with relevance scores\n"
-                "• Use filter_type to narrow: 'modules', 'functions', or 'all' (default)\n\n"
+                "• Use filter_type to narrow: 'modules', 'functions', or 'all' (default)\n"
+                "• Use match_source='strings' to find code by actual strings used (e.g., SQL queries, error messages)\n\n"
                 "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
             ),
             inputSchema={
@@ -336,6 +339,11 @@ def get_tool_definitions() -> list[Tool]:
                     "min_score": {
                         "type": "number",
                         "description": "Minimum relevance score threshold (0.0 to 1.0). Only results with scores >= this value will be shown. Default: 0.0 (no filtering).",
+                    },
+                    "match_source": {
+                        "type": "string",
+                        "enum": ["all", "docs", "strings"],
+                        "description": "Filter by keyword source: 'all' searches both documentation and string literals (default), 'docs' searches only documentation keywords, 'strings' searches only keywords from string literals in code.",
                     },
                 },
                 "required": ["keywords"],
