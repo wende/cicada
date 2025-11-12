@@ -1037,6 +1037,8 @@ def handle_status(args):
 
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
+    import yaml
+
     from cicada.utils.storage import get_storage_dir
 
     repo_path = Path(args.repo).resolve()
@@ -1047,19 +1049,23 @@ def handle_dir(args):
 
         # Check if the repository is linked
         if link_path.exists():
-            import yaml
-
             with open(link_path) as f:
                 link_info = yaml.safe_load(f)
 
-            source_storage_dir = Path(link_info["source_storage_dir"])
+            source_storage_dir = Path(link_info.get("source_storage_dir", "unknown"))
             print(f"Storage directory: {storage_dir}")
-            print(f"Linked to: {link_info['source_repo_path']}")
+            print(f"Linked to: {link_info.get('source_repo_path', 'N/A')}")
             print(f"Resolved storage: {source_storage_dir}")
         else:
             print(str(storage_dir))
+    except yaml.YAMLError as e:
+        print(f"YAML parsing error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except (KeyError, OSError) as e:
+        print(f"Error reading link file: {e}", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Unexpected error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1078,8 +1084,8 @@ def handle_link(args):
         link_info = get_link_info(target_path)
         if link_info:
             print(f"✓ Successfully linked {target_path}")
-            print(f"  → Source: {link_info['source_repo_path']}")
-            print(f"  → Storage: {link_info['source_storage_dir']}")
+            print(f"  → Source: {link_info.get('source_repo_path', 'unknown')}")
+            print(f"  → Storage: {link_info.get('source_storage_dir', 'unknown')}")
             print()
             print("The target repository will now use the source repository's index.")
             print("Run 'cicada unlink' to remove this link.")
@@ -1106,7 +1112,7 @@ def handle_unlink(args):
 
         # Get link info before removing
         link_info = get_link_info(repo_path)
-        source_repo = link_info["source_repo_path"] if link_info else "unknown"
+        source_repo = link_info.get("source_repo_path", "unknown") if link_info else "unknown"
 
         # Remove the link
         if remove_link(repo_path):
@@ -1118,8 +1124,11 @@ def handle_unlink(args):
         else:
             print(f"Failed to remove link from {repo_path}")
             sys.exit(1)
-    except Exception as e:
+    except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

@@ -753,7 +753,7 @@ class TestLinkedRepositoryHandling:
         # Create a config that points to target repo (which is linked)
         from cicada.utils.storage import create_storage_dir, resolve_storage_dir
 
-        target_storage = create_storage_dir(target_repo)
+        create_storage_dir(target_repo)
 
         # Attempting to resolve storage should raise ValueError
         with pytest.raises(ValueError, match="Link is broken"):

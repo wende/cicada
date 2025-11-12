@@ -68,13 +68,15 @@ def get_index_path(repo_path: str | Path) -> Path:
     """
     Get the path to the index file for a repository.
 
+    If the repository is linked, returns the path to the source repository's index.
+
     Args:
         repo_path: Path to the repository
 
     Returns:
         Path to the index.json file
     """
-    storage_dir = get_storage_dir(repo_path)
+    storage_dir = resolve_storage_dir(repo_path)
     return storage_dir / "index.json"
 
 
@@ -82,13 +84,15 @@ def get_config_path(repo_path: str | Path) -> Path:
     """
     Get the path to the config file for a repository.
 
+    If the repository is linked, returns the path to the source repository's config.
+
     Args:
         repo_path: Path to the repository
 
     Returns:
         Path to the config.yaml file
     """
-    storage_dir = get_storage_dir(repo_path)
+    storage_dir = resolve_storage_dir(repo_path)
     return storage_dir / "config.yaml"
 
 
@@ -96,13 +100,15 @@ def get_hashes_path(repo_path: str | Path) -> Path:
     """
     Get the path to the hashes file for a repository.
 
+    If the repository is linked, returns the path to the source repository's hashes.
+
     Args:
         repo_path: Path to the repository
 
     Returns:
         Path to the hashes.json file
     """
-    storage_dir = get_storage_dir(repo_path)
+    storage_dir = resolve_storage_dir(repo_path)
     return storage_dir / "hashes.json"
 
 
@@ -110,13 +116,15 @@ def get_pr_index_path(repo_path: str | Path) -> Path:
     """
     Get the path to the PR index file for a repository.
 
+    If the repository is linked, returns the path to the source repository's PR index.
+
     Args:
         repo_path: Path to the repository
 
     Returns:
         Path to the pr_index.json file
     """
-    storage_dir = get_storage_dir(repo_path)
+    storage_dir = resolve_storage_dir(repo_path)
     return storage_dir / "pr_index.json"
 
 
@@ -167,7 +175,8 @@ def get_link_info(repo_path: str | Path) -> LinkInfo | None:
     try:
         with open(link_path) as f:
             return yaml.safe_load(f)
-    except Exception:
+    except (yaml.YAMLError, OSError, KeyError):
+        # Return None for corrupted YAML, I/O errors, or missing keys
         return None
 
 
@@ -185,11 +194,13 @@ def resolve_storage_dir(repo_path: str | Path) -> Path:
         ValueError: If the link is broken (source index doesn't exist)
     """
     link_info = get_link_info(repo_path)
-    if link_info and "source_storage_dir" in link_info:
-        source_storage = Path(link_info["source_storage_dir"])
+    source_storage_dir = link_info.get("source_storage_dir") if link_info else None
+    if source_storage_dir and isinstance(source_storage_dir, str) and source_storage_dir.strip():
+        source_storage = Path(source_storage_dir)
         # Validate source storage still has an index
         if not (source_storage / "index.json").exists():
-            source_repo = link_info.get("source_repo_path", "unknown")
+            # link_info is guaranteed to be not None here since we got source_storage_dir from it
+            source_repo = link_info.get("source_repo_path", "unknown") if link_info else "unknown"  # type: ignore[union-attr]
             raise ValueError(
                 f"Link is broken: source index not found at {source_storage}\n"
                 f"Source repository: {source_repo}\n"
@@ -244,18 +255,36 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
             f"Run 'cicada unlink' first to remove the existing link."
         )
 
-    # Check for circular links: prevent A → B when B → A already exists
-    source_link_info = get_link_info(source_path)
-    if source_link_info:
-        # Source is linked to another repository
-        source_source_storage = Path(source_link_info["source_storage_dir"])
-        target_storage = get_storage_dir(target_path)
-        if source_source_storage == target_storage:
-            raise ValueError(
-                f"Cannot create circular link: source repository '{source_path.name}' "
-                f"is already linked to target repository '{target_path.name}'\n"
-                f"This would create a circular reference."
-            )
+    # Check for circular links: prevent cycles of any length (A → B → ... → A)
+    def detect_cycle(start_path: Path, target_path: Path) -> bool:
+        """
+        Detect if linking target_path to start_path would create a cycle.
+        Follows the chain of links from start_path and checks if target_path is encountered.
+        """
+        visited = set()
+        current_path = start_path
+        while True:
+            if current_path.resolve() == target_path.resolve():
+                return True
+            if str(current_path.resolve()) in visited:
+                # Already visited, break to avoid infinite loop
+                break
+            visited.add(str(current_path.resolve()))
+            link_info = get_link_info(current_path)
+            if not link_info:
+                break
+            next_repo_path = link_info.get("source_repo_path")
+            if not next_repo_path:
+                break
+            current_path = Path(next_repo_path)
+        return False
+
+    if detect_cycle(source_path, target_path):
+        raise ValueError(
+            f"Cannot create circular link: linking '{target_path.name}' to '{source_path.name}' "
+            f"would create a cycle in the repository links.\n"
+            f"This would create a circular reference."
+        )
 
     # Create target storage directory if it doesn't exist
     create_storage_dir(target_path)

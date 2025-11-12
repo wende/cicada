@@ -2,8 +2,6 @@
 Tests for link/unlink commands in cicada/commands.py
 """
 
-import sys
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -259,7 +257,7 @@ class TestHandleUnlink:
 
             assert exc_info.value.code == 1
             captured = capsys.readouterr()
-            assert "Error" in captured.err
+            assert "Unexpected error" in captured.err
 
     def test_unlink_shows_instructions(self, setup_linked_repo, capsys):
         """Should show instructions after unlinking"""

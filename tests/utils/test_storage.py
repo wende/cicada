@@ -556,3 +556,84 @@ class TestLinkFunctionality:
         # Should return None for corrupted file
         link_info = get_link_info(target_repo)
         assert link_info is None, "Should return None for corrupted YAML"
+
+    def test_get_index_path_follows_link(self, setup_repos):
+        """get_index_path should return source repo's index path when linked"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Get paths
+        target_index_path = get_index_path(target_repo)
+        source_index_path = get_index_path(source_repo)
+
+        # Target should point to source's index
+        assert target_index_path == source_index_path, "Target should use source's index"
+        assert target_index_path.exists(), "Source index should exist"
+
+    def test_get_config_path_follows_link(self, setup_repos):
+        """get_config_path should return source repo's config path when linked"""
+        source_repo, target_repo = setup_repos
+
+        # Create source config
+        source_storage = get_storage_dir(source_repo)
+        source_config = source_storage / "config.yaml"
+        source_config.write_text("test: config")
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Get paths
+        target_config_path = get_config_path(target_repo)
+        source_config_path = get_config_path(source_repo)
+
+        # Target should point to source's config
+        assert target_config_path == source_config_path, "Target should use source's config"
+        assert target_config_path.exists(), "Source config should exist"
+
+    def test_get_hashes_path_follows_link(self, setup_repos):
+        """get_hashes_path should return source repo's hashes path when linked"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Get paths
+        target_hashes_path = get_hashes_path(target_repo)
+        source_hashes_path = get_hashes_path(source_repo)
+
+        # Target should point to source's hashes
+        assert target_hashes_path == source_hashes_path, "Target should use source's hashes"
+
+    def test_get_pr_index_path_follows_link(self, setup_repos):
+        """get_pr_index_path should return source repo's PR index path when linked"""
+        source_repo, target_repo = setup_repos
+
+        # Create link
+        create_link(target_repo, source_repo)
+
+        # Get paths
+        target_pr_index_path = get_pr_index_path(target_repo)
+        source_pr_index_path = get_pr_index_path(source_repo)
+
+        # Target should point to source's PR index
+        assert target_pr_index_path == source_pr_index_path, "Target should use source's PR index"
+
+    def test_path_helpers_return_own_paths_when_not_linked(self, tmp_path, mock_home_dir):
+        """Path helpers should return own paths when repository is not linked"""
+        repo = tmp_path / "test_repo"
+        repo.mkdir()
+
+        # Get all paths
+        index_path = get_index_path(repo)
+        config_path = get_config_path(repo)
+        hashes_path = get_hashes_path(repo)
+        pr_index_path = get_pr_index_path(repo)
+
+        # All should be under repo's own storage
+        repo_storage = get_storage_dir(repo)
+        assert index_path.parent == repo_storage, "Index should be in repo's storage"
+        assert config_path.parent == repo_storage, "Config should be in repo's storage"
+        assert hashes_path.parent == repo_storage, "Hashes should be in repo's storage"
+        assert pr_index_path.parent == repo_storage, "PR index should be in repo's storage"
