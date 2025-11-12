@@ -8,6 +8,7 @@ Author: Cursor(Auto)
 """
 
 import os
+import signal
 import sys
 import time
 from datetime import datetime
@@ -150,6 +151,16 @@ class CicadaServer:
 
 async def async_main():
     """Async main entry point."""
+
+    # Set up signal handlers for clean shutdown
+    def signal_handler(signum, _frame):
+        """Handle signals by exiting cleanly."""
+        print(f"Received signal {signum}, shutting down...", file=sys.stderr)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
         # Check if setup is needed before starting server
         # Redirect stdout to stderr during setup to avoid polluting MCP protocol
@@ -162,6 +173,9 @@ async def async_main():
 
         server = CicadaServer()
         await server.run()
+    except KeyboardInterrupt:
+        print("Server interrupted, shutting down...", file=sys.stderr)
+        sys.exit(0)
     except Exception as e:
         print(f"Error starting server: {e}", file=sys.stderr)
         sys.exit(1)
