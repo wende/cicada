@@ -94,6 +94,20 @@ def create_graphql_response(
     return json.dumps(response)
 
 
+def create_pr_count_graphql_response(total_count: int = 0) -> str:
+    """
+    Create a mock GraphQL response for PR count query.
+
+    Args:
+        total_count: Total number of PRs
+
+    Returns:
+        JSON string of GraphQL response
+    """
+    response = {"data": {"repository": {"pullRequests": {"totalCount": total_count}}}}
+    return json.dumps(response)
+
+
 def create_rest_pr_response(
     pr_number: int = 1,
     title: str = "Test PR",
