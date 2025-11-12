@@ -383,6 +383,11 @@ def get_argument_parser():
         help="Override configured tier (requires --fast, --regular, or --max)",
     )
     index_parser.add_argument(
+        "--default",
+        action="store_true",
+        help="Initialize with default values (equivalent to --force --fast)",
+    )
+    index_parser.add_argument(
         "--test",
         action="store_true",
         help="Start interactive keyword extraction test mode",
@@ -685,6 +690,11 @@ def handle_index_main(args) -> None:
     from cicada.languages import LanguageRegistry
     from cicada.setup import detect_project_language
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
+
+    # Handle --default flag: convert to --force --fast
+    if getattr(args, "default", False):
+        args.force = True
+        args.fast = True
 
     # Validate tier flags
     validate_tier_flags(args, require_force=True)

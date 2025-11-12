@@ -10,7 +10,7 @@ for different test scenarios while maintaining realistic output formats.
 from typing import Any
 
 
-def create_file_content_response(lines: list[str], _file_path: str = "test.py") -> str:
+def create_file_content_response(lines: list[str], file_path: str = "test.py") -> str:
     """
     Create mock file content response.
 
@@ -25,7 +25,7 @@ def create_file_content_response(lines: list[str], _file_path: str = "test.py") 
 
 
 def create_git_show_response(
-    _ref: str = "HEAD", file_path: str = "test.py", content: list[str] | None = None
+    ref: str = "HEAD", file_path: str = "test.py", content: list[str] | None = None
 ) -> str:
     """
     Create mock git show output.

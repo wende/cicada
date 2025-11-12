@@ -70,7 +70,7 @@ class AnalysisHandler:
 
         # Format results
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
-            keywords, results, show_scores=True
+            results, show_scores=True
         )
 
         return [TextContent(type="text", text=formatted_result)]
