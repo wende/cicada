@@ -34,6 +34,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "index-pr",
     "find-dead-code",
     "clean",
+    "status",
     "dir",
     "link",
     "unlink",
@@ -154,6 +155,11 @@ def get_argument_parser():
         "--max",
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion (958MB+)",
+    )
+    install_parser.add_argument(
+        "--default",
+        action="store_true",
+        help="Initialize with default values (equivalent to --fast)",
     )
 
     server_parser = subparsers.add_parser(
@@ -517,6 +523,24 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show diagnostic information about Cicada configuration",
+        description="Display diagnostic information about Cicada indexes and configuration",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada status              # Check current repository
+  cicada status /path/repo   # Check specific repository
+        """,
+    )
+    status_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
     dir_parser = subparsers.add_parser(
         "dir",
         help="Show the absolute path to the Cicada storage directory",
@@ -599,6 +623,7 @@ def handle_command(args) -> bool:
         "index-pr": handle_index_pr,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
+        "status": handle_status,
         "dir": handle_dir,
         "link": handle_link,
         "unlink": handle_unlink,
@@ -997,6 +1022,19 @@ def handle_clean(args):
         sys.exit(1)
 
 
+def handle_status(args):
+    """Show diagnostic information about Cicada configuration."""
+    from cicada.status import check_repository
+
+    repo_path = Path(args.repo).resolve()
+
+    try:
+        check_repository(repo_path)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
     from cicada.utils.storage import get_storage_dir
@@ -1102,6 +1140,10 @@ def handle_install(args) -> None:
     # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
     _validate_elixir_project(repo_path)
+
+    # Handle --default flag: convert to --fast
+    if getattr(args, "default", False):
+        args.fast = True
 
     # Validate tier flags
     validate_tier_flags(args)
