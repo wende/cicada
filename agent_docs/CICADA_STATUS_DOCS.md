@@ -37,7 +37,7 @@ Read this to understand every aspect of the implementation.
 - Index File Hierarchy (JSON structure)
 - Config File Hierarchy (YAML structure)
 - MCP Config File Hierarchy (all formats)
-- Data Flow: `cicada check` (step-by-step)
+- Data Flow: `cicada status` (step-by-step)
 - Utility Functions Map
 - Module Dependencies
 - File Checklist
@@ -82,10 +82,10 @@ All three documents are located at:
 ### Phase 1: Registration (5 minutes)
 - [ ] Add "status" to KNOWN_SUBCOMMANDS in commands.py
 - [ ] Add status_parser argument definition
-- [ ] Add handle_check to command_handlers dict
+- [ ] Add handle_status to command_handlers dict
 
 ### Phase 2: Core Implementation (30 minutes)
-- [ ] Implement handle_check() function
+- [ ] Implement handle_status() function
 - [ ] Add storage directory status
 - [ ] Add configuration status with tier detection
 - [ ] Add index validation

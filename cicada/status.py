@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Cicada Check Command.
+Cicada Status Command.
 
 Provides diagnostic information about Cicada configuration and indexes.
 """

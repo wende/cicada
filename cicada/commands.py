@@ -571,7 +571,7 @@ def handle_command(args) -> bool:
         "index-pr": handle_index_pr,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
-        "status": handle_check,
+        "status": handle_status,
         "dir": handle_dir,
     }
 
@@ -968,9 +968,9 @@ def handle_clean(args):
         sys.exit(1)
 
 
-def handle_check(args):
+def handle_status(args):
     """Show diagnostic information about Cicada configuration."""
-    from cicada.check import check_repository
+    from cicada.status import check_repository
 
     repo_path = Path(args.repo).resolve()
 

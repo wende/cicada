@@ -17,7 +17,7 @@ Command Handlers:
   - handle_index()
   - handle_watch()
   - handle_clean()
-  - handle_check()  ← New command
+  - handle_status()  ← New command
   - etc.
 ```
 
@@ -153,7 +153,7 @@ Tier Mapping:
 ```
 User runs: cicada status [--verbose] [--json]
   ↓
-handle_check(args)
+handle_status(args)
   ├─ Resolve repo_path (current directory)
   │
   ├─ Storage Checks
@@ -225,14 +225,14 @@ commands.py (CLI router)
 ├── imports index_utils from utils
 ├── imports storage from utils
 ├── imports tier.py
-└── [imports new check module]
+└── [imports new status module]
 
 clean.py (Reference implementation)
 ├── imports storage.py
 ├── imports utils.get_*_path functions
 └── Uses json, pathlib, shutil
 
-check.py (New - To be created)
+status.py (New - To be created)
 ├── imports storage.py
 ├── imports index_utils.py
 ├── imports tier.py
@@ -275,7 +275,7 @@ Cicada Version can come from:
 3. Git: git describe --tags / git rev-parse HEAD
 ```
 
-## Error Handling in check
+## Error Handling in status
 
 ```
 Scenarios to handle:
