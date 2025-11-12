@@ -3,6 +3,10 @@ Function signature building utilities.
 
 This module provides utilities for formatting function signatures,
 eliminating duplication across the formatter module.
+
+Note: Language-specific formatting (like function identifiers) has been moved
+to language-specific formatters in cicada/languages/<language>/formatter.py.
+Use cicada.languages.formatter_registry.get_language_formatter() for that.
 """
 
 from typing import Any
@@ -30,6 +34,7 @@ class SignatureBuilder:
             func: Function dictionary with keys:
                 - name: Function name
                 - arity: Function arity
+                - signature: Optional pre-formatted signature string (SCIP-generated)
                 - args: Optional list of argument names
                 - args_with_types: Optional list of {name, type} dicts
                 - return_type: Optional return type string
@@ -52,6 +57,10 @@ class SignatureBuilder:
         """
         func_name = func["name"]
         signature = ""
+
+        # If we have a pre-formatted signature (from SCIP), use it directly
+        if "signature" in func and func["signature"]:
+            return func["signature"]
 
         # If we have args_with_types, use that for rich signatures
         if "args_with_types" in func and func["args_with_types"]:

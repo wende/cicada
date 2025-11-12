@@ -2,6 +2,9 @@
 
 import pytest
 
+from cicada.languages.elixir.formatter import ElixirFormatter
+from cicada.languages.formatter_registry import get_language_formatter
+from cicada.languages.scip.formatter import PythonFormatter
 from cicada.utils.signature_builder import SignatureBuilder
 
 
@@ -218,3 +221,73 @@ class TestSignatureBuilder:
         result = SignatureBuilder.build(func)
         # Empty string is falsy, so no :: should be appended
         assert result == "no_return_shown(arg)"
+
+    def test_build_with_preformatted_signature(self):
+        """Test that pre-formatted signature field takes precedence."""
+        func = {
+            "name": "parse_file",
+            "arity": 2,
+            "args": ["self", "file_path"],
+            "signature": "parse_file(self, file_path: str) -> list[dict] | None",
+            "return_type": "list",  # This should be ignored
+        }
+        result = SignatureBuilder.build(func)
+        # Should use the pre-formatted signature directly
+        assert result == "parse_file(self, file_path: str) -> list[dict] | None"
+
+
+class TestElixirFormatter:
+    """Test the ElixirFormatter class."""
+
+    def test_format_elixir_function(self):
+        """Test formatting for Elixir uses /arity notation."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_identifier("MyModule", "my_func", 2)
+        assert result == "MyModule.my_func/2"
+
+    def test_format_zero_arity_elixir(self):
+        """Test zero-arity function in Elixir."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_identifier("Config", "version", 0)
+        assert result == "Config.version/0"
+
+
+class TestPythonFormatter:
+    """Test the PythonFormatter class."""
+
+    def test_format_python_function(self):
+        """Test formatting for Python uses () notation."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_identifier("MyClass", "my_method", 2)
+        assert result == "MyClass.my_method()"
+
+    def test_format_zero_arity_python(self):
+        """Test zero-arity function in Python."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_identifier("Config", "version", 0)
+        assert result == "Config.version()"
+
+
+class TestFormatterRegistry:
+    """Test the get_language_formatter function."""
+
+    def test_get_elixir_formatter(self):
+        """Test getting Elixir formatter from registry."""
+        formatter = get_language_formatter("elixir")
+        assert isinstance(formatter, ElixirFormatter)
+        result = formatter.format_function_identifier("MyModule", "func", 2)
+        assert result == "MyModule.func/2"
+
+    def test_get_python_formatter(self):
+        """Test getting Python formatter from registry."""
+        formatter = get_language_formatter("python")
+        assert isinstance(formatter, PythonFormatter)
+        result = formatter.format_function_identifier("MyClass", "method", 2)
+        assert result == "MyClass.method()"
+
+    def test_unknown_language_defaults_to_elixir(self):
+        """Test that unknown languages default to Elixir formatter."""
+        formatter = get_language_formatter("unknown_language")
+        assert isinstance(formatter, ElixirFormatter)
+        result = formatter.format_function_identifier("MyModule", "func", 3)
+        assert result == "MyModule.func/3"

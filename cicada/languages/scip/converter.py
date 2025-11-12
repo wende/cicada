@@ -289,6 +289,24 @@ class SCIPConverter:
 
             modules[module_name] = module_data
 
+        # Aggregate call dependencies from all functions and merge with import dependencies
+        if self.extract_references:
+            # Get modules from import dependencies
+            import_modules = {dep["module"] for dep in dependencies if "module" in dep}
+
+            # Get modules from function call dependencies
+            call_modules = self._aggregate_call_dependencies(modules)
+
+            # Merge both sources
+            all_modules = import_modules | call_modules
+
+            # Update all modules with standardized dependency format
+            for module_data in modules.values():
+                module_data["dependencies"] = {
+                    "modules": sorted(all_modules),
+                    "has_dynamic_calls": False,  # Could detect apply() in future
+                }
+
         return modules
 
     def _parse_signature_and_doc(self, documentation: list[str]) -> tuple[str, str]:
@@ -362,8 +380,13 @@ class SCIPConverter:
         # Add call sites if available
         if call_sites and symbol_info.symbol in call_sites:
             func_data["calls"] = call_sites[symbol_info.symbol]
+            # Transform call sites to dependency format for MCP handlers
+            func_data["dependencies"] = self._transform_calls_to_dependencies(
+                call_sites[symbol_info.symbol], symbol_map
+            )
         else:
             func_data["calls"] = []
+            func_data["dependencies"] = []
 
         # Add signature if extracted
         if signature:
@@ -727,6 +750,108 @@ class SCIPConverter:
                 seen_imports.add(module_name)
 
         return dependencies
+
+    def _transform_calls_to_dependencies(
+        self, call_sites: list[dict], symbol_map: dict
+    ) -> list[dict]:
+        """
+        Transform SCIP call sites into Cicada dependency format.
+
+        Converts call site format from:
+            {"callee": "scip-python...", "file": "path", "line": 42}
+        To dependency format:
+            {"module": "operations", "function": "add", "arity": 2, "line": 42}
+
+        Args:
+            call_sites: List of call site dicts with callee, file, and line
+            symbol_map: Symbol -> SymbolInformation lookup for arity extraction
+
+        Returns:
+            List of dependency dicts in Cicada format
+        """
+        dependencies = []
+
+        for call in call_sites:
+            callee_symbol = call["callee"]
+
+            # Extract module name from SCIP symbol
+            module_name = self._extract_module_from_symbol(callee_symbol)
+
+            # Extract function name from SCIP symbol
+            function_name = self._extract_name(callee_symbol)
+
+            # Get arity from symbol information
+            arity = self._get_function_arity(callee_symbol, symbol_map)
+
+            # Build dependency record
+            # Note: module_name can be None for local calls within same module
+            dependency = {
+                "module": module_name,
+                "function": function_name,
+                "arity": arity,
+                "line": call["line"],
+            }
+
+            dependencies.append(dependency)
+
+        return dependencies
+
+    def _get_function_arity(self, function_symbol: str, symbol_map: dict) -> int:
+        """
+        Get function arity from SCIP symbol information.
+
+        Args:
+            function_symbol: SCIP symbol for the function
+            symbol_map: Symbol -> SymbolInformation lookup
+
+        Returns:
+            Function arity (number of parameters), or 0 if unknown
+        """
+        # Look up symbol information
+        symbol_info = symbol_map.get(function_symbol)
+
+        if not symbol_info:
+            # Symbol not in our index (e.g., external library, builtin)
+            return 0
+
+        # Count parameters by looking for parameter symbols in the index
+        # Parameter symbols have format: "function_symbol(param_name)"
+        # We need to scan the symbol_map for all parameters of this function
+        function_prefix = function_symbol.rstrip(".")
+        param_count = 0
+
+        for sym in symbol_map:
+            symbol_type = self._get_symbol_type(sym)
+            if symbol_type == "parameter" and sym.startswith(function_prefix + ".("):
+                param_count += 1
+
+        return param_count
+
+    def _aggregate_call_dependencies(self, modules: dict) -> set[str]:
+        """
+        Aggregate unique module dependencies from all function calls.
+
+        Scans all functions in all modules and collects unique module names
+        from their dependencies.
+
+        Args:
+            modules: Dict mapping module names to ModuleData dicts
+
+        Returns:
+            Set of unique module names that are dependencies
+        """
+        unique_modules = set()
+
+        for module_data in modules.values():
+            for func in module_data["functions"]:
+                if "dependencies" in func:
+                    for dep in func["dependencies"]:
+                        module_name = dep.get("module")
+                        # Only add non-None module names (skip local calls)
+                        if module_name:
+                            unique_modules.add(module_name)
+
+        return unique_modules
 
     def _extract_module_from_symbol(self, symbol: str) -> str | None:
         """

@@ -641,7 +641,7 @@ def get_callees_of(
 def get_dependencies(
     index: dict[str, Any],
     module_name: str,
-) -> list[dict[str, Any]]:
+) -> list[str]:
     """
     Get all dependencies (imports) for a module.
 
@@ -650,18 +650,27 @@ def get_dependencies(
         module_name: Name of the module
 
     Returns:
-        List of dependency dictionaries
+        List of module names that this module depends on
 
     Example:
         deps = get_dependencies(index, "Calculator")
         for dep in deps:
-            print(f"Imports {dep['module']}")
+            print(f"Imports {dep}")
     """
     module = lookup_module(index, module_name)
     if not module:
         return []
 
-    return module.get("dependencies", [])
+    dependencies = module.get("dependencies", {})
+    # Handle both old list format and new dict format for backward compatibility
+    if isinstance(dependencies, list):
+        # Old format: list of dicts with 'module' key
+        return [dep.get("module") for dep in dependencies if "module" in dep]
+    elif isinstance(dependencies, dict):
+        # New format: dict with 'modules' key
+        return dependencies.get("modules", [])
+    else:
+        return []
 
 
 def get_references_to(

@@ -86,7 +86,9 @@ class ModuleData:
     line: int  # Line number where module/class is defined
     doc: str | None = None  # Module/class documentation
     functions: list[dict] = field(default_factory=list)  # List of FunctionData dicts
-    dependencies: list[dict] = field(default_factory=list)  # Imports/requires
+    dependencies: list[dict] | dict = field(
+        default_factory=list
+    )  # Imports/requires (list for old format, dict with 'modules' and 'has_dynamic_calls' for new format)
     calls: list[dict] = field(default_factory=list)  # Function calls
     keywords: dict[str, float] | None = None  # Keyword -> relevance score mapping for search
     language_specific: dict[str, Any] = field(default_factory=dict)  # Language-specific data
@@ -334,13 +336,28 @@ class UniversalIndexSchema:
             errors.append(f"Module '{module_name}'.line must be positive")
 
         # Validate optional list fields
-        for list_field in ["calls", "dependencies"]:
-            if (
-                list_field in module_data
-                and strict
-                and not isinstance(module_data[list_field], list)
-            ):
-                errors.append(f"Module '{module_name}'.{list_field} must be a list")
+        # Note: 'dependencies' can be either list (old format) or dict (new format with 'modules' and 'has_dynamic_calls')
+        if "calls" in module_data and strict and not isinstance(module_data["calls"], list):
+            errors.append(f"Module '{module_name}'.calls must be a list")
+
+        # Validate dependencies structure (support both old list and new dict format)
+        if "dependencies" in module_data and strict:
+            deps = module_data["dependencies"]
+            if isinstance(deps, dict):
+                # New format: dict with 'modules' and 'has_dynamic_calls'
+                if "modules" not in deps:
+                    errors.append(
+                        f"Module '{module_name}'.dependencies dict must have 'modules' key"
+                    )
+                elif not isinstance(deps["modules"], list):
+                    errors.append(f"Module '{module_name}'.dependencies['modules'] must be a list")
+                if "has_dynamic_calls" in deps and not isinstance(deps["has_dynamic_calls"], bool):
+                    errors.append(
+                        f"Module '{module_name}'.dependencies['has_dynamic_calls'] must be a boolean"
+                    )
+            elif not isinstance(deps, list):
+                # Must be either list or dict
+                errors.append(f"Module '{module_name}'.dependencies must be a list or dict")
 
         # Validate each function
         if "functions" in module_data and isinstance(module_data["functions"], list):

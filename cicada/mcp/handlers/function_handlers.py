@@ -430,12 +430,15 @@ class FunctionSearchHandler:
         # For now, we'll skip this or pass it from server
         staleness_info = None
 
+        # Get language from index metadata
+        language = self.index.get("metadata", {}).get("language", "elixir")
+
         # Format results
         if output_format == "json":
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, show_relationships
+                function_name, results, staleness_info, show_relationships, language
             )
 
         return [TextContent(type="text", text=result)]

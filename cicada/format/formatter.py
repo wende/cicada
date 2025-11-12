@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cicada.languages.formatter_registry import get_language_formatter
 from cicada.utils import (
     CallSiteFormatter,
     FunctionGrouper,
@@ -547,7 +548,10 @@ class ModuleFormatter:
 
     @staticmethod
     def _format_function_entry(
-        result: dict[str, Any], single_result: bool, show_relationships: bool
+        result: dict[str, Any],
+        single_result: bool,
+        show_relationships: bool,
+        language: str = "elixir",
     ) -> list[str]:
         """Format a single function search result (either single or multi layout)."""
         module_name = result["module"]
@@ -558,13 +562,19 @@ class ModuleFormatter:
         call_sites = result.get("call_sites", [])
         call_sites_with_examples = result.get("call_sites_with_examples", [])
 
+        # Format function identifier using language-specific formatter
+        language_formatter = get_language_formatter(language)
+        func_identifier = language_formatter.format_function_identifier(
+            module_name, func["name"], func["arity"]
+        )
+
         lines: list[str] = []
 
         if single_result:
             lines.extend(
                 [
                     f"{file_path}:{func['line']}",
-                    f"{module_name}.{func['name']}/{func['arity']}",
+                    func_identifier,
                     f"Type: {sig}",
                 ]
             )
@@ -575,7 +585,7 @@ class ModuleFormatter:
                     "",
                     "---",
                     "",
-                    f"{module_name}.{func['name']}/{func['arity']}",
+                    func_identifier,
                     f"{file_path}:{func['line']} • {func['type']}",
                     "",
                     "Signature:",
@@ -650,6 +660,7 @@ class ModuleFormatter:
         results: list[dict[str, Any]],
         staleness_info: dict | None = None,
         show_relationships: bool = True,
+        language: str = "elixir",
     ) -> str:
         """
         Format function search results as Markdown.
@@ -659,6 +670,7 @@ class ModuleFormatter:
             results: List of function matches with module context
             staleness_info: Optional staleness info (is_stale, age_str)
             show_relationships: Whether to show relationship information (what this calls / what calls this)
+            language: Programming language for formatting function identifiers
 
         Returns:
             Formatted Markdown string
@@ -747,7 +759,9 @@ If this function was deleted:
 
         for result in consolidated_results:
             lines.extend(
-                ModuleFormatter._format_function_entry(result, single_result, show_relationships)
+                ModuleFormatter._format_function_entry(
+                    result, single_result, show_relationships, language
+                )
             )
 
         # Add closing separator for single results
