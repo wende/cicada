@@ -446,7 +446,7 @@ class TestPerformFullIndex:
         mock_indexer.line_mapper.map_all_comment_lines = Mock()
         mock_indexer.index_builder.build_index.return_value = {"prs": {}}
 
-        result = mock_indexer._perform_full_index("output.json", None)
+        result = mock_indexer._perform_full_index(None)
 
         assert result == {"prs": {}}
         mock_indexer.index_builder.build_index.assert_called_once()
@@ -463,7 +463,7 @@ class TestPerformFullIndex:
             "metadata": {},
         }
 
-        result = mock_indexer._perform_full_index("output.json", None)
+        result = mock_indexer._perform_full_index(None)
 
         # Should build with preserve_last_pr=0
         mock_indexer.index_builder.build_index.assert_called_once()
@@ -480,7 +480,7 @@ class TestPerformFullIndex:
         mock_indexer.index_builder.build_index.return_value = {"prs": {}}
         mock_indexer.index_builder.merge_partial_clean.return_value = {"prs": {"merged": True}}
 
-        result = mock_indexer._perform_full_index("output.json", existing_index)
+        result = mock_indexer._perform_full_index(existing_index)
 
         mock_indexer.index_builder.merge_partial_clean.assert_called_once()
         assert result == {"prs": {"merged": True}}
