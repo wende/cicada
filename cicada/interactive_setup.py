@@ -322,7 +322,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print()
     print(f"Let's set up Cicada for your editor and project.{RESET}")
     print()
-    print(f"{BOLD}Step 1/4: Choose your editor{RESET}")
+    print(f"{BOLD}Choose your editor{RESET}")
 
     if has_terminal_menu:
         try:

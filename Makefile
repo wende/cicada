@@ -29,7 +29,10 @@ dev:
 	@uv build
 	@echo "3. Uninstalling old version..."
 	@uv tool uninstall cicada-mcp 2>/dev/null || true
-	@echo "4. Installing from fresh build..."
+	@echo "4. Clearing Python bytecode cache..."
+	@find ~/.local/share/uv/tools/cicada-mcp -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find ~/.local/share/uv/tools/cicada-mcp -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo "5. Installing from fresh build..."
 	@uv tool install --reinstall dist/cicada_mcp-*-py3-none-any.whl
 	@echo "cicada installed from fresh build"
 	@echo "  Commands: cicada, cicada-mcp, cicada-server"
