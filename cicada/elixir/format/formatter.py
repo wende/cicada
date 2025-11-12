@@ -994,13 +994,12 @@ If this function was deleted:
 
     @staticmethod
     def format_keyword_search_results_markdown(
-        _keywords: list[str], results: list[dict[str, Any]], show_scores: bool = True
+        results: list[dict[str, Any]], show_scores: bool = True
     ) -> str:
         """
         Format keyword search results as Markdown.
 
         Args:
-            keywords: The search keywords
             results: List of search result dictionaries
             show_scores: Whether to show relevance scores. Defaults to True.
 
@@ -1015,7 +1014,6 @@ If this function was deleted:
             file_path = result["file"]
             line = result["line"]
             score = result["score"]
-            _confidence = result["confidence"]
             matched_keywords = result["matched_keywords"]
 
             # Compact format with type indication

@@ -55,7 +55,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="test.py",
                     content=[
                         "def hello():",
@@ -74,7 +74,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="test.py",
                     content=[
                         "def hello():",
@@ -159,7 +159,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="existing.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -172,7 +172,7 @@ class TestMapAllCommentLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="existing.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -309,7 +309,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -322,7 +322,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -352,7 +352,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="test.py",
                     content=["line1", "new_line", "line2", "line3"],
                 ),
@@ -365,7 +365,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -396,7 +396,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD", file_path="test.py", content=head_content
+                    ref="HEAD", file_path="test.py", content=head_content
                 ),
             ),
         )
@@ -407,7 +407,7 @@ class TestMapLineToCurrentSuccess:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -458,7 +458,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="test.py",
                     content=["line1", "line3"],  # line2 deleted
                 ),
@@ -471,7 +471,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123",
+                    ref="abc123",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -501,7 +501,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD", file_path="test.py", content=["line1", "", "line3"]
+                    ref="HEAD", file_path="test.py", content=["line1", "", "line3"]
                 ),
             ),
         )
@@ -512,7 +512,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123", file_path="test.py", content=["line1", "", "line3"]
+                    ref="abc123", file_path="test.py", content=["line1", "", "line3"]
                 ),
             ),
         )
@@ -540,7 +540,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD", file_path="test.py", content=["line1", "line2"]
+                    ref="HEAD", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )
@@ -551,7 +551,7 @@ class TestMapLineToCurrentFailure:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123", file_path="test.py", content=["line1", "line2"]
+                    ref="abc123", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )
@@ -658,7 +658,7 @@ class TestGetFileLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="HEAD",
+                    ref="HEAD",
                     file_path="test.py",
                     content=["line1", "line2", "line3"],
                 ),
@@ -680,7 +680,7 @@ class TestGetFileLines:
             response=MockCompletedProcess(
                 returncode=0,
                 stdout=create_git_show_response(
-                    _ref="abc123", file_path="test.py", content=["line1", "line2"]
+                    ref="abc123", file_path="test.py", content=["line1", "line2"]
                 ),
             ),
         )
