@@ -433,9 +433,9 @@ end
         assert len(index["modules"]["TestModule"]["keywords"]) > 0
         assert isinstance(index["modules"]["TestModule"]["keywords"], dict)
 
-        # Should print keyword extraction method
+        # Should print tier information
         captured = capsys.readouterr()
-        assert "Keyword extraction:" in captured.out or "keywords" in captured.out.lower()
+        assert "Tier:" in captured.out or "keywords" in captured.out.lower()
 
     def test_index_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when keyword extraction fails"""
@@ -864,8 +864,8 @@ end
         assert "TestModule" in index["modules"]
 
         captured = capsys.readouterr()
-        # Should print keyword extraction method info
-        assert "Keyword extraction:" in captured.out
+        # Should print tier info
+        assert "Tier:" in captured.out
 
     def test_interrupted_during_parse_error(self, tmp_path, monkeypatch, capsys):
         """Test interruption that occurs during parse error handling"""

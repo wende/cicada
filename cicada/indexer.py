@@ -140,9 +140,10 @@ class ElixirIndexer:
             if extract_keywords:
                 # Read and display keyword extraction config
                 extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
-                print(
-                    f"Keyword extraction: {extraction_method.upper()} + {expansion_method.upper()}"
-                )
+                from cicada.tier import methods_to_tier
+
+                tier = methods_to_tier(extraction_method, expansion_method)
+                print(f"Tier: {tier.upper()}")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -548,7 +549,10 @@ class ElixirIndexer:
             # Read and display keyword extraction config
             extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
             print(f"Performing incremental index of: {repo_path_obj}")
-            print(f"Keyword extraction: {extraction_method.upper()} + {expansion_method.upper()}")
+            from cicada.tier import methods_to_tier
+
+            tier = methods_to_tier(extraction_method, expansion_method)
+            print(f"Tier: {tier.upper()}")
 
         # Set up signal handlers for graceful interruption
         signal.signal(signal.SIGINT, self._handle_interrupt)
