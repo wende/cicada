@@ -148,6 +148,37 @@ def mock_home_dir(tmp_path, monkeypatch):
     return mock_home
 
 
+@pytest.fixture(autouse=True)
+def mock_repo_hash(monkeypatch):
+    """
+    Mock get_repo_hash to return constant hashes for test fixtures.
+
+    This prevents each test run from generating new random hashes based on
+    tmp_path, which was causing 3+ new project index directories per test run.
+
+    Only mocks hash for known fixture repos (elixir_repo). For other paths,
+    uses the original hash function to maintain normal test behavior.
+
+    The fixture is autouse=True, so it applies to all tests automatically.
+    """
+    from cicada.utils import storage
+
+    original_get_repo_hash = storage.get_repo_hash
+
+    def mock_hash(repo_path: str | Path) -> str:
+        """Return constant hash for known fixtures, original hash for others."""
+        repo_name = Path(repo_path).name
+        # Only mock hash for known test fixtures that get reused across tests
+        if repo_name == "elixir_repo":
+            return "test_elixir_repo"
+        # For all other paths, use the original hash function
+        return original_get_repo_hash(repo_path)
+
+    monkeypatch.setattr(storage, "get_repo_hash", mock_hash)
+
+    return mock_hash
+
+
 @pytest.fixture
 def elixir_repo(tmp_path):
     """Provision a sample Elixir repository for watcher-related tests."""
