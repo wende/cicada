@@ -409,7 +409,7 @@ class GitHubAPIClient:
             query = """
             query($owner:String!, $repo:String!) {
                 repository(owner: $owner, name: $repo) {
-                    pullRequests(first: 0) {
+                    pullRequests {
                         totalCount
                     }
                 }
