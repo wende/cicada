@@ -16,6 +16,7 @@ from tests.mocks.github_responses import (
     create_empty_response,
     create_graphql_response,
     create_malformed_json_response,
+    create_pr_count_graphql_response,
     create_pr_list_response,
     create_pr_with_complex_comments,
     create_pr_with_no_metadata,
@@ -931,12 +932,12 @@ class TestGetTotalPRCount:
     """Test PR count estimation."""
 
     def test_get_total_pr_count_success(self, tmp_path):
-        """Test successful PR count estimation."""
+        """Test successful PR count retrieval using GraphQL."""
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
-            command="gh pr list --state all --json number --limit 1",
+            command="gh api graphql -f",
             response=MockCompletedProcess(
-                returncode=0, stdout=create_pr_list_response(count=1, start_number=150)
+                returncode=0, stdout=create_pr_count_graphql_response(total_count=150)
             ),
         )
 
@@ -948,11 +949,13 @@ class TestGetTotalPRCount:
         assert result == 150
 
     def test_get_total_pr_count_empty(self, tmp_path):
-        """Test PR count estimation with empty response."""
+        """Test PR count with zero PRs."""
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
-            command="gh pr list --state all --json number --limit 1",
-            response=MockCompletedProcess(returncode=0, stdout=create_empty_response()),
+            command="gh api graphql -f",
+            response=MockCompletedProcess(
+                returncode=0, stdout=create_pr_count_graphql_response(total_count=0)
+            ),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")
@@ -963,11 +966,11 @@ class TestGetTotalPRCount:
         assert result == 0
 
     def test_get_total_pr_count_error(self, tmp_path):
-        """Test PR count estimation with error."""
+        """Test PR count retrieval with GraphQL error."""
         mock_runner = MockSubprocessRunner()
         mock_runner.add_gh_response(
-            command="gh pr list --state all --json number --limit 1",
-            response=MockCompletedProcess(returncode=1, stderr="Error"),
+            command="gh api graphql -f",
+            response=MockCompletedProcess(returncode=1, stderr="GraphQL error"),
         )
 
         client = GitHubAPIClient(tmp_path, "owner", "repo")

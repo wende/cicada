@@ -396,21 +396,51 @@ class GitHubAPIClient:
 
     def get_total_pr_count(self) -> int:
         """
-        Get approximate total number of PRs in the repository.
+        Get the actual total number of PRs in the repository.
+
+        Uses GraphQL to get the exact count, avoiding issues with shared PR/issue
+        numbering where the highest number doesn't equal the PR count.
 
         Returns:
-            Approximate PR count (based on highest PR number)
+            Actual count of pull requests
         """
         try:
+            # Use GraphQL to get exact PR count
+            query = """
+            query($owner:String!, $repo:String!) {
+                repository(owner: $owner, name: $repo) {
+                    pullRequests(first: 0) {
+                        totalCount
+                    }
+                }
+            }
+            """
+
             result = self.runner.run_gh_command(
-                ["pr", "list", "--state", "all", "--json", "number", "--limit", "1"]
+                [
+                    "api",
+                    "graphql",
+                    "-f",
+                    f"owner={self.repo_owner}",
+                    "-f",
+                    f"repo={self.repo_name}",
+                    "-f",
+                    f"query={query}",
+                ]
             )
 
-            # The API returns PRs in descending order, so the first PR's number
-            # is approximately the total count
-            pr_list = json.loads(result.stdout)
-            if pr_list:
-                return pr_list[0]["number"]
-            return 0
-        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, IndexError):
+            data = json.loads(result.stdout)
+            total_count = (
+                data.get("data", {})
+                .get("repository", {})
+                .get("pullRequests", {})
+                .get("totalCount", 0)
+            )
+            return total_count
+        except (
+            subprocess.CalledProcessError,
+            json.JSONDecodeError,
+            KeyError,
+            IndexError,
+        ):
             return 0
