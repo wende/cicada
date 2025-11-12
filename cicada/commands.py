@@ -34,6 +34,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "index-pr",
     "find-dead-code",
     "clean",
+    "status",
     "dir",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
@@ -520,6 +521,24 @@ Examples:
         help="Remove ALL Cicada storage for all projects (~/.cicada/projects/)",
     )
 
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show diagnostic information about Cicada configuration",
+        description="Display diagnostic information about Cicada indexes and configuration",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada status              # Check current repository
+  cicada status /path/repo   # Check specific repository
+        """,
+    )
+    status_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
     dir_parser = subparsers.add_parser(
         "dir",
         help="Show the absolute path to the Cicada storage directory",
@@ -557,6 +576,7 @@ def handle_command(args) -> bool:
         "index-pr": handle_index_pr,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
+        "status": handle_status,
         "dir": handle_dir,
     }
 
@@ -950,6 +970,19 @@ def handle_clean(args):
             clean_repository(repo_path, force=args.force)
     except Exception as e:
         print(f"\nError: Cleanup failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_status(args):
+    """Show diagnostic information about Cicada configuration."""
+    from cicada.status import check_repository
+
+    repo_path = Path(args.repo).resolve()
+
+    try:
+        check_repository(repo_path)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
