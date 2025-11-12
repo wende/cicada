@@ -262,7 +262,7 @@ def check_repository(repo_path: Path) -> None:
     repo_path = repo_path.resolve()
 
     print("=" * 70)
-    print("Cicada Check")
+    print("Cicada Status")
     print("=" * 70)
     print()
     print(f"Repository: {repo_path}")
