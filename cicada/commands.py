@@ -153,6 +153,11 @@ def get_argument_parser():
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion (958MB+)",
     )
+    install_parser.add_argument(
+        "--default",
+        action="store_true",
+        help="Initialize with default values (equivalent to --fast)",
+    )
 
     server_parser = subparsers.add_parser(
         "server",
@@ -979,6 +984,10 @@ def handle_install(args) -> None:
     # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
     _validate_elixir_project(repo_path)
+
+    # Handle --default flag: convert to --fast
+    if getattr(args, "default", False):
+        args.fast = True
 
     # Validate tier flags
     validate_tier_flags(args)
