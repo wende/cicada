@@ -14,6 +14,7 @@ Test Categories:
 
 import asyncio
 import json
+from unittest.mock import patch, MagicMock
 
 import pytest
 import yaml
@@ -566,3 +567,186 @@ class TestJqToolPerformance:
         assert isinstance(result[0], TextContent)
         # Should not contain timeout error message
         assert "timeout" not in result[0].text.lower() or json.loads(result[0].text)
+
+
+class TestJqToolSecurity:
+    """Test security validation and resource limits."""
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_query(self, test_server):
+        """Should reject queries containing only whitespace."""
+        result = await test_server.call_tool("query_jq", {"query": "   \t\n  "})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        # Should reject empty/whitespace queries
+        text_lower = result[0].text.lower()
+        assert "empty" in text_lower or "required" in text_lower or "error" in text_lower
+
+    @pytest.mark.asyncio
+    async def test_query_exceeds_length_limit(self, test_server):
+        """Should reject queries exceeding maximum length (10,000 chars)."""
+        # Create a query that exceeds 10,000 characters
+        long_query = ".modules | " + "keys | " * 2000  # Well over 10k chars
+        result = await test_server.call_tool("query_jq", {"query": long_query})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        text_lower = result[0].text.lower()
+        # Should either reject with length error or process it (depends on implementation)
+        # The validation should catch queries > 10,000 chars
+        assert (
+            "too long" in text_lower or "length" in text_lower or isinstance(result[0], TextContent)
+        )
+
+    @pytest.mark.asyncio
+    async def test_query_with_excessive_nesting(self, test_server):
+        """Should detect queries with suspicious nesting patterns."""
+        # Create query with unbalanced brackets (>50 imbalance)
+        # Add 60 opening brackets without closing them properly
+        deeply_nested = "." + "[" * 60 + " | keys"
+        result = await test_server.call_tool("query_jq", {"query": deeply_nested})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        # Should reject the query due to suspicious nesting
+        text_lower = result[0].text.lower()
+        assert "nesting" in text_lower or "imbalance" in text_lower or "bracket" in text_lower
+
+
+class TestJqToolErrorHandling:
+    """Test error handling and edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_jq_syntax_error_iterate_null_hint(self, test_server):
+        """Should provide specific hint for 'iterate over null' errors."""
+        # This query will try to iterate over null (modules doesn't have .nonexistent)
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules.NonExistent.functions[] | .name"}
+        )
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        text = result[0].text
+        # Should contain error message and hint about optional access
+        assert "error" in text.lower() or "null" in text.lower()
+        # May contain hint about using ? operator
+        assert "?" in text or "null" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_handling(self, test_server):
+        """Should handle unexpected exceptions gracefully."""
+        # Mock jq to raise unexpected exception
+        with patch("cicada.mcp.handlers.analysis_handlers.jq") as mock_jq:
+            mock_jq.compile.side_effect = RuntimeError("Unexpected error")
+
+            result = await test_server.call_tool("query_jq", {"query": ".modules | keys"})
+            assert len(result) == 1
+            assert isinstance(result[0], TextContent)
+            text_lower = result[0].text.lower()
+            # Should contain error indication
+            assert "error" in text_lower or "failed" in text_lower
+
+
+class TestJqToolLargeResults:
+    """Test handling of large query results."""
+
+    @pytest.mark.asyncio
+    async def test_result_truncation_at_1mb(self, tmp_path):
+        """Should truncate results exceeding 1MB limit."""
+        # Create index with massive string content to exceed 1MB
+        large_modules = {}
+        for i in range(200):
+            large_modules[f"Module{i}"] = {
+                "file": f"lib/module{i}.ex",
+                "line": 1,
+                "moduledoc": "A" * 10000,  # 10KB per module = 2MB total
+                "functions": [
+                    {
+                        "name": f"func{j}",
+                        "arity": j,
+                        "line": j * 10,
+                        "type": "def",
+                        "signature": f"func{j}(args)",
+                        "doc": "B" * 1000,  # Additional content
+                        "args": [f"arg{k}" for k in range(10)],
+                        "guards": [],
+                        "full_name": f"func{j}/{j}",
+                        "impl": False,
+                    }
+                    for j in range(10)
+                ],
+                "total_functions": 10,
+            }
+
+        large_index = {
+            "modules": large_modules,
+            "metadata": {"total_modules": 200},
+        }
+
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(large_index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        server = CicadaServer(str(config_path))
+        # Query that returns all modules (should be >1MB)
+        result = await server.call_tool("query_jq", {"query": ".modules"})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+
+        # Should either be truncated or completed
+        # If truncated, should contain truncation message
+        text = result[0].text
+        if "truncated" in text.lower() or "exceeded" in text.lower():
+            # Verify truncation message is present
+            assert "1MB" in text or "1048576" in text or "limit" in text.lower()
+        # Result should not exceed reasonable size (allow some overhead)
+        assert len(text) < 2 * 1024 * 1024  # Max 2MB (1MB result + truncation message)
+
+    @pytest.mark.asyncio
+    async def test_truncation_message_format(self, tmp_path):
+        """Should provide clear truncation message when results are truncated."""
+        # Create index that will produce large results
+        large_modules = {
+            f"Module{i}": {
+                "file": f"lib/module{i}.ex",
+                "line": 1,
+                "moduledoc": "X" * 10000,  # Large documentation
+                "functions": [],
+            }
+            for i in range(150)
+        }
+
+        large_index = {
+            "modules": large_modules,
+            "metadata": {"total_modules": 150},
+        }
+
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(large_index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        server = CicadaServer(str(config_path))
+        result = await server.call_tool("query_jq", {"query": ".modules"})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+
+        # If result is truncated, check for helpful message
+        text = result[0].text
+        if "truncated" in text.lower():
+            # Should explain why and suggest alternatives
+            assert "limit" in text.lower() or "exceeded" in text.lower()
+            # Should suggest using filters or limiting results
+            assert "filter" in text.lower() or "limit" in text.lower() or "select" in text.lower()

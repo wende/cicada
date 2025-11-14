@@ -24,39 +24,13 @@ MAX_JQ_QUERY_TIMEOUT_SECONDS = 30.0
 
 
 def _format_error_sections(prefix: str, error: Exception, sections: dict[str, list[str]]) -> str:
-    """
-    Format error message with structured sections.
-
-    Args:
-        prefix: Error message prefix (e.g., "jq query failed", "Unexpected error")
-        error: The exception that occurred
-        sections: Dict of section_name -> list of bullet points
-
-    Returns:
-        Formatted error message string
-    """
+    """Format error message with structured sections."""
     parts = [f"{prefix}:\n\n{str(error)}\n"]
-
     for section_name, bullets in sections.items():
         parts.append(f"{section_name}:")
         parts.extend(f"  • {bullet}" for bullet in bullets)
         parts.append("")
-
     return "\n".join(parts).rstrip()
-
-
-def _build_jq_error_message(error: Exception, sections: dict[str, list[str]]) -> str:
-    """
-    Build a helpful jq error message with structured sections.
-
-    Args:
-        error: The exception that occurred
-        sections: Dict of section_name -> list of bullet points
-
-    Returns:
-        Formatted error message string
-    """
-    return _format_error_sections("jq query failed", error, sections)
 
 
 class AnalysisHandler:
@@ -175,17 +149,49 @@ class AnalysisHandler:
             result = await self._execute_jq_query(query)
 
             if result is None:
-                return self._create_null_result_response()
+                return [
+                    TextContent(
+                        type="text",
+                        text="Query returned null. The field doesn't exist or filter matched nothing.",
+                    )
+                ]
 
             output = self._format_result(result, output_format)
             return self._handle_result_size(output)
 
         except asyncio.TimeoutError:
-            return self._create_timeout_error_response()
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"jq query timed out after {MAX_JQ_QUERY_TIMEOUT_SECONDS:.0f} seconds.\n\n"
+                        "The query may be too complex or the index too large. "
+                        "Try simplifying your query or filtering the data first:\n\n"
+                        "Examples:\n"
+                        "  • Instead of: '.modules[]'\n"
+                        "    Try: '.modules | to_entries | .[0:10]'\n"
+                        "  • Use 'select()' to filter early: '.modules | to_entries | map(select(.value.keywords))'\n"
+                        "  • Access specific fields: '.modules.MyModule' instead of '.modules[]'"
+                    ),
+                )
+            ]
         except ValueError as e:
             return self._create_jq_syntax_error_response(e)
         except Exception as e:
-            return self._create_unexpected_error_response(e)
+            sections = {
+                "This may indicate": [
+                    "Malformed index data",
+                    "Very large intermediate data structures",
+                    "Python jq library issue",
+                ],
+                "Try": [
+                    "Simplifying your query",
+                    "Testing with a simpler query first (e.g., '.modules | keys')",
+                    "Checking if the index is corrupted (try rebuilding)",
+                ],
+            }
+            error_msg = _format_error_sections("Unexpected error executing jq query", e, sections)
+            return [TextContent(type="text", text=error_msg)]
 
     async def _execute_jq_query(self, query: str) -> Any:
         """
@@ -199,12 +205,9 @@ class AnalysisHandler:
         """
 
         def run_jq() -> Any:
-            # Compile and execute the query
             compiled = jq.compile(query)
             result = compiled.input(self.index)
-            # jq returns an iterator, collect all results
             results = list(result)
-            # If single result, return it; if multiple, return as array
             return results[0] if len(results) == 1 else results
 
         return await asyncio.wait_for(
@@ -213,22 +216,12 @@ class AnalysisHandler:
         )
 
     def _format_result(self, result: Any, output_format: str) -> str:
-        """
-        Format query result as JSON string.
-
-        Args:
-            result: Query result to format
-            output_format: Format type ('json', 'compact', 'pretty')
-
-        Returns:
-            Formatted JSON string
-        """
-        if output_format == "compact":
-            # Compact format - single line, no extra spaces
-            return json.dumps(result, separators=(",", ":"))
-        else:
-            # json and pretty both use pretty-printing (indent=2)
-            return json.dumps(result, indent=2)
+        """Format query result as JSON string."""
+        return json.dumps(
+            result,
+            separators=(",", ":") if output_format == "compact" else None,
+            indent=None if output_format == "compact" else 2,
+        )
 
     def _handle_result_size(self, output: str) -> list[TextContent]:
         """
@@ -280,107 +273,23 @@ class AnalysisHandler:
             f"  • Request specific fields instead of entire objects"
         )
 
-    def _create_null_result_response(self) -> list[TextContent]:
-        """
-        Create response for null query results.
-
-        Returns:
-            TextContent with null result explanation
-        """
-        return [
-            TextContent(
-                type="text",
-                text="Query returned null (no results). This usually means the field doesn't exist or the filter matched nothing.",
-            )
-        ]
-
-    def _create_timeout_error_response(self) -> list[TextContent]:
-        """
-        Create user-friendly timeout error response.
-
-        Returns:
-            TextContent with timeout error and suggestions
-        """
-        error_msg = (
-            f"jq query timed out after {MAX_JQ_QUERY_TIMEOUT_SECONDS:.0f} seconds.\n\n"
-            "The query may be too complex or the index too large. "
-            "Try simplifying your query or filtering the data first:\n\n"
-            "Examples:\n"
-            "  • Instead of: '.modules[]'\n"
-            "    Try: '.modules | to_entries | .[0:10]'\n"
-            "  • Use 'select()' to filter early: '.modules | to_entries | map(select(.value.keywords))'\n"
-            "  • Access specific fields: '.modules.MyModule' instead of '.modules[]'"
-        )
-        return [TextContent(type="text", text=error_msg)]
-
     def _create_jq_syntax_error_response(self, error: ValueError) -> list[TextContent]:
-        """
-        Create helpful syntax error response with hints.
-
-        Args:
-            error: The ValueError raised by jq
-
-        Returns:
-            TextContent with error details and contextual hints
-        """
+        """Create helpful syntax error response with hints."""
         error_str = str(error).lower()
 
-        sections = {
-            "Common issues": [
-                "Syntax error - check your jq syntax",
-                "Field doesn't exist - use optional access with '?' (e.g., '.functions[]?')",
-                "Type error - check that operations match data types",
-            ],
-            "Quick reference": [
-                "List keys: '.modules | keys'",
-                "Filter: '.modules | to_entries | map(select(.value.keywords))'",
-                "Count: '.modules | length'",
-                "Optional access: '.modules[].functions[]?' (note the ?)",
-                "\nSee CLAUDE.md for complete schema and more examples.",
-            ],
-        }
+        msg = f"jq query failed: {error}\n\nCommon issues:\n"
+        msg += "  • Check jq syntax\n"
+        msg += "  • Use '?' for optional fields: '.functions[]?'\n"
+        msg += "  • Verify operations match data types\n\n"
 
-        # Add specific hints for common error patterns
         if "iterate" in error_str and "null" in error_str:
-            sections["HINT"] = [
-                "You're trying to iterate over a null/missing field.",
-                "Use the '?' operator for safe access:",
-                "Instead of: '.functions[]'",
-                "Use: '.functions[]?'",
-            ]
+            msg += "HINT: You're iterating over null. Use '.functions[]?' instead of '.functions[]'\n\n"
         elif "unexpected" in error_str or "invalid" in error_str:
-            sections["HINT"] = [
-                "Check your jq syntax. Common mistakes:",
-                "Missing quotes around strings",
-                "Unbalanced brackets or parentheses",
-                "Using undefined functions",
-            ]
+            msg += "HINT: Check for missing quotes, unbalanced brackets, or undefined functions\n\n"
 
-        error_msg = _build_jq_error_message(error, sections)
-        return [TextContent(type="text", text=error_msg)]
+        msg += "Quick reference:\n"
+        msg += "  • List keys: '.modules | keys'\n"
+        msg += "  • Filter: '.modules | map(select(.keywords))'\n"
+        msg += "  • See CLAUDE.md for complete schema\n"
 
-    def _create_unexpected_error_response(self, error: Exception) -> list[TextContent]:
-        """
-        Create error response for unexpected failures.
-
-        Args:
-            error: The unexpected exception
-
-        Returns:
-            TextContent with error details and troubleshooting suggestions
-        """
-        sections = {
-            "This may indicate": [
-                "Malformed index data",
-                "Very large intermediate data structures",
-                "Python jq library issue",
-            ],
-            "Try": [
-                "Simplifying your query",
-                "Testing with a simpler query first (e.g., '.modules | keys')",
-                "Checking if the index is corrupted (try rebuilding)",
-            ],
-        }
-
-        error_msg = _format_error_sections("Unexpected error executing jq query", error, sections)
-        return [TextContent(type="text", text=error_msg)]
+        return [TextContent(type="text", text=msg)]

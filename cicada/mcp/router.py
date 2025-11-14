@@ -4,7 +4,7 @@ Tool Router for Cicada MCP Server.
 Routes tool calls to appropriate handlers with argument validation.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from mcp.types import TextContent
 
@@ -20,6 +20,29 @@ from cicada.mcp.handlers import (
 # Security limits for jq queries to prevent resource exhaustion
 MAX_JQ_QUERY_LENGTH = 10_000  # Maximum characters in a jq query
 MAX_JQ_NESTING_DEPTH = 50  # Maximum bracket/parenthesis nesting imbalance
+
+
+def _validate_jq_query(query: str | None) -> str | None:
+    """Validate jq query. Returns error message or None if valid."""
+    if not query:
+        return "'query' is required"
+    if not isinstance(query, str):
+        return "'query' must be a string"
+    if not query.strip():
+        return "'query' cannot be empty"
+    if len(query) > MAX_JQ_QUERY_LENGTH:
+        return (
+            f"'query' exceeds maximum length of {MAX_JQ_QUERY_LENGTH:,} characters.\n"
+            f"Current: {len(query):,}. Please simplify your query."
+        )
+    bracket_balance = abs(query.count("[") - query.count("]"))
+    paren_balance = abs(query.count("(") - query.count(")"))
+    if max(bracket_balance, paren_balance) > MAX_JQ_NESTING_DEPTH:
+        return (
+            f"Suspicious nesting: bracket={bracket_balance}, paren={paren_balance}. "
+            f"Max imbalance: {MAX_JQ_NESTING_DEPTH}"
+        )
+    return None
 
 
 class ToolRouter:
@@ -307,48 +330,17 @@ class ToolRouter:
             query = arguments.get("query")
             output_format = arguments.get("format", "json")
 
-            # Validate required parameters
-            if not query:
-                error_msg = "'query' is required"
-                return [TextContent(type="text", text=error_msg)]
+            if error := _validate_jq_query(query):
+                return [TextContent(type="text", text=error)]
 
-            # Validate types
-            if not isinstance(query, str):
-                error_msg = "'query' must be a string"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate empty query
-            if not query.strip():
-                error_msg = "'query' cannot be empty"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Security: Validate query length to prevent resource exhaustion
-            if len(query) > MAX_JQ_QUERY_LENGTH:
-                error_msg = (
-                    f"'query' exceeds maximum length of {MAX_JQ_QUERY_LENGTH:,} characters.\n"
-                    f"Current length: {len(query):,} characters.\n"
-                    f"Please simplify your query or break it into smaller parts."
-                )
-                return [TextContent(type="text", text=error_msg)]
-
-            # Security: Check for suspicious nesting that could cause resource exhaustion
-            bracket_balance = abs(query.count("[") - query.count("]"))
-            paren_balance = abs(query.count("(") - query.count(")"))
-            if bracket_balance > MAX_JQ_NESTING_DEPTH or paren_balance > MAX_JQ_NESTING_DEPTH:
-                error_msg = (
-                    "'query' appears to have suspicious nesting patterns.\n"
-                    f"Bracket imbalance: {bracket_balance}, Parenthesis imbalance: {paren_balance}\n"
-                    f"Maximum allowed imbalance: {MAX_JQ_NESTING_DEPTH}\n"
-                    "Please check your query for unbalanced brackets/parentheses or excessive nesting."
-                )
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate format enum
             if output_format not in ("json", "compact", "pretty"):
-                error_msg = "'format' must be one of: 'json', 'compact', 'pretty'"
-                return [TextContent(type="text", text=error_msg)]
+                return [
+                    TextContent(
+                        type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
+                    )
+                ]
 
-            return await self.analysis_handler.query_jq(query, output_format)
+            return await self.analysis_handler.query_jq(cast(str, query), output_format)
 
         elif name == "get_module_dependencies":
             module_name = arguments.get("module_name")
