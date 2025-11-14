@@ -32,6 +32,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "watch",
     "index",
     "index-pr",
+    "query",
     "find-dead-code",
     "clean",
     "status",
@@ -456,6 +457,68 @@ def get_argument_parser():
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
     )
 
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Smart code discovery - search by keywords or patterns",
+        description="Smart code discovery - the 'Google for code'. Searches by keywords OR patterns automatically, provides broad overview with suggestions.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada query authentication                          # Keyword search
+  cicada query jwt token verify                        # Multiple keywords
+  cicada query "MyApp.Auth.verify*"                    # Pattern search
+  cicada query authentication --scope recent           # Recent changes only
+  cicada query "create*" --filter-type functions       # Functions only
+  cicada query "SELECT" --match-source strings         # Search string literals
+  cicada query login --path-pattern "lib/auth/**"      # Specific directory
+  cicada query user --scope public --no-tests          # Public API, no tests
+  cicada query auth --max-results 10                   # Limit results
+        """,
+    )
+    query_parser.add_argument(
+        "query",
+        nargs="+",
+        help="Keywords or patterns to search for (space-separated)",
+    )
+    query_parser.add_argument(
+        "--scope",
+        choices=["all", "recent", "public", "private"],
+        default="all",
+        help="Filter scope: all (default), recent (last 14 days), public, or private",
+    )
+    query_parser.add_argument(
+        "--filter-type",
+        choices=["all", "modules", "functions"],
+        default="all",
+        help="Result type filter: all (default), modules, or functions",
+    )
+    query_parser.add_argument(
+        "--match-source",
+        choices=["all", "docs", "strings"],
+        default="all",
+        help="Where to search: all (default), docs (documentation), or strings (code strings)",
+    )
+    query_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Maximum number of results to show (default: 10)",
+    )
+    query_parser.add_argument(
+        "--path-pattern",
+        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '**/*_controller.ex')",
+    )
+    query_parser.add_argument(
+        "--no-tests",
+        action="store_true",
+        help="Exclude test files from results",
+    )
+    query_parser.add_argument(
+        "--show-snippets",
+        action="store_true",
+        help="Show code snippet previews with context lines",
+    )
+
     dead_code_parser = subparsers.add_parser(
         "find-dead-code",
         help="Find potentially unused public functions in Elixir codebase",
@@ -621,6 +684,7 @@ def handle_command(args) -> bool:
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
+        "query": handle_query,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
@@ -954,6 +1018,63 @@ def handle_index_pr(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def handle_query(args):
+    """Handle the query command for smart code discovery."""
+    from cicada.query import QueryOrchestrator
+    from cicada.utils import get_index_path, load_index
+
+    index_path = get_index_path(".")
+
+    if not index_path.exists():
+        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
+        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        index = load_index(index_path, raise_on_error=True)
+    except Exception as e:
+        print(f"Error loading index: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    assert index is not None, "Index should not be None after successful load"
+
+    # Check if index has keywords for keyword search to work
+    has_keywords = any(
+        module.get("keywords") or any(f.get("keywords") for f in module.get("functions", []))
+        for module in index.get("modules", {}).values()
+    )
+
+    if not has_keywords:
+        print("Warning: No keywords found in index. Keyword search will not work.", file=sys.stderr)
+        print("Pattern search will still work for queries like 'MyApp.User.*'", file=sys.stderr)
+        print(
+            "\nTo enable keyword search, rebuild the index with keyword extraction:",
+            file=sys.stderr,
+        )
+        print("  cicada clean && cicada index", file=sys.stderr)
+        print()
+
+    # Convert query list to appropriate format
+    # If single item, use as string; if multiple, use as list
+    query = args.query[0] if len(args.query) == 1 else args.query
+
+    # Create orchestrator and execute query
+    orchestrator = QueryOrchestrator(index)
+
+    result = orchestrator.execute_query(
+        query=query,
+        scope=args.scope,
+        filter_type=args.filter_type,
+        match_source=args.match_source,
+        max_results=args.max_results,
+        path_pattern=args.path_pattern,
+        include_tests=not args.no_tests,  # Invert no_tests to include_tests
+        show_snippets=args.show_snippets,
+    )
+
+    print(result)
 
 
 def handle_find_dead_code(args):

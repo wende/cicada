@@ -385,6 +385,83 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
+            name="query",
+            description=(
+                "🔍 SMART CODE DISCOVERY - Your starting point for exploring code.\n\n"
+                "The 'Google for code' - intelligently searches by keywords OR patterns, combines results, "
+                "and suggests relevant deep-dive tools. Use this FIRST for broad discovery, then drill down with specialized tools.\n\n"
+                "Smart Auto-Detection:\n"
+                "• Keywords: ['authentication', 'login'] → semantic search\n"
+                "• Patterns: 'MyApp.User.create*' → pattern matching\n"
+                "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\n\n"
+                "Power Filters:\n"
+                "• scope: 'all' (default) | 'recent' (last 14 days) | 'public' | 'private'\n"
+                "• filter_type: 'all' | 'modules' | 'functions'\n"
+                "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\n"
+                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\n"
+                "• include_tests: true (default) | false\n\n"
+                "Returns:\n"
+                "• Broad overview with snippets (shallow but comprehensive)\n"
+                "• Smart suggestions for next steps with actual tool calls\n"
+                "• Match indicators: 📄 (docs), 💬 (strings), 🎯 (pattern)\n\n"
+                "AI USAGE TIPS:\n"
+                "• **USE THIS FIRST** - perfect entry point for code exploration\n"
+                "• Start broad: query('authentication') then follow suggestions\n"
+                "• Try patterns when you know structure: query('MyApp.*.create*')\n"
+                "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\n"
+                "• Follow suggestions - they guide you to the right deep-dive tools\n"
+                "• Results include paths, scores, docs, and next-step recommendations\n\n"
+                "Example Workflow:\n"
+                "1. query(['jwt', 'authentication']) → finds relevant code\n"
+                "2. Follow suggestion → search_function('verify_token') → see usage details\n"
+                "3. Follow suggestion → search_module('MyApp.Auth') → see complete API"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ],
+                        "description": "Keywords (e.g., ['authentication', 'login']) OR patterns (e.g., 'MyApp.User.create*') OR mixed.",
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": ["all", "recent", "public", "private"],
+                        "description": "Filter scope: 'all' (default) = everything, 'recent' = changed in last 14 days, 'public' = public functions/modules only, 'private' = private functions only.",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Result type filter: 'all' (default) = modules + functions, 'modules' = only modules, 'functions' = only functions.",
+                    },
+                    "match_source": {
+                        "type": "string",
+                        "enum": ["all", "docs", "strings"],
+                        "description": "Where to search: 'all' (default) = docs + strings, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages).",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results to show (default: 10). Use smaller values (3-5) for quick overview, larger (20+) for comprehensive search.",
+                    },
+                    "path_pattern": {
+                        "type": "string",
+                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex').",
+                    },
+                    "include_tests": {
+                        "type": "boolean",
+                        "description": "Include test files in results (default: true). Set to false to exclude test files.",
+                    },
+                    "show_snippets": {
+                        "type": "boolean",
+                        "description": "Show code snippet previews with context lines (default: false). When enabled, displays actual code around each result.",
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
             name="find_dead_code",
             description=(
                 "Find potentially unused public functions with confidence levels.\n\n"
@@ -492,6 +569,61 @@ def get_tool_definitions() -> list[Tool]:
                     },
                 },
                 "required": ["module_name", "function_name", "arity"],
+            },
+        ),
+        Tool(
+            name="expand_result",
+            description=(
+                "Drill down into a search result to see complete details.\n\n"
+                "After discovering modules or functions with query or search_by_features, "
+                "use this tool to explore a specific result in depth. Automatically determines "
+                "whether you're expanding a module or function.\n\n"
+                "For modules: Shows all functions, documentation, and structure.\n"
+                "For functions: Shows definition, documentation, call sites, and relationships.\n\n"
+                "AI USAGE TIPS:\n"
+                "• Use after query/search_by_features to explore interesting results\n"
+                "• Copy the identifier directly from search results (e.g., 'MyApp.Auth.verify_token/2')\n"
+                "• Type detection is automatic - no need to specify module vs function\n"
+                "• Perfect for understanding what a result does before modifying it\n"
+                "• Shows: full code context, relationships, usage examples\n"
+                "• Replaces need to manually call search_module or search_function"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "identifier": {
+                        "type": "string",
+                        "description": (
+                            "Module name (e.g., 'MyApp.Auth') or function reference "
+                            "(e.g., 'MyApp.Auth.verify_token/2'). Copy directly from search results."
+                        ),
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["auto", "module", "function"],
+                        "description": (
+                            "Type of result to expand. Use 'auto' (default) for automatic detection, "
+                            "'module' to explicitly expand as module, or 'function' for function."
+                        ),
+                    },
+                    "include_code": {
+                        "type": "boolean",
+                        "description": "Include code snippets in the expansion. Defaults to true.",
+                    },
+                    "include_relationships": {
+                        "type": "boolean",
+                        "description": (
+                            "Include call graph relationships (what this calls, who calls this). "
+                            "Defaults to true."
+                        ),
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["markdown", "json"],
+                        "description": "Output format. Defaults to 'markdown'.",
+                    },
+                },
+                "required": ["identifier"],
             },
         ),
     ]

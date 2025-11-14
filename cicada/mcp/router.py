@@ -11,6 +11,7 @@ from mcp.types import TextContent
 from cicada.mcp.handlers import (
     AnalysisHandler,
     DependencyHandler,
+    ExpandHandler,
     FunctionSearchHandler,
     GitHistoryHandler,
     ModuleSearchHandler,
@@ -29,6 +30,7 @@ class ToolRouter:
         pr_handler: PRHistoryHandler,
         dependency_handler: DependencyHandler,
         analysis_handler: AnalysisHandler,
+        expand_handler: ExpandHandler,
     ):
         """
         Initialize the tool router with handlers.
@@ -40,6 +42,7 @@ class ToolRouter:
             pr_handler: Handler for PR history tools
             dependency_handler: Handler for dependency analysis tools
             analysis_handler: Handler for analysis tools (keywords, dead code)
+            expand_handler: Handler for result expansion tool
         """
         self.module_handler = module_handler
         self.function_handler = function_handler
@@ -47,6 +50,7 @@ class ToolRouter:
         self.pr_handler = pr_handler
         self.dependency_handler = dependency_handler
         self.analysis_handler = analysis_handler
+        self.expand_handler = expand_handler
 
     @staticmethod
     def _resolve_visibility_parameter(arguments: dict) -> str:
@@ -293,6 +297,69 @@ class ToolRouter:
                 keywords, filter_type, min_score, match_source
             )
 
+        elif name == "query":
+            query = arguments.get("query")
+            scope = arguments.get("scope", "all")
+            filter_type = arguments.get("filter_type", "all")
+            match_source = arguments.get("match_source", "all")
+            max_results = arguments.get("max_results", 10)
+            path_pattern = arguments.get("path_pattern")
+            include_tests = arguments.get("include_tests", True)
+            show_snippets = arguments.get("show_snippets", False)
+
+            # Validate required argument
+            if not query:
+                error_msg = "'query' is required"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate query type
+            if not isinstance(query, (str, list)):
+                error_msg = "'query' must be a string or list of strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            if isinstance(query, list) and not all(isinstance(q, str) for q in query):
+                error_msg = "'query' list must contain only strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate enum parameters
+            if scope not in ("all", "recent", "public", "private"):
+                error_msg = "'scope' must be one of: 'all', 'recent', 'public', 'private'"
+                return [TextContent(type="text", text=error_msg)]
+
+            if filter_type not in ("all", "modules", "functions"):
+                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
+                return [TextContent(type="text", text=error_msg)]
+
+            if match_source not in ("all", "docs", "strings"):
+                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate max_results
+            if not isinstance(max_results, int) or max_results < 1:
+                error_msg = "'max_results' must be a positive integer"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate include_tests
+            if not isinstance(include_tests, bool):
+                error_msg = "'include_tests' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate show_snippets
+            if not isinstance(show_snippets, bool):
+                error_msg = "'show_snippets' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self.analysis_handler.query(
+                query,
+                scope,
+                filter_type,
+                match_source,
+                max_results,
+                path_pattern,
+                include_tests,
+                show_snippets,
+            )
+
         elif name == "find_dead_code":
             min_confidence = arguments.get("min_confidence", "high")
             output_format = arguments.get("format", "markdown")
@@ -326,6 +393,44 @@ class ToolRouter:
 
             return await self.dependency_handler.get_function_dependencies(
                 module_name, function_name, arity, output_format, include_context
+            )
+
+        elif name == "expand_result":
+            identifier = arguments.get("identifier")
+            result_type = arguments.get("type", "auto")
+            include_code = arguments.get("include_code", True)
+            include_relationships = arguments.get("include_relationships", True)
+            output_format = arguments.get("format", "markdown")
+
+            # Validate required parameter
+            if not identifier:
+                error_msg = "'identifier' is required"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate enum parameters
+            if result_type not in ("auto", "module", "function"):
+                error_msg = "'type' must be one of: 'auto', 'module', 'function'"
+                return [TextContent(type="text", text=error_msg)]
+
+            if output_format not in ("markdown", "json"):
+                error_msg = "'format' must be one of: 'markdown', 'json'"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate boolean parameters
+            if not isinstance(include_code, bool):
+                error_msg = "'include_code' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            if not isinstance(include_relationships, bool):
+                error_msg = "'include_relationships' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self.expand_handler.expand_result(
+                identifier,
+                result_type,
+                include_code,
+                include_relationships,
+                output_format,
             )
 
         else:

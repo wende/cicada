@@ -164,6 +164,10 @@ class KeywordSearcher:
             "keyword_sources": keyword_sources,
         }
 
+        # Include timestamp if available
+        if func.get("last_modified_at"):
+            document["last_modified_at"] = func["last_modified_at"]
+
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
@@ -472,6 +476,10 @@ class KeywordSearcher:
                 # Add string sources if available
                 if doc.get("string_sources"):
                     result["string_sources"] = doc["string_sources"]
+
+                # Add timestamp if available (for recent filtering)
+                if doc.get("last_modified_at"):
+                    result["last_modified_at"] = doc["last_modified_at"]
 
                 results.append(result)
 
