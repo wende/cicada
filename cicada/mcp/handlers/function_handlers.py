@@ -331,6 +331,7 @@ class FunctionSearchHandler:
         usage_type: str = "source",
         changed_since: str | None = None,
         show_relationships: bool = True,
+        module_path: str | None = None,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -343,11 +344,25 @@ class FunctionSearchHandler:
             - "create*|update*" - matches functions starting with create OR update
             - "MyApp.*.create/1" - matches create/1 in any module under MyApp
             - "lib/*/user.ex:create*" - matches create* functions in files matching path pattern
+
+        Args:
+            function_name: Function name or pattern (can include module qualifier)
+            module_path: Optional module path to prepend if function_name doesn't include it
+            (other params documented in tool definition)
         """
         from cicada.elixir.format import ModuleFormatter
 
+        # Handle both calling conventions:
+        # 1. function_name="Module.function" (already qualified)
+        # 2. function_name="function", module_path="Module" (separate parameters)
+        effective_pattern = function_name
+        if module_path and "." not in function_name and ":" not in function_name:
+            # Only prepend module_path if function_name is not already qualified
+            # (doesn't contain . for module or : for file path)
+            effective_pattern = f"{module_path}.{function_name}"
+
         # Support OR syntax by splitting first, then parsing each component individually
-        parsed_patterns: list[FunctionPattern] = parse_function_patterns(function_name)
+        parsed_patterns: list[FunctionPattern] = parse_function_patterns(effective_pattern)
 
         # Search across all modules for function definitions
         results = []

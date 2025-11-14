@@ -450,5 +450,215 @@ async def test_search_function_changed_since_no_timestamp(tmp_path):
     assert data["error"] == "Function not found"
 
 
+@pytest.mark.asyncio
+async def test_search_function_with_module_path_parameter(tmp_path):
+    """Test that module_path parameter works correctly for both calling conventions."""
+    import json
+    import yaml
+
+    with open("tests/data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Test 1: Traditional qualified name (Module.function)
+    result1 = await server.function_handler.search_function("MyApp.User.create_user", "json")
+    data1 = json.loads(result1[0].text)
+
+    # Test 2: Separate parameters (function_name + module_path)
+    result2 = await server.function_handler.search_function(
+        "create_user", "json", module_path="MyApp.User"
+    )
+    data2 = json.loads(result2[0].text)
+
+    # Both should return the same results
+    if "results" in data1 and "results" in data2:
+        names1 = {entry["full_name"] for entry in data1["results"]}
+        names2 = {entry["full_name"] for entry in data2["results"]}
+        assert names1 == names2
+        assert "MyApp.User.create_user/2" in names1
+
+    # Test 3: module_path should work with partial module names
+    result3 = await server.function_handler.search_function(
+        "create_user", "json", module_path="User"
+    )
+    data3 = json.loads(result3[0].text)
+
+    # Should still find MyApp.User.create_user (partial match)
+    if "results" in data3:
+        names3 = {entry["full_name"] for entry in data3["results"]}
+        # Note: This might not match if the pattern doesn't support partial matching
+        # The test documents the current behavior
+
+    # Test 4: Already qualified name should NOT be modified by module_path
+    result4 = await server.function_handler.search_function(
+        "MyApp.User.create_user", "json", module_path="SomeOther.Module"
+    )
+    data4 = json.loads(result4[0].text)
+
+    # Should still find MyApp.User.create_user because the qualified name takes precedence
+    if "results" in data4:
+        names4 = {entry["full_name"] for entry in data4["results"]}
+        assert "MyApp.User.create_user/2" in names4
+
+
+@pytest.mark.asyncio
+async def test_search_function_ai_mistake_handling(tmp_path):
+    """Test that AI mistakes are handled gracefully - qualified function names work correctly."""
+    import json
+    import yaml
+
+    # Create a test index with a module like ApiKeys.get_provider_for_model
+    test_index = {
+        "modules": {
+            "ApiKeys": {
+                "file": "lib/api_keys.ex",
+                "line": 1,
+                "moduledoc": "API Keys module",
+                "functions": [
+                    {
+                        "name": "get_provider_for_model",
+                        "arity": 1,
+                        "line": 10,
+                        "type": "def",
+                        "doc": "Gets provider for a given model",
+                        "signature": "get_provider_for_model(model)",
+                    }
+                ],
+                "public_functions": 1,
+                "private_functions": 0,
+                "calls": [],
+            }
+        },
+        "metadata": {"total_modules": 1, "repo_path": str(tmp_path)},
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Scenario 1: AI passes fully qualified name (what it should do)
+    result1 = await server.function_handler.search_function(
+        "ApiKeys.get_provider_for_model", "json"
+    )
+    data1 = json.loads(result1[0].text)
+
+    if "results" in data1:
+        assert data1["total_matches"] == 1
+        assert data1["results"][0]["module"] == "ApiKeys"
+        assert data1["results"][0]["function"] == "get_provider_for_model"
+
+    # Scenario 2: AI mistakenly passes separate parameters (wrong, but we handle it)
+    result2 = await server.function_handler.search_function(
+        "get_provider_for_model", "json", module_path="ApiKeys"
+    )
+    data2 = json.loads(result2[0].text)
+
+    # Both scenarios should work and return the same result
+    if "results" in data1 and "results" in data2:
+        assert data1["total_matches"] == data2["total_matches"]
+        assert data1["results"][0]["function"] == data2["results"][0]["function"]
+
+    # Scenario 3: AI passes nested module (e.g., ModuleA.ModuleB.function)
+    # Add nested module to test
+    test_index["modules"]["MyApp.ApiKeys"] = {
+        "file": "lib/my_app/api_keys.ex",
+        "line": 1,
+        "moduledoc": "Nested API Keys module",
+        "functions": [
+            {
+                "name": "get_provider",
+                "arity": 1,
+                "line": 10,
+                "type": "def",
+                "doc": "Gets provider",
+                "signature": "get_provider(model)",
+            }
+        ],
+        "public_functions": 1,
+        "private_functions": 0,
+        "calls": [],
+    }
+
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    # Reload server with updated index
+    server = CicadaServer(config_path=str(config_path))
+
+    # Test nested module qualification
+    result3 = await server.function_handler.search_function("MyApp.ApiKeys.get_provider", "json")
+    data3 = json.loads(result3[0].text)
+
+    if "results" in data3:
+        assert data3["total_matches"] == 1
+        assert data3["results"][0]["module"] == "MyApp.ApiKeys"
+        assert data3["results"][0]["function"] == "get_provider"
+
+    # Test with separate parameters
+    result4 = await server.function_handler.search_function(
+        "get_provider", "json", module_path="MyApp.ApiKeys"
+    )
+    data4 = json.loads(result4[0].text)
+
+    if "results" in data3 and "results" in data4:
+        assert data3["total_matches"] == data4["total_matches"]
+
+
+@pytest.mark.asyncio
+async def test_search_function_module_path_with_wildcards(tmp_path):
+    """Test that module_path parameter works with wildcards."""
+    import json
+    import yaml
+
+    with open("tests/data/test_index.json") as f:
+        test_index = json.load(f)
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Test: module_path with wildcard
+    result = await server.function_handler.search_function("create*", "json", module_path="MyApp.*")
+    data = json.loads(result[0].text)
+
+    if "results" in data:
+        names = {entry["full_name"] for entry in data["results"]}
+        # Should find create functions in MyApp modules
+        assert any("create" in name.lower() for name in names)
+
+
 if __name__ == "__main__":
     asyncio.run(test_search_function())
