@@ -235,6 +235,60 @@ class KeywordSearcher:
                 groups.append(idx)
         return expanded, groups
 
+    def _extract_module_patterns(self, keywords: list[str]) -> list[str]:
+        """
+        Extract module patterns from keywords containing dots.
+
+        If a keyword contains a ".", split it and extract the module part(s).
+        Supports wildcards and nested modules.
+
+        Args:
+            keywords: List of keywords (e.g., ["ApiKeys.create_user", "MyApp.User.update"])
+
+        Returns:
+            List of module patterns extracted (e.g., ["ApiKeys", "MyApp.User", "MyApp.*"])
+
+        Examples:
+            - "ApiKeys.create_user" -> ["ApiKeys"]
+            - "MyApp.User.create_user" -> ["MyApp.User", "MyApp.*"]
+            - "MyApp.*.create_user" -> ["MyApp.*"]
+        """
+        module_patterns = set()
+
+        for keyword in keywords:
+            # Skip keywords without dots (they're not module-qualified)
+            if "." not in keyword:
+                continue
+
+            # Split on the last dot to separate module from function/keyword
+            module_pattern = keyword.rsplit(".", 1)[0]
+            module_patterns.add(module_pattern)
+
+            # If it's a nested module (multiple dots), also add wildcard patterns
+            # e.g., "MyApp.User" -> also try "MyApp.*"
+            if "." in module_pattern and "*" not in module_pattern:
+                prefix = module_pattern.split(".", 1)[0]
+                module_patterns.add(f"{prefix}.*")
+
+        return list(module_patterns)
+
+    def _match_module_name(self, module_pattern: str, doc_module: str) -> bool:
+        """
+        Check if a document's module name matches a module pattern.
+
+        Supports wildcards (*) for pattern matching.
+
+        Args:
+            module_pattern: Module pattern (e.g., "ApiKeys", "MyApp.*", "*.User")
+            doc_module: Document's module name (e.g., "ApiKeys", "MyApp.User")
+
+        Returns:
+            True if the module name matches the pattern
+        """
+        if "*" in module_pattern:
+            return self._match_wildcard(module_pattern, doc_module)
+        return module_pattern.lower() == doc_module.lower()
+
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
     ) -> list[dict[str, Any]]:
@@ -246,8 +300,12 @@ class KeywordSearcher:
 
         Automatically detects wildcard patterns (* supported) and OR patterns (| supported) in keywords.
 
+        When keywords contain dots (e.g., "ApiKeys.create_user"), the module part is extracted
+        and matched against the document's module name for additional scoring.
+
         Args:
-            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns)
+            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns,
+                           and "Module.keyword" for module-qualified searches)
             top_n: Maximum number of results to return
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
@@ -268,6 +326,9 @@ class KeywordSearcher:
 
         # Normalize query keywords to lowercase
         query_keywords_lower = [kw.lower() for kw in query_keywords]
+
+        # Extract module patterns from keywords with dots (e.g., "ApiKeys.create_user" -> "ApiKeys")
+        module_patterns = self._extract_module_patterns(query_keywords_lower)
 
         # Expand OR patterns (e.g., "create*|update*" -> ["create*", "update*"])
         query_keywords_expanded, keyword_groups = self._expand_or_patterns(query_keywords_lower)
@@ -295,7 +356,17 @@ class KeywordSearcher:
                     doc["keywords"],
                 )
 
-            # Only include results with at least one matched keyword
+            # Check for module name match if module patterns were extracted
+            module_matched = False
+            if module_patterns:
+                for module_pattern in module_patterns:
+                    if self._match_module_name(module_pattern, doc["module"]):
+                        # Boost score for module match (substantial boost to prioritize module-qualified searches)
+                        result_data["score"] += 2.0
+                        module_matched = True
+                        break
+
+            # Only include results with at least one matched keyword OR a module match
             if result_data["score"] > 0:
                 result = {
                     "type": doc["type"],
@@ -307,6 +378,10 @@ class KeywordSearcher:
                     "confidence": result_data["confidence"],
                     "matched_keywords": result_data["matched_keywords"],
                 }
+
+                # Add module match indicator if applicable
+                if module_matched:
+                    result["module_matched"] = True
 
                 # Add type-specific fields
                 if doc["type"] == "function":

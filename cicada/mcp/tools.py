@@ -74,7 +74,17 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "description": (
                             "Function pattern to search. Supports module qualifiers, file scoping via 'file.ex:function', wildcards (*), OR (|), "
-                            "and arity filters (e.g., 'MyApp.create_user/2', 'create*|update*', 'lib/*/user.ex:create*')."
+                            "and arity filters (e.g., 'MyApp.create_user/2', 'create*|update*', 'lib/*/user.ex:create*'). "
+                            "Can also be just the function name if module_path is provided separately."
+                        ),
+                    },
+                    "module_path": {
+                        "type": "string",
+                        "description": (
+                            "Optional module path to filter the search (e.g., 'MyApp.User' or 'MyApp.*' for wildcard matching). "
+                            "If provided, this will be prepended to function_name for searching. "
+                            "Supports wildcards (*) for pattern matching (e.g., '*User', '*.User', 'MyApp.*'). "
+                            "Alternative to including module in function_name directly."
                         ),
                     },
                     "format": {

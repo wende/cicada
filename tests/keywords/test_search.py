@@ -434,3 +434,134 @@ class TestKeywordSearcher:
 
         assert results
         assert all(r["confidence"] == 100.0 for r in results)
+
+    def test_module_qualified_keyword(self, sample_index):
+        """Test search with module-qualified keyword (e.g., ApiKeys.create_user)."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["MyApp.User.create"], top_n=10)
+
+        # Should boost results from MyApp.User module
+        assert len(results) > 0
+        # Find the MyApp.User result
+        user_result = next((r for r in results if r["module"] == "MyApp.User"), None)
+        assert user_result is not None
+        assert "module_matched" in user_result
+        assert user_result["module_matched"] is True
+
+        # User module result should have higher score than without module match
+        # (it gets a +2.0 boost)
+
+    def test_module_extraction_simple(self, sample_index):
+        """Test _extract_module_patterns with simple module name."""
+        searcher = KeywordSearcher(sample_index)
+        patterns = searcher._extract_module_patterns(["apikeys.create_user"])
+
+        assert "apikeys" in patterns
+
+    def test_module_extraction_nested(self, sample_index):
+        """Test _extract_module_patterns with nested module."""
+        searcher = KeywordSearcher(sample_index)
+        patterns = searcher._extract_module_patterns(["myapp.user.create_user"])
+
+        # Should extract both the full module and wildcard pattern
+        assert "myapp.user" in patterns
+        assert "myapp.*" in patterns
+
+    def test_module_extraction_wildcard(self, sample_index):
+        """Test _extract_module_patterns with wildcard in module."""
+        searcher = KeywordSearcher(sample_index)
+        patterns = searcher._extract_module_patterns(["myapp.*.create"])
+
+        assert "myapp.*" in patterns
+
+    def test_module_extraction_no_dots(self, sample_index):
+        """Test _extract_module_patterns with keywords without dots."""
+        searcher = KeywordSearcher(sample_index)
+        patterns = searcher._extract_module_patterns(["create", "user"])
+
+        # Should return empty list since no keywords have dots
+        assert len(patterns) == 0
+
+    def test_match_module_name_exact(self, sample_index):
+        """Test _match_module_name with exact match."""
+        searcher = KeywordSearcher(sample_index)
+
+        assert searcher._match_module_name("myapp.user", "MyApp.User") is True
+        assert searcher._match_module_name("myapp.post", "MyApp.User") is False
+
+    def test_match_module_name_wildcard(self, sample_index):
+        """Test _match_module_name with wildcard."""
+        searcher = KeywordSearcher(sample_index)
+
+        assert searcher._match_module_name("myapp.*", "MyApp.User") is True
+        assert searcher._match_module_name("myapp.*", "MyApp.Post") is True
+        assert searcher._match_module_name("otherapp.*", "MyApp.User") is False
+
+    def test_module_qualified_search_boosts_score(self, sample_index):
+        """Test that module-qualified searches boost the score."""
+        searcher = KeywordSearcher(sample_index)
+
+        # Search without module qualification
+        results_no_module = searcher.search(["create"], top_n=10)
+        create_user_score = next(
+            (r["score"] for r in results_no_module if r["name"] == "MyApp.User.create/1"), None
+        )
+
+        # Search with module qualification
+        results_with_module = searcher.search(["MyApp.User.create"], top_n=10)
+        create_user_with_module_score = next(
+            (r["score"] for r in results_with_module if r["name"] == "MyApp.User.create/1"), None
+        )
+
+        # Module-qualified search should have higher score
+        assert create_user_with_module_score is not None
+        assert create_user_score is not None
+        assert create_user_with_module_score > create_user_score
+
+    def test_module_qualified_changes_ranking(self, sample_index):
+        """Test that module qualification changes result ranking."""
+        searcher = KeywordSearcher(sample_index)
+
+        # Both modules have a "create" function, search with module qualifier
+        results = searcher.search(["MyApp.Post.create"], top_n=10)
+
+        # MyApp.Post.create/1 should be ranked first due to module match
+        assert len(results) > 0
+        assert results[0]["module"] == "MyApp.Post"
+        assert "module_matched" in results[0]
+
+    def test_multiple_module_qualified_keywords(self, sample_index):
+        """Test search with multiple module-qualified keywords."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["MyApp.User.create", "MyApp.Post.publish"], top_n=10)
+
+        # Should find results from both modules with boosts
+        assert len(results) > 0
+        user_results = [r for r in results if r["module"] == "MyApp.User"]
+        post_results = [r for r in results if r["module"] == "MyApp.Post"]
+
+        assert len(user_results) > 0
+        assert len(post_results) > 0
+
+    def test_module_qualified_with_wildcard_module(self, sample_index):
+        """Test module qualification with wildcard in module name."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["MyApp.*.create"], top_n=10)
+
+        # Should boost all functions in MyApp.* modules
+        assert len(results) > 0
+        # All results should be from MyApp modules
+        assert all(r["module"].startswith("MyApp") for r in results)
+        # All should have module_matched flag
+        assert all(r.get("module_matched", False) for r in results)
+
+    def test_module_qualified_or_pattern(self, sample_index):
+        """Test module-qualified keywords with OR patterns."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["MyApp.User.create|MyApp.Post.create"], top_n=10)
+
+        # Should find create functions from both modules
+        assert len(results) > 0
+        modules_found = {r["module"] for r in results}
+        assert "MyApp.User" in modules_found
+        assert "MyApp.Post" in modules_found
