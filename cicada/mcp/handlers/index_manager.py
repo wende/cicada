@@ -18,6 +18,13 @@ from cicada.utils import get_pr_index_path, load_index
 class IndexManager:
     """Manages the code index and PR index with caching and reloading."""
 
+    SETUP_INSTRUCTIONS = (
+        "Please run setup first:\n"
+        "  cicada cursor  # For Cursor\n"
+        "  cicada claude  # For Claude Code\n"
+        "  cicada vs      # For VS Code"
+    )
+
     def __init__(self, config: dict[str, Any]):
         """
         Initialize the index manager.
@@ -61,11 +68,7 @@ class IndexManager:
             result = load_index(index_path, raise_on_error=True)
             if result is None:
                 raise FileNotFoundError(
-                    f"Index file not found: {index_path}\n\n"
-                    f"Please run setup first:\n"
-                    f"  cicada cursor  # For Cursor\n"
-                    f"  cicada claude  # For Claude Code\n"
-                    f"  cicada vs      # For VS Code"
+                    f"Index file not found: {index_path}\n\n{self.SETUP_INSTRUCTIONS}"
                 )
             return result
         except json.JSONDecodeError as e:
@@ -81,11 +84,7 @@ class IndexManager:
             ) from e
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"Index file not found: {index_path}\n\n"
-                f"Please run setup first:\n"
-                f"  cicada cursor  # For Cursor\n"
-                f"  cicada claude  # For Claude Code\n"
-                f"  cicada vs      # For VS Code"
+                f"Index file not found: {index_path}\n\n{self.SETUP_INSTRUCTIONS}"
             ) from None
 
     def _check_keywords_available(self) -> bool:
@@ -93,15 +92,16 @@ class IndexManager:
         Check if any keywords are available in the index.
 
         This is cached at initialization to avoid repeated checks.
+        Checks for both documentation keywords and string keywords.
 
         Returns:
-            True if keywords are available in the index
+            True if keywords or string_keywords are available in the index
         """
         for module_data in self._index.get("modules", {}).values():
-            if module_data.get("keywords"):
+            if module_data.get("keywords") or module_data.get("string_keywords"):
                 return True
             for func in module_data.get("functions", []):
-                if func.get("keywords"):
+                if func.get("keywords") or func.get("string_keywords"):
                     return True
         return False
 
@@ -128,62 +128,58 @@ class IndexManager:
                 # Index file is being written or corrupted - keep serving old index
                 pass
 
+    def _get_files_to_check(self, modules: list) -> list:
+        """Sample modules to check for staleness."""
+        max_files_to_check = 50
+        if len(modules) > max_files_to_check:
+            return random.sample(modules, max_files_to_check)
+        return modules
+
+    def _get_newest_file_mtime(self, modules_to_check: list, repo_path: Path) -> float:
+        """Get the newest modification time among sampled files."""
+        newest_mtime = 0
+        for module_data in modules_to_check:
+            file_path = repo_path / module_data["file"]
+            if file_path.exists():
+                file_mtime = os.path.getmtime(file_path)
+                newest_mtime = max(newest_mtime, file_mtime)
+        return newest_mtime
+
+    def _format_age_string(self, age_seconds: float) -> str:
+        """Format age in human-readable format."""
+        hours_old = age_seconds / 3600
+        if hours_old < 1:
+            return f"{int(age_seconds / 60)} minutes"
+        elif hours_old < 24:
+            return f"{int(hours_old)} hours"
+        return f"{int(hours_old / 24)} days"
+
     def check_staleness(self) -> dict[str, Any] | None:
         """
         Check if the index is stale by comparing file modification times.
 
         Returns:
-            Dictionary with staleness info (is_stale, index_age, newest_file_age) or None
+            Dictionary with staleness info (is_stale, age_str) or None
         """
         try:
-            # Get index file path and modification time
             index_path = Path(self.config["storage"]["index_path"])
             if not index_path.exists():
                 return None
 
             index_mtime = os.path.getmtime(index_path)
             index_age = datetime.now().timestamp() - index_mtime
-
-            # Get repo path
             repo_path = Path(self.config.get("repository", {}).get("path", "."))
 
-            # Check a sample of indexed files to see if any are newer than the index
-            # Use random sampling for better coverage
-            max_files_to_check = 50
             all_modules = list(self._index.get("modules", {}).values())
+            modules_to_check = self._get_files_to_check(all_modules)
+            newest_file_mtime = self._get_newest_file_mtime(modules_to_check, repo_path)
 
-            if len(all_modules) > max_files_to_check:
-                modules_to_check = random.sample(all_modules, max_files_to_check)
-            else:
-                modules_to_check = all_modules
+            if newest_file_mtime <= index_mtime:
+                return None
 
-            newest_file_mtime = 0
+            age_str = self._format_age_string(index_age)
+            return {"is_stale": True, "age_str": age_str}
 
-            for module_data in modules_to_check:
-                file_path = repo_path / module_data["file"]
-                if file_path.exists():
-                    file_mtime = os.path.getmtime(file_path)
-                    newest_file_mtime = max(newest_file_mtime, file_mtime)
-
-            # Check if any files are newer than the index
-            is_stale = newest_file_mtime > index_mtime
-
-            if is_stale:
-                # Calculate how old the index is in human-readable format
-                hours_old = index_age / 3600
-                if hours_old < 1:
-                    age_str = f"{int(index_age / 60)} minutes"
-                elif hours_old < 24:
-                    age_str = f"{int(hours_old)} hours"
-                else:
-                    age_str = f"{int(hours_old / 24)} days"
-
-                return {
-                    "is_stale": True,
-                    "age_str": age_str,
-                }
-
-            return None
         except (OSError, KeyError):
             # Expected errors - file permissions, disk issues, config issues
             # Silently ignore these as staleness check is non-critical
