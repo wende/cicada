@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2025-11-14
+
+### Added
+
+- **String-based keyword indexing** ([#108](https://github.com/wende/cicada/pull/108)) - Index and search string literals from function bodies
+  - New `match_source` parameter for `search_by_keywords` tool ('all', 'docs', 'strings')
+  - Visual indicators in results (📄 for docs, 💬 for strings, 📄💬 for both)
+  - 1.3x keyword weight boost for string literals vs documentation
+  - Search SQL queries, error messages, log statements, and other string content
+- **Repository linking system** ([#93](https://github.com/wende/cicada/pull/93)) - Share indices between repositories
+  - `cicada link <source>` - Link current repo to source repo's index
+  - `cicada link --to <target> <source>` - Link target to source
+  - `cicada unlink` - Remove link from repository
+  - `cicada dir` - Shows link info if repository is linked
+  - Useful for monorepos, testing, and development scenarios
+  - Circular link detection and broken link validation
+- **Status command** ([#104](https://github.com/wende/cicada/pull/104)) - New `cicada status` command for diagnostic information
+  - Shows index status (tier/models, build date, file size)
+  - Shows PR index status
+  - Lists agent files with cicada references
+  - Lists MCP config files
+- **Quick initialization flag** ([#102](https://github.com/wende/cicada/pull/102)) - New `--default` flag for `cicada index` command
+  - Non-interactive initialization with default values
+  - Equivalent to `--force --fast`
+  - Uses REGULAR extraction + LEMMI expansion
+
+### Changed
+
+- **MCP tool API enhancement** ([#109](https://github.com/wende/cicada/pull/109)) - Added `module_path` parameter to `search_function` tool
+  - Supports both qualified and separate module/function calling conventions
+  - Handles OR patterns correctly with automatic qualification
+
+### Fixed
+
+- **MCP server reconnection issues** ([#106](https://github.com/wende/cicada/pull/106)) - Added signal handlers for clean shutdown
+  - Prevents zombie process accumulation
+  - Clears Python bytecode cache to avoid stale .pyc issues
+- **PR count accuracy** ([#103](https://github.com/wende/cicada/pull/103)) - Use exact GraphQL query instead of approximation
+  - Now includes OPEN, CLOSED, and MERGED PRs
+  - Fixes incorrect partial fetch detection in incremental updates
+- **Setup UX** ([#106](https://github.com/wende/cicada/pull/106)) - Removed confusing "Step 1/4" label from editor selection
+
 ## [0.3.1] - 2025-11-11
 
 ### Added
@@ -406,7 +448,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/wende/cicada/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/wende/cicada/compare/v0.2.2...v0.2.3

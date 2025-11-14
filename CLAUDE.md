@@ -303,6 +303,435 @@ Doc: "Fetches all active users from the database"
 - **KeywordSearcher** (`cicada/keyword_search.py`): Supports `match_source` filtering
 - **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays match source indicators
 
+## jq Query Tool
+
+The `query_jq` MCP tool provides direct access to the Cicada index using jq query syntax for advanced data exploration and custom analysis.
+
+### Tool Overview
+
+**Purpose:** Execute arbitrary jq queries against the index for custom analysis not covered by specialized tools.
+
+**When to use:**
+- Exploring the index structure
+- Custom aggregations and statistics
+- Debugging index contents
+- Complex multi-criteria filtering
+- Ad-hoc data analysis
+
+**When NOT to use:**
+- Use specialized tools (`search_module`, `search_function`, etc.) for common queries
+- Prefer specialized tools for better error messages and formatting
+
+### Index Schema Reference
+
+#### Root Structure
+
+```json
+{
+  "modules": {
+    "<module_name>": <Module Object>
+  },
+  "metadata": <Metadata Object>
+}
+```
+
+#### Module Object
+
+**Required fields:**
+```json
+{
+  "file": "lib/my_app/user.ex",                    // string: Relative file path
+  "line": 1,                                        // int: Module definition line
+  "functions": [<Function Object>, ...],            // array: Function list (may be empty)
+  "total_functions": 2,                             // int: Total function count
+  "public_functions": 1,                            // int: Public function count
+  "private_functions": 1                            // int: Private function count
+}
+```
+
+**Optional fields:**
+```json
+{
+  "moduledoc": "User management module",            // string: Module documentation (may be null)
+  "keywords": {"user": 0.9, "account": 0.8},        // object: Doc keywords with scores
+  "string_keywords": {"SELECT": 1.3, "users": 1.1}, // object: String literal keywords
+  "string_sources": [                                // array: Original string literals
+    {
+      "string": "SELECT * FROM users",
+      "line": 42,
+      "function": "fetch_all"
+    }
+  ],
+  "calls": [<Call Object>, ...],                    // array: Module-level function calls
+  "aliases": {"User": "MyApp.User"},                // object: Module aliases
+  "imports": [],                                     // array: Imported modules
+  "requires": [],                                    // array: Required modules
+  "uses": [],                                        // array: Used modules
+  "behaviours": [],                                  // array: Implemented behaviours
+  "dependencies": {                                  // object: Structured dependency info
+    "aliases": ["MyApp.Repo"],
+    "imports": [],
+    "requires": [],
+    "uses": [],
+    "calls": ["MyApp.Repo"]
+  }
+}
+```
+
+#### Function Object
+
+**Required fields:**
+```json
+{
+  "name": "create_user",                            // string: Function name
+  "arity": 2,                                       // int: Number of arguments
+  "line": 42,                                       // int: Function definition line
+  "type": "def",                                    // string: "def" or "defp"
+  "full_name": "create_user/2",                     // string: name/arity format
+  "signature": "create_user(attrs, opts)",          // string: Function signature
+  "args": ["attrs", "opts"],                        // array: Argument names
+  "guards": [],                                     // array: Guard clauses
+  "impl": false                                     // boolean: Is implementation
+}
+```
+
+**Optional fields:**
+```json
+{
+  "doc": "Creates a new user",                      // string: Function documentation (may be null)
+  "keywords": {"user": 0.9, "create": 0.85},        // object: Doc keywords
+  "string_keywords": {"INSERT": 1.2},               // object: String literal keywords
+  "string_sources": [                                // array: String literals in function
+    {"string": "INSERT INTO users", "line": 45}
+  ],
+  "dependencies": [<Dependency Object>, ...],       // array: Function dependencies
+  "created_at": "2024-01-15T10:30:00",              // string: Creation timestamp
+  "last_modified_at": "2024-01-20T14:20:00",        // string: Last modification
+  "last_modified_sha": "abc123",                    // string: Last commit SHA
+  "modification_count": 5                            // int: Number of modifications
+}
+```
+
+#### Metadata Object
+
+```json
+{
+  "indexed_at": "2024-01-15T10:30:00Z",             // string: Index creation timestamp
+  "total_modules": 42,                              // int: Total module count
+  "total_functions": 387,                           // int: Total function count
+  "repo_path": "/path/to/repo",                     // string: Repository path
+  "cicada_version": "0.3.2"                         // string: Cicada version
+}
+```
+
+### Common Query Patterns
+
+#### Basic Queries
+
+```jq
+# List all module names
+.modules | keys
+
+# Count total modules
+.modules | length
+
+# Get metadata
+.metadata
+
+# Count total functions across all modules
+.modules | map(.total_functions) | add
+
+# List all files
+.modules | map(.file) | unique
+```
+
+#### Module Queries
+
+```jq
+# Find modules with keywords
+.modules | to_entries | map(select(.value.keywords)) | map(.key)
+
+# Modules in specific directory
+.modules | to_entries | map(select(.value.file | test("lib/my_app/"))) | map(.key)
+
+# Modules with most functions
+.modules | to_entries | sort_by(.value.total_functions) | reverse | .[0:10] | map({module: .key, count: .value.total_functions})
+
+# Modules with no documentation
+.modules | to_entries | map(select(.value.moduledoc == null or .value.moduledoc == "")) | map(.key)
+
+# Find modules by file pattern
+.modules | to_entries | map(select(.value.file | test(".*_controller\\.ex$"))) | map(.key)
+```
+
+#### Function Queries
+
+```jq
+# All public function names
+.modules[].functions[] | select(.type == "def") | .name
+
+# Functions with specific arity
+.modules[].functions[] | select(.arity == 2) | {module: .module_name, name: .full_name, file: .file}
+
+# Private functions only
+.modules[].functions[] | select(.type == "defp") | .full_name
+
+# Functions without documentation
+.modules[].functions[] | select(.doc == null or .doc == "") | {module: .module_name, name: .full_name}
+
+# Count functions per module
+.modules | to_entries | map({module: .key, count: (.value.functions | length)})
+```
+
+#### Keyword & String Search Queries
+
+```jq
+# Modules with specific keyword
+.modules | to_entries | map(select(.value.keywords.authentication > 0.5)) | map(.key)
+
+# Functions with SQL queries
+.modules[].functions[] | select(.string_keywords.SELECT) | {module: .module_name, name: .full_name, file: .file}
+
+# All string literals containing "SELECT"
+.modules[].string_sources[]? | select(.string | contains("SELECT")) | {string, module, function, line}
+
+# Functions with high keyword scores
+.modules[].functions[] | select(.keywords) | select(.keywords | to_entries | map(.value) | max > 0.9) | {module: .module_name, name: .full_name}
+```
+
+#### Advanced Multi-Criteria Queries
+
+```jq
+# Public functions with SQL queries and high complexity
+.modules[]
+| .functions[]
+| select(.type == "def" and .string_keywords.SELECT and .arity > 2)
+| {module: .module_name, name: .full_name, arity, file, line}
+
+# Modules with both keywords and string keywords
+.modules
+| to_entries
+| map(select(.value.keywords and .value.string_keywords))
+| map({
+    module: .key,
+    file: .value.file,
+    doc_keywords: (.value.keywords | keys | length),
+    string_keywords: (.value.string_keywords | keys | length)
+  })
+
+# Find frequently modified functions (if timestamp data available)
+.modules[].functions[]
+| select(.modification_count > 5)
+| {module: .module_name, name: .full_name, modifications: .modification_count}
+| sort_by(-.modifications)
+```
+
+#### Aggregation & Statistics
+
+```jq
+# Average functions per module
+.modules | [.[].total_functions] | add / length
+
+# Distribution of function arities
+.modules[].functions[]
+| .arity
+| group_by(.)
+| map({arity: .[0], count: length})
+| sort_by(.arity)
+
+# Public vs private function ratio
+{
+  total: (.modules | map(.total_functions) | add),
+  public: (.modules | map(.public_functions) | add),
+  private: (.modules | map(.private_functions) | add)
+}
+
+# Top 10 most documented modules (by doc length)
+.modules
+| to_entries
+| map({module: .key, doc_length: (.value.moduledoc // "" | length)})
+| sort_by(-.doc_length)
+| .[0:10]
+```
+
+#### Dependency Analysis
+
+```jq
+# Modules with most dependencies
+.modules
+| to_entries
+| map({
+    module: .key,
+    deps: (.value.dependencies.calls // [] | length)
+  })
+| sort_by(-.deps)
+| .[0:10]
+
+# Find modules that call a specific module
+.modules
+| to_entries
+| map(select(.value.dependencies.calls // [] | contains(["MyApp.Repo"])))
+| map(.key)
+```
+
+### Performance Tips
+
+#### ✅ Good Practices
+
+```jq
+# Filter early to reduce data
+.modules | to_entries | .[0:10] | map(.value.functions[])
+
+# Use optional access for missing fields
+.modules[].functions[]? | select(.doc != null)
+
+# Specific field access instead of full objects
+.modules[].functions[] | {name, arity, line}
+
+# Early selection before expensive operations
+.modules | to_entries | map(select(.value.file | test("lib/"))) | map(.value.functions[])
+```
+
+#### ❌ Anti-Patterns
+
+```jq
+# Don't filter late (processes all data first)
+.modules[].functions[] | select(.file | test("lib/"))  # file not in function!
+
+# Don't assume fields exist (will crash)
+.modules[].functions[] | select(.complexity > 10)  # complexity may not exist!
+
+# Don't process all modules when you need few
+.modules[] | .functions[]  # Use .[0:10] to limit
+
+# Avoid creating huge intermediate structures
+.modules[] | .functions[] | {., extra: .}  # Doubles data size
+```
+
+### Output Formats
+
+```python
+# Default: Pretty JSON (indented)
+query_jq(query=".modules | keys", format="json")
+
+# Compact: Single line (saves tokens)
+query_jq(query=".modules | keys", format="compact")
+
+# Pretty: Same as json (indented)
+query_jq(query=".modules | keys", format="pretty")
+```
+
+### Error Handling
+
+#### Common Errors
+
+**1. Null iteration error**
+```
+Error: Cannot iterate over null
+Solution: Use optional access with '?'
+  .functions[]? instead of .functions[]
+```
+
+**2. Field doesn't exist**
+```
+Error: Cannot index with "complexity"
+Solution: Check if field exists first
+  select(.complexity) | .complexity
+  or use: .complexity // 0
+```
+
+**3. Type mismatch**
+```
+Error: Cannot use number as object
+Solution: Verify data types in query
+  Check if field is object before accessing: .keywords | keys
+```
+
+#### Getting Help
+
+When errors occur, the tool provides:
+- Original error message from jq
+- Common issues and solutions
+- Quick reference examples
+- Hints for specific error types
+- Link to this documentation
+
+### Resource Limits
+
+- **Timeout:** 30 seconds per query
+- **Result size:** 1MB maximum (results truncated with warning)
+- **Truncation:** If result exceeds limit, truncated at last complete line with suggestions to limit data
+
+### Examples by Use Case
+
+#### Use Case: Find Test Coverage Gaps
+
+```jq
+# Modules in lib/ without corresponding test files
+.modules
+| to_entries
+| map(select(.value.file | test("^lib/")))
+| map(.value.file | sub("^lib/"; "test/") | sub("\\.ex$"; "_test.exs"))
+```
+
+#### Use Case: API Surface Analysis
+
+```jq
+# All public functions grouped by module
+.modules
+| to_entries
+| map({
+    module: .key,
+    public_api: [.value.functions[] | select(.type == "def") | .full_name]
+  })
+| map(select(.public_api | length > 0))
+```
+
+#### Use Case: Code Smell Detection
+
+```jq
+# Functions with many arguments (possible code smell)
+.modules[].functions[]
+| select(.arity > 4)
+| {module: .module_name, name: .full_name, arity, file, line}
+| sort_by(-.arity)
+```
+
+#### Use Case: Documentation Audit
+
+```jq
+# Public functions without documentation
+.modules
+| to_entries
+| map({
+    module: .key,
+    file: .value.file,
+    undocumented: [
+      .value.functions[]
+      | select(.type == "def" and (.doc == null or .doc == ""))
+      | .name
+    ]
+  })
+| map(select(.undocumented | length > 0))
+```
+
+### Troubleshooting
+
+**Query returns unexpected results:**
+- Use `.modules | keys` to see available modules
+- Use `.modules.ModuleName | keys` to see available fields
+- Test query parts separately: `.modules | to_entries | .[0]` to inspect structure
+
+**Query is too slow:**
+- Add limits early: `| .[0:10]`
+- Filter before expanding: `select()` before `.functions[]`
+- Access specific fields instead of full objects
+
+**Result is truncated:**
+- Add pagination: `| .[0:50]`
+- Request specific fields: `{name, file, line}` instead of `.`
+- Use `filter` and `select` to reduce data
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:
@@ -324,3 +753,4 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - Keep functions focused and modular
 - Use make to run tests
 - There is no such thing as unrelated tests. They need to pass before commit
+- Tags and publishing is automated via CIA

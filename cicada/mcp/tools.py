@@ -494,4 +494,54 @@ def get_tool_definitions() -> list[Tool]:
                 "required": ["module_name", "function_name", "arity"],
             },
         ),
+        Tool(
+            name="query_jq",
+            description=(
+                "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
+                "Provides direct access to the raw index structure using jq query syntax. "
+                "Ideal for custom analysis, debugging index contents, and exploring data not covered by specialized tools.\n\n"
+                "Index structure: {modules: {<name>: {file, line, functions[], keywords, ...}}, metadata: {...}}\n\n"
+                "Quick Examples:\n"
+                "  • List all modules: '.modules | keys'\n"
+                "  • Count functions per module: '.modules[].functions | length'\n"
+                "  • Find test files: '.modules | to_entries | map(select(.value.file | test(\"test\")))'\n"
+                "  • Get metadata: '.metadata'\n"
+                "  • Find functions by arity: '.modules[].functions[] | select(.arity == 2)'\n\n"
+                "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
+                "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
+                "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
+                "AI USAGE TIPS:\n"
+                "• Use for custom analysis NOT covered by specialized tools\n"
+                "• Great for exploring index structure and debugging\n"
+                "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
+                "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
+                "• Results are truncated at 1MB - use filters to limit data\n"
+                "• If query fails, error includes syntax help and examples\n"
+                "• See CLAUDE.md for complete schema reference and advanced examples"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "jq query expression to execute against the index. "
+                            "Examples: '.modules | keys', '.modules[].functions[].name', "
+                            "'.modules | map(select(.keywords)) | length'. "
+                            "Use '?' for optional field access (e.g., '.functions[]?')."
+                        ),
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["json", "compact", "pretty"],
+                        "description": (
+                            "Output format: 'json' returns formatted JSON (default), "
+                            "'compact' returns single-line JSON (saves tokens), "
+                            "'pretty' returns pretty-printed JSON with indentation."
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
     ]
