@@ -131,6 +131,7 @@ class ToolRouter:
 
         elif name == "search_function":
             function_name = arguments.get("function_name")
+            module_path = arguments.get("module_path")
             output_format = arguments.get("format", "markdown")
             include_usage_examples = arguments.get("include_usage_examples", False)
             max_examples = arguments.get("max_examples", 5)
@@ -163,6 +164,7 @@ class ToolRouter:
                 usage_type,
                 changed_since,
                 show_relationships,
+                module_path,
             )
 
         elif name == "search_module_usage":

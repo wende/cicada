@@ -69,3 +69,4 @@ tests/fixtures/elixir_project
 tests/fixtures/test_project
 tests/fixtures/sample_typescript/
 .env
+link/
