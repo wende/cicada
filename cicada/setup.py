@@ -268,33 +268,17 @@ def index_repository(
     """
     try:
         index_path = get_index_path(repo_path)
-        indexer = LanguageRegistry.get_indexer(language)
-        if hasattr(indexer, "verbose"):
-            indexer.verbose = verbose  # type: ignore[misc]
+        config_path = get_config_path(repo_path)
 
-        # Different indexers have different APIs
-        # ElixirIndexer uses incremental_index_repository
-        # PythonSCIPIndexer uses index_repository
-        if hasattr(indexer, "incremental_index_repository"):
-            # Elixir-style API
-            indexer.incremental_index_repository(
-                repo_path=str(repo_path),
-                output_path=str(index_path),
-                extract_keywords=True,
-                force_full=force_full,
-            )
-        elif hasattr(indexer, "index_repository"):
-            # Python-style API
-            config_path = get_config_path(repo_path)
-            indexer.index_repository(
-                repo_path=str(repo_path),
-                output_path=str(index_path),
-                force=force_full,
-                verbose=verbose,
-                config_path=str(config_path),
-            )
-        else:
-            raise AttributeError(f"Indexer for {language} has no index_repository method")
+        # Use standard indexer interface
+        indexer = LanguageRegistry.get_indexer(language)
+        indexer.index_repository(
+            repo_path=str(repo_path),
+            output_path=str(index_path),
+            force=force_full,
+            verbose=verbose,
+            config_path=str(config_path),
+        )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:

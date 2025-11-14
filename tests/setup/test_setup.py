@@ -298,39 +298,42 @@ class TestIndexRepository:
         """Should call LanguageRegistry.get_indexer with correct parameters"""
         with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
             with patch("cicada.setup.get_index_path") as mock_get_index:
-                mock_indexer = MagicMock()
-                mock_get_indexer.return_value = mock_indexer
+                with patch("cicada.setup.get_config_path") as mock_get_config:
+                    mock_indexer = MagicMock()
+                    mock_get_indexer.return_value = mock_indexer
 
-                index_path = mock_repo / "index.json"
-                mock_get_index.return_value = index_path
+                    index_path = mock_repo / "index.json"
+                    mock_get_index.return_value = index_path
 
-                index_repository(mock_repo, language="elixir")
+                    config_path = mock_repo / "config.yaml"
+                    mock_get_config.return_value = config_path
+
+                    index_repository(mock_repo, language="elixir")
 
                 # Verify indexer was fetched for the correct language
                 mock_get_indexer.assert_called_once_with("elixir")
 
-                # Verify verbose was set
-                assert mock_indexer.verbose is True
-
-                # Verify incremental_index_repository was called with correct params
-                mock_indexer.incremental_index_repository.assert_called_once_with(
+                # Verify index_repository was called with standard interface
+                mock_indexer.index_repository.assert_called_once_with(
                     repo_path=str(mock_repo),
                     output_path=str(index_path),
-                    extract_keywords=True,
-                    force_full=False,
+                    force=False,
+                    verbose=True,
+                    config_path=str(mock_get_config.return_value),
                 )
 
     def test_handles_indexing_errors(self, mock_repo):
         """Should handle indexing errors appropriately"""
         with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
             with patch("cicada.setup.get_index_path"):
-                mock_indexer = MagicMock()
-                mock_indexer.incremental_index_repository.side_effect = Exception("Indexing failed")
-                mock_get_indexer.return_value = mock_indexer
+                with patch("cicada.setup.get_config_path"):
+                    mock_indexer = MagicMock()
+                    mock_indexer.index_repository.side_effect = Exception("Indexing failed")
+                    mock_get_indexer.return_value = mock_indexer
 
-                # Should raise the exception (not caught in current implementation)
-                with pytest.raises(Exception, match="Indexing failed"):
-                    index_repository(mock_repo, language="elixir")
+                    # Should raise the exception (not caught in current implementation)
+                    with pytest.raises(Exception, match="Indexing failed"):
+                        index_repository(mock_repo, language="elixir")
 
 
 class TestSetupFunction:
@@ -706,41 +709,44 @@ class TestIndexRepositoryForceFullParameter:
         return repo_path
 
     def test_calls_incremental_index_with_force_full_false(self, mock_repo):
-        """Should pass force_full=False by default"""
+        """Should pass force=False by default"""
         with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
             with patch("cicada.setup.get_index_path"):
-                mock_indexer = MagicMock()
-                mock_get_indexer.return_value = mock_indexer
+                with patch("cicada.setup.get_config_path"):
+                    mock_indexer = MagicMock()
+                    mock_get_indexer.return_value = mock_indexer
 
-                index_repository(mock_repo, language="elixir", force_full=False)
+                    index_repository(mock_repo, language="elixir", force_full=False)
 
-                mock_indexer.incremental_index_repository.assert_called_once()
-                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
-                assert call_kwargs["force_full"] is False
+                    mock_indexer.index_repository.assert_called_once()
+                    call_kwargs = mock_indexer.index_repository.call_args[1]
+                    assert call_kwargs["force"] is False
 
     def test_calls_incremental_index_with_force_full_true(self, mock_repo):
-        """Should pass force_full=True when specified"""
+        """Should pass force=True when specified"""
         with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
             with patch("cicada.setup.get_index_path"):
-                mock_indexer = MagicMock()
-                mock_get_indexer.return_value = mock_indexer
+                with patch("cicada.setup.get_config_path"):
+                    mock_indexer = MagicMock()
+                    mock_get_indexer.return_value = mock_indexer
 
-                index_repository(mock_repo, language="elixir", force_full=True)
+                    index_repository(mock_repo, language="elixir", force_full=True)
 
-                mock_indexer.incremental_index_repository.assert_called_once()
-                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
-                assert call_kwargs["force_full"] is True
+                    mock_indexer.index_repository.assert_called_once()
+                    call_kwargs = mock_indexer.index_repository.call_args[1]
+                    assert call_kwargs["force"] is True
 
     def test_prints_error_message_on_failure(self, mock_repo, capsys):
         """Should print error messages when indexing fails"""
         with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
             with patch("cicada.setup.get_index_path"):
-                mock_indexer = MagicMock()
-                mock_indexer.incremental_index_repository.side_effect = Exception("Test error")
-                mock_get_indexer.return_value = mock_indexer
+                with patch("cicada.setup.get_config_path"):
+                    mock_indexer = MagicMock()
+                    mock_indexer.index_repository.side_effect = Exception("Test error")
+                    mock_get_indexer.return_value = mock_indexer
 
-                with pytest.raises(Exception, match="Test error"):
-                    index_repository(mock_repo, language="elixir")
+                    with pytest.raises(Exception, match="Test error"):
+                        index_repository(mock_repo, language="elixir")
 
                 captured = capsys.readouterr()
                 assert "Error: Failed to index repository" in captured.out

@@ -15,7 +15,7 @@ class TestElixirIndexerErrorHandling:
         indexer = ElixirIndexer()
 
         with pytest.raises(ValueError, match="does not exist"):
-            indexer.index_repository("/nonexistent/path", "/tmp/index.json")
+            indexer.incremental_index_repository("/nonexistent/path", "/tmp/index.json")
 
     def test_index_repository_with_parse_errors(self, tmp_path, capsys):
         """Test indexing repository with files that have parse errors"""
@@ -36,7 +36,9 @@ end
         invalid_file.write_text("defmodule Broken do\n  def incomplete(")
 
         # Index the repository
-        index = indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
+        index = indexer.incremental_index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json")
+        )
 
         # Should skip the invalid file and continue
         assert "ValidModule" in index["modules"]
@@ -213,7 +215,7 @@ end
 
         # Do initial full index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Do incremental index with no changes
         index = indexer.incremental_index_repository(str(tmp_path), str(output_path))
@@ -237,7 +239,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Add a new file
         test_file2 = tmp_path / "test2.ex"
@@ -272,7 +274,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Modify the file
         test_file.write_text(
@@ -315,7 +317,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Delete one file
         test_file2.unlink()
@@ -343,7 +345,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Modify the file
         test_file.write_text(
@@ -380,7 +382,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Corrupt the index by replacing it with invalid structure
         import json
@@ -422,7 +424,7 @@ end
         )
 
         # Index with keyword extraction
-        index = indexer.index_repository(
+        index = indexer.incremental_index_repository(
             str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
         )
 
@@ -460,7 +462,7 @@ end
         )
 
         # Index with keyword extraction (should handle failures gracefully)
-        index = indexer.index_repository(
+        index = indexer.incremental_index_repository(
             str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
         )
 
@@ -490,7 +492,7 @@ end
         # Mock the KeywordExtractor to not be available during initialization
         import cicada.indexer
 
-        original_code = cicada.indexer.ElixirIndexer.index_repository
+        original_code = cicada.indexer.ElixirIndexer._index_repository_full
 
         def mock_index_repo(
             self,
@@ -506,10 +508,10 @@ end
                 extract_keywords = False
             return original_code(self, repo_path, output_path, extract_keywords)
 
-        monkeypatch.setattr(cicada.indexer.ElixirIndexer, "index_repository", mock_index_repo)
+        monkeypatch.setattr(cicada.indexer.ElixirIndexer, "_index_repository_full", mock_index_repo)
 
         # Index with keyword extraction (should handle import failure)
-        index = indexer.index_repository(
+        index = indexer.incremental_index_repository(
             str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
         )
 
@@ -540,7 +542,9 @@ end
             )
 
         # Index the repository
-        indexer.index_repository(str(tmp_path), str(tmp_path / ".cicada" / "index.json"))
+        indexer.incremental_index_repository(
+            str(tmp_path), str(tmp_path / ".cicada" / "index.json")
+        )
 
         # Check progress messages
         captured = capsys.readouterr()
@@ -669,7 +673,7 @@ end
         output_path = tmp_path / ".cicada" / "index.json"
 
         # Index (first run)
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Check gitignore was updated
         gitignore_content = gitignore.read_text()
@@ -723,7 +727,7 @@ end
 
         # Index repository
         output_path = tmp_path / ".cicada" / "index.json"
-        index = indexer.index_repository(str(tmp_path), str(output_path))
+        index = indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Should have partial results
         assert len(index["modules"]) == 2
@@ -755,7 +759,7 @@ end
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
         indexer = ElixirIndexer()
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Mock sys.argv with --full flag and explicit output path
         monkeypatch.setattr(
@@ -812,7 +816,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Add new file
         test_file2 = tmp_path / "test2.ex"
@@ -858,7 +862,7 @@ end
         )
 
         # Should handle initialization gracefully
-        index = indexer.index_repository(
+        index = indexer.incremental_index_repository(
             str(tmp_path), str(tmp_path / ".cicada" / "index.json"), extract_keywords=True
         )
 
@@ -893,7 +897,7 @@ end
         monkeypatch.setattr(indexer.parser, "parse_file", mock_parse)
 
         output_path = tmp_path / ".cicada" / "index.json"
-        index = indexer.index_repository(str(tmp_path), str(output_path))
+        index = indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Should save partial progress
         captured = capsys.readouterr()
@@ -923,7 +927,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Modify file to trigger incremental update
         test_file.write_text(
@@ -971,7 +975,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Add new file with docs
         test_file2 = tmp_path / "test2.ex"
@@ -1009,7 +1013,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Add multiple new files
         for i in range(2, 6):
@@ -1047,7 +1051,7 @@ end
 
         # Do initial index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Add a new file that will cause parse error
         test_file2 = tmp_path / "test2.ex"
@@ -1151,7 +1155,9 @@ end
         output_path = tmp_path / "index.json"
 
         # Should not crash, should show warning
-        index = indexer.index_repository(str(tmp_path), str(output_path), extract_keywords=True)
+        index = indexer.incremental_index_repository(
+            str(tmp_path), str(output_path), extract_keywords=True
+        )
 
         captured = capsys.readouterr()
         assert "Warning: Could not initialize keyword extractor/expander" in captured.out
@@ -1277,7 +1283,7 @@ end
         test_file.write_text("defmodule TestModule, do: def test_func(x), do: x")
 
         output_path = tmp_path / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Now modify file
         test_file.write_text("defmodule TestModule, do: def updated_func(x), do: x * 2")
@@ -1350,7 +1356,9 @@ end
         indexer = ElixirIndexer(verbose=False)
         output_path = tmp_path / "index.json"
 
-        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
+        index = indexer._index_repository_full(
+            str(tmp_path), str(output_path), compute_timestamps=True
+        )
 
         # Verify timestamps were added to functions
         assert "TestModule" in index["modules"]
@@ -1385,7 +1393,9 @@ end
         indexer = ElixirIndexer(verbose=False)
         output_path = tmp_path / "index.json"
 
-        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=False)
+        index = indexer._index_repository_full(
+            str(tmp_path), str(output_path), compute_timestamps=False
+        )
 
         # Verify timestamps were NOT added
         functions = index["modules"]["TestModule"]["functions"]
@@ -1423,7 +1433,9 @@ end
         indexer = ElixirIndexer(verbose=True)
         output_path = tmp_path / "index.json"
 
-        index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
+        index = indexer._index_repository_full(
+            str(tmp_path), str(output_path), compute_timestamps=True
+        )
 
         # Should not crash, should show warning
         captured = capsys.readouterr()

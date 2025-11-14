@@ -748,31 +748,15 @@ def handle_index_main(args) -> None:
         _print_tier_requirement_error()
         sys.exit(2)
 
-    # Perform indexing
+    # Perform indexing using standard interface
     indexer = LanguageRegistry.get_indexer(language)
-    if hasattr(indexer, "verbose"):
-        indexer.verbose = True  # type: ignore[misc]
-
-    # Different indexers have different APIs
-    if hasattr(indexer, "incremental_index_repository"):
-        # Elixir-style API
-        indexer.incremental_index_repository(
-            str(repo_path),
-            str(index_path),
-            extract_keywords=True,
-            force_full=False,
-        )
-    elif hasattr(indexer, "index_repository"):
-        # Python-style API
-        indexer.index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            force=False,
-            verbose=True,
-            config_path=str(config_path),
-        )
-    else:
-        raise AttributeError(f"Indexer for {language} has no index_repository method")
+    indexer.index_repository(
+        repo_path=str(repo_path),
+        output_path=str(index_path),
+        force=False,
+        verbose=True,
+        config_path=str(config_path),
+    )
 
 
 def _handle_index_config_update(

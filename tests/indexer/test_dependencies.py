@@ -105,7 +105,7 @@ class TestIndexerDependencyExtraction:
         output_path = sample_elixir_file / ".cicada" / "index.json"
 
         # Index the repository
-        index = indexer.index_repository(
+        index = indexer.incremental_index_repository(
             str(sample_elixir_file), str(output_path), extract_keywords=False
         )
 
@@ -133,7 +133,9 @@ class TestIndexerDependencyExtraction:
         output_path = sample_elixir_file / ".cicada" / "index.json"
 
         # Do initial index
-        indexer.index_repository(str(sample_elixir_file), str(output_path), extract_keywords=False)
+        indexer.incremental_index_repository(
+            str(sample_elixir_file), str(output_path), extract_keywords=False
+        )
 
         # Modify the file
         user_file = sample_elixir_file / "lib" / "user.ex"

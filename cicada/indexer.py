@@ -18,6 +18,7 @@ from cicada.languages.elixir.dependency_analyzer import (
     extract_module_dependencies,
 )
 from cicada.languages.elixir.parser import ElixirParser
+from cicada.parsing.base_indexer import BaseIndexer
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
     load_index,
@@ -34,7 +35,7 @@ from cicada.utils.hash_utils import (
 from cicada.version_check import get_version_string, version_mismatch
 
 
-class ElixirIndexer:
+class ElixirIndexer(BaseIndexer):
     """Indexes Elixir repositories to extract module and function information."""
 
     # Progress reporting interval - report every N files processed
@@ -57,6 +58,18 @@ class ElixirIndexer:
             "priv",
         }
         self._interrupted = False
+
+    def get_language_name(self) -> str:
+        """Return the language identifier for this indexer."""
+        return "elixir"
+
+    def get_file_extensions(self) -> list[str]:
+        """Return file extensions to index for Elixir."""
+        return [".ex", ".exs"]
+
+    def get_excluded_dirs(self) -> list[str]:
+        """Return Elixir-specific directories to exclude from indexing."""
+        return ["deps", "_build", "node_modules", ".git", "assets", "priv"]
 
     def _extract_dependencies(self, module_data: dict, functions: list) -> tuple[dict, list]:
         """
@@ -113,13 +126,51 @@ class ElixirIndexer:
 
     def index_repository(
         self,
+        repo_path: str | Path,
+        output_path: str | Path,
+        force: bool = False,
+        verbose: bool = False,
+        config_path: str | Path | None = None,
+    ) -> dict:
+        """
+        Index an Elixir repository (implements BaseIndexer interface).
+
+        This method provides the standard interface for all indexers.
+        For Elixir, it delegates to incremental_index_repository.
+
+        Args:
+            repo_path: Path to the repository to index
+            output_path: Path where the index.json should be saved
+            force: If True, reindex all files regardless of changes
+            verbose: If True, print detailed progress information
+            config_path: Optional path to config.yaml for custom settings
+
+        Returns:
+            Dictionary with indexing results
+        """
+        # Set verbose flag if specified
+        if verbose:
+            self.verbose = verbose
+
+        # Use incremental indexing (respects force flag)
+        return self.incremental_index_repository(
+            repo_path=str(repo_path),
+            output_path=str(output_path),
+            extract_keywords=True,  # Always extract keywords
+            force_full=force,
+        )
+
+    def _index_repository_full(
+        self,
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
         compute_timestamps: bool = False,
     ):
         """
-        Index an Elixir repository.
+        Index an Elixir repository (full indexing, non-incremental).
+
+        This is the legacy method kept for backward compatibility and internal use.
 
         Args:
             repo_path: Path to the Elixir repository root
@@ -545,7 +596,9 @@ class ElixirIndexer:
         if not existing_index or not existing_hashes:
             if self.verbose:
                 print("No existing index or hashes found. Performing full index...")
-            return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
+            return self._index_repository_full(
+                str(repo_path_obj), str(output_path_obj), extract_keywords
+            )
 
         if self.verbose:
             # Read and display keyword extraction config
