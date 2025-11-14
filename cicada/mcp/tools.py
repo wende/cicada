@@ -626,4 +626,69 @@ def get_tool_definitions() -> list[Tool]:
                 "required": ["identifier"],
             },
         ),
+        Tool(
+            name="suggest_keywords",
+            description=(
+                "Suggest related keywords based on co-occurrence patterns in the codebase.\n\n"
+                "Use this tool when:\n"
+                "• A search returns no results or too few results - get suggestions for related keywords that actually appear together in your code\n"
+                "• A search returns too many results - get suggestions for keywords to narrow down the search\n\n"
+                "Co-occurrence tracking is based on keywords BEFORE semantic expansion - suggestions reflect what actually appears together "
+                "in function documentation and signatures, not semantically similar terms.\n\n"
+                "Examples:\n"
+                "• No results for 'openrouter'? → Suggests 'provider', 'litellm', 'api_key' (keywords that appear together in related code)\n"
+                "• Too many results for 'test'? → Suggests 'provider', 'validate', 'integration' (keywords that frequently co-occur)\n\n"
+                "AI USAGE TIPS:\n"
+                "• Use mode='expand' when search returns 0 or very few results - helps broaden search\n"
+                "• Use mode='narrow' when search returns too many results - helps refine search\n"
+                "• Suggestions are based on actual codebase patterns, not generic language models\n"
+                "• Combine suggested keywords with original query for better results\n\n"
+                "Requires co-occurrence data (automatically built during indexing when keywords are extracted)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Original query keywords to find related terms for.",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["expand", "narrow"],
+                        "description": (
+                            "'expand' suggests related keywords when you need more results (use when search returned 0 or few results). "
+                            "'narrow' suggests keywords to refine search when you have too many results (requires providing search_results)."
+                        ),
+                    },
+                    "search_results": {
+                        "type": "array",
+                        "description": (
+                            "Optional: Current search results (for mode='narrow'). "
+                            "Analyzes these results to suggest keywords that appear frequently and can help narrow the search. "
+                            "Should be the JSON output from search_by_features."
+                        ),
+                    },
+                    "top_n": {
+                        "type": "integer",
+                        "description": "Maximum number of keyword suggestions to return. Defaults to 5.",
+                    },
+                    "min_cooccurrence": {
+                        "type": "integer",
+                        "description": (
+                            "Minimum co-occurrence count for expand mode. "
+                            "Only suggest keywords that co-occur at least this many times. Defaults to 1."
+                        ),
+                    },
+                    "min_result_count": {
+                        "type": "integer",
+                        "description": (
+                            "Minimum result count for narrow mode. "
+                            "Only suggest keywords that appear in at least this many results. Defaults to 2."
+                        ),
+                    },
+                },
+                "required": ["keywords", "mode"],
+            },
+        ),
     ]

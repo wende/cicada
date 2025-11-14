@@ -293,6 +293,34 @@ class ToolRouter:
                 keywords, filter_type, min_score, match_source
             )
 
+        elif name == "suggest_keywords":
+            keywords = arguments.get("keywords")
+            mode = arguments.get("mode")
+            search_results = arguments.get("search_results")
+            top_n = arguments.get("top_n", 5)
+            min_cooccurrence = arguments.get("min_cooccurrence", 1)
+            min_result_count = arguments.get("min_result_count", 2)
+
+            if not keywords:
+                error_msg = "'keywords' is required"
+                return [TextContent(type="text", text=error_msg)]
+
+            if not isinstance(keywords, list):
+                error_msg = "'keywords' must be a list of strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            if mode not in ("expand", "narrow"):
+                error_msg = "'mode' must be either 'expand' or 'narrow'"
+                return [TextContent(type="text", text=error_msg)]
+
+            if mode == "narrow" and not search_results:
+                error_msg = "'search_results' is required when mode='narrow'"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self.analysis_handler.suggest_keywords(
+                keywords, mode, search_results, top_n, min_cooccurrence, min_result_count
+            )
+
         elif name == "query":
             query = arguments.get("query")
             scope = arguments.get("scope", "all")

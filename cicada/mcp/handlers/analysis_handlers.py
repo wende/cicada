@@ -80,6 +80,108 @@ class AnalysisHandler:
 
         return [TextContent(type="text", text=formatted_result)]
 
+    async def suggest_keywords(
+        self,
+        keywords: list[str],
+        mode: str,
+        search_results: list | None = None,
+        top_n: int = 5,
+        min_cooccurrence: int = 1,
+        min_result_count: int = 2,
+    ) -> list[TextContent]:
+        """
+        Suggest related keywords based on co-occurrence patterns.
+
+        Args:
+            keywords: Original query keywords
+            mode: 'expand' for related keywords, 'narrow' for filtering keywords
+            search_results: Optional search results for narrow mode
+            top_n: Maximum number of suggestions to return
+            min_cooccurrence: Minimum co-occurrence count (for expand mode)
+            min_result_count: Minimum result count (for narrow mode)
+
+        Returns:
+            TextContent with formatted keyword suggestions
+        """
+        from cicada.keyword_search import KeywordSearcher
+
+        # Check if co-occurrence data is available
+        if not self.index.get("cooccurrences"):
+            msg = (
+                "Co-occurrence data not available in the index.\n"
+                "Co-occurrence tracking is built during indexing when keyword extraction is enabled.\n"
+                "To enable:\n"
+                "1. Run: cicada index --extract-keywords\n"
+                "2. The index will automatically include co-occurrence data"
+            )
+            return [TextContent(type="text", text=msg)]
+
+        # Initialize searcher to get access to co-occurrence suggestions
+        searcher = KeywordSearcher(self.index)
+
+        if mode == "expand":
+            # Suggest related keywords to expand the search
+            suggestions = searcher.suggest_related_keywords(
+                keywords, top_n=top_n, min_cooccurrence=min_cooccurrence
+            )
+
+            if not suggestions:
+                msg = f"No keyword suggestions found for: {', '.join(keywords)}\n"
+                msg += "\nThis may happen if:\n"
+                msg += "• The keywords don't appear in the codebase\n"
+                msg += "• The keywords don't co-occur with other keywords\n"
+                msg += "• The min_cooccurrence threshold is too high"
+                return [TextContent(type="text", text=msg)]
+
+            # Format suggestions for expand mode
+            msg = f"💡 Related keywords for: {', '.join(keywords)}\n\n"
+            msg += "These keywords frequently appear together in your codebase:\n\n"
+            for i, suggestion in enumerate(suggestions, 1):
+                kw = suggestion["keyword"]
+                count = suggestion["cooccurrence_count"]
+                cooccurs_with = ", ".join(f"'{w}'" for w in suggestion["cooccurs_with"])
+                msg += f"{i}. **{kw}** (co-occurs {count}x with {cooccurs_with})\n"
+
+            msg += "\n💭 Try searching with: " + ", ".join(
+                [f"'{s['keyword']}'" for s in suggestions[:3]]
+            )
+
+            return [TextContent(type="text", text=msg)]
+
+        else:  # mode == "narrow"
+            # Suggest keywords to narrow down results
+            if not search_results:
+                msg = "search_results is required for mode='narrow'"
+                return [TextContent(type="text", text=msg)]
+
+            suggestions = searcher.suggest_narrowing_keywords(
+                keywords, search_results, top_n=top_n, min_result_count=min_result_count
+            )
+
+            if not suggestions:
+                msg = f"No narrowing keywords found for: {', '.join(keywords)}\n"
+                msg += "\nThis may happen if:\n"
+                msg += "• The search results don't have common keywords\n"
+                msg += "• The min_result_count threshold is too high"
+                return [TextContent(type="text", text=msg)]
+
+            # Format suggestions for narrow mode
+            msg = f"🎯 Add these keywords to narrow down {len(search_results)} results:\n\n"
+            for i, suggestion in enumerate(suggestions, 1):
+                kw = suggestion["keyword"]
+                count = suggestion["result_count"]
+                cooccurs_info = ""
+                if suggestion.get("cooccurs_with"):
+                    cooccurs_with = ", ".join(f"'{w}'" for w in suggestion["cooccurs_with"])
+                    cooccurs_info = f" (related to {cooccurs_with})"
+                msg += f"{i}. **{kw}** (appears in {count}/{len(search_results)} results){cooccurs_info}\n"
+
+            msg += "\n💭 Try searching with: " + ", ".join(
+                keywords + [f"'{s['keyword']}'" for s in suggestions[:2]]
+            )
+
+            return [TextContent(type="text", text=msg)]
+
     async def find_dead_code(self, min_confidence: str, output_format: str) -> list[TextContent]:
         """
         Find potentially unused public functions.

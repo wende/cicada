@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from cicada.cooccurrence import CooccurrenceAnalyzer
 from cicada.elixir.dependency_analyzer import (
     calculate_function_end_line,
     extract_function_dependencies,
@@ -241,6 +242,7 @@ class ElixirIndexer:
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
+                        module_extracted_keywords = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
                                 # Step 1: Extract keywords with scores
@@ -254,6 +256,9 @@ class ElixirIndexer:
                                     kw.lower(): score
                                     for kw, score in extraction_result["top_keywords"]
                                 }
+
+                                # Store extracted keywords (pre-expansion) for co-occurrence tracking
+                                module_extracted_keywords = keyword_scores
 
                                 # Step 2: Expand keywords with scores
                                 if keyword_expander and extracted_keywords:
@@ -310,6 +315,9 @@ class ElixirIndexer:
                                         kw.lower(): score
                                         for kw, score in extraction_result["top_keywords"]
                                     }
+
+                                    # Store extracted keywords (pre-expansion) for co-occurrence tracking
+                                    func["extracted_keywords"] = keyword_scores
 
                                     # Step 2: Expand keywords with scores
                                     if keyword_expander and extracted_keywords:
@@ -378,6 +386,7 @@ class ElixirIndexer:
 
                         # Extract string keywords if enabled
                         module_string_keywords = None
+                        module_extracted_string_keywords = None
                         module_string_sources = []
                         if string_extractor and keyword_extractor:
                             try:
@@ -446,6 +455,11 @@ class ElixirIndexer:
                                                         ]
                                                     }
 
+                                                    # Store extracted string keywords (pre-expansion) for co-occurrence
+                                                    module_extracted_string_keywords = (
+                                                        keyword_scores
+                                                    )
+
                                                     # Expand keywords
                                                     if keyword_expander and extracted_keywords:
                                                         expansion_result = keyword_expander.expand_keywords(
@@ -502,6 +516,11 @@ class ElixirIndexer:
                                                                 "top_keywords"
                                                             ]
                                                         }
+
+                                                        # Store extracted string keywords (pre-expansion) for co-occurrence
+                                                        func["extracted_string_keywords"] = (
+                                                            keyword_scores
+                                                        )
 
                                                         # Expand keywords
                                                         if keyword_expander and extracted_keywords:
@@ -576,9 +595,17 @@ class ElixirIndexer:
                         if module_keywords:
                             module_info["keywords"] = module_keywords
 
+                        # Add module extracted keywords (pre-expansion) for co-occurrence tracking
+                        if module_extracted_keywords:
+                            module_info["extracted_keywords"] = module_extracted_keywords
+
                         # Add module string keywords and sources if extracted
                         if module_string_keywords:
                             module_info["string_keywords"] = module_string_keywords
+                        if module_extracted_string_keywords:
+                            module_info["extracted_string_keywords"] = (
+                                module_extracted_string_keywords
+                            )
                         if module_string_sources:
                             module_info["string_sources"] = module_string_sources
 
@@ -615,6 +642,21 @@ class ElixirIndexer:
                 "cicada_version": get_version_string(),
             },
         }
+
+        # Build co-occurrence matrix if keywords were extracted
+        if extract_keywords or extract_string_keywords:
+            if self.verbose:
+                print("Building keyword co-occurrence matrix...")
+            try:
+                analyzer = CooccurrenceAnalyzer(index)
+                index["cooccurrences"] = analyzer.cooccurrence_matrix
+                stats = analyzer.get_statistics()
+                if self.verbose:
+                    print(f"  ✓ Tracked {stats['total_keywords']} keywords")
+                    print(f"  ✓ Found {stats['total_cooccurrences']} co-occurrence relationships")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
 
         # Save to file
         output_path_obj = Path(output_path)
@@ -679,6 +721,7 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
+        extract_string_keywords: bool = False,
         force_full: bool = False,
     ):
         """
@@ -692,6 +735,7 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
+            extract_string_keywords: If True, extract keywords from string literals in function bodies
             force_full: If True, ignore existing hashes and do full reindex
 
         Returns:
@@ -814,6 +858,12 @@ class ElixirIndexer:
                 print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
+                extract_string_keywords = False
+
+        # Note: String keyword extraction not yet implemented for incremental mode
+        if extract_string_keywords and self.verbose:
+            print("Warning: String keyword extraction not supported in incremental mode")
+            extract_string_keywords = False
 
         # Process changed files
         all_modules = {}
@@ -989,6 +1039,21 @@ class ElixirIndexer:
         if self.verbose:
             print("\nMerging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
+
+        # Rebuild co-occurrence matrix if keywords were extracted
+        if extract_keywords or extract_string_keywords:
+            if self.verbose:
+                print("Rebuilding keyword co-occurrence matrix...")
+            try:
+                analyzer = CooccurrenceAnalyzer(merged_index)
+                merged_index["cooccurrences"] = analyzer.cooccurrence_matrix
+                stats = analyzer.get_statistics()
+                if self.verbose:
+                    print(f"  ✓ Tracked {stats['total_keywords']} keywords")
+                    print(f"  ✓ Found {stats['total_cooccurrences']} co-occurrence relationships")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
 
         # Update hashes for all current files
         if self.verbose:
