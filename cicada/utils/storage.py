@@ -205,7 +205,13 @@ def resolve_storage_dir(repo_path: str | Path) -> Path:
             source_storage = Path(source_storage_dir)
             if (source_storage / "index.json").exists():
                 return source_storage
-            missing_storage = source_storage
+            # Broken link detected - raise immediately
+            source_repo = link_info.get("source_repo_path", "unknown")
+            raise ValueError(
+                f"Link is broken: source index not found at {source_storage}\n"
+                f"Source repository: {source_repo}\n"
+                f"Run 'cicada unlink' to remove the broken link, then re-index or re-link."
+            )
 
         source_repo_path = link_info.get("source_repo_path")
         if source_repo_path:
@@ -214,11 +220,7 @@ def resolve_storage_dir(repo_path: str | Path) -> Path:
 
         break
 
-    source_repo = (
-        last_link_info.get("source_repo_path", "unknown")
-        if last_link_info
-        else "unknown"
-    )
+    source_repo = last_link_info.get("source_repo_path", "unknown") if last_link_info else "unknown"
 
     if missing_storage is None and last_link_info:
         raw_path = last_link_info.get("source_storage_dir")

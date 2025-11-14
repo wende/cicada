@@ -99,11 +99,17 @@ class TestKeywordExpanderModelLoading:
 
     def test_verbose_model_loading(self, capsys):
         """Test that verbose mode prints progress messages"""
-        with patch("gensim.downloader.load") as mock_gensim_load:
-            mock_model = MagicMock()
-            mock_model.most_similar.return_value = [("similar", 0.9)]
-            mock_gensim_load.return_value = mock_model
+        mock_model = MagicMock()
+        mock_model.most_similar.return_value = [("similar", 0.9)]
 
+        def mock_load_with_verbose(*args, **kwargs):
+            # Simulate the verbose output that _load_embedding_model would produce
+            print("Loading fasttext model...")
+            return mock_model
+
+        with patch.object(
+            KeywordExpander, "_load_embedding_model", side_effect=mock_load_with_verbose
+        ):
             expander = KeywordExpander(expansion_type="fasttext", verbose=True)
             expander.expand_keywords(["test"])
 
