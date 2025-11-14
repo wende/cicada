@@ -289,8 +289,8 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
     # Create target storage directory if it doesn't exist
     create_storage_dir(target_path)
 
-    # Get source storage directory
-    source_storage_dir = get_storage_dir(source_path)
+    # Get source storage directory (resolve to handle chained links)
+    source_storage_dir = resolve_storage_dir(source_path)
 
     # Create link file
     link_path = get_link_path(target_path)

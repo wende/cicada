@@ -160,6 +160,43 @@ class TestHandleLink:
             captured = capsys.readouterr()
             assert "Unexpected error" in captured.err
 
+    def test_link_chained_links(self, tmp_path, mock_home_dir, capsys):
+        """Should support chained links: C → B → A"""
+        from cicada.utils.storage import create_link, create_storage_dir, get_index_path
+
+        # Create repo A with an index (the source of truth)
+        repo_a = tmp_path / "repo_a"
+        repo_a.mkdir()
+        storage_a = create_storage_dir(repo_a)
+        (storage_a / "index.json").write_text('{"modules": {"test": "data"}}')
+
+        # Create repo B and link it to A
+        repo_b = tmp_path / "repo_b"
+        repo_b.mkdir()
+        create_link(repo_b, repo_a)
+
+        # Create repo C and link it to B (which is already linked to A)
+        repo_c = tmp_path / "repo_c"
+        repo_c.mkdir()
+
+        args = Mock()
+        args.target = str(repo_c)
+        args.source = str(repo_b)
+
+        handle_link(args)
+
+        captured = capsys.readouterr()
+        assert "✓ Successfully linked" in captured.out
+
+        # Verify that C can access A's index through the chain
+        index_path_c = get_index_path(repo_c)
+        assert index_path_c.exists()
+        assert index_path_c.read_text() == '{"modules": {"test": "data"}}'
+
+        # Verify that both B and C resolve to A's storage
+        index_path_b = get_index_path(repo_b)
+        assert index_path_b == index_path_c
+
 
 class TestHandleUnlink:
     """Tests for handle_unlink function"""
