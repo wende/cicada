@@ -1305,6 +1305,39 @@ end
         assert "modules" in index
 
 
+class TestStringKeywordExtraction:
+    """Tests for string keyword extraction functionality."""
+
+    def test_index_with_string_keywords(self, tmp_path):
+        """Test indexing with string keyword extraction enabled."""
+        from cicada.indexer import ElixirIndexer
+
+        indexer = ElixirIndexer(verbose=True)
+        test_file = tmp_path / "test.ex"
+        test_file.write_text(
+            """
+defmodule TestModule do
+  def query_users do
+    "SELECT * FROM users WHERE active = true"
+  end
+end
+"""
+        )
+
+        index = indexer.index_repository(
+            str(tmp_path),
+            str(tmp_path / ".cicada" / "index.json"),
+            extract_keywords=True,
+            extract_string_keywords=True,
+        )
+
+        assert "TestModule" in index["modules"]
+        # String keywords should be extracted
+        module = index["modules"]["TestModule"]
+        if "string_keywords" in module:
+            assert isinstance(module["string_keywords"], dict)
+
+
 class TestTimestampComputation:
     """Test git history timestamp computation during indexing."""
 

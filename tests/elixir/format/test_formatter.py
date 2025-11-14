@@ -1089,3 +1089,51 @@ def test_format_module_compact():
     # Should be compact (2 lines)
     lines = result.split("\n")
     assert len(lines) == 2
+
+
+def test_format_function_results_markdown_with_string_sources():
+    """Test markdown formatting handles string_sources field."""
+    results = [
+        {
+            "module": "MyApp.SQL",
+            "function": {
+                "name": "query",
+                "arity": 1,
+                "type": "def",
+                "line": 10,
+                "args": ["sql"],
+            },
+            "file": "lib/sql.ex",
+            "call_sites": [],
+            "string_sources": [
+                {"string": "SELECT * FROM users", "line": 12},
+                {"string": "WHERE active = true", "line": 13},
+            ],
+        }
+    ]
+    markdown = ModuleFormatter.format_function_results_markdown("query", results)
+    # Should not crash when string_sources is present
+    assert "MyApp.SQL.query/1" in markdown
+
+
+def test_format_function_results_markdown_with_match_source_indicators():
+    """Test markdown formatting handles match_sources field."""
+    results = [
+        {
+            "module": "MyApp.SQL",
+            "function": {
+                "name": "query",
+                "arity": 1,
+                "type": "def",
+                "line": 10,
+                "args": ["sql"],
+            },
+            "file": "lib/sql.ex",
+            "call_sites": [],
+            "matched_keywords": ["select"],
+            "match_sources": {"select": "strings"},
+        }
+    ]
+    markdown = ModuleFormatter.format_function_results_markdown("query", results)
+    # Should not crash when match_sources is present
+    assert "MyApp.SQL.query/1" in markdown

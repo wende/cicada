@@ -565,3 +565,69 @@ class TestKeywordSearcher:
         modules_found = {r["module"] for r in results}
         assert "MyApp.User" in modules_found
         assert "MyApp.Post" in modules_found
+
+    def test_string_keywords_search(self):
+        """Test search with string_keywords field."""
+        index = {
+            "modules": {
+                "MyApp.SQL": {
+                    "file": "lib/sql.ex",
+                    "line": 1,
+                    "keywords": {"sql": 0.8},
+                    "string_keywords": {"select": 1.04, "users": 0.97},
+                    "functions": [
+                        {
+                            "name": "query",
+                            "arity": 1,
+                            "line": 10,
+                            "keywords": {"query": 0.8},
+                            "string_keywords": {"select": 1.17, "from": 1.04},
+                        }
+                    ],
+                }
+            }
+        }
+        searcher = KeywordSearcher(index, match_source="strings")
+        results = searcher.search(["select"], top_n=10)
+        assert len(results) > 0
+        assert any(r["name"] == "MyApp.SQL.query/1" for r in results)
+
+    def test_match_source_docs_only(self):
+        """Test match_source='docs' filters to only doc keywords."""
+        index = {
+            "modules": {
+                "MyApp.SQL": {
+                    "file": "lib/sql.ex",
+                    "line": 1,
+                    "keywords": {"sql": 0.8},
+                    "string_keywords": {"select": 1.04},
+                    "functions": [],
+                }
+            }
+        }
+        searcher = KeywordSearcher(index, match_source="docs")
+        results = searcher.search(["sql"], top_n=10)
+        assert len(results) > 0
+
+        # Should not match string keywords
+        results2 = searcher.search(["select"], top_n=10)
+        assert len(results2) == 0
+
+    def test_match_source_all_default(self):
+        """Test match_source='all' searches both doc and string keywords."""
+        index = {
+            "modules": {
+                "MyApp.SQL": {
+                    "file": "lib/sql.ex",
+                    "line": 1,
+                    "keywords": {"sql": 0.8},
+                    "string_keywords": {"select": 1.04},
+                    "functions": [],
+                }
+            }
+        }
+        searcher = KeywordSearcher(index, match_source="all")
+        doc_results = searcher.search(["sql"], top_n=10)
+        string_results = searcher.search(["select"], top_n=10)
+        assert len(doc_results) > 0
+        assert len(string_results) > 0
