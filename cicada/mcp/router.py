@@ -131,6 +131,7 @@ class ToolRouter:
 
         elif name == "search_function":
             function_name = arguments.get("function_name")
+            module_path = arguments.get("module_path")
             output_format = arguments.get("format", "markdown")
             include_usage_examples = arguments.get("include_usage_examples", False)
             max_examples = arguments.get("max_examples", 5)
@@ -163,6 +164,7 @@ class ToolRouter:
                 usage_type,
                 changed_since,
                 show_relationships,
+                module_path,
             )
 
         elif name == "search_module_usage":
@@ -265,6 +267,7 @@ class ToolRouter:
             keywords = arguments.get("keywords")
             filter_type = arguments.get("filter_type", "all")
             min_score = arguments.get("min_score", 0.0)
+            match_source = arguments.get("match_source", "all")
 
             if not keywords:
                 error_msg = "'keywords' is required"
@@ -282,7 +285,13 @@ class ToolRouter:
                 error_msg = "'min_score' must be a number between 0.0 and 1.0"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self.analysis_handler.search_by_keywords(keywords, filter_type, min_score)
+            if match_source not in ("all", "docs", "strings"):
+                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self.analysis_handler.search_by_keywords(
+                keywords, filter_type, min_score, match_source
+            )
 
         elif name == "find_dead_code":
             min_confidence = arguments.get("min_confidence", "high")

@@ -82,3 +82,6 @@ tests/fixtures/**/node_modules/
 # Auto-generated protobuf files (generated before tests/builds, not tracked in git)
 *_pb2.py
 *_pb2.pyi
+
+# Link directory
+link/

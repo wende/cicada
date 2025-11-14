@@ -15,15 +15,72 @@ from typing import Any
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
 
-    def __init__(self, index: dict[str, Any]):
+    def __init__(self, index: dict[str, Any], match_source: str = "all"):
         """
         Initialize the keyword searcher.
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
+            match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
         """
         self.index = index
+        self.match_source = match_source
         self.documents = self._build_document_map()
+
+    def _merge_keywords(
+        self, doc_keywords: dict | list | None, string_keywords: dict | list | None
+    ) -> tuple[dict[str, float], dict[str, str]]:
+        """
+        Merge documentation and string keywords based on match_source filter.
+
+        Args:
+            doc_keywords: Keywords from documentation (dict or list)
+            string_keywords: Keywords from string literals (dict or list)
+
+        Returns:
+            Tuple of (merged_keywords_dict, keyword_sources_dict) where:
+            - merged_keywords_dict: Combined keywords with scores
+            - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', or 'both')
+        """
+        # Normalize to dict format
+        doc_kw_dict = {}
+        if doc_keywords:
+            if isinstance(doc_keywords, list):
+                doc_kw_dict = {kw.lower(): 1.0 for kw in doc_keywords}
+            else:
+                doc_kw_dict = {k.lower(): v for k, v in doc_keywords.items()}
+
+        string_kw_dict = {}
+        if string_keywords:
+            if isinstance(string_keywords, list):
+                string_kw_dict = {kw.lower(): 1.0 for kw in string_keywords}
+            else:
+                string_kw_dict = {k.lower(): v for k, v in string_keywords.items()}
+
+        # Filter and merge based on match_source
+        merged = {}
+        sources = {}
+
+        if self.match_source == "docs":
+            merged = doc_kw_dict
+            sources = dict.fromkeys(doc_kw_dict, "docs")
+        elif self.match_source == "strings":
+            merged = string_kw_dict
+            sources = dict.fromkeys(string_kw_dict, "strings")
+        else:  # 'all'
+            # Merge both, keeping higher score for duplicates
+            for k, v in doc_kw_dict.items():
+                merged[k] = v
+                sources[k] = "docs"
+            for k, v in string_kw_dict.items():
+                if k in merged:
+                    merged[k] = max(merged[k], v)
+                    sources[k] = "both"
+                else:
+                    merged[k] = v
+                    sources[k] = "strings"
+
+        return merged, sources
 
     def _build_document_map(self) -> list[dict[str, Any]]:
         """
@@ -53,18 +110,16 @@ class KeywordSearcher:
         self, module_name: str, module_data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a module."""
-        if not module_data.get("keywords"):
+        # Merge doc keywords and string keywords based on match_source
+        keywords_dict, keyword_sources = self._merge_keywords(
+            module_data.get("keywords"), module_data.get("string_keywords")
+        )
+
+        # Skip if no keywords after filtering
+        if not keywords_dict:
             return None
 
-        # Keywords can be either dict {word: score} or list [words]
-        # If list, convert to dict with uniform scores
-        keywords_dict = module_data["keywords"]
-        if isinstance(keywords_dict, list):
-            keywords_dict = {kw.lower(): 1.0 for kw in keywords_dict}
-        else:
-            keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
-
-        return {
+        document = {
             "type": "module",
             "name": module_name,
             "module": module_name,
@@ -72,26 +127,31 @@ class KeywordSearcher:
             "line": module_data["line"],
             "doc": module_data.get("moduledoc"),
             "keywords": keywords_dict,
+            "keyword_sources": keyword_sources,
         }
+
+        # Include string sources if available and relevant
+        if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
+            document["string_sources"] = module_data["string_sources"]
+
+        return document
 
     def _create_function_document(
         self, module_name: str, module_data: dict[str, Any], func: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a function."""
-        if not func.get("keywords"):
-            return None
+        # Merge doc keywords and string keywords based on match_source
+        keywords_dict, keyword_sources = self._merge_keywords(
+            func.get("keywords"), func.get("string_keywords")
+        )
 
-        # Keywords can be either dict {word: score} or list [words]
-        # If list, convert to dict with uniform scores
-        keywords_dict = func["keywords"]
-        if isinstance(keywords_dict, list):
-            keywords_dict = {kw.lower(): 1.0 for kw in keywords_dict}
-        else:
-            keywords_dict = {k.lower(): v for k, v in keywords_dict.items()}
+        # Skip if no keywords after filtering
+        if not keywords_dict:
+            return None
 
         full_name = f"{module_name}.{func['name']}/{func['arity']}"
 
-        return {
+        document = {
             "type": "function",
             "name": full_name,
             "module": module_name,
@@ -101,7 +161,14 @@ class KeywordSearcher:
             "line": func["line"],
             "doc": func.get("doc"),
             "keywords": keywords_dict,
+            "keyword_sources": keyword_sources,
         }
+
+        # Include string sources if available and relevant
+        if func.get("string_sources") and self.match_source in ["all", "strings"]:
+            document["string_sources"] = func["string_sources"]
+
+        return document
 
     def _match_wildcard(self, pattern: str, text: str) -> bool:
         """
@@ -235,6 +302,60 @@ class KeywordSearcher:
                 groups.append(idx)
         return expanded, groups
 
+    def _extract_module_patterns(self, keywords: list[str]) -> list[str]:
+        """
+        Extract module patterns from keywords containing dots.
+
+        If a keyword contains a ".", split it and extract the module part(s).
+        Supports wildcards and nested modules.
+
+        Args:
+            keywords: List of keywords (e.g., ["ApiKeys.create_user", "MyApp.User.update"])
+
+        Returns:
+            List of module patterns extracted (e.g., ["ApiKeys", "MyApp.User", "MyApp.*"])
+
+        Examples:
+            - "ApiKeys.create_user" -> ["ApiKeys"]
+            - "MyApp.User.create_user" -> ["MyApp.User", "MyApp.*"]
+            - "MyApp.*.create_user" -> ["MyApp.*"]
+        """
+        module_patterns = set()
+
+        for keyword in keywords:
+            # Skip keywords without dots (they're not module-qualified)
+            if "." not in keyword:
+                continue
+
+            # Split on the last dot to separate module from function/keyword
+            module_pattern = keyword.rsplit(".", 1)[0]
+            module_patterns.add(module_pattern)
+
+            # If it's a nested module (multiple dots), also add wildcard patterns
+            # e.g., "MyApp.User" -> also try "MyApp.*"
+            if "." in module_pattern and "*" not in module_pattern:
+                prefix = module_pattern.split(".", 1)[0]
+                module_patterns.add(f"{prefix}.*")
+
+        return list(module_patterns)
+
+    def _match_module_name(self, module_pattern: str, doc_module: str) -> bool:
+        """
+        Check if a document's module name matches a module pattern.
+
+        Supports wildcards (*) for pattern matching.
+
+        Args:
+            module_pattern: Module pattern (e.g., "ApiKeys", "MyApp.*", "*.User")
+            doc_module: Document's module name (e.g., "ApiKeys", "MyApp.User")
+
+        Returns:
+            True if the module name matches the pattern
+        """
+        if "*" in module_pattern:
+            return self._match_wildcard(module_pattern, doc_module)
+        return module_pattern.lower() == doc_module.lower()
+
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
     ) -> list[dict[str, Any]]:
@@ -246,8 +367,12 @@ class KeywordSearcher:
 
         Automatically detects wildcard patterns (* supported) and OR patterns (| supported) in keywords.
 
+        When keywords contain dots (e.g., "ApiKeys.create_user"), the module part is extracted
+        and matched against the document's module name for additional scoring.
+
         Args:
-            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns)
+            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns,
+                           and "Module.keyword" for module-qualified searches)
             top_n: Maximum number of results to return
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
@@ -268,6 +393,9 @@ class KeywordSearcher:
 
         # Normalize query keywords to lowercase
         query_keywords_lower = [kw.lower() for kw in query_keywords]
+
+        # Extract module patterns from keywords with dots (e.g., "ApiKeys.create_user" -> "ApiKeys")
+        module_patterns = self._extract_module_patterns(query_keywords_lower)
 
         # Expand OR patterns (e.g., "create*|update*" -> ["create*", "update*"])
         query_keywords_expanded, keyword_groups = self._expand_or_patterns(query_keywords_lower)
@@ -295,7 +423,17 @@ class KeywordSearcher:
                     doc["keywords"],
                 )
 
-            # Only include results with at least one matched keyword
+            # Check for module name match if module patterns were extracted
+            module_matched = False
+            if module_patterns:
+                for module_pattern in module_patterns:
+                    if self._match_module_name(module_pattern, doc["module"]):
+                        # Boost score for module match (substantial boost to prioritize module-qualified searches)
+                        result_data["score"] += 2.0
+                        module_matched = True
+                        break
+
+            # Only include results with at least one matched keyword OR a module match
             if result_data["score"] > 0:
                 result = {
                     "type": doc["type"],
@@ -308,6 +446,10 @@ class KeywordSearcher:
                     "matched_keywords": result_data["matched_keywords"],
                 }
 
+                # Add module match indicator if applicable
+                if module_matched:
+                    result["module_matched"] = True
+
                 # Add type-specific fields
                 if doc["type"] == "function":
                     result["function"] = doc["function"]
@@ -316,6 +458,20 @@ class KeywordSearcher:
                 # Add documentation if available
                 if doc.get("doc"):
                     result["doc"] = doc["doc"]
+
+                # Add keyword sources for matched keywords
+                if doc.get("keyword_sources"):
+                    matched_sources = {
+                        kw: doc["keyword_sources"].get(kw, "unknown")
+                        for kw in result_data["matched_keywords"]
+                        if kw in doc["keyword_sources"]
+                    }
+                    if matched_sources:
+                        result["keyword_sources"] = matched_sources
+
+                # Add string sources if available
+                if doc.get("string_sources"):
+                    result["string_sources"] = doc["string_sources"]
 
                 results.append(result)
 

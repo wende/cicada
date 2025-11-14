@@ -188,6 +188,8 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
         repo_path: Path to the repository
         force: Skip confirmation prompt if True
     """
+    from cicada.utils.storage import get_link_info, is_linked
+
     repo_path = repo_path.resolve()
 
     print("=" * 60)
@@ -196,6 +198,17 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     print()
     print(f"Repository: {repo_path}")
     print()
+
+    # Check if repository is linked
+    if is_linked(repo_path):
+        link_info = get_link_info(repo_path)
+        print("⚠ This repository is linked to another repository's index:")
+        if link_info:
+            print(f"  Source: {link_info.get('source_repo_path', '<missing>')}")
+        print()
+        print("Cleaning will only remove the link file, not the source index.")
+        print("To unlink without removing other files, use: cicada unlink")
+        print()
 
     # Collect items to remove
     items_to_remove: list[CleanItem] = []
