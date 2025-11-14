@@ -355,11 +355,11 @@ class FunctionSearchHandler:
         # Handle both calling conventions:
         # 1. function_name="Module.function" (already qualified)
         # 2. function_name="function", module_path="Module" (separate parameters)
-        effective_pattern = function_name
-        if module_path and "." not in function_name and ":" not in function_name:
-            # Only prepend module_path if function_name is not already qualified
-            # (doesn't contain . for module or : for file path)
-            effective_pattern = f"{module_path}.{function_name}"
+        effective_pattern = (
+            f"{module_path}.{function_name}"
+            if module_path and "." not in function_name and ":" not in function_name
+            else function_name
+        )
 
         # Support OR syntax by splitting first, then parsing each component individually
         parsed_patterns: list[FunctionPattern] = parse_function_patterns(effective_pattern)

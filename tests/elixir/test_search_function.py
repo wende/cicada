@@ -14,6 +14,59 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from cicada.mcp.server import CicadaServer
 
 
+def assert_same_results(data1, data2):
+    """Helper to assert two search results are equivalent."""
+    assert "results" in data1 and "results" in data2, "Both results should have 'results' key"
+    assert data1["total_matches"] == data2["total_matches"], "Total matches should be equal"
+    if data1["results"] and data2["results"]:
+        assert (
+            data1["results"][0]["function"] == data2["results"][0]["function"]
+        ), "First result function should match"
+
+
+@pytest.fixture
+def setup_server(tmp_path):
+    """Fixture to set up test server with configurable index.
+
+    Returns a function that creates a server and optionally returns paths for advanced usage.
+
+    Usage:
+        server = setup_server()  # Simple case
+        server, paths = setup_server(return_paths=True)  # Advanced case with paths
+    """
+    import json
+    import yaml
+
+    def _setup(test_index=None, return_paths=False):
+        if test_index is None:
+            with open("tests/data/test_index.json") as f:
+                test_index = json.load(f)
+
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(test_index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        server = CicadaServer(config_path=str(config_path))
+
+        if return_paths:
+            return server, {
+                "tmp_path": tmp_path,
+                "index_path": index_path,
+                "config_path": config_path,
+            }
+        return server
+
+    return _setup
+
+
 @pytest.mark.asyncio
 async def test_search_function(tmp_path):
     """Test the search_function tool."""
@@ -451,27 +504,11 @@ async def test_search_function_changed_since_no_timestamp(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_search_function_with_module_path_parameter(tmp_path):
+async def test_search_function_with_module_path_parameter(setup_server):
     """Test that module_path parameter works correctly for both calling conventions."""
     import json
-    import yaml
 
-    with open("tests/data/test_index.json") as f:
-        test_index = json.load(f)
-
-    index_path = tmp_path / "index.json"
-    with open(index_path, "w") as f:
-        json.dump(test_index, f)
-
-    config = {
-        "repository": {"path": str(tmp_path)},
-        "storage": {"index_path": str(index_path)},
-    }
-    config_path = tmp_path / "config.yaml"
-    with open(config_path, "w") as f:
-        yaml.dump(config, f)
-
-    server = CicadaServer(config_path=str(config_path))
+    server = setup_server()
 
     # Test 1: Traditional qualified name (Module.function)
     result1 = await server.function_handler.search_function("MyApp.User.create_user", "json")
@@ -515,10 +552,9 @@ async def test_search_function_with_module_path_parameter(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_search_function_ai_mistake_handling(tmp_path):
+async def test_search_function_ai_mistake_handling(setup_server):
     """Test that AI mistakes are handled gracefully - qualified function names work correctly."""
     import json
-    import yaml
 
     # Create a test index with a module like ApiKeys.get_provider_for_model
     test_index = {
@@ -542,22 +578,13 @@ async def test_search_function_ai_mistake_handling(tmp_path):
                 "calls": [],
             }
         },
-        "metadata": {"total_modules": 1, "repo_path": str(tmp_path)},
+        "metadata": {"total_modules": 1, "repo_path": ""},
     }
 
-    index_path = tmp_path / "index.json"
-    with open(index_path, "w") as f:
-        json.dump(test_index, f)
-
-    config = {
-        "repository": {"path": str(tmp_path)},
-        "storage": {"index_path": str(index_path)},
-    }
-    config_path = tmp_path / "config.yaml"
-    with open(config_path, "w") as f:
-        yaml.dump(config, f)
-
-    server = CicadaServer(config_path=str(config_path))
+    server, paths = setup_server(test_index=test_index, return_paths=True)
+    tmp_path = paths["tmp_path"]
+    index_path = paths["index_path"]
+    test_index["metadata"]["repo_path"] = str(tmp_path)
 
     # Scenario 1: AI passes fully qualified name (what it should do)
     result1 = await server.function_handler.search_function(
@@ -577,9 +604,7 @@ async def test_search_function_ai_mistake_handling(tmp_path):
     data2 = json.loads(result2[0].text)
 
     # Both scenarios should work and return the same result
-    if "results" in data1 and "results" in data2:
-        assert data1["total_matches"] == data2["total_matches"]
-        assert data1["results"][0]["function"] == data2["results"][0]["function"]
+    assert_same_results(data1, data2)
 
     # Scenario 3: AI passes nested module (e.g., ModuleA.ModuleB.function)
     # Add nested module to test
@@ -606,7 +631,7 @@ async def test_search_function_ai_mistake_handling(tmp_path):
         json.dump(test_index, f)
 
     # Reload server with updated index
-    server = CicadaServer(config_path=str(config_path))
+    server = CicadaServer(config_path=str(paths["config_path"]))
 
     # Test nested module qualification
     result3 = await server.function_handler.search_function("MyApp.ApiKeys.get_provider", "json")
@@ -628,27 +653,11 @@ async def test_search_function_ai_mistake_handling(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_search_function_module_path_with_wildcards(tmp_path):
+async def test_search_function_module_path_with_wildcards(setup_server):
     """Test that module_path parameter works with wildcards."""
     import json
-    import yaml
 
-    with open("tests/data/test_index.json") as f:
-        test_index = json.load(f)
-
-    index_path = tmp_path / "index.json"
-    with open(index_path, "w") as f:
-        json.dump(test_index, f)
-
-    config = {
-        "repository": {"path": str(tmp_path)},
-        "storage": {"index_path": str(index_path)},
-    }
-    config_path = tmp_path / "config.yaml"
-    with open(config_path, "w") as f:
-        yaml.dump(config, f)
-
-    server = CicadaServer(config_path=str(config_path))
+    server = setup_server()
 
     # Test: module_path with wildcard
     result = await server.function_handler.search_function("create*", "json", module_path="MyApp.*")

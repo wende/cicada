@@ -253,7 +253,7 @@ class KeywordSearcher:
             - "MyApp.User.create_user" -> ["MyApp.User", "MyApp.*"]
             - "MyApp.*.create_user" -> ["MyApp.*"]
         """
-        module_patterns = []
+        module_patterns = set()
 
         for keyword in keywords:
             # Skip keywords without dots (they're not module-qualified)
@@ -261,18 +261,16 @@ class KeywordSearcher:
                 continue
 
             # Split on the last dot to separate module from function/keyword
-            parts = keyword.rsplit(".", 1)
-            if len(parts) == 2:
-                module_pattern = parts[0]
-                module_patterns.append(module_pattern)
+            module_pattern = keyword.rsplit(".", 1)[0]
+            module_patterns.add(module_pattern)
 
-                # If it's a nested module (multiple dots), also add wildcard patterns
-                # e.g., "MyApp.User" -> also try "MyApp.*"
-                if "." in module_pattern and "*" not in module_pattern:
-                    prefix = module_pattern.split(".", 1)[0]
-                    module_patterns.append(f"{prefix}.*")
+            # If it's a nested module (multiple dots), also add wildcard patterns
+            # e.g., "MyApp.User" -> also try "MyApp.*"
+            if "." in module_pattern and "*" not in module_pattern:
+                prefix = module_pattern.split(".", 1)[0]
+                module_patterns.add(f"{prefix}.*")
 
-        return module_patterns
+        return list(module_patterns)
 
     def _match_module_name(self, module_pattern: str, doc_module: str) -> bool:
         """
