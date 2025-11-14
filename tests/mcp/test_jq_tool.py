@@ -599,16 +599,72 @@ class TestJqToolSecurity:
 
     @pytest.mark.asyncio
     async def test_query_with_excessive_nesting(self, test_server):
-        """Should detect queries with suspicious nesting patterns."""
-        # Create query with unbalanced brackets (>50 imbalance)
-        # Add 60 opening brackets without closing them properly
-        deeply_nested = "." + "[" * 60 + " | keys"
+        """Should detect queries with excessive nesting depth."""
+        # Create query with deep nesting (>50 levels)
+        # Properly balanced but deeply nested
+        deeply_nested = "." + "[" * 60 + "]" * 60
         result = await test_server.call_tool("query_jq", {"query": deeply_nested})
         assert len(result) == 1
         assert isinstance(result[0], TextContent)
-        # Should reject the query due to suspicious nesting
+        # Should reject the query due to excessive nesting depth
         text_lower = result[0].text.lower()
-        assert "nesting" in text_lower or "imbalance" in text_lower or "bracket" in text_lower
+        assert "nesting" in text_lower or "depth" in text_lower
+
+    @pytest.mark.asyncio
+    async def test_query_with_brackets_in_strings(self, test_server):
+        """Should allow brackets inside strings (not count as nesting)."""
+        # Query with brackets in strings - should be valid
+        # Use a simpler string that contains brackets
+        query = '.modules | to_entries | map(select(.value.file | contains("lib/[test]")))'
+        result = await test_server.call_tool("query_jq", {"query": query})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        # Should not reject due to brackets in string - should execute successfully or fail for jq reasons
+        text_lower = result[0].text.lower()
+        # Should not be rejected by our validator (no "unbalanced" or "unclosed" from our validator)
+        assert "unclosed" not in text_lower and "unbalanced" not in text_lower
+
+    @pytest.mark.asyncio
+    async def test_query_with_unbalanced_brackets(self, test_server):
+        """Should detect truly unbalanced brackets."""
+        # Missing closing bracket
+        unbalanced = ".modules | keys["
+        result = await test_server.call_tool("query_jq", {"query": unbalanced})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        text_lower = result[0].text.lower()
+        assert "unclosed" in text_lower or "unbalanced" in text_lower
+
+    @pytest.mark.asyncio
+    async def test_query_with_mismatched_brackets(self, test_server):
+        """Should detect mismatched bracket types."""
+        # Opening [ but closing with )
+        mismatched = ".modules[keys)"
+        result = await test_server.call_tool("query_jq", {"query": mismatched})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        text_lower = result[0].text.lower()
+        assert "mismatch" in text_lower or "bracket" in text_lower
+
+    @pytest.mark.asyncio
+    async def test_query_with_escaped_quotes_in_strings(self, test_server):
+        """Should handle escaped quotes inside strings correctly."""
+        # String with escaped quotes and brackets
+        query = r'.modules | to_entries | map(select(.value.doc | contains("\"test\" [value]")))'
+        result = await test_server.call_tool("query_jq", {"query": query})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        # Should not reject due to brackets in string
+
+    @pytest.mark.asyncio
+    async def test_query_with_unterminated_string(self, test_server):
+        """Should detect unterminated strings."""
+        unterminated = '.modules | select(.file == "lib/test.ex)'
+        result = await test_server.call_tool("query_jq", {"query": unterminated})
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        text_lower = result[0].text.lower()
+        assert "string" in text_lower or "unterminated" in text_lower or "quote" in text_lower
 
 
 class TestJqToolErrorHandling:

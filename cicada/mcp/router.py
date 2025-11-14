@@ -35,14 +35,91 @@ def _validate_jq_query(query: str | None) -> str | None:
             f"'query' exceeds maximum length of {MAX_JQ_QUERY_LENGTH:,} characters.\n"
             f"Current: {len(query):,}. Please simplify your query."
         )
-    bracket_balance = abs(query.count("[") - query.count("]"))
-    paren_balance = abs(query.count("(") - query.count(")"))
-    if max(bracket_balance, paren_balance) > MAX_JQ_NESTING_DEPTH:
+
+    # Check for balanced brackets and excessive nesting, ignoring content in strings
+    max_depth, error = _check_bracket_nesting(query)
+    if error:
+        return error
+    if max_depth > MAX_JQ_NESTING_DEPTH:
         return (
-            f"Suspicious nesting: bracket={bracket_balance}, paren={paren_balance}. "
-            f"Max imbalance: {MAX_JQ_NESTING_DEPTH}"
+            f"Query nesting depth ({max_depth}) exceeds maximum ({MAX_JQ_NESTING_DEPTH}). "
+            f"Please simplify your query."
         )
     return None
+
+
+def _check_bracket_nesting(query: str) -> tuple[int, str | None]:
+    """
+    Check bracket/paren nesting depth and balance.
+
+    Properly handles strings by ignoring brackets/parens inside quoted strings.
+    Detects unbalanced brackets/parens and excessive nesting depth.
+
+    Args:
+        query: The jq query string to validate
+
+    Returns:
+        Tuple of (max_depth, error_message). error_message is None if valid.
+    """
+    depth = 0
+    max_depth = 0
+    stack: list[str] = []
+    in_string = False
+    escape_next = False
+
+    bracket_pairs = {"[": "]", "(": ")", "{": "}"}
+    closing_brackets = {"]", ")", "}"}
+
+    for i, char in enumerate(query):
+        # Handle string escaping
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == "\\":
+            escape_next = True
+            continue
+
+        # Toggle string state on unescaped quotes
+        if char == '"':
+            in_string = not in_string
+            continue
+
+        # Skip bracket/paren processing inside strings
+        if in_string:
+            continue
+
+        # Track opening brackets/parens
+        if char in bracket_pairs:
+            stack.append(char)
+            depth += 1
+            max_depth = max(max_depth, depth)
+
+        # Track closing brackets/parens
+        elif char in closing_brackets:
+            if not stack:
+                return (max_depth, f"Unbalanced brackets: unexpected '{char}' at position {i}")
+
+            opening = stack.pop()
+            expected_closing = bracket_pairs[opening]
+            if char != expected_closing:
+                return (
+                    max_depth,
+                    f"Mismatched brackets: '{opening}' at position {i - depth} "
+                    f"closed with '{char}' instead of '{expected_closing}'",
+                )
+            depth -= 1
+
+    # Check if we ended inside a string (check this first - it's the root cause)
+    if in_string:
+        return (max_depth, "Unterminated string in query")
+
+    # Check for unclosed brackets
+    if stack:
+        unclosed = ", ".join(f"'{b}'" for b in stack)
+        return (max_depth, f"Unclosed brackets: {unclosed}")
+
+    return (max_depth, None)
 
 
 class ToolRouter:
