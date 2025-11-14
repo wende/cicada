@@ -679,3 +679,82 @@ class TestCompactModuleFormat:
         assert "private" in text
         # Should have horizontal rule separators
         assert "---" in text
+
+
+class TestLinkedRepositoryHandling:
+    """Test MCP server handling of linked repositories."""
+
+    @pytest.fixture
+    def setup_linked_repos(self, tmp_path, mock_home_dir):
+        """Setup source and target repositories with link"""
+        from cicada.utils.storage import create_link, create_storage_dir
+
+        # Create source repository with index
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+
+        # Create target repository
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create storage and index for source
+        source_storage = create_storage_dir(source_repo)
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "lib/test.ex",
+                    "line": 1,
+                    "functions": [],
+                    "public_functions": 0,
+                    "private_functions": 0,
+                }
+            },
+            "metadata": {"total_modules": 1, "repo_path": str(source_repo)},
+        }
+        index_path = source_storage / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(index, f)
+
+        # Create config for source
+        config = {
+            "repository": {"path": str(source_repo)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = source_storage / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        # Create link from target to source
+        create_link(target_repo, source_repo)
+
+        return source_repo, target_repo, config_path
+
+    def test_server_loads_source_index_for_linked_repo(self, setup_linked_repos):
+        """Should load source repository's index when repository is linked"""
+        source_repo, target_repo, config_path = setup_linked_repos
+
+        # Create server with target repo's config path
+        server = CicadaServer(str(config_path))
+
+        # Should have loaded source index
+        assert server.index_manager.index is not None
+        assert "TestModule" in server.index_manager.index["modules"]
+
+    def test_server_fails_on_broken_link(self, setup_linked_repos, tmp_path, mock_home_dir):
+        """Should raise ValueError when link is broken"""
+        from cicada.utils.storage import get_index_path
+
+        source_repo, target_repo, config_path = setup_linked_repos
+
+        # Delete source index to break the link
+        source_index = get_index_path(source_repo)
+        source_index.unlink()
+
+        # Create a config that points to target repo (which is linked)
+        from cicada.utils.storage import create_storage_dir, resolve_storage_dir
+
+        create_storage_dir(target_repo)
+
+        # Attempting to resolve storage should raise ValueError
+        with pytest.raises(ValueError, match="Link is broken"):
+            resolve_storage_dir(target_repo)

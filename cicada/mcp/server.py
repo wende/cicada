@@ -259,12 +259,13 @@ def main():
         # Convert to absolute path
         from pathlib import Path
 
-        from cicada.utils.storage import get_storage_dir
+        from cicada.utils.storage import resolve_storage_dir
 
         abs_path = Path(repo_path).resolve()
         # Set environment variables for both storage directory and repo path
         # The repo path is needed by _auto_setup_if_needed() for first-time setup
-        storage_dir = get_storage_dir(abs_path)
+        # resolve_storage_dir will follow links if the repository is linked
+        storage_dir = resolve_storage_dir(abs_path)
         os.environ["CICADA_CONFIG_DIR"] = str(storage_dir)
         os.environ["_CICADA_REPO_PATH_ARG"] = str(abs_path)
 

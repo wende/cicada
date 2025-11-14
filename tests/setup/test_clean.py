@@ -315,6 +315,34 @@ class TestCleanRepository:
         captured = capsys.readouterr()
         assert "No Cicada configuration found" in captured.out
 
+    def test_shows_warning_for_linked_repository(self, tmp_path, capsys):
+        """Should show warning when cleaning a linked repository"""
+        repo_path = tmp_path / "linked_repo"
+        repo_path.mkdir()
+        storage_dir = tmp_path / ".cicada" / "projects" / "test_hash"
+        storage_dir.mkdir(parents=True)
+
+        source_repo = tmp_path / "source_repo"
+
+        link_info = {
+            "source_repo_path": str(source_repo),
+            "source_storage_dir": str(tmp_path / "source_storage"),
+            "linked_at": "2025-01-01T00:00:00Z",
+        }
+
+        with (
+            patch("cicada.clean.get_storage_dir", return_value=storage_dir),
+            patch("cicada.utils.storage.is_linked", return_value=True),
+            patch("cicada.utils.storage.get_link_info", return_value=link_info),
+        ):
+            clean_repository(repo_path, force=True)
+
+        captured = capsys.readouterr()
+        assert "⚠ This repository is linked" in captured.out
+        assert str(source_repo) in captured.out
+        assert "Cleaning will only remove the link file" in captured.out
+        assert "cicada unlink" in captured.out
+
 
 class TestMainFunction:
     """Tests for main CLI entry point"""
@@ -388,6 +416,33 @@ class TestMainFunction:
                     with pytest.raises(SystemExit) as exc_info:
                         main()
                     assert exc_info.value.code == 1
+
+    def test_clean_linked_repository_warning(self, tmp_path, mock_home_dir, capsys):
+        """Should display warning when cleaning a linked repository"""
+        from cicada.utils.storage import create_link, create_storage_dir
+
+        # Create source and target repositories
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create source storage and index
+        source_storage = create_storage_dir(source_repo)
+        (source_storage / "index.json").write_text('{"modules": {}}')
+
+        # Link target to source
+        create_link(target_repo, source_repo)
+
+        # Clean the linked repository with force flag
+        with patch("builtins.input", return_value="y"):
+            clean_repository(target_repo, force=False)
+
+        captured = capsys.readouterr()
+        assert "⚠ This repository is linked to another repository's index:" in captured.out
+        assert str(source_repo) in captured.out
+        assert "Cleaning will only remove the link file" in captured.out
+        assert "To unlink without removing other files, use: cicada unlink" in captured.out
 
     def test_main_all_flag(self, tmp_path):
         """Main should call clean_all_projects with --all flag"""
