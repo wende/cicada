@@ -175,12 +175,83 @@ class KeywordSearcher:
 
         return document
 
+    def _analyze_match_details(
+        self,
+        query_keywords: list[str],
+        doc: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Analyze WHERE each keyword matched and HOW MANY times.
+
+        Args:
+            query_keywords: List of matched query keywords (lowercase)
+            doc: Document dictionary with type, name, keywords, doc, string_sources, etc.
+
+        Returns:
+            Dictionary mapping keyword -> match details:
+            {
+                "keyword": {
+                    "total_count": int,
+                    "locations": [
+                        {"type": "name"|"doc"|"string", "count": int, "lines": [...]},
+                        ...
+                    ]
+                }
+            }
+        """
+        match_details: dict[str, dict[str, Any]] = {}
+
+        for keyword in query_keywords:
+            details: dict[str, Any] = {"total_count": 0, "locations": []}
+
+            # Check if keyword appears in the name (module or function name)
+            name = doc.get("name", "").lower()
+            if keyword in name:
+                # Count occurrences in name
+                count = name.count(keyword)
+                details["locations"].append({"type": "name", "count": count})
+                details["total_count"] += count
+
+            # Check if keyword appears in documentation
+            doc_text = doc.get("doc", "")
+            if doc_text:
+                doc_lower = doc_text.lower()
+                count = doc_lower.count(keyword)
+                if count > 0:
+                    details["locations"].append({"type": "doc", "count": count})
+                    details["total_count"] += count
+
+            # Check if keyword appears in string literals
+            string_sources = doc.get("string_sources", [])
+            if string_sources:
+                string_matches = []
+                string_count = 0
+                for src in string_sources:
+                    src_lower = src["string"].lower()
+                    kw_count = src_lower.count(keyword)
+                    if kw_count > 0:
+                        string_matches.append(src["line"])
+                        string_count += kw_count
+
+                if string_matches:
+                    details["locations"].append(
+                        {"type": "string", "count": string_count, "lines": string_matches}
+                    )
+                    details["total_count"] += string_count
+
+            # Only add to results if we found matches
+            if details["total_count"] > 0:
+                match_details[keyword] = details
+
+        return match_details
+
     def _calculate_score(
         self,
         query_keywords: list[str],
         keyword_groups: list[int],
         total_terms: int,
         doc_keywords: dict[str, float],
+        doc: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Calculate the search score by summing weights of matched keywords.
@@ -188,12 +259,14 @@ class KeywordSearcher:
         Args:
             query_keywords: Query keywords (normalized to lowercase)
             doc_keywords: Document keywords with their scores
+            doc: Optional document dict for match detail analysis
 
         Returns:
             Dictionary with:
             - score: Sum of matched keyword weights
             - matched_keywords: List of matched keywords
             - confidence: Percentage of query keywords that matched
+            - match_details: Detailed location and frequency info (if doc provided)
         """
         matched_keywords = []
         matched_groups: set[int] = set()
@@ -208,11 +281,17 @@ class KeywordSearcher:
         denominator = total_terms if total_terms else len(query_keywords)
         confidence = (len(matched_groups) / denominator * 100) if denominator else 0
 
-        return {
+        result: dict[str, Any] = {
             "score": total_score,
             "matched_keywords": matched_keywords,
             "confidence": round(confidence, 1),
         }
+
+        # Add match details if document provided
+        if doc and matched_keywords:
+            result["match_details"] = self._analyze_match_details(matched_keywords, doc)
+
+        return result
 
     def _calculate_wildcard_score(
         self,
@@ -220,6 +299,7 @@ class KeywordSearcher:
         keyword_groups: list[int],
         total_terms: int,
         doc_keywords: dict[str, float],
+        doc: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Calculate the search score using wildcard pattern matching.
@@ -227,12 +307,14 @@ class KeywordSearcher:
         Args:
             query_keywords: Query keywords with potential wildcards (normalized to lowercase)
             doc_keywords: Document keywords with their scores
+            doc: Optional document dict for match detail analysis
 
         Returns:
             Dictionary with:
             - score: Sum of matched keyword weights
             - matched_keywords: List of matched query patterns
             - confidence: Percentage of query keywords that matched
+            - match_details: Detailed location and frequency info (if doc provided)
         """
         matched_keywords = []
         matched_groups: set[int] = set()
@@ -253,11 +335,17 @@ class KeywordSearcher:
         denominator = total_terms if total_terms else len(query_keywords)
         confidence = (len(matched_groups) / denominator * 100) if denominator else 0
 
-        return {
+        result: dict[str, Any] = {
             "score": total_score,
             "matched_keywords": matched_keywords,
             "confidence": round(confidence, 1),
         }
+
+        # Add match details if document provided
+        if doc and matched_keywords:
+            result["match_details"] = self._analyze_match_details(matched_keywords, doc)
+
+        return result
 
     def _expand_or_patterns(self, keywords: list[str]) -> tuple[list[str], list[int]]:
         """
@@ -390,13 +478,14 @@ class KeywordSearcher:
 
         # Search all documents
         for doc in self.documents:
-            # Calculate score
+            # Calculate score with match details
             if enable_wildcards:
                 result_data = self._calculate_wildcard_score(
                     query_keywords_expanded,
                     keyword_groups,
                     len(query_keywords_lower),
                     doc["keywords"],
+                    doc,  # Pass doc for match detail analysis
                 )
             else:
                 result_data = self._calculate_score(
@@ -404,6 +493,7 @@ class KeywordSearcher:
                     keyword_groups,
                     len(query_keywords_lower),
                     doc["keywords"],
+                    doc,  # Pass doc for match detail analysis
                 )
 
             # Check for module name match if module patterns were extracted
@@ -451,6 +541,10 @@ class KeywordSearcher:
                     }
                     if matched_sources:
                         result["keyword_sources"] = matched_sources
+
+                # Add match details if available
+                if result_data.get("match_details"):
+                    result["match_details"] = result_data["match_details"]
 
                 # Add string sources if available
                 if doc.get("string_sources"):

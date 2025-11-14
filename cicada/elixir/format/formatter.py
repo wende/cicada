@@ -1049,6 +1049,30 @@ If this function was deleted:
                     else:
                         kw_with_sources.append(kw)
                 lines.append("Matched: " + ", ".join(kw_with_sources))
+
+                # Show detailed match information (WHERE and HOW MANY)
+                match_details = result.get("match_details", {})
+                if match_details:
+                    lines.append("Match details:")
+                    for kw, details in match_details.items():
+                        total = details["total_count"]
+                        lines.append(f"  • '{kw}' ({total}× total):")
+                        for loc in details["locations"]:
+                            loc_type = loc["type"]
+                            count = loc["count"]
+                            if loc_type == "name":
+                                lines.append(f"    - {count}× in name")
+                            elif loc_type == "doc":
+                                lines.append(f"    - {count}× in documentation")
+                            elif loc_type == "string":
+                                line_nums = loc.get("lines", [])
+                                if len(line_nums) <= 3:
+                                    line_str = ", ".join(f":{ln}" for ln in line_nums)
+                                    lines.append(f"    - {count}× in strings ({line_str})")
+                                else:
+                                    lines.append(
+                                        f"    - {count}× in strings ({len(line_nums)} locations)"
+                                    )
             else:
                 lines.append("Matched: None")
 

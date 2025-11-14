@@ -17,7 +17,6 @@ def router():
         pr_handler=Mock(),
         dependency_handler=Mock(),
         analysis_handler=Mock(),
-        expand_handler=Mock(),
     )
 
 
