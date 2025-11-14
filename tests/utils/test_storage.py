@@ -527,6 +527,33 @@ class TestLinkFunctionality:
         with pytest.raises(ValueError, match="circular link"):
             create_link(repo_b, repo_a)
 
+    def test_create_link_allows_link_chain(self, tmp_path, mock_home_dir):
+        """Should allow linking to a repository that is itself linked to another source."""
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_c = tmp_path / "repo_c"
+
+        for repo in (repo_a, repo_b, repo_c):
+            repo.mkdir()
+
+        source_storage = create_storage_dir(repo_a)
+        (source_storage / "index.json").write_text('{"modules": {}}')
+
+        # Link B → A and ensure it resolves correctly
+        create_link(repo_b, repo_a)
+        resolved_a = resolve_storage_dir(repo_a)
+        assert resolve_storage_dir(repo_b) == resolved_a
+
+        # Link C → B (which is already linked to A)
+        create_link(repo_c, repo_b)
+
+        resolved_c = resolve_storage_dir(repo_c)
+        assert resolved_c == resolved_a
+
+        link_info = get_link_info(repo_c)
+        assert link_info is not None
+        assert link_info["source_storage_dir"] == str(resolved_a)
+
     def test_resolve_storage_dir_detects_broken_link(self, setup_repos):
         """Should detect and report broken links when source index is deleted"""
         source_repo, target_repo = setup_repos

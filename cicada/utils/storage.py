@@ -181,33 +181,58 @@ def get_link_info(repo_path: str | Path) -> LinkInfo | None:
 
 
 def resolve_storage_dir(repo_path: str | Path) -> Path:
-    """
-    Resolve the storage directory for a repository, following links if present.
+    """Resolve the storage directory for a repository, following link chains if present."""
 
-    Args:
-        repo_path: Path to the repository
+    current_repo = Path(repo_path).resolve()
+    visited: set[str] = set()
+    last_link_info: LinkInfo | None = None
+    missing_storage: Path | None = None
 
-    Returns:
-        Path to the actual storage directory (source if linked, own if not)
+    while True:
+        repo_key = str(current_repo)
+        if repo_key in visited:
+            break
+        visited.add(repo_key)
 
-    Raises:
-        ValueError: If the link is broken (source index doesn't exist)
-    """
-    link_info = get_link_info(repo_path)
-    source_storage_dir = link_info.get("source_storage_dir") if link_info else None
-    if source_storage_dir and isinstance(source_storage_dir, str) and source_storage_dir.strip():
-        source_storage = Path(source_storage_dir)
-        # Validate source storage still has an index
-        if not (source_storage / "index.json").exists():
-            # link_info is guaranteed to be not None here since we got source_storage_dir from it
-            source_repo = link_info.get("source_repo_path", "unknown") if link_info else "unknown"  # type: ignore[union-attr]
-            raise ValueError(
-                f"Link is broken: source index not found at {source_storage}\n"
-                f"Source repository: {source_repo}\n"
-                f"Run 'cicada unlink' to remove the broken link, then re-index or re-link."
-            )
-        return source_storage
-    return get_storage_dir(repo_path)
+        link_info = get_link_info(current_repo)
+        if not link_info:
+            return get_storage_dir(current_repo)
+
+        last_link_info = link_info
+
+        source_storage_dir = link_info.get("source_storage_dir")
+        if isinstance(source_storage_dir, str) and source_storage_dir.strip():
+            source_storage = Path(source_storage_dir)
+            if (source_storage / "index.json").exists():
+                return source_storage
+            missing_storage = source_storage
+
+        source_repo_path = link_info.get("source_repo_path")
+        if source_repo_path:
+            current_repo = Path(source_repo_path).resolve()
+            continue
+
+        break
+
+    source_repo = (
+        last_link_info.get("source_repo_path", "unknown")
+        if last_link_info
+        else "unknown"
+    )
+
+    if missing_storage is None and last_link_info:
+        raw_path = last_link_info.get("source_storage_dir")
+        if isinstance(raw_path, str) and raw_path.strip():
+            missing_storage = Path(raw_path)
+
+    if missing_storage is None:
+        missing_storage = get_storage_dir(current_repo)
+
+    raise ValueError(
+        f"Link is broken: source index not found at {missing_storage}\n"
+        f"Source repository: {source_repo}\n"
+        f"Run 'cicada unlink' to remove the broken link, then re-index or re-link."
+    )
 
 
 def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
