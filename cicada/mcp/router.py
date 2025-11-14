@@ -11,7 +11,6 @@ from mcp.types import TextContent
 from cicada.mcp.handlers import (
     AnalysisHandler,
     DependencyHandler,
-    ExpandHandler,
     FunctionSearchHandler,
     GitHistoryHandler,
     ModuleSearchHandler,
@@ -30,7 +29,6 @@ class ToolRouter:
         pr_handler: PRHistoryHandler,
         dependency_handler: DependencyHandler,
         analysis_handler: AnalysisHandler,
-        expand_handler: ExpandHandler,
     ):
         """
         Initialize the tool router with handlers.
@@ -42,7 +40,6 @@ class ToolRouter:
             pr_handler: Handler for PR history tools
             dependency_handler: Handler for dependency analysis tools
             analysis_handler: Handler for analysis tools (keywords, dead code)
-            expand_handler: Handler for result expansion tool
         """
         self.module_handler = module_handler
         self.function_handler = function_handler
@@ -50,7 +47,6 @@ class ToolRouter:
         self.pr_handler = pr_handler
         self.dependency_handler = dependency_handler
         self.analysis_handler = analysis_handler
-        self.expand_handler = expand_handler
 
     @staticmethod
     def _resolve_visibility_parameter(arguments: dict) -> str:
@@ -425,13 +421,60 @@ class ToolRouter:
                 error_msg = "'include_relationships' must be a boolean"
                 return [TextContent(type="text", text=error_msg)]
 
-            return await self.expand_handler.expand_result(
-                identifier,
-                result_type,
-                include_code,
-                include_relationships,
-                output_format,
-            )
+            # Auto-detect type if needed
+            if result_type == "auto":
+                # If it has arity notation (e.g., /2), it's a function
+                if "/" in identifier:
+                    result_type = "function"
+                # Check if it exists as a module in the index
+                elif identifier in self.module_handler.index.get("modules", {}):
+                    result_type = "module"
+                else:
+                    # If not found as module, assume function (will error appropriately later)
+                    result_type = "function"
+
+            # Route to appropriate handler
+            if result_type == "module":
+                # Check if module exists
+                if identifier not in self.module_handler.index.get("modules", {}):
+                    error_msg = f"Module not found: {identifier}"
+                    return [TextContent(type="text", text=error_msg)]
+
+                # Use existing module search handler
+                return await self.module_handler.search_module(
+                    identifier,
+                    output_format=output_format,
+                    visibility="all",  # Show all functions (public and private)
+                    pr_info=None,
+                    staleness_info=None,
+                )
+            else:  # function
+                # Parse function reference to extract components
+                function_name = identifier
+                module_path = None
+
+                # If it contains a module path, split on the last dot
+                if "." in identifier:
+                    parts = identifier.rsplit(".", 1)
+                    if len(parts) == 2:
+                        module_path = parts[0]
+                        function_name = parts[1]
+
+                if not function_name:
+                    error_msg = f"Invalid function reference: {identifier}"
+                    return [TextContent(type="text", text=error_msg)]
+
+                # Use existing function search handler
+                return await self.function_handler.search_function(
+                    function_name=function_name,
+                    output_format=output_format,
+                    include_usage_examples=include_relationships,  # Show usage if requested
+                    max_examples=5,
+                    usage_type="all",
+                    changed_since=None,
+                    show_relationships=include_relationships,
+                    module_path=module_path,
+                )
 
         else:
             raise ValueError(f"Unknown tool: {name}")

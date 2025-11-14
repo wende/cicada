@@ -24,7 +24,6 @@ from cicada.mcp.config_manager import ConfigManager
 from cicada.mcp.handlers import (
     AnalysisHandler,
     DependencyHandler,
-    ExpandHandler,
     FunctionSearchHandler,
     GitHistoryHandler,
     ModuleSearchHandler,
@@ -73,7 +72,6 @@ class CicadaServer:
         self.analysis_handler = AnalysisHandler(
             self.index_manager.index, self.index_manager.has_keywords
         )
-        self.expand_handler = ExpandHandler(self.index_manager.index, self.config)
 
         # Initialize router
         self.router = ToolRouter(
@@ -83,7 +81,6 @@ class CicadaServer:
             pr_handler=self.pr_handler,
             dependency_handler=self.dependency_handler,
             analysis_handler=self.analysis_handler,
-            expand_handler=self.expand_handler,
         )
 
         # Initialize MCP server

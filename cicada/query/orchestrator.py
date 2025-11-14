@@ -7,7 +7,6 @@ broad, shallow overviews with smart suggestions for deep-dive analysis.
 Author: Cicada Team
 """
 
-import fnmatch
 import re
 from collections import Counter
 from datetime import datetime, timedelta
@@ -16,6 +15,7 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
+from cicada.utils.path_utils import is_test_file, matches_glob_pattern
 
 
 class QueryOrchestrator:
@@ -30,37 +30,6 @@ class QueryOrchestrator:
         """
         self.index = index
         # Will create keyword searcher on demand with appropriate match_source
-
-    def _is_test_file(self, file_path: str) -> bool:
-        """Check if a file is a test file."""
-        return "_test.exs" in file_path or "/test/" in file_path
-
-    def _matches_glob(self, file_path: str, pattern: str) -> bool:
-        """
-        Check if file path matches a glob pattern.
-
-        Supports ** for recursive matching and * for single-level wildcards.
-
-        Args:
-            file_path: File path to check
-            pattern: Glob pattern (e.g., "lib/auth/**", "**/*_controller.ex")
-
-        Returns:
-            True if path matches pattern
-        """
-        # Normalize paths (remove leading ./)
-        file_path = file_path.lstrip("./")
-        pattern = pattern.lstrip("./")
-
-        # fnmatch with FNM_PATHNAME flag simulation for **
-        if "**" in pattern:
-            # Convert ** to regex pattern
-            regex_pattern = pattern.replace("**", ".*").replace("*", "[^/]*")
-            regex_pattern = "^" + regex_pattern + "$"
-            return bool(re.match(regex_pattern, file_path))
-        else:
-            # Use fnmatch for simple patterns
-            return fnmatch.fnmatch(file_path, pattern)
 
     def _is_recent(self, result: SearchResult, cutoff: datetime) -> bool:
         """
@@ -311,11 +280,11 @@ class QueryOrchestrator:
 
         # Path pattern filter
         if config.path_pattern:
-            filtered = [r for r in filtered if self._matches_glob(r.file, config.path_pattern)]
+            filtered = [r for r in filtered if matches_glob_pattern(r.file, config.path_pattern)]
 
         # Test filter
         if not config.include_tests:
-            filtered = [r for r in filtered if not self._is_test_file(r.file)]
+            filtered = [r for r in filtered if not is_test_file(r.file)]
 
         # Arity filter (only for functions)
         if config.arity is not None:
@@ -611,37 +580,41 @@ class QueryOrchestrator:
 
     def _generate_query_variants(self, query: str) -> list[str]:
         """
-        Generate case and formatting variants of a query term.
+        Generate structural formatting variants of a query term.
+
+        Since keyword search is case-insensitive, only suggests variants that differ
+        in structure (e.g., "openrouter" → "open_router"), not case-only variants.
 
         Args:
             query: Query string
 
         Returns:
-            List of variant strings (snake_case, camelCase, PascalCase, SCREAMING_CASE)
+            List of structurally different variant strings, deduplicated case-insensitively
         """
         variants = []
+        seen_normalized = {query.lower()}  # Track case-insensitive duplicates
 
-        # snake_case
+        # snake_case variant (with underscores)
         snake = query.lower().replace(" ", "_").replace("-", "_")
-        if snake != query:
+        if snake.lower() not in seen_normalized:
             variants.append(snake)
+            seen_normalized.add(snake.lower())
 
-        # PascalCase (capitalize first letter of each word)
-        parts = query.replace("_", " ").replace("-", " ").split()
-        pascal = "".join(word.capitalize() for word in parts)
-        if pascal != query:
-            variants.append(pascal)
+        # PascalCase variant (for module names)
+        # Only suggest if the original didn't have underscores (structural difference)
+        if "_" not in query and "-" not in query:
+            parts = query.replace("_", " ").replace("-", " ").split()
+            if parts and len(parts) > 1:  # Only for multi-word terms
+                pascal = "".join(word.capitalize() for word in parts)
+                if pascal.lower() not in seen_normalized:
+                    variants.append(pascal)
+                    seen_normalized.add(pascal.lower())
 
-        # camelCase (like PascalCase but first letter lowercase)
-        if parts:
-            camel = parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
-            if camel != query and camel != pascal:
-                variants.append(camel)
-
-        # SCREAMING_CASE
-        screaming = query.upper().replace(" ", "_").replace("-", "_")
-        if screaming != query:
-            variants.append(screaming)
+        # hyphen-case variant (another common format)
+        hyphen = query.lower().replace(" ", "-").replace("_", "-")
+        if hyphen.lower() not in seen_normalized and hyphen != query.lower():
+            variants.append(hyphen)
+            seen_normalized.add(hyphen.lower())
 
         return variants[: QueryConfig.MAX_QUERY_VARIANTS]
 

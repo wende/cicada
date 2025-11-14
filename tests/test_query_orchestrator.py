@@ -572,16 +572,18 @@ end
         # Should have suggestions section
         assert "💡" in result or "Suggestions:" in result or "Try:" in result
 
-    def test_zero_results_suggests_case_variants(self, sample_index):
-        """Test that zero results suggests case/formatting variants."""
+    def test_zero_results_suggests_structural_variants(self, sample_index):
+        """Test that zero results suggests structural formatting variants (not case-only)."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("openrouter")
+        # Use multi-word query to get structural variants
+        result = orchestrator.execute_query("open router")
 
-        # Should suggest variants
+        # Should suggest structural variants (underscores, hyphens, PascalCase)
+        # but NOT case-only variants since keyword search is case-insensitive
         assert (
-            "open_router" in result
-            or "OpenRouter" in result
-            or "OPENROUTER" in result
+            "open_router" in result  # snake_case
+            or "OpenRouter" in result  # PascalCase
+            or "open-router" in result  # hyphen-case
             or "variants" in result.lower()
         )
 

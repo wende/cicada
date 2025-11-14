@@ -3,6 +3,7 @@
 import pytest
 
 from cicada.keyword_search import KeywordSearcher
+from cicada.mcp.pattern_utils import has_wildcards, match_wildcard
 
 
 class TestKeywordSearcher:
@@ -139,25 +140,23 @@ class TestKeywordSearcher:
         assert len(results) == 0
 
     def test_has_wildcards_detection(self, sample_index):
-        """Test _has_wildcards method."""
-        searcher = KeywordSearcher(sample_index)
-
-        assert searcher._has_wildcards(["user*"]) is True
-        assert searcher._has_wildcards(["*user"]) is True
-        assert searcher._has_wildcards(["user"]) is False
-        assert searcher._has_wildcards(["user", "create*"]) is True
+        """Test has_wildcards function."""
+        # Test individual patterns
+        assert has_wildcards("user*") is True
+        assert has_wildcards("*user") is True
+        assert has_wildcards("user") is False
+        assert has_wildcards("create*") is True
+        assert has_wildcards("user|account") is True  # OR patterns also count as wildcards
 
     def test_match_wildcard(self, sample_index):
-        """Test _match_wildcard method."""
-        searcher = KeywordSearcher(sample_index)
-
-        assert searcher._match_wildcard("user*", "user") is True
-        assert searcher._match_wildcard("user*", "username") is True
-        assert searcher._match_wildcard("*user", "myuser") is True
-        assert searcher._match_wildcard("cr*ate", "create") is True
-        assert searcher._match_wildcard("user*", "account") is False
+        """Test match_wildcard function."""
+        assert match_wildcard("user*", "user") is True
+        assert match_wildcard("user*", "username") is True
+        assert match_wildcard("*user", "myuser") is True
+        assert match_wildcard("cr*ate", "create") is True
+        assert match_wildcard("user*", "account") is False
         # Question mark should not work as wildcard
-        assert searcher._match_wildcard("user?", "users") is False
+        assert match_wildcard("user?", "users") is False
 
     def test_multiple_wildcard_patterns(self, sample_index):
         """Test search with multiple wildcard patterns."""
@@ -170,10 +169,8 @@ class TestKeywordSearcher:
 
     def test_wildcard_case_insensitive(self, sample_index):
         """Test that wildcard matching is case insensitive."""
-        searcher = KeywordSearcher(sample_index)
-
-        assert searcher._match_wildcard("USER*", "username") is True
-        assert searcher._match_wildcard("user*", "USERNAME") is True
+        assert match_wildcard("USER*", "username") is True
+        assert match_wildcard("user*", "USERNAME") is True
 
     def test_index_without_keywords_fallback(self, index_without_keywords):
         """Test that searcher can handle indexes without keywords."""
@@ -400,16 +397,15 @@ class TestKeywordSearcher:
 
     def test_or_pattern_has_wildcards_detection(self, sample_index):
         """Test that OR patterns are detected as wildcards."""
-        searcher = KeywordSearcher(sample_index)
-
         # OR pattern should be detected as wildcard
-        assert searcher._has_wildcards(["create|update"]) is True
+        assert has_wildcards("create|update") is True
 
         # Combined with asterisk
-        assert searcher._has_wildcards(["create*|update*"]) is True
+        assert has_wildcards("create*|update*") is True
 
         # Regular keywords should not be detected
-        assert searcher._has_wildcards(["create", "update"]) is False
+        assert has_wildcards("create") is False
+        assert has_wildcards("update") is False
 
     def test_complex_or_pattern(self, sample_index):
         """Test complex OR pattern with multiple alternatives."""

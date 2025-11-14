@@ -5,6 +5,8 @@ This module provides centralized path normalization and resolution
 functions used throughout the codebase.
 """
 
+import fnmatch
+import re
 from pathlib import Path
 
 
@@ -190,6 +192,70 @@ def ensure_relative_to_repo(
     """
     resolved = resolve_to_repo_root(file_path, repo_root)
     return normalize_file_path(resolved)
+
+
+def is_test_file(file_path: str) -> bool:
+    """
+    Check if a file is a test file or script file.
+
+    Files are considered test/script files if they:
+    - Are in 'test/' directory (anywhere in path or at start)
+    - End with '_test.ex' suffix
+    - End with '.exs' extension (Elixir script files)
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        True if the file is a test file or script
+
+    Example:
+        is_test_file('test/user_test.ex') -> True
+        is_test_file('lib/mix_task.exs') -> True
+        is_test_file('lib/user.ex') -> False
+    """
+    file_lower = file_path.lower()
+    return (
+        "/test/" in file_lower
+        or file_lower.startswith("test/")
+        or file_lower.endswith(("_test.ex", ".exs"))
+    )
+
+
+def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
+    """
+    Check if file path matches a glob pattern.
+
+    Supports:
+    - * for single-level wildcards
+    - ** for recursive directory matching
+    - Standard glob patterns
+
+    Args:
+        file_path: File path to check
+        pattern: Glob pattern (e.g., "lib/**/*.ex", "**/*_test.ex")
+
+    Returns:
+        True if path matches pattern
+
+    Example:
+        matches_glob_pattern('lib/auth/user.ex', 'lib/**/*.ex') -> True
+        matches_glob_pattern('lib/user.ex', 'lib/*') -> True
+        matches_glob_pattern('test/user_test.ex', '**/*_test.ex') -> True
+    """
+    # Normalize both paths
+    file_path_norm = normalize_file_path(file_path)
+    pattern_norm = normalize_file_path(pattern)
+
+    # Handle ** recursive matching
+    if "**" in pattern_norm:
+        # Convert glob pattern to regex
+        regex_pattern = pattern_norm.replace("**", ".*").replace("*", "[^/]*")
+        regex_pattern = "^" + regex_pattern + "$"
+        return bool(re.match(regex_pattern, file_path_norm))
+
+    # Use fnmatch for simple patterns
+    return fnmatch.fnmatch(file_path_norm, pattern_norm)
 
 
 def ensure_gitignore_has_cicada(repo_root: str | Path) -> bool:

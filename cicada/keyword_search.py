@@ -8,8 +8,9 @@ code identifier presence, semantic similarity, etc.
 Author: Cicada Team
 """
 
-import fnmatch
 from typing import Any
+
+from cicada.mcp.pattern_utils import has_wildcards, match_wildcard
 
 
 class KeywordSearcher:
@@ -174,24 +175,6 @@ class KeywordSearcher:
 
         return document
 
-    def _match_wildcard(self, pattern: str, text: str) -> bool:
-        """
-        Check if text matches a wildcard pattern.
-
-        Supports * (matches any characters) only.
-
-        Args:
-            pattern: Wildcard pattern (e.g., "create*", "test_*")
-            text: Text to match against
-
-        Returns:
-            True if text matches the pattern
-        """
-        # Only support * wildcard, not ?
-        if "?" in pattern:
-            return False
-        return fnmatch.fnmatch(text.lower(), pattern.lower())
-
     def _calculate_score(
         self,
         query_keywords: list[str],
@@ -258,7 +241,7 @@ class KeywordSearcher:
         for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
             # Find all doc keywords matching this pattern
             for doc_kw, weight in doc_keywords.items():
-                if self._match_wildcard(query_kw, doc_kw):
+                if match_wildcard(query_kw, doc_kw):
                     # Add query keyword to matched list (not the doc keyword)
                     if query_kw not in matched_keywords:
                         matched_keywords.append(query_kw)
@@ -275,10 +258,6 @@ class KeywordSearcher:
             "matched_keywords": matched_keywords,
             "confidence": round(confidence, 1),
         }
-
-    def _has_wildcards(self, keywords: list[str]) -> bool:
-        """Check if any keywords contain wildcard patterns (* or |)."""
-        return any("*" in keyword or "|" in keyword for keyword in keywords)
 
     def _expand_or_patterns(self, keywords: list[str]) -> tuple[list[str], list[int]]:
         """
@@ -357,7 +336,7 @@ class KeywordSearcher:
             True if the module name matches the pattern
         """
         if "*" in module_pattern:
-            return self._match_wildcard(module_pattern, doc_module)
+            return match_wildcard(module_pattern, doc_module)
         return module_pattern.lower() == doc_module.lower()
 
     def search(
@@ -405,7 +384,7 @@ class KeywordSearcher:
         query_keywords_expanded, keyword_groups = self._expand_or_patterns(query_keywords_lower)
 
         # Check if wildcards are present
-        enable_wildcards = self._has_wildcards(query_keywords_expanded)
+        enable_wildcards = any(has_wildcards(kw) for kw in query_keywords_expanded)
 
         results = []
 
