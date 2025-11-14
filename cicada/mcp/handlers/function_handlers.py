@@ -355,11 +355,16 @@ class FunctionSearchHandler:
         # Handle both calling conventions:
         # 1. function_name="Module.function" (already qualified)
         # 2. function_name="function", module_path="Module" (separate parameters)
-        effective_pattern = (
-            f"{module_path}.{function_name}"
-            if module_path and "." not in function_name and ":" not in function_name
-            else function_name
-        )
+        if module_path and "." not in function_name and ":" not in function_name:
+            # Split OR patterns and qualify each term individually
+            if "|" in function_name:
+                terms = function_name.split("|")
+                qualified_terms = [f"{module_path}.{term}" for term in terms]
+                effective_pattern = "|".join(qualified_terms)
+            else:
+                effective_pattern = f"{module_path}.{function_name}"
+        else:
+            effective_pattern = function_name
 
         # Support OR syntax by splitting first, then parsing each component individually
         parsed_patterns: list[FunctionPattern] = parse_function_patterns(effective_pattern)

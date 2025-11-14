@@ -669,5 +669,58 @@ async def test_search_function_module_path_with_wildcards(setup_server):
         assert any("create" in name.lower() for name in names)
 
 
+@pytest.mark.asyncio
+async def test_search_function_module_path_with_or_patterns(setup_server):
+    """Test that module_path parameter works correctly with OR patterns.
+
+    When module_path is supplied with OR patterns like "create|update",
+    each OR segment should be qualified individually (e.g., "MyApp.User.create|MyApp.User.update")
+    to ensure all branches are constrained to the specified module.
+    """
+    import json
+
+    server = setup_server()
+
+    # Test: module_path with OR pattern should qualify all terms
+    result = await server.function_handler.search_function(
+        "create_user|validate_email", "json", module_path="MyApp.User"
+    )
+    data = json.loads(result[0].text)
+
+    # All results should be from MyApp.User module only
+    if "results" in data:
+        assert data["total_matches"] >= 2, "Should find both create_user and validate_email"
+        for entry in data["results"]:
+            assert entry["module"] == "MyApp.User", (
+                f"Expected only MyApp.User results, but found {entry['module']}. "
+                "All OR terms should be qualified with module_path."
+            )
+
+        # Should find both functions
+        function_names = {entry["function"] for entry in data["results"]}
+        assert "create_user" in function_names or "validate_email" in function_names
+
+
+@pytest.mark.asyncio
+async def test_search_function_module_path_or_with_arity(setup_server):
+    """Test module_path with OR patterns including arity specifications."""
+    import json
+
+    server = setup_server()
+
+    # Test: module_path with OR pattern including arity
+    result = await server.function_handler.search_function(
+        "create/1|create/2", "json", module_path="MyApp.User"
+    )
+    data = json.loads(result[0].text)
+
+    if "results" in data:
+        for entry in data["results"]:
+            assert entry["module"] == "MyApp.User", (
+                f"Found function in {entry['module']}, expected MyApp.User. "
+                "OR patterns with arity should be constrained to module_path."
+            )
+
+
 if __name__ == "__main__":
     asyncio.run(test_search_function())
