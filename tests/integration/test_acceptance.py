@@ -27,8 +27,78 @@ from tests.acceptance.runner import (
 
 @pytest.fixture
 def config_path():
-    """Path to test fixtures config."""
-    return "tests/fixtures/.cicada/config.yaml"
+    """Path to test fixtures config (from centralized storage)."""
+    from pathlib import Path
+    from cicada.utils.storage import get_config_path, get_index_path
+    import yaml
+    import json
+
+    # Determine which fixture to use
+    if Path("tests/fixtures/elixir_project").exists():
+        fixture_dir = Path("tests/fixtures/elixir_project").resolve()
+    else:
+        fixture_dir = Path("tests/fixtures/test_project").resolve()
+
+    # Get paths (will use mocked home if in test)
+    config_path_obj = get_config_path(fixture_dir)
+    index_path_obj = get_index_path(fixture_dir)
+
+    # Ensure storage directory exists
+    config_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create minimal config
+    config = {
+        "repository": {"path": str(fixture_dir)},
+    }
+    with open(config_path_obj, "w") as f:
+        yaml.dump(config, f)
+
+    # Create minimal index if it doesn't exist
+    if not index_path_obj.exists():
+        minimal_index = {
+            "modules": {
+                "TestApp": {
+                    "file": "lib/test_app.ex",
+                    "line": 1,
+                    "moduledoc": "Test application module",
+                    "keywords": {"test": 1.0, "application": 0.9, "module": 0.8},
+                    "functions": [
+                        {
+                            "name": "hello",
+                            "arity": 0,
+                            "line": 5,
+                            "type": "def",
+                            "signature": "hello()",
+                            "doc": "Says hello",
+                            "keywords": {"hello": 1.0, "greet": 0.9},
+                        },
+                        {
+                            "name": "add",
+                            "arity": 2,
+                            "line": 10,
+                            "type": "def",
+                            "signature": "add(a, b)",
+                            "doc": "Adds two numbers",
+                            "keywords": {"add": 1.0, "number": 0.9, "sum": 0.8},
+                        },
+                        {
+                            "name": "add_numbers",
+                            "arity": 2,
+                            "line": 15,
+                            "type": "def",
+                            "signature": "add_numbers(x, y)",
+                            "doc": "Adds two numbers together",
+                            "keywords": {"add": 1.0, "number": 0.9, "sum": 0.8},
+                        },
+                    ],
+                }
+            },
+            "metadata": {"total_modules": 1, "repo_path": str(fixture_dir)},
+        }
+        with open(index_path_obj, "w") as f:
+            json.dump(minimal_index, f)
+
+    return str(config_path_obj)
 
 
 @pytest.fixture

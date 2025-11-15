@@ -91,10 +91,6 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
   - `get_hashes_path(repo_path)` - Get path to hashes.json
   - `get_pr_index_path(repo_path)` - Get path to pr_index.json
 
-- **Backward Compatibility:** The MCP server (`cicada/mcp_server.py`) supports both:
-  - New structure: `~/.cicada/projects/<hash>/`
-  - Old structure: `.cicada/` in project root
-
 ## Environment Variables
 
 The MCP server uses environment variables to locate configuration files:
@@ -150,11 +146,7 @@ When adding or modifying storage-related functionality:
    - Directory creation with proper permissions
    - Edge cases (non-existent paths, unicode, spaces in paths)
 
-2. **Test backward compatibility:**
-   - Ensure MCP server can still load from old `.cicada/` structure
-   - Verify graceful fallback when new structure is unavailable
-
-3. **Error handling:**
+2. **Error handling:**
    - Test permission errors, disk full scenarios
    - Verify appropriate logging for debugging
 

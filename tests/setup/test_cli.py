@@ -453,8 +453,8 @@ class TestHandleIndex:
         captured = capsys.readouterr()
         assert "Tier flags now require --force" in captured.err
 
-    def test_changing_method_exits_with_error(self, mock_repo, capsys):
-        """Changing extraction method should exit with error and suggest cicada clean"""
+    def test_changing_method_updates_config_and_indexes(self, mock_repo):
+        """With --force, changing extraction method should update config and proceed with indexing"""
         args = make_index_args(regular=True, force=True, repo=str(mock_repo))
 
         with (
@@ -462,7 +462,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_config_path") as mock_get_config,
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
-            patch("cicada.setup.create_config_yaml"),
+            patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
             patch("builtins.open", MagicMock()),
             patch(
@@ -472,7 +472,6 @@ class TestHandleIndex:
                     "keyword_expansion": {"method": "lemmi"},
                 },
             ),
-            pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = True
@@ -483,17 +482,18 @@ class TestHandleIndex:
 
             handle_index(args)
 
-        # Verify it exits with code 1
-        assert exc_info.value.code == 1
+            # Verify config was updated with new tier (bert + glove)
+            mock_create_config.assert_called_once()
+            # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
+            call_args = mock_create_config.call_args[0]
+            assert call_args[2] == "bert"  # extraction_method
+            assert call_args[3] == "glove"  # expansion_method
 
-        # Verify error message was printed
-        captured = capsys.readouterr()
-        assert "Cannot change extraction" in captured.err
-        assert "regular" in captured.err and "bert" in captured.err
-        assert "cicada clean" in captured.err
+            # Verify indexing proceeded normally
+            mock_indexer.incremental_index_repository.assert_called_once()
 
-    def test_changing_expansion_method_exits_with_error(self, mock_repo, capsys):
-        """Changing expansion method should exit with error and suggest cicada clean"""
+    def test_changing_expansion_method_updates_config_and_indexes(self, mock_repo):
+        """With --force, changing expansion method should update config and proceed with indexing"""
         args = make_index_args(max=True, force=True, repo=str(mock_repo))
 
         with (
@@ -501,7 +501,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_config_path") as mock_get_config,
             patch("cicada.utils.storage.create_storage_dir"),
             patch("cicada.utils.storage.get_index_path"),
-            patch("cicada.setup.create_config_yaml"),
+            patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
             patch("builtins.open", MagicMock()),
             patch(
@@ -511,7 +511,6 @@ class TestHandleIndex:
                     "keyword_expansion": {"method": "glove"},
                 },
             ),
-            pytest.raises(SystemExit) as exc_info,
         ):
             mock_config_path = MagicMock()
             mock_config_path.exists.return_value = True
@@ -522,15 +521,15 @@ class TestHandleIndex:
 
             handle_index(args)
 
-        # Verify it exits with code 1
-        assert exc_info.value.code == 1
+            # Verify config was updated with new expansion method (bert + fasttext)
+            mock_create_config.assert_called_once()
+            # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
+            call_args = mock_create_config.call_args[0]
+            assert call_args[2] == "bert"  # extraction_method
+            assert call_args[3] == "fasttext"  # expansion_method
 
-        # Verify error message was printed
-        captured = capsys.readouterr()
-        assert (
-            "Cannot change expansion method" in captured.err or "settings" in captured.err.lower()
-        )
-        assert "cicada clean" in captured.err
+            # Verify indexing proceeded normally
+            mock_indexer.incremental_index_repository.assert_called_once()
 
 
 class TestHandleIndexPR:

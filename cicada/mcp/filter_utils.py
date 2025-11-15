@@ -6,24 +6,15 @@ Provides reusable filtering functions for various MCP tool operations.
 
 from typing import Any
 
+from cicada.scoring import filter_by_score_threshold
 
-def filter_by_score_threshold(
-    results: list[dict[str, Any]], min_score: float
-) -> list[dict[str, Any]]:
-    """
-    Filter search results by minimum score threshold.
-
-    Args:
-        results: List of search results with 'score' field
-        min_score: Minimum score threshold (0.0 to 1.0)
-
-    Returns:
-        Filtered list of results meeting the score threshold
-    """
-    if not results or min_score <= 0.0:
-        return results
-
-    return [r for r in results if r.get("score", 0.0) >= min_score]
+# Re-export for backward compatibility
+__all__ = [
+    "filter_by_score_threshold",
+    "is_test_file",
+    "classify_usage_type",
+    "filter_by_file_type",
+]
 
 
 def is_test_file(file_path: str) -> bool:
