@@ -11,6 +11,52 @@ import math
 from collections.abc import Callable
 from typing import Any
 
+# Normalization constants for score distribution
+# When all scores are identical, normalize to midpoint (no variance to distinguish)
+NORMALIZED_NO_VARIANCE = 0.5
+# When there's only one score, treat it as maximum (100% of available values)
+NORMALIZED_SINGLE_VALUE = 1.0
+
+# Standard normal distribution significance thresholds (in standard deviations σ)
+# These thresholds are based on statistical significance levels
+Z_SCORE_EXCEPTIONAL_THRESHOLD = 2.0  # 97.7th percentile (>2σ above mean)
+Z_SCORE_HIGHLY_RELEVANT_THRESHOLD = 1.0  # 84th percentile (1-2σ above mean)
+Z_SCORE_MEAN_THRESHOLD = 0.0  # 50th percentile (at the mean)
+Z_SCORE_POOR_THRESHOLD = -1.0  # 16th percentile (>1σ below mean)
+
+# Module match boost value
+MODULE_MATCH_BOOST = 2.0
+
+
+def _build_score_result(
+    total_score: float,
+    matched_keywords: list[str],
+    matched_groups: set[int],
+    total_terms: int,
+    query_keywords: list[str],
+) -> dict[str, Any]:
+    """
+    Build the score result dictionary with confidence calculation.
+
+    Args:
+        total_score: Sum of matched keyword weights
+        matched_keywords: List of matched keywords
+        matched_groups: Set of matched group indexes
+        total_terms: Total number of original query terms
+        query_keywords: Full list of query keywords
+
+    Returns:
+        Dictionary with score, matched_keywords, and confidence
+    """
+    denominator = total_terms if total_terms else len(query_keywords)
+    confidence = (len(matched_groups) / denominator * 100) if denominator else 0
+
+    return {
+        "score": total_score,
+        "matched_keywords": matched_keywords,
+        "confidence": round(confidence, 1),
+    }
+
 
 def calculate_score(
     query_keywords: list[str],
@@ -43,14 +89,9 @@ def calculate_score(
             matched_groups.add(group_idx)
             total_score += doc_keywords[query_kw]
 
-    denominator = total_terms if total_terms else len(query_keywords)
-    confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-    return {
-        "score": total_score,
-        "matched_keywords": matched_keywords,
-        "confidence": round(confidence, 1),
-    }
+    return _build_score_result(
+        total_score, matched_keywords, matched_groups, total_terms, query_keywords
+    )
 
 
 def calculate_wildcard_score(
@@ -92,18 +133,9 @@ def calculate_wildcard_score(
                 total_score += weight
                 break
 
-    denominator = total_terms if total_terms else len(query_keywords)
-    confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-    return {
-        "score": total_score,
-        "matched_keywords": matched_keywords,
-        "confidence": round(confidence, 1),
-    }
-
-
-# Module match boost value
-MODULE_MATCH_BOOST = 2.0
+    return _build_score_result(
+        total_score, matched_keywords, matched_groups, total_terms, query_keywords
+    )
 
 
 def apply_module_boost(score: float, module_matched: bool) -> float:
@@ -141,6 +173,124 @@ def filter_by_score_threshold(
     return [r for r in results if r.get("score", 0.0) >= min_score]
 
 
+def _empty_distribution_result() -> dict[str, Any]:
+    """
+    Return an empty distribution result with zero values.
+
+    Returns:
+        Dictionary with all distribution metrics set to zero/empty
+    """
+    return {
+        "mean": 0.0,
+        "std_dev": 0.0,
+        "min_score": 0.0,
+        "max_score": 0.0,
+        "count": 0,
+        "distribution": [],
+    }
+
+
+def _extract_raw_scores(scores: list[float] | list[dict[str, Any]]) -> list[float]:
+    """
+    Extract float scores from input, handling both raw floats and dicts with 'score' field.
+
+    Args:
+        scores: Either a list of float scores, or a list of dicts with 'score' field
+
+    Returns:
+        List of float scores
+    """
+    if not scores:
+        return []
+
+    if isinstance(scores[0], dict):
+        return [s.get("score", 0.0) for s in scores]  # type: ignore[union-attr]
+    return scores  # type: ignore[return-value]
+
+
+def _calculate_statistics(raw_scores: list[float]) -> tuple[float, float, float, float]:
+    """
+    Calculate mean, standard deviation, min, and max for a list of scores.
+
+    Args:
+        raw_scores: List of float scores
+
+    Returns:
+        Tuple of (mean, std_dev, min_score, max_score)
+    """
+    n = len(raw_scores)
+    mean = sum(raw_scores) / n
+
+    if n == 1:
+        std_dev = 0.0
+    else:
+        variance = sum((x - mean) ** 2 for x in raw_scores) / (n - 1)
+        std_dev = math.sqrt(variance)
+
+    return mean, std_dev, min(raw_scores), max(raw_scores)
+
+
+def _calculate_per_score_metrics(
+    raw_scores: list[float],
+    mean: float,
+    std_dev: float,
+    min_score: float,
+    max_score: float,
+) -> list[dict[str, Any]]:
+    """
+    Calculate z-score, percentile, and normalized score for each value.
+
+    Args:
+        raw_scores: List of float scores
+        mean: Average of all scores
+        std_dev: Standard deviation of scores
+        min_score: Minimum score in the list
+        max_score: Maximum score in the list
+
+    Returns:
+        List of dicts with per-score statistics (score, z_score, percentile, normalized)
+    """
+    n = len(raw_scores)
+    score_range = max_score - min_score
+
+    # Create score->rank mapping for O(1) percentile lookup (optimization)
+    # Sort once to avoid O(n²) complexity in percentile calculation
+    sorted_scores = sorted(raw_scores)
+    score_to_rank: dict[float, int] = {}
+
+    for idx, score in enumerate(sorted_scores):
+        if score not in score_to_rank:
+            # Count how many scores are strictly less than this one
+            score_to_rank[score] = idx
+
+    # Calculate distribution metrics for each score
+    distribution = []
+    for score in raw_scores:
+        # Calculate z-score (standardized score)
+        z_score = (score - mean) / std_dev if std_dev > 0 else 0.0
+
+        # Calculate percentile (what % of scores are below this) - O(1) lookup
+        rank = score_to_rank[score]
+        percentile = (rank / n) * 100
+
+        # Calculate normalized score (0-1 range)
+        if score_range > 0:
+            normalized = (score - min_score) / score_range
+        else:
+            normalized = NORMALIZED_SINGLE_VALUE if n == 1 else NORMALIZED_NO_VARIANCE
+
+        distribution.append(
+            {
+                "score": score,
+                "z_score": round(z_score, 4),
+                "percentile": round(percentile, 2),
+                "normalized": round(normalized, 4),
+            }
+        )
+
+    return distribution
+
+
 def calculate_score_distribution(
     scores: list[float] | list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -176,72 +326,17 @@ def calculate_score_distribution(
         >>> dist['std_dev']
         1.4142135623730951
     """
-    # Extract raw scores if input is list of dicts
-    if not scores:
-        return {
-            "mean": 0.0,
-            "std_dev": 0.0,
-            "min_score": 0.0,
-            "max_score": 0.0,
-            "count": 0,
-            "distribution": [],
-        }
+    # Extract raw scores from input (handles both floats and dicts)
+    raw_scores = _extract_raw_scores(scores)
 
-    raw_scores: list[float] = (
-        [s.get("score", 0.0) for s in scores]  # type: ignore[union-attr]
-        if isinstance(scores[0], dict)
-        else scores  # type: ignore[assignment]
-    )
+    if not raw_scores:
+        return _empty_distribution_result()
 
-    n = len(raw_scores)
-    if n == 0:
-        return {
-            "mean": 0.0,
-            "std_dev": 0.0,
-            "min_score": 0.0,
-            "max_score": 0.0,
-            "count": 0,
-            "distribution": [],
-        }
+    # Calculate statistical measures
+    mean, std_dev, min_score, max_score = _calculate_statistics(raw_scores)
 
-    # Calculate mean
-    mean = sum(raw_scores) / n
-
-    # Calculate standard deviation
-    if n == 1:
-        std_dev = 0.0
-    else:
-        variance = sum((x - mean) ** 2 for x in raw_scores) / (n - 1)
-        std_dev = math.sqrt(variance)
-
-    # Get min and max
-    min_score = min(raw_scores)
-    max_score = max(raw_scores)
-    score_range = max_score - min_score
-
-    # Calculate distribution metrics for each score
-    distribution = []
-    for score in raw_scores:
-        # Calculate z-score (standardized score)
-        z_score = (score - mean) / std_dev if std_dev > 0 else 0.0
-
-        # Calculate percentile (what % of scores are below this)
-        percentile = sum(1 for s in raw_scores if s < score) / n * 100
-
-        # Calculate normalized score (0-1 range)
-        if score_range > 0:
-            normalized = (score - min_score) / score_range
-        else:
-            normalized = 1.0 if n == 1 else 0.5
-
-        distribution.append(
-            {
-                "score": score,
-                "z_score": round(z_score, 4),
-                "percentile": round(percentile, 2),
-                "normalized": round(normalized, 4),
-            }
-        )
+    # Calculate per-score metrics (z-score, percentile, normalized)
+    distribution = _calculate_per_score_metrics(raw_scores, mean, std_dev, min_score, max_score)
 
     # Sort distribution by z-score (descending) - most relevant first
     distribution.sort(key=lambda x: x["z_score"], reverse=True)
@@ -251,7 +346,7 @@ def calculate_score_distribution(
         "std_dev": round(std_dev, 4),
         "min_score": round(min_score, 4),
         "max_score": round(max_score, 4),
-        "count": n,
+        "count": len(raw_scores),
         "distribution": distribution,
     }
 
@@ -261,11 +356,11 @@ def grade_by_z_score(z_score: float) -> dict[str, Any]:
     Grade a z-score into a relevance tier with description.
 
     Uses standard normal distribution thresholds to categorize statistical significance:
-    - Exceptional: z > 2.0 (above 97.7th percentile, >2 standard deviations above mean)
-    - Highly Relevant: 1.0 < z ≤ 2.0 (between 84th-97.7th percentile, 1-2 std devs above mean)
-    - Above Average: 0.0 < z ≤ 1.0 (between 50th-84th percentile, 0-1 std devs above mean)
-    - Below Average: -1.0 < z ≤ 0.0 (between 16th-50th percentile, 0-1 std devs below mean)
-    - Poor: z ≤ -1.0 (below 16th percentile, >1 std dev below mean)
+    - Exceptional: z > 2σ (above 97.7th percentile, >2 standard deviations above mean)
+    - Highly Relevant: 1σ < z ≤ 2σ (between 84th-97.7th percentile, 1-2 std devs above mean)
+    - Above Average: 0 < z ≤ 1σ (between 50th-84th percentile, 0-1 std devs above mean)
+    - Below Average: -1σ < z ≤ 0 (between 16th-50th percentile, 0-1 std devs below mean)
+    - Poor: z ≤ -1σ (below 16th percentile, >1 std dev below mean)
 
     Args:
         z_score: The standardized score to grade
@@ -286,28 +381,28 @@ def grade_by_z_score(z_score: float) -> dict[str, Any]:
             'rank': 1
         }
     """
-    if z_score > 2.0:
+    if z_score > Z_SCORE_EXCEPTIONAL_THRESHOLD:
         return {
             "tier": "exceptional",
             "label": "Exceptional",
             "description": "Top ~2% - Statistically outstanding result",
             "rank": 1,
         }
-    elif z_score > 1.0:
+    elif z_score > Z_SCORE_HIGHLY_RELEVANT_THRESHOLD:
         return {
             "tier": "highly_relevant",
             "label": "Highly Relevant",
             "description": "Top ~16% - Significantly above average",
             "rank": 2,
         }
-    elif z_score > 0.0:
+    elif z_score > Z_SCORE_MEAN_THRESHOLD:
         return {
             "tier": "above_average",
             "label": "Above Average",
             "description": "Top 50% - Better than average",
             "rank": 3,
         }
-    elif z_score > -1.0:
+    elif z_score > Z_SCORE_POOR_THRESHOLD:
         return {
             "tier": "below_average",
             "label": "Below Average",
