@@ -808,7 +808,11 @@ def _handle_index_config_update(
     extraction_method: str,
     expansion_method: str,
 ) -> None:
-    """Handle config creation or validation during indexing.
+    """Handle config creation or update during forced indexing.
+
+    This function is only called when --force is used, so it always
+    updates the config to the specified extraction and expansion methods
+    without validation. This allows users to change tiers between indexing runs.
 
     Args:
         config_path: Path to config.yaml
@@ -819,64 +823,9 @@ def _handle_index_config_update(
     """
     from cicada.setup import create_config_yaml
 
-    if config_path.exists():
-        existing_extraction, existing_expansion = _load_existing_config(config_path)
-
-        extraction_changed = existing_extraction != extraction_method
-        expansion_changed = existing_expansion != expansion_method
-
-        if extraction_changed or expansion_changed:
-            _print_config_change_error(
-                existing_extraction,
-                existing_expansion,
-                extraction_method,
-                expansion_method,
-                extraction_changed,
-                expansion_changed,
-            )
-            sys.exit(1)
-
+    # When --force is used, always update config to the new tier settings
+    # This allows changing tiers without requiring a separate clean step
     create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
-
-
-def _print_config_change_error(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> None:
-    """Print error message for config changes."""
-    change_desc = _describe_config_change(
-        existing_extraction,
-        existing_expansion,
-        extraction_method,
-        expansion_method,
-        extraction_changed,
-        expansion_changed,
-    )
-
-    print(f"Error: Cannot change {change_desc}", file=sys.stderr)
-    print("\nTo reindex with different settings, first run:", file=sys.stderr)
-    print("  cicada clean", file=sys.stderr)
-    print("\nThen run your index command again.", file=sys.stderr)
-
-
-def _describe_config_change(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> str:
-    """Generate description of config change."""
-    if extraction_changed and expansion_changed:
-        return f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-    if extraction_changed:
-        return f"extraction from {existing_extraction} to {extraction_method}"
-    return f"expansion from {existing_expansion} to {expansion_method}"
 
 
 def _print_tier_requirement_error() -> None:
