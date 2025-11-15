@@ -779,25 +779,29 @@ def handle_index_main(args) -> None:
     force_enabled = getattr(args, "force", False) is True
     extraction_method: str | None = None
     expansion_method: str | None = None
+    tier_changed = False
 
     if force_enabled:
         extraction_method, expansion_method = get_extraction_expansion_methods(args)
         assert extraction_method is not None
         assert expansion_method is not None
-        _handle_index_config_update(
+        tier_changed = _handle_index_config_update(
             config_path, storage_dir, repo_path, extraction_method, expansion_method
         )
+        if tier_changed:
+            print("Tier configuration changed. Performing full reindex...")
     elif not config_path.exists():
         _print_tier_requirement_error()
         sys.exit(2)
 
     # Perform indexing
+    # If tier changed, force full reindex to ensure index consistency with new config
     indexer = ElixirIndexer(verbose=True)
     indexer.incremental_index_repository(
         str(repo_path),
         str(index_path),
         extract_keywords=True,
-        force_full=False,
+        force_full=tier_changed,
     )
 
 
@@ -807,8 +811,12 @@ def _handle_index_config_update(
     repo_path: Path,
     extraction_method: str,
     expansion_method: str,
-) -> None:
-    """Handle config creation or validation during indexing.
+) -> bool:
+    """Handle config creation or update during forced indexing.
+
+    This function is only called when --force is used, so it always
+    updates the config to the specified extraction and expansion methods
+    without validation. This allows users to change tiers between indexing runs.
 
     Args:
         config_path: Path to config.yaml
@@ -816,67 +824,26 @@ def _handle_index_config_update(
         repo_path: Repository path
         extraction_method: Extraction method to use
         expansion_method: Expansion method to use
+
+    Returns:
+        True if the tier was changed (requiring full reindex), False otherwise
     """
     from cicada.setup import create_config_yaml
 
+    # Check if config exists and if tier has changed
+    tier_changed = False
     if config_path.exists():
+        # Load existing config to check for tier changes
         existing_extraction, existing_expansion = _load_existing_config(config_path)
+        tier_changed = (
+            existing_extraction != extraction_method or existing_expansion != expansion_method
+        )
 
-        extraction_changed = existing_extraction != extraction_method
-        expansion_changed = existing_expansion != expansion_method
-
-        if extraction_changed or expansion_changed:
-            _print_config_change_error(
-                existing_extraction,
-                existing_expansion,
-                extraction_method,
-                expansion_method,
-                extraction_changed,
-                expansion_changed,
-            )
-            sys.exit(1)
-
+    # When --force is used, always update config to the new tier settings
+    # This allows changing tiers without requiring a separate clean step
     create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
 
-
-def _print_config_change_error(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> None:
-    """Print error message for config changes."""
-    change_desc = _describe_config_change(
-        existing_extraction,
-        existing_expansion,
-        extraction_method,
-        expansion_method,
-        extraction_changed,
-        expansion_changed,
-    )
-
-    print(f"Error: Cannot change {change_desc}", file=sys.stderr)
-    print("\nTo reindex with different settings, first run:", file=sys.stderr)
-    print("  cicada clean", file=sys.stderr)
-    print("\nThen run your index command again.", file=sys.stderr)
-
-
-def _describe_config_change(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> str:
-    """Generate description of config change."""
-    if extraction_changed and expansion_changed:
-        return f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-    if extraction_changed:
-        return f"extraction from {existing_extraction} to {extraction_method}"
-    return f"expansion from {existing_expansion} to {expansion_method}"
+    return tier_changed
 
 
 def _print_tier_requirement_error() -> None:

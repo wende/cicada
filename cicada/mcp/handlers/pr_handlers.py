@@ -149,10 +149,14 @@ class PRHistoryHandler:
             TextContent with formatted PR history
         """
         if not self.pr_index:
+            from cicada.utils.storage import get_pr_index_path
+
+            repo_path = Path(self.config.get("repository", {}).get("path", "."))
+            index_path = get_pr_index_path(repo_path)
             error_msg = (
                 "PR index not available. Please run:\n"
                 "  cicada index-pr\n\n"
-                "This will create the PR index at .cicada/pr_index.json"
+                f"This will create the PR index at {index_path}"
             )
             return [TextContent(type="text", text=error_msg)]
 

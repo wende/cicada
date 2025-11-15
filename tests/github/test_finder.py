@@ -117,7 +117,7 @@ def test_format_result_no_pr():
 
 def test_pr_finder_with_index():
     """Test PR finder with index enabled."""
-    finder = PRFinder(use_index=True, index_path=".cicada/pr_index.json")
+    finder = PRFinder(use_index=True)
     assert finder.use_index is True
 
 
