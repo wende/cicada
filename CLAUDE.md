@@ -282,10 +282,10 @@ The `search_by_features` MCP tool now supports `match_source`:
 Results now include match source indicators:
 
 ```markdown
-Function: MyApp.User.fetch_all/2 💬
+Function: MyApp.User.fetch_all/2 [strings]
 Score: 1.25
 Path: lib/my_app/user.ex:40
-Matched: select (💬), database (💬), query (💬)
+Matched: select [strings], database [strings], query [strings]
 String literals:
   • "SELECT * FROM users WHERE active = true" (line 42)
 Doc: "Fetches all active users from the database"
@@ -293,9 +293,9 @@ Doc: "Fetches all active users from the database"
 ```
 
 **Indicators:**
-- 📄 = Matched via documentation keywords
-- 💬 = Matched via string literal keywords
-- 📄💬 = Matched via both sources
+- [docs] = Matched via documentation keywords
+- [strings] = Matched via string literal keywords
+- [docs+strings] = Matched via both sources
 
 ### Implementation Notes
 
@@ -334,9 +334,9 @@ These all get marked as co-occurring because they appear in the same function co
 
 When you search with no results:
 ```
-🔍 Search: "openrouter" → No results found
+Search: "openrouter" → No results found
 
-💡 Try these related terms from your codebase:
+Try these related terms from your codebase:
    • "provider" (appears with similar keywords in 15 functions)
    • "litellm" (appears with similar keywords in 8 functions)
    • "api_key" (appears with similar keywords in 12 functions)
@@ -344,9 +344,9 @@ When you search with no results:
 
 When you have too many results:
 ```
-🔍 Search: "test" → 500 results
+Search: "test" → 500 results
 
-🎯 Narrow your search by adding:
+Narrow your search by adding:
    • "provider" (appears together in 23 results)
    • "validate" (appears together in 18 results)
    • "integration" (appears together in 45 results)

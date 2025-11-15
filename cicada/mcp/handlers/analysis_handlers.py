@@ -134,7 +134,7 @@ class AnalysisHandler:
                 return [TextContent(type="text", text=msg)]
 
             # Format suggestions for expand mode
-            msg = f"💡 Related keywords for: {', '.join(keywords)}\n\n"
+            msg = f"Related keywords for: {', '.join(keywords)}\n\n"
             msg += "These keywords frequently appear together in your codebase:\n\n"
             for i, suggestion in enumerate(suggestions, 1):
                 kw = suggestion["keyword"]
@@ -142,7 +142,7 @@ class AnalysisHandler:
                 cooccurs_with = ", ".join(f"'{w}'" for w in suggestion["cooccurs_with"])
                 msg += f"{i}. **{kw}** (co-occurs {count}x with {cooccurs_with})\n"
 
-            msg += "\n💭 Try searching with: " + ", ".join(
+            msg += "\nTry searching with: " + ", ".join(
                 [f"'{s['keyword']}'" for s in suggestions[:3]]
             )
 
@@ -166,7 +166,7 @@ class AnalysisHandler:
                 return [TextContent(type="text", text=msg)]
 
             # Format suggestions for narrow mode
-            msg = f"🎯 Add these keywords to narrow down {len(search_results)} results:\n\n"
+            msg = f"Add these keywords to narrow down {len(search_results)} results:\n\n"
             for i, suggestion in enumerate(suggestions, 1):
                 kw = suggestion["keyword"]
                 count = suggestion["result_count"]
@@ -176,7 +176,7 @@ class AnalysisHandler:
                     cooccurs_info = f" (related to {cooccurs_with})"
                 msg += f"{i}. **{kw}** (appears in {count}/{len(search_results)} results){cooccurs_info}\n"
 
-            msg += "\n💭 Try searching with: " + ", ".join(
+            msg += "\nTry searching with: " + ", ".join(
                 keywords + [f"'{s['keyword']}'" for s in suggestions[:2]]
             )
 
