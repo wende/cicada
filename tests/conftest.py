@@ -21,16 +21,8 @@ def setup_test_environment():
     # Get the tests directory
     tests_dir = Path(__file__).parent
 
-    # Create .cicada directory if it doesn't exist
-    os.makedirs(".cicada", exist_ok=True)
+    # Create data directory for test files
     os.makedirs(tests_dir / "data", exist_ok=True)
-
-    # Create minimal index
-    minimal_index = {"modules": {}, "metadata": {"total_modules": 0, "repo_path": "."}}
-
-    index_path = ".cicada/index.json"
-    with open(index_path, "w") as f:
-        json.dump(minimal_index, f)
 
     # Generate test index with sample data for tests
     test_index = {
@@ -111,10 +103,9 @@ def setup_test_environment():
     with open(test_index_path, "w") as f:
         json.dump(test_index, f, indent=2)
 
-    # Create config.yaml file
+    # Create config.yaml file (no longer includes index_path - uses centralized storage)
     config = {
         "repository": {"path": "."},
-        "storage": {"index_path": ".cicada/index.json"},
     }
 
     config_path = "config.yaml"

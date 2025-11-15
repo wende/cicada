@@ -57,7 +57,6 @@ cov_annotate/
 
 # Cicada data and generated files
 data/
-.cicada/
 .claude
 .mcp.json
 config.yaml

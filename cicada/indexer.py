@@ -4,7 +4,6 @@ Elixir Repository Indexer.
 Walks an Elixir repository and indexes all modules and functions.
 """
 
-import argparse
 import os
 import signal
 import sys
@@ -619,16 +618,6 @@ class ElixirIndexer:
         # Save to file
         output_path_obj = Path(output_path)
 
-        # Check if .cicada directory exists (first run detection)
-        is_first_run = not output_path_obj.parent.exists()
-
-        # On first run, add .cicada/ to .gitignore if it exists
-        if is_first_run:
-            from cicada.utils.path_utils import ensure_gitignore_has_cicada
-
-            if ensure_gitignore_has_cicada(repo_path_obj) and self.verbose:
-                print("✓ Added .cicada/ to .gitignore")
-
         save_index(index, output_path_obj, create_dirs=True)
 
         # Compute and save hashes for all PROCESSED files for future incremental updates
@@ -1049,47 +1038,3 @@ class ElixirIndexer:
                     elixir_files.append(file_path)
 
         return sorted(elixir_files)
-
-
-def main():
-    """Main entry point for the indexer CLI."""
-    from cicada.version_check import check_for_updates
-
-    # Check for updates (non-blocking, fails silently)
-    check_for_updates()
-
-    parser = argparse.ArgumentParser(
-        description="Index current Elixir repository to extract modules and functions"
-    )
-    _ = parser.add_argument(
-        "repo",
-        nargs="?",
-        default=".",
-        help="Path to the Elixir repository to index (default: current directory)",
-    )
-    _ = parser.add_argument(
-        "--output",
-        default=".cicada/index.json",
-        help="Output path for the index file (default: .cicada/index.json)",
-    )
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="Force full reindex, ignoring existing hashes (default: incremental)",
-    )
-
-    args = parser.parse_args()
-
-    indexer = ElixirIndexer()
-
-    # Use incremental indexing by default (unless --full flag is set)
-    indexer.incremental_index_repository(
-        args.repo,
-        args.output,
-        extract_keywords=True,
-        force_full=args.full,
-    )
-
-
-if __name__ == "__main__":
-    main()

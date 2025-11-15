@@ -49,7 +49,6 @@ test-*
 Makefile
 
 # Cicada specific
-.cicada/
 .mcp.json
 .cursor/
 

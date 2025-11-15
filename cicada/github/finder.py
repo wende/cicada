@@ -20,7 +20,7 @@ class PRFinder:
         self,
         repo_path: str = ".",
         use_index: bool = True,
-        index_path: str = ".cicada/pr_index.json",
+        index_path: str | None = None,
         verbose: bool = False,
     ):
         """
@@ -29,12 +29,17 @@ class PRFinder:
         Args:
             repo_path: Path to the git repository (defaults to current directory)
             use_index: If True, use cached index for PR lookups (default: True)
-            index_path: Path to the PR index file (default: .cicada/pr_index.json)
+            index_path: Path to the PR index file (default: centralized storage)
             verbose: If True, print status messages (default: False)
         """
+        from cicada.utils.storage import get_pr_index_path
+
         self.repo_path = Path(repo_path).resolve()
         self.use_index = use_index
-        self.index_path = index_path
+        # Use centralized storage by default
+        self.index_path = (
+            index_path if index_path is not None else str(get_pr_index_path(self.repo_path))
+        )
         self.index: dict[str, Any] | None = None
         self.verbose = verbose
 
@@ -380,51 +385,3 @@ class PRFinder:
                 output.append(f"PR: {note}")
 
             return "\n".join(output)
-
-
-def main():
-    """CLI entry point for pr_finder."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Find the PR that introduced a specific line of code"
-    )
-    _ = parser.add_argument("file", help="Path to the file")
-    _ = parser.add_argument("line", type=int, help="Line number (1-indexed)")
-    _ = parser.add_argument(
-        "--format",
-        choices=["text", "json", "markdown"],
-        default="text",
-        help="Output format (default: text)",
-    )
-    _ = parser.add_argument(
-        "--no-index",
-        action="store_true",
-        help="Disable index lookup and use network instead (slower)",
-    )
-    _ = parser.add_argument(
-        "--index-path",
-        default=".cicada/pr_index.json",
-        help="Path to PR index file (default: .cicada/pr_index.json)",
-    )
-
-    args = parser.parse_args()
-
-    try:
-        finder = PRFinder(
-            repo_path=".",
-            use_index=not args.no_index,
-            index_path=args.index_path,
-            verbose=True,
-        )
-        result = finder.find_pr_for_line(args.file, args.line)
-        output = finder.format_result(result, args.format)
-        print(output)
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
