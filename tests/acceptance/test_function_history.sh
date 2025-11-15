@@ -83,12 +83,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Determine config path - use test fixtures if available, otherwise use current directory
-if [[ -f "tests/fixtures/.cicada/config.yaml" ]]; then
-    CONFIG_PATH="tests/fixtures/.cicada/config.yaml"
+# Determine config path from centralized storage
+if [[ -d "tests/fixtures/test_project" ]]; then
+    FIXTURE_DIR="$(cd tests/fixtures/test_project && pwd)"
+elif [[ -d "tests/fixtures/elixir_project" ]]; then
+    FIXTURE_DIR="$(cd tests/fixtures/elixir_project && pwd)"
 else
-    CONFIG_PATH=".cicada/config.yaml"
+    FIXTURE_DIR="$(pwd)"
 fi
+
+CONFIG_PATH=$(python3 -c "
+from cicada.utils.storage import get_config_path
+print(get_config_path('$FIXTURE_DIR'))
+")
 
 # Build arguments for runner
 RUNNER_ARGS=("file_history" "$FILE_PATH")

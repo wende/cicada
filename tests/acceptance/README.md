@@ -118,18 +118,17 @@ Test keyword-based semantic search for modules and functions.
 **Prerequisites:**
 1. Build index with keyword extraction:
    ```bash
-   uv run python -m cicada.indexer tests/fixtures/test_project
+   uv run cicada index tests/fixtures/test_project --default
    ```
-   Note: The indexer now always extracts keywords when a config exists.
-2. Create config file (if not exists):
+   Note: This uses centralized storage at `~/.cicada/projects/<hash>/`
+2. Config file is automatically created in centralized storage:
    ```bash
-   mkdir -p tests/fixtures/.cicada
-   cat > tests/fixtures/.cicada/config.yaml << EOF
-   repository:
-     path: tests/fixtures/test_project
-   storage:
-     index_path: tests/fixtures/.cicada/index.json
-   EOF
+   # Config location: ~/.cicada/projects/<hash>/config.yaml
+   # Index location: ~/.cicada/projects/<hash>/index.json
+   ```
+   To find the exact paths:
+   ```bash
+   python3 -c "from cicada.utils.storage import get_config_path; print(get_config_path('tests/fixtures/test_project'))"
    ```
 
 Returns up to 10 results sorted by confidence score, showing:
