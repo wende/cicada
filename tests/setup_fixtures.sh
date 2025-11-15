@@ -34,12 +34,21 @@ echo "✓ Test fixtures generated successfully"
 # Create config.yaml for acceptance tests (now uses centralized storage)
 echo "Creating config for test fixtures..."
 # Get storage directory hash
-STORAGE_DIR=$(python3 -c "
+if command -v uv >/dev/null 2>&1; then
+    STORAGE_DIR=$(uv run python3 -c "
 from pathlib import Path
 from cicada.utils.storage import get_config_path
 config_path = get_config_path('$FIXTURE_DIR_ABS')
 print(config_path.parent)
 ")
+else
+    STORAGE_DIR=$(python3 -c "
+from pathlib import Path
+from cicada.utils.storage import get_config_path
+config_path = get_config_path('$FIXTURE_DIR_ABS')
+print(config_path.parent)
+")
+fi
 
 # Config is already in centralized storage, just verify it exists
 if [ -f "$STORAGE_DIR/config.yaml" ]; then

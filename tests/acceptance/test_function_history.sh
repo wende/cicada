@@ -92,10 +92,17 @@ else
     FIXTURE_DIR="$(pwd)"
 fi
 
-CONFIG_PATH=$(python3 -c "
+if command -v uv >/dev/null 2>&1; then
+    CONFIG_PATH=$(uv run python3 -c "
 from cicada.utils.storage import get_config_path
 print(get_config_path('$FIXTURE_DIR'))
 ")
+else
+    CONFIG_PATH=$(python3 -c "
+from cicada.utils.storage import get_config_path
+print(get_config_path('$FIXTURE_DIR'))
+")
+fi
 
 # Build arguments for runner
 RUNNER_ARGS=("file_history" "$FILE_PATH")
