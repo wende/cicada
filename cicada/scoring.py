@@ -261,11 +261,11 @@ def grade_by_z_score(z_score: float) -> dict[str, Any]:
     Grade a z-score into a relevance tier with description.
 
     Uses standard normal distribution thresholds to categorize statistical significance:
-    - Exceptional: z > 2.0 (top ~2.3%, >2 standard deviations above mean)
-    - Highly Relevant: 1.0 < z ≤ 2.0 (top ~2.3-16%, 1-2 std devs above mean)
-    - Above Average: 0.0 < z ≤ 1.0 (top 16-50%, 0-1 std devs above mean)
-    - Below Average: -1.0 < z ≤ 0.0 (bottom 50-84%, 0-1 std devs below mean)
-    - Poor: z ≤ -1.0 (bottom ~16%, >1 std dev below mean)
+    - Exceptional: z > 2.0 (above 97.7th percentile, >2 standard deviations above mean)
+    - Highly Relevant: 1.0 < z ≤ 2.0 (between 84th-97.7th percentile, 1-2 std devs above mean)
+    - Above Average: 0.0 < z ≤ 1.0 (between 50th-84th percentile, 0-1 std devs above mean)
+    - Below Average: -1.0 < z ≤ 0.0 (between 16th-50th percentile, 0-1 std devs below mean)
+    - Poor: z ≤ -1.0 (below 16th percentile, >1 std dev below mean)
 
     Args:
         z_score: The standardized score to grade
@@ -385,11 +385,11 @@ def filter_by_relevance_tier(
     condition are included (OR logic).
 
     Available tier names (from best to worst):
-    - 'exceptional': z-score > 2.0 (top ~2%)
-    - 'highly_relevant': z-score > 1.0 (top ~16%)
-    - 'above_average': z-score > 0.0 (top 50%)
-    - 'below_average': z-score > -1.0 (bottom 50%)
-    - 'poor': z-score ≤ -1.0 (bottom ~16%)
+    - 'exceptional': z-score > 2.0 (above 97.7th percentile)
+    - 'highly_relevant': z-score > 1.0 (between 84th-97.7th percentile)
+    - 'above_average': z-score > 0.0 (between 50th-84th percentile)
+    - 'below_average': z-score > -1.0 (between 16th-50th percentile)
+    - 'poor': z-score ≤ -1.0 (below 16th percentile)
 
     Args:
         distribution: List of distribution entries with tier information
