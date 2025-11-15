@@ -96,17 +96,20 @@ class TestCoChangeAnalyzer:
         # Assert
         file_pairs = result["file_pairs"]
 
-        # A and B should have co-changed 2 times
+        # With canonical ordering, pairs are stored in sorted (alphabetical) order
+        # A and B should have co-changed 2 times (only canonical ordering stored)
         assert file_pairs.get(("lib/module_a.ex", "lib/module_b.ex"), 0) == 2
-        assert file_pairs.get(("lib/module_b.ex", "lib/module_a.ex"), 0) == 2
 
-        # A and C should have co-changed 1 time
+        # A and C should have co-changed 1 time (only canonical ordering stored)
         assert file_pairs.get(("lib/module_a.ex", "lib/module_c.ex"), 0) == 1
-        assert file_pairs.get(("lib/module_c.ex", "lib/module_a.ex"), 0) == 1
+
+        # Verify bidirectional lookups don't exist (we only store canonical form)
+        assert ("lib/module_b.ex", "lib/module_a.ex") not in file_pairs
+        assert ("lib/module_c.ex", "lib/module_a.ex") not in file_pairs
 
         # Metadata
         assert result["metadata"]["commit_count"] == 3
-        assert result["metadata"]["file_pairs"] >= 2  # At least 2 unique pairs
+        assert result["metadata"]["file_pairs"] == 2  # Exactly 2 unique pairs
 
     def test_analyze_repository_handles_single_file_commits(self, tmp_path):
         """Test that commits with only one file don't create co-change entries."""
@@ -393,10 +396,9 @@ end
 
         # func_one and func_three should have co-changed 3 times
         # (initial commit when both created + 2 modification commits)
-        key1 = ("ModuleA.func_one/1", "ModuleB.func_three/1")
-        key2 = ("ModuleB.func_three/1", "ModuleA.func_one/1")
-
-        assert function_pairs.get(key1, 0) == 3 or function_pairs.get(key2, 0) == 3
+        # With canonical ordering, pairs are stored alphabetically sorted
+        canonical_key = tuple(sorted(["ModuleA.func_one/1", "ModuleB.func_three/1"]))
+        assert function_pairs.get(canonical_key, 0) == 3
 
         # func_two appears in co-changes with func_one (same file) and func_three (initial commit)
         # but should have co-changed 3 times (all 3 commits where module_a.ex was modified)

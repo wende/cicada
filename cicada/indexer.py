@@ -121,64 +121,142 @@ class ElixirIndexer:
             cochange_data: Co-change analysis results from CoChangeAnalyzer
             repo_path: Path to repository root
         """
-        file_pairs = cochange_data["file_pairs"]
-        function_pairs = cochange_data["function_pairs"]
+        file_to_module = self._build_file_to_module_mapping(all_modules, repo_path)
+        self._integrate_file_cochanges(
+            all_modules, cochange_data["file_pairs"], file_to_module, repo_path
+        )
+        self._integrate_function_cochanges(all_modules, cochange_data["function_pairs"])
 
-        # Build reverse mapping: file path -> module name
+    def _build_file_to_module_mapping(self, all_modules: dict, repo_path: Path) -> dict[str, str]:
+        """Build reverse mapping from file path to module name.
+
+        Args:
+            all_modules: Dictionary of all indexed modules
+            repo_path: Path to repository root
+
+        Returns:
+            Dictionary mapping file paths to module names
+        """
         file_to_module = {}
         for module_name, module_info in all_modules.items():
             if "file" in module_info:
-                file_path = module_info["file"]
-                # Normalize path (make relative to repo)
-                if file_path.startswith(str(repo_path)):
-                    file_path = str(Path(file_path).relative_to(repo_path))
+                file_path = self._normalize_file_path(module_info["file"], repo_path)
                 file_to_module[file_path] = module_name
+        return file_to_module
 
-        # Integrate file-level co-changes into modules
-        for module_name, module_info in all_modules.items():
-            module_file = module_info.get("file", "")
-            if module_file.startswith(str(repo_path)):
-                module_file = str(Path(module_file).relative_to(repo_path))
+    def _normalize_file_path(self, file_path: str, repo_path: Path) -> str:
+        """Normalize file path to be relative to repo root.
+
+        Args:
+            file_path: Absolute or relative file path
+            repo_path: Path to repository root
+
+        Returns:
+            File path relative to repo root
+        """
+        if file_path.startswith(str(repo_path)):
+            return str(Path(file_path).relative_to(repo_path))
+        return file_path
+
+    def _integrate_file_cochanges(
+        self,
+        all_modules: dict,
+        file_pairs: dict[tuple[str, str], int],
+        file_to_module: dict[str, str],
+        repo_path: Path,
+    ):
+        """Integrate file-level co-changes into modules.
+
+        Args:
+            all_modules: Dictionary of all indexed modules
+            file_pairs: Dictionary of file pair co-change counts
+            file_to_module: Mapping from file paths to module names
+            repo_path: Path to repository root
+        """
+        for _module_name, module_info in all_modules.items():
+            module_file = self._normalize_file_path(module_info.get("file", ""), repo_path)
 
             # Find all files that co-changed with this module's file
+            # Need to check both orderings since pairs are stored canonically
             cochange_files = []
             for (file1, file2), count in file_pairs.items():
                 if file1 == module_file:
                     cochange_files.append({"file": file2, "count": count})
+                elif file2 == module_file:
+                    cochange_files.append({"file": file1, "count": count})
 
             # Sort by count (descending) and add to module
             cochange_files.sort(key=lambda x: x["count"], reverse=True)
             module_info["cochange_files"] = cochange_files
 
-            # Integrate function-level co-changes
-            if "functions" in module_info:
-                for func_info in module_info["functions"]:
-                    func_sig = f"{module_name}.{func_info['name']}/{func_info.get('arity', 0)}"
+    def _integrate_function_cochanges(
+        self, all_modules: dict, function_pairs: dict[tuple[str, str], int]
+    ):
+        """Integrate function-level co-changes into functions.
 
-                    # Find all functions that co-changed with this function
-                    cochange_functions = []
-                    for (func1, func2), count in function_pairs.items():
-                        # Parse func2 to extract module, function, arity
-                        # Format: "ModuleName.function_name/arity"
-                        if func1 == func_sig and "." in func2 and "/" in func2:
-                            module_part, func_part = func2.rsplit(".", 1)
-                            func_name, arity_str = func_part.rsplit("/", 1)
-                            try:
-                                arity = int(arity_str)
-                                cochange_functions.append(
-                                    {
-                                        "module": module_part,
-                                        "function": func_name,
-                                        "arity": arity,
-                                        "count": count,
-                                    }
-                                )
-                            except ValueError:
-                                continue
+        Args:
+            all_modules: Dictionary of all indexed modules
+            function_pairs: Dictionary of function pair co-change counts
+        """
+        for module_name, module_info in all_modules.items():
+            if "functions" not in module_info:
+                continue
 
-                    # Sort by count (descending) and add to function
-                    cochange_functions.sort(key=lambda x: x["count"], reverse=True)
-                    func_info["cochange_functions"] = cochange_functions
+            for func_info in module_info["functions"]:
+                func_sig = f"{module_name}.{func_info['name']}/{func_info.get('arity', 0)}"
+                cochange_functions = self._extract_related_functions(func_sig, function_pairs)
+                func_info["cochange_functions"] = cochange_functions
+
+    def _extract_related_functions(
+        self, func_sig: str, function_pairs: dict[tuple[str, str], int]
+    ) -> list[dict]:
+        """Extract functions that co-changed with the given function signature.
+
+        Args:
+            func_sig: Function signature (e.g., "MyApp.Auth.validate_user/2")
+            function_pairs: Dictionary of function pair co-change counts
+
+        Returns:
+            List of related function dicts with module, function, arity, count keys
+        """
+        cochange_functions = []
+
+        # Check both orderings since pairs are stored canonically
+        for (func1, func2), count in function_pairs.items():
+            related_func = None
+            if func1 == func_sig:
+                related_func = func2
+            elif func2 == func_sig:
+                related_func = func1
+
+            if related_func:
+                parsed = self._parse_function_signature(related_func)
+                if parsed:
+                    cochange_functions.append({**parsed, "count": count})
+
+        # Sort by count (descending)
+        cochange_functions.sort(key=lambda x: x["count"], reverse=True)
+        return cochange_functions
+
+    def _parse_function_signature(self, func_sig: str) -> dict | None:
+        """Parse function signature (Module.function/arity) into components.
+
+        Args:
+            func_sig: Function signature like "MyApp.Auth.validate_user/2"
+
+        Returns:
+            Dict with module, function, arity keys, or None if invalid
+        """
+        if "." not in func_sig or "/" not in func_sig:
+            return None
+
+        try:
+            module_part, func_part = func_sig.rsplit(".", 1)
+            func_name, arity_str = func_part.rsplit("/", 1)
+            arity = int(arity_str)
+            return {"module": module_part, "function": func_name, "arity": arity}
+        except (ValueError, AttributeError):
+            return None
 
     def index_repository(
         self,
