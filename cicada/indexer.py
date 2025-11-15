@@ -84,6 +84,89 @@ class ElixirIndexer:
 
         return module_dependencies, functions
 
+    def _extract_name_keywords(
+        self,
+        identifier: str,
+        keyword_extractor,
+        keyword_expander,
+        boost_factor: float = 1.5,
+    ) -> dict[str, float]:
+        """
+        Extract keywords from an identifier (module name, function name, etc.).
+
+        This ensures all modules/functions are discoverable by their names,
+        even without documentation.
+
+        Args:
+            identifier: The identifier to extract keywords from (e.g., "ThenvoiCom.LlmClientTest")
+            keyword_extractor: Keyword extractor instance (KeyBERT or Regular)
+            keyword_expander: Keyword expander instance
+            boost_factor: Multiplier for name-derived keywords (default: 1.5x)
+
+        Returns:
+            Dictionary mapping keywords to scores
+        """
+        if not identifier or not keyword_extractor:
+            return {}
+
+        # Import the split_identifier utility
+        from cicada.utils import split_identifier
+
+        # Split the identifier into words (handles camelCase, PascalCase, snake_case, dots)
+        # First split by dots (module separators)
+        parts = identifier.split(".")
+        all_words = []
+        for part in parts:
+            words = split_identifier(part, lowercase=True)
+            all_words.extend(words)
+
+        # Filter out very short words (< 3 chars) to avoid noise
+        meaningful_words = [w for w in all_words if len(w) >= 3]
+
+        if not meaningful_words:
+            return {}
+
+        # Create a synthetic "text" from the words for keyword extraction
+        synthetic_text = " ".join(meaningful_words)
+
+        try:
+            # Extract keywords using the same pipeline as documentation
+            extraction_result = keyword_extractor.extract_keywords(synthetic_text, top_n=10)
+            keyword_scores = {
+                kw.lower(): score * boost_factor for kw, score in extraction_result["top_keywords"]
+            }
+
+            # Expand keywords if expander is available
+            if keyword_expander and keyword_scores:
+                extracted_keywords = list(keyword_scores.keys())
+                expansion_result = keyword_expander.expand_keywords(
+                    extracted_keywords,
+                    top_n=self.DEFAULT_EXPANSION_TOP_N,
+                    threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                    return_scores=True,
+                    keyword_scores=keyword_scores,
+                )
+
+                # Convert expansion result to dict
+                expanded_keywords = {}
+                if isinstance(expansion_result, dict):
+                    for item in expansion_result["words"]:
+                        word = item["word"]
+                        score = item["score"]
+                        if word not in expanded_keywords or score > expanded_keywords[word]:
+                            expanded_keywords[word] = score
+                    return expanded_keywords
+
+            return keyword_scores
+
+        except Exception as e:
+            if self.verbose:
+                print(
+                    f"Warning: Name keyword extraction failed for '{identifier}': {e}",
+                    file=sys.stderr,
+                )
+            return {}
+
     def _handle_interrupt(self, _signum, _frame):
         """Handle interrupt signals (Ctrl-C, SIGTERM) gracefully."""
         print("\n\n⚠️  Interrupt received. Finishing current file and saving progress...")
@@ -240,67 +323,19 @@ class ElixirIndexer:
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
-                        if keyword_extractor and module_data.get("moduledoc"):
+                        if keyword_extractor:
                             try:
-                                # Step 1: Extract keywords with scores
-                                extraction_result = keyword_extractor.extract_keywords(
-                                    module_data["moduledoc"], top_n=10
+                                # Always extract keywords from module name
+                                name_keywords = self._extract_name_keywords(
+                                    module_name, keyword_extractor, keyword_expander
                                 )
-                                extracted_keywords = [
-                                    kw for kw, _ in extraction_result["top_keywords"]
-                                ]
-                                keyword_scores = {
-                                    kw.lower(): score
-                                    for kw, score in extraction_result["top_keywords"]
-                                }
 
-                                # Step 2: Expand keywords with scores
-                                if keyword_expander and extracted_keywords:
-                                    expansion_result = keyword_expander.expand_keywords(
-                                        extracted_keywords,
-                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                        return_scores=True,
-                                        keyword_scores=keyword_scores,
-                                    )
-                                    # Convert to dict: word -> max_score
-                                    module_keywords = {}
-                                    # When return_scores=True, expansion_result is a dict
-                                    if not isinstance(expansion_result, dict):
-                                        raise TypeError(
-                                            "Expected dict from expand_keywords with return_scores=True"
-                                        )
-                                    for item in expansion_result["words"]:
-                                        word = item["word"]
-                                        score = item["score"]
-                                        if (
-                                            word not in module_keywords
-                                            or score > module_keywords[word]
-                                        ):
-                                            module_keywords[word] = score
-                                else:
-                                    module_keywords = keyword_scores
-                            except Exception as e:
-                                keyword_extraction_failures += 1
-                                if self.verbose:
-                                    print(
-                                        f"Warning: Keyword extraction failed for module {module_name}: {e}",
-                                        file=sys.stderr,
-                                    )
-
-                        # Enrich function metadata (keywords and timestamps)
-                        for func in functions:
-                            func_name = func.get("name", "")
-
-                            # Extract and expand keywords from function docs
-                            if keyword_extractor and func.get("doc"):
-                                try:
-                                    # Include function name in text for keyword extraction
-                                    # This ensures the function name identifier gets 10x weight
-                                    text_for_keywords = f"{func_name} {func['doc']}"
+                                # Extract keywords from documentation if available
+                                doc_keywords = {}
+                                if module_data.get("moduledoc"):
                                     # Step 1: Extract keywords with scores
                                     extraction_result = keyword_extractor.extract_keywords(
-                                        text_for_keywords, top_n=10
+                                        module_data["moduledoc"], top_n=10
                                     )
                                     extracted_keywords = [
                                         kw for kw, _ in extraction_result["top_keywords"]
@@ -320,7 +355,6 @@ class ElixirIndexer:
                                             keyword_scores=keyword_scores,
                                         )
                                         # Convert to dict: word -> max_score
-                                        func_keywords = {}
                                         # When return_scores=True, expansion_result is a dict
                                         if not isinstance(expansion_result, dict):
                                             raise TypeError(
@@ -330,12 +364,88 @@ class ElixirIndexer:
                                             word = item["word"]
                                             score = item["score"]
                                             if (
-                                                word not in func_keywords
-                                                or score > func_keywords[word]
+                                                word not in doc_keywords
+                                                or score > doc_keywords[word]
                                             ):
-                                                func_keywords[word] = score
+                                                doc_keywords[word] = score
                                     else:
-                                        func_keywords = keyword_scores
+                                        doc_keywords = keyword_scores
+
+                                # Merge name and doc keywords (take max score for duplicates)
+                                module_keywords = dict(name_keywords)  # Start with name keywords
+                                for word, score in doc_keywords.items():
+                                    if word not in module_keywords or score > module_keywords[word]:
+                                        module_keywords[word] = score
+
+                            except Exception as e:
+                                keyword_extraction_failures += 1
+                                if self.verbose:
+                                    print(
+                                        f"Warning: Keyword extraction failed for module {module_name}: {e}",
+                                        file=sys.stderr,
+                                    )
+
+                        # Enrich function metadata (keywords and timestamps)
+                        for func in functions:
+                            func_name = func.get("name", "")
+
+                            # Extract and expand keywords from function name and docs
+                            if keyword_extractor and func_name:
+                                try:
+                                    # Always extract keywords from function name
+                                    name_keywords = self._extract_name_keywords(
+                                        func_name, keyword_extractor, keyword_expander
+                                    )
+
+                                    # Extract keywords from documentation if available
+                                    doc_keywords = {}
+                                    if func.get("doc"):
+                                        # Include function name in text for keyword extraction
+                                        # This ensures the function name identifier gets 10x weight
+                                        text_for_keywords = f"{func_name} {func['doc']}"
+                                        # Step 1: Extract keywords with scores
+                                        extraction_result = keyword_extractor.extract_keywords(
+                                            text_for_keywords, top_n=10
+                                        )
+                                        extracted_keywords = [
+                                            kw for kw, _ in extraction_result["top_keywords"]
+                                        ]
+                                        keyword_scores = {
+                                            kw.lower(): score
+                                            for kw, score in extraction_result["top_keywords"]
+                                        }
+
+                                        # Step 2: Expand keywords with scores
+                                        if keyword_expander and extracted_keywords:
+                                            expansion_result = keyword_expander.expand_keywords(
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                return_scores=True,
+                                                keyword_scores=keyword_scores,
+                                            )
+                                            # Convert to dict: word -> max_score
+                                            # When return_scores=True, expansion_result is a dict
+                                            if not isinstance(expansion_result, dict):
+                                                raise TypeError(
+                                                    "Expected dict from expand_keywords with return_scores=True"
+                                                )
+                                            for item in expansion_result["words"]:
+                                                word = item["word"]
+                                                score = item["score"]
+                                                if (
+                                                    word not in doc_keywords
+                                                    or score > doc_keywords[word]
+                                                ):
+                                                    doc_keywords[word] = score
+                                        else:
+                                            doc_keywords = keyword_scores
+
+                                    # Merge name and doc keywords (take max score for duplicates)
+                                    func_keywords = dict(name_keywords)  # Start with name keywords
+                                    for word, score in doc_keywords.items():
+                                        if word not in func_keywords or score > func_keywords[word]:
+                                            func_keywords[word] = score
 
                                     if func_keywords:
                                         func["keywords"] = func_keywords
@@ -826,94 +936,126 @@ class ElixirIndexer:
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
-                        if keyword_extractor and module_data.get("moduledoc"):
+                        if keyword_extractor:
                             try:
-                                # Step 1: Extract keywords with scores
-                                extraction_result = keyword_extractor.extract_keywords(
-                                    module_data["moduledoc"], top_n=10
+                                # Always extract keywords from module name
+                                name_keywords = self._extract_name_keywords(
+                                    module_name, keyword_extractor, keyword_expander
                                 )
-                                extracted_keywords = [
-                                    kw for kw, _ in extraction_result["top_keywords"]
-                                ]
-                                keyword_scores = {
-                                    kw.lower(): score
-                                    for kw, score in extraction_result["top_keywords"]
-                                }
 
-                                # Step 2: Expand keywords with scores
-                                if keyword_expander and extracted_keywords:
-                                    expansion_result = keyword_expander.expand_keywords(
-                                        extracted_keywords,
-                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                        return_scores=True,
-                                        keyword_scores=keyword_scores,
+                                # Extract keywords from documentation if available
+                                doc_keywords = {}
+                                if module_data.get("moduledoc"):
+                                    # Step 1: Extract keywords with scores
+                                    extraction_result = keyword_extractor.extract_keywords(
+                                        module_data["moduledoc"], top_n=10
                                     )
-                                    # Convert to dict: word -> max_score
-                                    module_keywords = {}
-                                    # When return_scores=True, expansion_result is a dict
-                                    if not isinstance(expansion_result, dict):
-                                        raise TypeError(
-                                            "Expected dict from expand_keywords with return_scores=True"
+                                    extracted_keywords = [
+                                        kw for kw, _ in extraction_result["top_keywords"]
+                                    ]
+                                    keyword_scores = {
+                                        kw.lower(): score
+                                        for kw, score in extraction_result["top_keywords"]
+                                    }
+
+                                    # Step 2: Expand keywords with scores
+                                    if keyword_expander and extracted_keywords:
+                                        expansion_result = keyword_expander.expand_keywords(
+                                            extracted_keywords,
+                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                            return_scores=True,
+                                            keyword_scores=keyword_scores,
                                         )
-                                    for item in expansion_result["words"]:
-                                        word = item["word"]
-                                        score = item["score"]
-                                        if (
-                                            word not in module_keywords
-                                            or score > module_keywords[word]
-                                        ):
-                                            module_keywords[word] = score
-                                else:
-                                    module_keywords = keyword_scores
+                                        # Convert to dict: word -> max_score
+                                        # When return_scores=True, expansion_result is a dict
+                                        if not isinstance(expansion_result, dict):
+                                            raise TypeError(
+                                                "Expected dict from expand_keywords with return_scores=True"
+                                            )
+                                        for item in expansion_result["words"]:
+                                            word = item["word"]
+                                            score = item["score"]
+                                            if (
+                                                word not in doc_keywords
+                                                or score > doc_keywords[word]
+                                            ):
+                                                doc_keywords[word] = score
+                                    else:
+                                        doc_keywords = keyword_scores
+
+                                # Merge name and doc keywords (take max score for duplicates)
+                                module_keywords = dict(name_keywords)  # Start with name keywords
+                                for word, score in doc_keywords.items():
+                                    if word not in module_keywords or score > module_keywords[word]:
+                                        module_keywords[word] = score
+
                             except Exception:
                                 keyword_extraction_failures += 1
 
-                        # Extract and expand keywords from function docs
+                        # Extract and expand keywords from function name and docs
                         if keyword_extractor:
                             for func in functions:
-                                if func.get("doc"):
+                                func_name = func.get("name", "")
+                                if func_name:
                                     try:
-                                        func_name = func.get("name", "")
-                                        text_for_keywords = f"{func_name} {func['doc']}"
-                                        # Step 1: Extract keywords with scores
-                                        extraction_result = keyword_extractor.extract_keywords(
-                                            text_for_keywords, top_n=10
+                                        # Always extract keywords from function name
+                                        name_keywords = self._extract_name_keywords(
+                                            func_name, keyword_extractor, keyword_expander
                                         )
-                                        extracted_keywords = [
-                                            kw for kw, _ in extraction_result["top_keywords"]
-                                        ]
-                                        keyword_scores = {
-                                            kw.lower(): score
-                                            for kw, score in extraction_result["top_keywords"]
-                                        }
 
-                                        # Step 2: Expand keywords with scores
-                                        if keyword_expander and extracted_keywords:
-                                            expansion_result = keyword_expander.expand_keywords(
-                                                extracted_keywords,
-                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                return_scores=True,
-                                                keyword_scores=keyword_scores,
+                                        # Extract keywords from documentation if available
+                                        doc_keywords = {}
+                                        if func.get("doc"):
+                                            text_for_keywords = f"{func_name} {func['doc']}"
+                                            # Step 1: Extract keywords with scores
+                                            extraction_result = keyword_extractor.extract_keywords(
+                                                text_for_keywords, top_n=10
                                             )
-                                            # Convert to dict: word -> max_score
-                                            func_keywords = {}
-                                            # When return_scores=True, expansion_result is a dict
-                                            if not isinstance(expansion_result, dict):
-                                                raise TypeError(
-                                                    "Expected dict from expand_keywords with return_scores=True"
+                                            extracted_keywords = [
+                                                kw for kw, _ in extraction_result["top_keywords"]
+                                            ]
+                                            keyword_scores = {
+                                                kw.lower(): score
+                                                for kw, score in extraction_result["top_keywords"]
+                                            }
+
+                                            # Step 2: Expand keywords with scores
+                                            if keyword_expander and extracted_keywords:
+                                                expansion_result = keyword_expander.expand_keywords(
+                                                    extracted_keywords,
+                                                    top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                    threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                    return_scores=True,
+                                                    keyword_scores=keyword_scores,
                                                 )
-                                            for item in expansion_result["words"]:
-                                                word = item["word"]
-                                                score = item["score"]
-                                                if (
-                                                    word not in func_keywords
-                                                    or score > func_keywords[word]
-                                                ):
-                                                    func_keywords[word] = score
-                                        else:
-                                            func_keywords = keyword_scores
+                                                # Convert to dict: word -> max_score
+                                                # When return_scores=True, expansion_result is a dict
+                                                if not isinstance(expansion_result, dict):
+                                                    raise TypeError(
+                                                        "Expected dict from expand_keywords with return_scores=True"
+                                                    )
+                                                for item in expansion_result["words"]:
+                                                    word = item["word"]
+                                                    score = item["score"]
+                                                    if (
+                                                        word not in doc_keywords
+                                                        or score > doc_keywords[word]
+                                                    ):
+                                                        doc_keywords[word] = score
+                                            else:
+                                                doc_keywords = keyword_scores
+
+                                        # Merge name and doc keywords (take max score for duplicates)
+                                        func_keywords = dict(
+                                            name_keywords
+                                        )  # Start with name keywords
+                                        for word, score in doc_keywords.items():
+                                            if (
+                                                word not in func_keywords
+                                                or score > func_keywords[word]
+                                            ):
+                                                func_keywords[word] = score
 
                                         if func_keywords:
                                             func["keywords"] = func_keywords
