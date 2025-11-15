@@ -131,6 +131,21 @@ class KeywordSearcher:
             "keyword_sources": keyword_sources,
         }
 
+        # Include timestamp if available at module level
+        if module_data.get("last_modified_at"):
+            document["last_modified_at"] = module_data["last_modified_at"]
+        else:
+            # Fall back to most recent function timestamp
+            # This allows modules to be filtered by scope="recent" even if
+            # the module itself doesn't have a timestamp
+            functions = module_data.get("functions", [])
+            function_timestamps = [
+                f.get("last_modified_at") for f in functions if f.get("last_modified_at")
+            ]
+            if function_timestamps:
+                # Use the most recent function timestamp
+                document["last_modified_at"] = max(function_timestamps)
+
         # Include string sources if available and relevant
         if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = module_data["string_sources"]

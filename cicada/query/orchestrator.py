@@ -433,19 +433,17 @@ class QueryOrchestrator:
         query_display = query if isinstance(query, str) else ", ".join(f'"{q}"' for q in query)
         total = len(results)
         showing = min(total, max_results)
-        lines.append("# Code Search Results\n")
-        lines.append(f"**Query**: {query_display}\n")
-        lines.append(f"**Found**: {total} result{'s' if total != 1 else ''} (showing {showing})\n")
-        lines.append("\n---\n\n")
+        lines.append(
+            f"Query: {query_display} | {total} result{'s' if total != 1 else ''} (showing {showing})\n\n"
+        )
 
         # Results
         for i, result in enumerate(results[:max_results], 1):
             lines.append(self._format_result_snippet(result, i, show_snippets))
-            lines.append("\n---\n\n")
 
         # Suggestions
         if suggestions:
-            lines.append("## 💡 Suggested Next Steps\n\n")
+            lines.append("\n## Suggested Next Steps\n\n")
             for suggestion in suggestions:
                 lines.append(f"- {suggestion}\n")
 
@@ -467,75 +465,69 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Title with type and name
-        result_type = result.type.title()
-        name = result.name
+        # Compact header: number, name, and score on first line
+        lines.append(f"{index}. {result.name} | {result.score:.2f}\n")
 
-        # Match indicators (📄 = docs, 💬 = strings, 🎯 = pattern)
-        indicators = self._get_match_indicators(result)
+        # Path on second line
+        lines.append(f"{result.file}:{result.line}\n")
 
-        lines.append(f"### {index}. {result_type}: `{name}` {indicators}\n\n")
-
-        # Metadata line
-        metadata = [
-            f"**Path**: {result.file}:{result.line}",
-            f"**Score**: {result.score:.2f}",
-        ]
-
-        # Show visibility for functions
-        if result.is_function():
-            visibility = "Public" if result.is_public() else "Private"
-            metadata.append(f"**Visibility**: {visibility}")
-
-        lines.append(" | ".join(metadata) + "\n\n")
-
-        # Documentation preview
+        # First line of documentation (wrapped nicely)
         if result.doc:
-            doc = result.doc
-            # Truncate long docs
-            if len(doc) > 150:
-                doc = doc[:147] + "..."
-            lines.append(f"**Doc**: {doc}\n\n")
+            doc = result.doc.strip().split("\n")[0]
+            # Wrap at ~100 characters
+            if len(doc) > 100:
+                doc = doc[:100] + "..."
+            lines.append(f"{doc}\n")
 
-        # Signature (for functions)
-        if result.signature:
-            lines.append(f"```elixir\n{result.signature}\n```\n\n")
+        # Matched keywords with source indicators
+        if result.matched_keywords:
+            kw_with_sources: list[str] = []
+            for kw in result.matched_keywords[:5]:
+                source = result.keyword_sources.get(kw)
+                if source == "docs":
+                    kw_with_sources.append(kw + " (in docs)")
+                elif source == "strings":
+                    kw_with_sources.append(kw + " (in strings)")
+                elif source == "both":
+                    kw_with_sources.append(kw + " (in docs+strings)")
+                else:
+                    kw_with_sources.append(kw)
+
+            matched_str = ", ".join(kw_with_sources)
+            if len(result.matched_keywords) > 5:
+                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
+            lines.append(f"Matched keywords: {matched_str}\n")
 
         # Code snippet preview (if enabled)
         if show_snippets:
             snippet = self._extract_code_snippet(result.file, result.line)
             if snippet:
-                lines.append(f"📝 **Code Preview:**\n\n```elixir\n{snippet}\n```\n\n")
+                lines.append(f"\n```elixir\n{snippet}\n```\n")
 
-        # Matched keywords
-        if result.matched_keywords:
-            matched_str = ", ".join(result.matched_keywords[:5])
-            if len(result.matched_keywords) > 5:
-                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-            lines.append(f"**Matched keywords**: {matched_str}\n")
+        lines.append("\n")  # Blank line between results
 
         return "".join(lines)
 
     def _get_match_indicators(self, result: SearchResult) -> str:
         """
-        Get match indicator emojis for a result.
+        Get match indicator labels for a result.
 
         Returns:
-            String with indicators (e.g., "📄💬" for both docs and strings, "🎯" for pattern)
+            String with indicators (e.g., "docs+strings" for both docs and strings, "pattern" for pattern)
         """
         indicators = []
 
         # Check if matched via documentation
         if any(src in ["docs", "both"] for src in result.keyword_sources.values()):
-            indicators.append("📄")
+            indicators.append("docs")
 
         # Check if matched via strings
         if any(src in ["strings", "both"] for src in result.keyword_sources.values()):
-            indicators.append("💬")
+            indicators.append("strings")
 
         # Pattern match indicator
         if result.pattern_match:
-            indicators.append("🎯")
+            indicators.append("pattern")
 
         return " ".join(indicators) if indicators else ""
 

@@ -368,7 +368,7 @@ async def test_keyword_search_basic(server):
     assert len(result) > 0
     text = result[0].text
     assert "add" in text.lower()
-    assert "Score:" in text
+    assert " | " in text  # Score is shown in compact format: "name | score"
 
 
 @pytest.mark.asyncio
@@ -389,10 +389,12 @@ async def test_keyword_search_with_bm25_scoring(server):
     result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
-    # Check for BM25 score in output
-    assert "Score:" in text
-    # Scores should be numeric values
-    assert "Score:" in text
+    # Check for BM25 score in output (compact format: "name | score")
+    assert " | " in text
+    # Should have numeric scores in the output
+    import re
+
+    assert re.search(r"\d+\.\d+", text)  # Match decimal numbers like "3.00"
 
 
 @pytest.mark.asyncio
@@ -433,5 +435,5 @@ async def test_keyword_search_matched_keywords_display(server):
     result = await server.analysis_handler.search_by_keywords(["add"])
     assert len(result) > 0
     text = result[0].text
-    # Should show which keywords matched
-    assert "Matched:" in text
+    # Should show which keywords matched (new format uses "Matched keywords:")
+    assert "Matched keywords:" in text
