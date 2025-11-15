@@ -315,6 +315,7 @@ class TestIndexRepository:
                     output_path=str(index_path),
                     extract_keywords=True,
                     force_full=False,
+                    compute_timestamps=True,
                 )
 
     def test_handles_indexing_errors(self, mock_repo):

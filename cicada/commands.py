@@ -862,6 +862,7 @@ def handle_index_main(args) -> None:
         str(index_path),
         extract_keywords=True,
         force_full=False,
+        compute_timestamps=True,
     )
 
 

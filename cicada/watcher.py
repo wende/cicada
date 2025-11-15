@@ -179,6 +179,7 @@ class FileWatcher:
                 output_path=str(index_path),
                 extract_keywords=True,
                 force_full=False,
+                compute_timestamps=True,
             )
             print("\nInitial indexing complete!")
             print()
@@ -376,6 +377,7 @@ class FileWatcher:
                     output_path=str(index_path),
                     extract_keywords=True,
                     force_full=False,
+                    compute_timestamps=True,
                 )
                 print()
                 print("=" * 70)

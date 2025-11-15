@@ -680,6 +680,7 @@ class ElixirIndexer:
         output_path: str,
         extract_keywords: bool = False,
         force_full: bool = False,
+        compute_timestamps: bool = True,
     ):
         """
         Incrementally index an Elixir repository using file hashing.
@@ -693,6 +694,7 @@ class ElixirIndexer:
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
             force_full: If True, ignore existing hashes and do full reindex
+            compute_timestamps: If True, compute git history timestamps for functions (default: True)
 
         Returns:
             Dictionary containing the index data
@@ -739,7 +741,12 @@ class ElixirIndexer:
         if not existing_index or not existing_hashes:
             if self.verbose:
                 print("No existing index or hashes found. Performing full index...")
-            return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
+            return self.index_repository(
+                str(repo_path_obj),
+                str(output_path_obj),
+                extract_keywords,
+                compute_timestamps=compute_timestamps,
+            )
 
         if self.verbose:
             # Read and display keyword extraction config
@@ -814,6 +821,21 @@ class ElixirIndexer:
                 print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
+
+        # Initialize git helper if timestamps are requested
+        git_helper = None
+        if compute_timestamps:
+            try:
+                from cicada.git.helper import GitHelper
+
+                git_helper = GitHelper(str(repo_path_obj))
+                if self.verbose:
+                    print("Git history tracking enabled - computing function timestamps")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize git helper: {e}")
+                    print("Continuing without timestamp computation...")
+                compute_timestamps = False
 
         # Process changed files
         all_modules = {}
@@ -935,6 +957,37 @@ class ElixirIndexer:
                         module_dependencies, functions = self._extract_dependencies(
                             module_data, functions
                         )
+
+                        # Compute git history timestamps if enabled
+                        if git_helper:
+                            for func in functions:
+                                func_name = func.get("name")
+                                if func_name:
+                                    try:
+                                        # Get function evolution metadata
+                                        evolution = git_helper.get_function_evolution(
+                                            file_path=relative_file,
+                                            function_name=func_name,
+                                        )
+
+                                        if evolution:
+                                            # Add timestamp fields to function
+                                            func["created_at"] = evolution["created_at"]["date"]
+                                            func["last_modified_at"] = evolution["last_modified"][
+                                                "date"
+                                            ]
+                                            func["last_modified_sha"] = evolution["last_modified"][
+                                                "sha"
+                                            ]
+                                            func["modification_count"] = evolution[
+                                                "total_modifications"
+                                            ]
+                                    except Exception as e:
+                                        if self.verbose:
+                                            print(
+                                                f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
+                                                file=sys.stderr,
+                                            )
 
                         # Store module info
                         module_info = {
@@ -1088,6 +1141,7 @@ def main():
         args.output,
         extract_keywords=True,
         force_full=args.full,
+        compute_timestamps=True,
     )
 
 
