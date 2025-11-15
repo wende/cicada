@@ -1093,6 +1093,43 @@ class ElixirIndexer:
             print("\nMerging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
 
+        # Extract co-change relationships if requested
+        if extract_cochange or extract_string_keywords:
+            # If co-change data was requested, recompute it for the entire repo
+            # (co-change relationships span multiple files, so we need full analysis)
+            if extract_cochange:
+                if self.verbose:
+                    print("Analyzing co-change patterns from git history...")
+
+                from cicada.git.cochange_analyzer import CoChangeAnalyzer
+
+                analyzer = CoChangeAnalyzer()
+                cochange_data = analyzer.analyze_repository(str(repo_path_obj))
+
+                # Integrate co-change data into modules and functions
+                self._integrate_cochange_data(merged_index["modules"], cochange_data, repo_path_obj)
+
+                # Add co-change metadata
+                merged_index["cochange_metadata"] = cochange_data["metadata"]
+
+                if self.verbose:
+                    print(
+                        f"  Found {cochange_data['metadata']['file_pairs']} file pairs, "
+                        f"{cochange_data['metadata']['function_pairs']} function pairs"
+                    )
+
+            # If string keywords were requested, extract them for all modules
+            # (this requires re-processing since string extraction isn't incremental yet)
+            if extract_string_keywords:
+                if self.verbose:
+                    print("Extracting string keywords from all modules...")
+                # TODO: Implement incremental string keyword extraction
+                # For now, we skip this in incremental mode
+                if self.verbose:
+                    print(
+                        "  Note: String keyword extraction is not yet supported in incremental mode"
+                    )
+
         # Update hashes for all current files
         if self.verbose:
             print("Updating file hashes...")
