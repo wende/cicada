@@ -1452,9 +1452,13 @@ end
 
         index = indexer.index_repository(str(tmp_path), str(output_path), compute_timestamps=True)
 
-        # Should not crash, should show warning
-        captured = capsys.readouterr()
-        assert "Could not compute timestamps" in captured.err
+        # Should not crash, errors are silently skipped to avoid CLI noise
+        # Functions without git history simply won't have timestamps
 
-        # Index should still be created
+        # Index should still be created successfully
         assert "TestModule" in index["modules"]
+
+        # Function should exist but without timestamp fields (git error was silently skipped)
+        test_func = index["modules"]["TestModule"]["functions"][0]
+        assert test_func["name"] == "test_function"
+        assert "last_modified_at" not in test_func  # Timestamp computation failed

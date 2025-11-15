@@ -369,12 +369,10 @@ class ElixirIndexer:
                                         func["modification_count"] = evolution[
                                             "total_modifications"
                                         ]
-                                except Exception as e:
-                                    if self.verbose:
-                                        print(
-                                            f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
-                                            file=sys.stderr,
-                                        )
+                                except Exception:
+                                    # Silently skip timestamp computation for functions without git history
+                                    # This is common for new files, renamed functions, etc.
+                                    pass
 
                         # Extract string keywords if enabled
                         module_string_keywords = None
@@ -982,12 +980,10 @@ class ElixirIndexer:
                                             func["modification_count"] = evolution[
                                                 "total_modifications"
                                             ]
-                                    except Exception as e:
-                                        if self.verbose:
-                                            print(
-                                                f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
-                                                file=sys.stderr,
-                                            )
+                                    except Exception:
+                                        # Silently skip timestamp computation for functions without git history
+                                        # This is common for new files, renamed functions, etc.
+                                        pass
 
                         # Store module info
                         module_info = {
