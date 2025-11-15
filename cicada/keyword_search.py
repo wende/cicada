@@ -11,6 +11,12 @@ Author: Cicada Team
 import fnmatch
 from typing import Any
 
+from cicada.scoring import (
+    apply_module_boost,
+    calculate_score,
+    calculate_wildcard_score,
+)
+
 
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
@@ -200,6 +206,8 @@ class KeywordSearcher:
 
         Args:
             query_keywords: Query keywords (normalized to lowercase)
+            keyword_groups: Group indexes mapping each keyword to original position
+            total_terms: Total number of original query terms (before OR expansion)
             doc_keywords: Document keywords with their scores
 
         Returns:
@@ -208,24 +216,7 @@ class KeywordSearcher:
             - matched_keywords: List of matched keywords
             - confidence: Percentage of query keywords that matched
         """
-        matched_keywords = []
-        matched_groups: set[int] = set()
-        total_score = 0.0
-
-        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
-            if query_kw in doc_keywords:
-                matched_keywords.append(query_kw)
-                matched_groups.add(group_idx)
-                total_score += doc_keywords[query_kw]
-
-        denominator = total_terms if total_terms else len(query_keywords)
-        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-        return {
-            "score": total_score,
-            "matched_keywords": matched_keywords,
-            "confidence": round(confidence, 1),
-        }
+        return calculate_score(query_keywords, keyword_groups, total_terms, doc_keywords)
 
     def _calculate_wildcard_score(
         self,
@@ -239,6 +230,8 @@ class KeywordSearcher:
 
         Args:
             query_keywords: Query keywords with potential wildcards (normalized to lowercase)
+            keyword_groups: Group indexes mapping each keyword to original position
+            total_terms: Total number of original query terms (before OR expansion)
             doc_keywords: Document keywords with their scores
 
         Returns:
@@ -247,30 +240,9 @@ class KeywordSearcher:
             - matched_keywords: List of matched query patterns
             - confidence: Percentage of query keywords that matched
         """
-        matched_keywords = []
-        matched_groups: set[int] = set()
-        total_score = 0.0
-
-        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
-            # Find all doc keywords matching this pattern
-            for doc_kw, weight in doc_keywords.items():
-                if self._match_wildcard(query_kw, doc_kw):
-                    # Add query keyword to matched list (not the doc keyword)
-                    if query_kw not in matched_keywords:
-                        matched_keywords.append(query_kw)
-                        matched_groups.add(group_idx)
-                    # Add the weight only once per query keyword
-                    total_score += weight
-                    break
-
-        denominator = total_terms if total_terms else len(query_keywords)
-        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-        return {
-            "score": total_score,
-            "matched_keywords": matched_keywords,
-            "confidence": round(confidence, 1),
-        }
+        return calculate_wildcard_score(
+            query_keywords, keyword_groups, total_terms, doc_keywords, self._match_wildcard
+        )
 
     def _has_wildcards(self, keywords: list[str]) -> bool:
         """Check if any keywords contain wildcard patterns (* or |)."""
@@ -429,7 +401,7 @@ class KeywordSearcher:
                 for module_pattern in module_patterns:
                     if self._match_module_name(module_pattern, doc["module"]):
                         # Boost score for module match (substantial boost to prioritize module-qualified searches)
-                        result_data["score"] += 2.0
+                        result_data["score"] = apply_module_boost(result_data["score"], True)
                         module_matched = True
                         break
 
