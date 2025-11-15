@@ -28,6 +28,30 @@ ELIXIR_MODULE_PATTERN = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9_.]*)\s+do")
 class CoChangeAnalyzer:
     """Analyzes git history to find co-change patterns."""
 
+    @staticmethod
+    def find_cochange_pairs(
+        target: str, pairs: dict[tuple[str, str], int]
+    ) -> list[tuple[str, int]]:
+        """
+        Find all items that co-changed with the target.
+
+        Pairs are stored in canonical (sorted) order, so we need to check both positions.
+
+        Args:
+            target: The item to find co-changes for
+            pairs: Dictionary of canonical (sorted) pairs to counts
+
+        Returns:
+            List of (related_item, count) tuples
+        """
+        results = []
+        for (item1, item2), count in pairs.items():
+            if item1 == target:
+                results.append((item2, count))
+            elif item2 == target:
+                results.append((item1, count))
+        return results
+
     def analyze_repository(
         self, repo_path: str, since_date: datetime | None = None, min_count: int = 1
     ) -> dict[str, Any]:
@@ -248,22 +272,18 @@ class CoChangeAnalyzer:
         Returns:
             Set of function signatures (e.g., {"ModuleName.func_name/2"})
         """
-        # Validate module name
+        # Module name should start with uppercase (Elixir convention)
         if not module_name or not module_name[0].isupper():
-            logger.debug(f"Invalid module name: {module_name}")
             return set()
 
         signatures = set()
         for match in ELIXIR_FUNCTION_PATTERN.finditer(content):
             func_name = match.group(1)
-            params = match.group(2)
-
-            # Validate function name
-            if not func_name or not func_name[0].islower():
-                continue
-
-            arity = self._calculate_arity(params)
-            signatures.add(f"{module_name}.{func_name}/{arity}")
+            # Function name should start with lowercase (Elixir convention)
+            # The regex pattern already enforces this, so this check is defensive
+            if func_name and func_name[0].islower():
+                arity = self._calculate_arity(match.group(2))
+                signatures.add(f"{module_name}.{func_name}/{arity}")
 
         return signatures
 
@@ -291,20 +311,16 @@ class CoChangeAnalyzer:
         return len([p for p in params.split(",") if p.strip()])
 
     def _extract_module_name(self, repo_path: Path, commit_sha: str, file_path: str) -> str | None:
-        """Extract the module name from a file.
+        """Extract the module name from an Elixir file.
 
         Args:
             repo_path: Path to repository
             commit_sha: Commit SHA
-            file_path: Path to file (relative to repo)
+            file_path: Path to Elixir file (must be .ex or .exs, caller ensures this)
 
         Returns:
-            Module name or None if not found or not an Elixir file
+            Module name or None if not found
         """
-        # Skip non-Elixir files
-        if not file_path.endswith((".ex", ".exs")):
-            return None
-
         content = self._get_file_content_at_commit(repo_path, commit_sha, file_path)
         if content is None:
             return None

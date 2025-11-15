@@ -397,21 +397,8 @@ class KeywordSearcher:
 
                 # Add co-change information to result
                 if cochange_files:
-                    # Resolve module names for related files
-                    related_files = []
-                    for cochange in cochange_files:
-                        file_path = cochange["file"]
-                        module_name = self._find_module_by_file(file_path)
-                        related_files.append(
-                            {
-                                "file": file_path,
-                                "count": cochange["count"],
-                                "module": module_name,
-                            }
-                        )
-
                     result["cochange_info"] = {
-                        "related_files": related_files,
+                        "related_files": self._resolve_cochange_files(cochange_files),
                     }
 
             else:  # function
@@ -441,19 +428,9 @@ class KeywordSearcher:
                     cochange_info = {}
 
                     if cochange_files:
-                        # Resolve module names for related files
-                        related_files = []
-                        for cochange in cochange_files:
-                            file_path = cochange["file"]
-                            module_name = self._find_module_by_file(file_path)
-                            related_files.append(
-                                {
-                                    "file": file_path,
-                                    "count": cochange["count"],
-                                    "module": module_name,
-                                }
-                            )
-                        cochange_info["related_files"] = related_files
+                        cochange_info["related_files"] = self._resolve_cochange_files(
+                            cochange_files
+                        )
 
                     if cochange_functions:
                         cochange_info["related_functions"] = cochange_functions
@@ -482,6 +459,25 @@ class KeywordSearcher:
             if file_path in module_file or module_file.endswith(file_path):
                 return module_name
         return None
+
+    def _resolve_cochange_files(self, cochange_files: list[dict]) -> list[dict]:
+        """
+        Resolve module names for co-changed files.
+
+        Args:
+            cochange_files: List of co-change file dictionaries with 'file' and 'count' keys
+
+        Returns:
+            List of dictionaries with 'file', 'count', and 'module' keys
+        """
+        return [
+            {
+                "file": cochange["file"],
+                "count": cochange["count"],
+                "module": self._find_module_by_file(cochange["file"]),
+            }
+            for cochange in cochange_files
+        ]
 
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"

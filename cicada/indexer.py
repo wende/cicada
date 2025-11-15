@@ -177,13 +177,12 @@ class ElixirIndexer:
             module_file = self._normalize_file_path(module_info.get("file", ""), repo_path)
 
             # Find all files that co-changed with this module's file
-            # Need to check both orderings since pairs are stored canonically
-            cochange_files = []
-            for (file1, file2), count in file_pairs.items():
-                if file1 == module_file:
-                    cochange_files.append({"file": file2, "count": count})
-                elif file2 == module_file:
-                    cochange_files.append({"file": file1, "count": count})
+            cochange_files = [
+                {"file": related_file, "count": count}
+                for related_file, count in CoChangeAnalyzer.find_cochange_pairs(
+                    module_file, file_pairs
+                )
+            ]
 
             # Sort by count (descending) and add to module
             cochange_files.sort(key=lambda x: x["count"], reverse=True)
@@ -221,18 +220,11 @@ class ElixirIndexer:
         """
         cochange_functions = []
 
-        # Check both orderings since pairs are stored canonically
-        for (func1, func2), count in function_pairs.items():
-            related_func = None
-            if func1 == func_sig:
-                related_func = func2
-            elif func2 == func_sig:
-                related_func = func1
-
-            if related_func:
-                parsed = self._parse_function_signature(related_func)
-                if parsed:
-                    cochange_functions.append({**parsed, "count": count})
+        # Find all functions that co-changed with this function
+        for related_func, count in CoChangeAnalyzer.find_cochange_pairs(func_sig, function_pairs):
+            parsed = self._parse_function_signature(related_func)
+            if parsed:
+                cochange_functions.append({**parsed, "count": count})
 
         # Sort by count (descending)
         cochange_functions.sort(key=lambda x: x["count"], reverse=True)

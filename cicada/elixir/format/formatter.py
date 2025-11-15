@@ -9,6 +9,7 @@ supporting both Markdown and JSON output formats.
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -993,6 +994,37 @@ If this function was deleted:
         return json.dumps(output, indent=2)
 
     @staticmethod
+    def _format_related_items(
+        items: list[dict[str, Any]],
+        title: str,
+        formatter: Callable[[dict[str, Any]], tuple[str, int]],
+        top_n: int = 5,
+    ) -> list[str]:
+        """
+        Format a list of related items with counts.
+
+        Args:
+            items: List of item dictionaries
+            title: Header text for the section
+            formatter: Function that converts item dict to (display_name, count) tuple
+            top_n: Maximum number of items to display
+
+        Returns:
+            List of formatted lines
+        """
+        sorted_items = sorted(items, key=lambda x: x.get("count", 0), reverse=True)
+        lines = [title]
+
+        for item in sorted_items[:top_n]:
+            display_name, count = formatter(item)
+            lines.append(f"  • {display_name} ({count} commits)")
+
+        if len(sorted_items) > top_n:
+            lines.append(f"  ... and {len(sorted_items) - top_n} more")
+
+        return lines
+
+    @staticmethod
     def _format_cochange_info(cochange_info: dict[str, Any]) -> list[str]:
         """
         Format co-change information for display.
@@ -1005,41 +1037,39 @@ If this function was deleted:
         """
         lines: list[str] = []
 
-        # Display related files (top 5, sorted by count)
+        # Display related files
         related_files = cochange_info.get("related_files", [])
         if related_files:
-            # Sort by count descending
-            sorted_files = sorted(related_files, key=lambda x: x.get("count", 0), reverse=True)
-            lines.append("Often changed with:")
-            for file_info in sorted_files[:5]:
-                count = file_info.get("count", 0)
-                module_name = file_info.get("module")
-                file_path = file_info.get("file", "")
 
-                # Prefer module name, fall back to file path
+            def format_file(f: dict[str, Any]) -> tuple[str, int]:
+                module_name = f.get("module")
+                file_path = f.get("file", "")
                 display_name = (
                     module_name if module_name else file_path.split("/")[-1].replace(".ex", "")
                 )
-                lines.append(f"  • {display_name} ({count} commits)")
+                return display_name, f.get("count", 0)
 
-            if len(sorted_files) > 5:
-                lines.append(f"  ... and {len(sorted_files) - 5} more")
+            lines.extend(
+                ModuleFormatter._format_related_items(
+                    related_files, "Often changed with:", format_file, top_n=5
+                )
+            )
 
-        # Display related functions (top 5, sorted by count)
+        # Display related functions
         related_functions = cochange_info.get("related_functions", [])
         if related_functions:
-            # Sort by count descending
-            sorted_funcs = sorted(related_functions, key=lambda x: x.get("count", 0), reverse=True)
-            lines.append("Related functions:")
-            for func_info in sorted_funcs[:5]:
-                module = func_info.get("module", "?")
-                function = func_info.get("function", "?")
-                arity = func_info.get("arity", "?")
-                count = func_info.get("count", 0)
-                lines.append(f"  • {module}.{function}/{arity} ({count} commits)")
 
-            if len(sorted_funcs) > 5:
-                lines.append(f"  ... and {len(sorted_funcs) - 5} more")
+            def format_function(f: dict[str, Any]) -> tuple[str, int]:
+                module = f.get("module", "?")
+                function = f.get("function", "?")
+                arity = f.get("arity", "?")
+                return f"{module}.{function}/{arity}", f.get("count", 0)
+
+            lines.extend(
+                ModuleFormatter._format_related_items(
+                    related_functions, "Related functions:", format_function, top_n=5
+                )
+            )
 
         return lines
 
