@@ -324,3 +324,4 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - Keep functions focused and modular
 - Use make to run tests
 - There is no such thing as unrelated tests. They need to pass before commit
+- Tags and publishing is automated via CIA
