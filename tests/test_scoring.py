@@ -2,12 +2,12 @@
 Tests for cicada.scoring module.
 """
 
-import pytest
-
-from cicada.scoring import calculate_score_distribution
-from cicada.scoring import calculate_score_distribution_with_tiers
-from cicada.scoring import filter_by_relevance_tier
-from cicada.scoring import grade_by_z_score
+from cicada.scoring import (
+    calculate_score_distribution,
+    calculate_score_distribution_with_tiers,
+    filter_by_relevance_tier,
+    grade_by_z_score,
+)
 
 
 class TestScoreDistribution:
