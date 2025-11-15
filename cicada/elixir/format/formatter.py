@@ -993,6 +993,57 @@ If this function was deleted:
         return json.dumps(output, indent=2)
 
     @staticmethod
+    def _format_cochange_info(cochange_info: dict[str, Any]) -> list[str]:
+        """
+        Format co-change information for display.
+
+        Args:
+            cochange_info: Dictionary with 'related_files' and/or 'related_functions' keys
+
+        Returns:
+            List of formatted lines
+        """
+        lines: list[str] = []
+
+        # Display related files (top 5, sorted by count)
+        related_files = cochange_info.get("related_files", [])
+        if related_files:
+            # Sort by count descending
+            sorted_files = sorted(related_files, key=lambda x: x.get("count", 0), reverse=True)
+            lines.append("Often changed with:")
+            for file_info in sorted_files[:5]:
+                count = file_info.get("count", 0)
+                module_name = file_info.get("module")
+                file_path = file_info.get("file", "")
+
+                # Prefer module name, fall back to file path
+                display_name = (
+                    module_name if module_name else file_path.split("/")[-1].replace(".ex", "")
+                )
+                lines.append(f"  • {display_name} ({count} commits)")
+
+            if len(sorted_files) > 5:
+                lines.append(f"  ... and {len(sorted_files) - 5} more")
+
+        # Display related functions (top 5, sorted by count)
+        related_functions = cochange_info.get("related_functions", [])
+        if related_functions:
+            # Sort by count descending
+            sorted_funcs = sorted(related_functions, key=lambda x: x.get("count", 0), reverse=True)
+            lines.append("Related functions:")
+            for func_info in sorted_funcs[:5]:
+                module = func_info.get("module", "?")
+                function = func_info.get("function", "?")
+                arity = func_info.get("arity", "?")
+                count = func_info.get("count", 0)
+                lines.append(f"  • {module}.{function}/{arity} ({count} commits)")
+
+            if len(sorted_funcs) > 5:
+                lines.append(f"  ... and {len(sorted_funcs) - 5} more")
+
+        return lines
+
+    @staticmethod
     def format_keyword_search_results_markdown(
         results: list[dict[str, Any]], show_scores: bool = True
     ) -> str:
@@ -1064,6 +1115,13 @@ If this function was deleted:
                     lines.append(f'  • "{string_content}" (line {src["line"]})')
                 if len(string_sources) > 3:
                     lines.append(f"  ... and {len(string_sources) - 3} more")
+
+            # Show co-change information if available
+            cochange_info = result.get("cochange_info")
+            if cochange_info:
+                cochange_lines = ModuleFormatter._format_cochange_info(cochange_info)
+                if cochange_lines:  # Only add if there's actual content
+                    lines.extend(cochange_lines)
 
             # First line of documentation only
             doc = result.get("doc")

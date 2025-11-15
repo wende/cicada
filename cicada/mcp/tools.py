@@ -355,6 +355,10 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["all", "docs", "strings"],
                         "description": "Filter by keyword source: 'all' searches both documentation and string literals (default), 'docs' searches only documentation keywords, 'strings' searches only keywords from string literals in code.",
                     },
+                    "cochange_boost": {
+                        "type": "number",
+                        "description": "Strength of co-change boosting (0.0 to disable, higher values increase boost). Results that frequently change together will be ranked higher. Defaults to 0.5. Requires co-change data in index (run 'cicada index --extract-cochange').",
+                    },
                 },
                 "required": ["keywords"],
             },
@@ -379,6 +383,10 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "enum": ["all", "modules", "functions"],
                         "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
+                    },
+                    "cochange_boost": {
+                        "type": "number",
+                        "description": "Strength of co-change boosting (0.0 to disable). Defaults to 0.5.",
                     },
                 },
                 "required": ["keywords"],

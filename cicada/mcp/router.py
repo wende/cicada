@@ -268,6 +268,7 @@ class ToolRouter:
             filter_type = arguments.get("filter_type", "all")
             min_score = arguments.get("min_score", 0.0)
             match_source = arguments.get("match_source", "all")
+            cochange_boost = arguments.get("cochange_boost", 0.5)
 
             if not keywords:
                 error_msg = "'keywords' is required"
@@ -290,7 +291,7 @@ class ToolRouter:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self.analysis_handler.search_by_keywords(
-                keywords, filter_type, min_score, match_source
+                keywords, filter_type, min_score, match_source, cochange_boost
             )
 
         elif name == "find_dead_code":

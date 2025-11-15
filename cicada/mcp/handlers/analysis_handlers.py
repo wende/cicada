@@ -29,6 +29,7 @@ class AnalysisHandler:
         filter_type: str = "all",
         min_score: float = 0.0,
         match_source: str = "all",
+        cochange_boost: float = 0.5,
     ) -> list[TextContent]:
         """
         Search for modules and functions by keywords.
@@ -38,6 +39,7 @@ class AnalysisHandler:
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
             min_score: Minimum relevance score threshold (0.0 to 1.0). Defaults to 0.0.
             match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
+            cochange_boost: Strength of co-change boosting (0.0 to disable). Defaults to 0.5.
 
         Returns:
             TextContent with formatted search results
@@ -58,8 +60,10 @@ class AnalysisHandler:
             )
             return [TextContent(type="text", text=error_msg)]
 
-        # Perform the search with match_source filtering
-        searcher = KeywordSearcher(self.index, match_source=match_source)
+        # Perform the search with match_source filtering and co-change boosting
+        searcher = KeywordSearcher(
+            self.index, match_source=match_source, cochange_boost=cochange_boost
+        )
         results = searcher.search(keywords, top_n=20, filter_type=filter_type)
 
         # Apply score threshold filter

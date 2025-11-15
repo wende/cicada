@@ -303,6 +303,223 @@ Doc: "Fetches all active users from the database"
 - **KeywordSearcher** (`cicada/keyword_search.py`): Supports `match_source` filtering
 - **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays match source indicators
 
+## Co-Change Analysis
+
+Cicada can analyze git commit history to identify files and functions that are frequently modified together. This co-change information is used to boost search relevance and provide contextual relationship information, helping developers discover related code that often changes together.
+
+### How It Works
+
+1. **Git History Analysis:**
+   - Analyzes git log to identify files and functions modified in the same commits
+   - Tracks co-change frequency at both file and function levels
+   - Requires a git repository with commit history
+
+2. **Co-Change Extraction:**
+   - File-level: Tracks which files are modified together across commits
+   - Function-level: Tracks which functions are modified together (requires Elixir parsing)
+   - Stores co-change counts and relationships in the index
+
+3. **Search Boosting:**
+   - Applies configurable boost to search scores based on co-change relationships
+   - Default boost: 0.5 (can be adjusted or disabled with 0.0)
+   - Boost calculation considers total co-change counts:
+     - Module-level: 0.01 × co-change count
+     - Function-level: 0.02 × co-change count
+     - File-level (for functions): 0.005 × co-change count
+
+4. **Result Enhancement:**
+   - Search results include `cochange_info` with related files and functions
+   - Related items sorted by frequency (most frequent first)
+   - Top 5 related items displayed in formatted output
+
+### Usage
+
+#### Indexing with Co-Change Extraction
+
+Enable co-change extraction when building the index:
+
+```bash
+# CLI usage
+cicada index --extract-cochange
+
+# Or with other options
+cicada index --extract-keywords --extract-cochange
+```
+
+```python
+# Python API
+from cicada.indexer import ElixirIndexer
+
+indexer = ElixirIndexer(verbose=True)
+indexer.index_repository(
+    repo_path="/path/to/repo",
+    output_path=".cicada/index.json",
+    extract_keywords=True,
+    extract_cochange=True  # Enable co-change extraction
+)
+```
+
+#### Searching with Co-Change Boosting
+
+Use the `cochange_boost` parameter to control search boosting:
+
+```python
+from cicada.keyword_search import KeywordSearcher
+
+# Default boost (0.5)
+searcher = KeywordSearcher(index, cochange_boost=0.5)
+
+# Higher boost for stronger co-change influence
+searcher = KeywordSearcher(index, cochange_boost=1.0)
+
+# Disable co-change boosting
+searcher = KeywordSearcher(index, cochange_boost=0.0)
+
+results = searcher.search(["authentication", "user"], top_n=10)
+```
+
+#### MCP Tool Usage
+
+The `search_by_features` MCP tool supports `cochange_boost`:
+
+```json
+{
+  "keywords": ["authentication", "credentials"],
+  "cochange_boost": 0.5,
+  "filter_type": "modules"
+}
+```
+
+**Note:** Co-change boosting requires the index to be built with `--extract-cochange`. If the index lacks co-change data, the boost parameter is ignored and search works normally based on keyword matching alone.
+
+### Index Schema
+
+#### Metadata
+
+The index includes global co-change metadata:
+
+```json
+{
+  "cochange_metadata": {
+    "commit_count": 150,      // Total commits analyzed
+    "file_pairs": 42,         // Number of unique file pairs that co-changed
+    "function_pairs": 28      // Number of unique function pairs that co-changed
+  }
+}
+```
+
+#### Module-Level Fields
+
+Each module includes co-change information:
+
+```json
+{
+  "modules": {
+    "MyApp.Auth": {
+      "name": "MyApp.Auth",
+      "file": "lib/my_app/auth.ex",
+      "keywords": {"authentication": 0.95, "login": 0.88},
+      "cochange_files": [
+        {
+          "file": "lib/my_app/credentials.ex",
+          "count": 15,          // Changed together in 15 commits
+          "module": "MyApp.Credentials"
+        },
+        {
+          "file": "lib/my_app/logger.ex",
+          "count": 8,
+          "module": "MyApp.Logger"
+        }
+      ],
+      "functions": [...]
+    }
+  }
+}
+```
+
+#### Function-Level Fields
+
+Functions within modules include their own co-change data:
+
+```json
+{
+  "name": "validate_user",
+  "arity": 2,
+  "line": 42,
+  "keywords": {"validate": 0.9, "credentials": 0.85},
+  "cochange_functions": [
+    {
+      "module": "MyApp.Credentials",
+      "function": "check_password",
+      "arity": 2,
+      "count": 10           // Changed together in 10 commits
+    },
+    {
+      "module": "MyApp.Logger",
+      "function": "log_login_attempt",
+      "arity": 2,
+      "count": 5
+    }
+  ]
+}
+```
+
+### Search Result Format
+
+Search results include co-change information when available:
+
+```markdown
+Module: MyApp.Auth
+Score: 1.85
+Path: lib/my_app/auth.ex
+Often changed with:
+  • MyApp.Credentials (15 commits)
+  • MyApp.Logger (8 commits)
+  • MyApp.Session (3 commits)
+Doc: "Authentication module for user login and validation."
+---
+
+Function: MyApp.Auth.validate_user/2
+Score: 1.42
+Path: lib/my_app/auth.ex:42
+Often changed with:
+  • MyApp.Credentials.check_password/2 (10 commits)
+  • MyApp.Logger.log_login_attempt/2 (5 commits)
+Doc: "Validates user credentials against stored hash."
+---
+```
+
+**Co-Change Display:**
+- Shows top 5 related files/functions sorted by frequency
+- Format: `ModuleName (N commits)` or `Module.function/arity (N commits)`
+- Only displayed when co-change data exists in the index
+
+### Implementation Notes
+
+- **CoChangeAnalyzer** (`cicada/git/cochange.py`): Analyzes git history for co-change patterns
+- **ElixirIndexer** (`cicada/indexer.py`): Integrates co-change extraction during indexing
+- **KeywordSearcher** (`cicada/keyword_search.py`): Applies co-change boost to search scores
+- **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays co-change information in results
+- **MCP Tools** (`cicada/mcp/tools.py`, `cicada/mcp/router.py`): Exposes `cochange_boost` parameter
+
+### Use Cases
+
+1. **Discovering Related Code:**
+   - Search for "authentication" and discover that `Auth`, `Credentials`, and `Logger` modules frequently change together
+   - Understand which modules are tightly coupled in practice
+
+2. **Impact Analysis:**
+   - When modifying a module, see which other modules typically need updates
+   - Identify potential test coverage gaps
+
+3. **Code Organization Insights:**
+   - Identify modules with high co-change frequency (potential refactoring candidates)
+   - Discover implicit dependencies not captured by static analysis
+
+4. **Onboarding and Code Navigation:**
+   - New developers can quickly find related functionality
+   - Co-change patterns reveal architectural relationships
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:

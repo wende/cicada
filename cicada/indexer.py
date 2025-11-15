@@ -18,6 +18,7 @@ from cicada.elixir.dependency_analyzer import (
 )
 from cicada.elixir.parser import ElixirParser
 from cicada.git import GitHelper
+from cicada.git.cochange_analyzer import CoChangeAnalyzer
 from cicada.tier import read_keyword_extraction_config
 from cicada.utils import (
     load_index,
@@ -111,6 +112,74 @@ class ElixirIndexer:
             return True
         return False
 
+    def _integrate_cochange_data(self, all_modules: dict, cochange_data: dict, repo_path: Path):
+        """
+        Integrate co-change data into module and function structures.
+
+        Args:
+            all_modules: Dictionary of all indexed modules
+            cochange_data: Co-change analysis results from CoChangeAnalyzer
+            repo_path: Path to repository root
+        """
+        file_pairs = cochange_data["file_pairs"]
+        function_pairs = cochange_data["function_pairs"]
+
+        # Build reverse mapping: file path -> module name
+        file_to_module = {}
+        for module_name, module_info in all_modules.items():
+            if "file" in module_info:
+                file_path = module_info["file"]
+                # Normalize path (make relative to repo)
+                if file_path.startswith(str(repo_path)):
+                    file_path = str(Path(file_path).relative_to(repo_path))
+                file_to_module[file_path] = module_name
+
+        # Integrate file-level co-changes into modules
+        for module_name, module_info in all_modules.items():
+            module_file = module_info.get("file", "")
+            if module_file.startswith(str(repo_path)):
+                module_file = str(Path(module_file).relative_to(repo_path))
+
+            # Find all files that co-changed with this module's file
+            cochange_files = []
+            for (file1, file2), count in file_pairs.items():
+                if file1 == module_file:
+                    cochange_files.append({"file": file2, "count": count})
+
+            # Sort by count (descending) and add to module
+            cochange_files.sort(key=lambda x: x["count"], reverse=True)
+            module_info["cochange_files"] = cochange_files
+
+            # Integrate function-level co-changes
+            if "functions" in module_info:
+                for func_info in module_info["functions"]:
+                    func_sig = f"{module_name}.{func_info['name']}/{func_info.get('arity', 0)}"
+
+                    # Find all functions that co-changed with this function
+                    cochange_functions = []
+                    for (func1, func2), count in function_pairs.items():
+                        # Parse func2 to extract module, function, arity
+                        # Format: "ModuleName.function_name/arity"
+                        if func1 == func_sig and "." in func2 and "/" in func2:
+                            module_part, func_part = func2.rsplit(".", 1)
+                            func_name, arity_str = func_part.rsplit("/", 1)
+                            try:
+                                arity = int(arity_str)
+                                cochange_functions.append(
+                                    {
+                                        "module": module_part,
+                                        "function": func_name,
+                                        "arity": arity,
+                                        "count": count,
+                                    }
+                                )
+                            except ValueError:
+                                continue
+
+                    # Sort by count (descending) and add to function
+                    cochange_functions.sort(key=lambda x: x["count"], reverse=True)
+                    func_info["cochange_functions"] = cochange_functions
+
     def index_repository(
         self,
         repo_path: str,
@@ -118,6 +187,7 @@ class ElixirIndexer:
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
         compute_timestamps: bool = False,
+        extract_cochange: bool = False,
     ):
         """
         Index an Elixir repository.
@@ -128,6 +198,7 @@ class ElixirIndexer:
             extract_keywords: If True, extract keywords from documentation using NLP
             extract_string_keywords: If True, extract keywords from string literals in function bodies
             compute_timestamps: If True, compute git history timestamps for functions
+            extract_cochange: If True, analyze git history for co-change patterns
 
         Returns:
             Dictionary containing the index data
@@ -604,6 +675,24 @@ class ElixirIndexer:
                     break
                 continue
 
+        # Extract co-change relationships if requested
+        cochange_data = None
+        if extract_cochange:
+            if self.verbose:
+                print("Analyzing co-change patterns from git history...")
+
+            analyzer = CoChangeAnalyzer()
+            cochange_data = analyzer.analyze_repository(str(repo_path_obj))
+
+            # Integrate co-change data into modules and functions
+            self._integrate_cochange_data(all_modules, cochange_data, repo_path_obj)
+
+            if self.verbose:
+                print(
+                    f"  Found {cochange_data['metadata']['file_pairs']} file pairs, "
+                    f"{cochange_data['metadata']['function_pairs']} function pairs"
+                )
+
         # Build final index
         index = {
             "modules": all_modules,
@@ -615,6 +704,10 @@ class ElixirIndexer:
                 "cicada_version": get_version_string(),
             },
         }
+
+        # Add co-change metadata if available
+        if cochange_data:
+            index["cochange_metadata"] = cochange_data["metadata"]
 
         # Save to file
         output_path_obj = Path(output_path)
@@ -679,6 +772,8 @@ class ElixirIndexer:
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
+        extract_string_keywords: bool = False,
+        extract_cochange: bool = False,
         force_full: bool = False,
     ):
         """
@@ -692,6 +787,8 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
+            extract_string_keywords: If True, extract keywords from string literals
+            extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, ignore existing hashes and do full reindex
 
         Returns:
@@ -739,7 +836,13 @@ class ElixirIndexer:
         if not existing_index or not existing_hashes:
             if self.verbose:
                 print("No existing index or hashes found. Performing full index...")
-            return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
+            return self.index_repository(
+                str(repo_path_obj),
+                str(output_path_obj),
+                extract_keywords,
+                extract_string_keywords,
+                extract_cochange,
+            )
 
         if self.verbose:
             # Read and display keyword extraction config
