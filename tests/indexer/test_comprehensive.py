@@ -1357,14 +1357,19 @@ end
 """
         )
 
-        # Mock GitHelper
+        # Mock GitHelper with batched method
         mock_git_helper = Mock()
         mock_evolution = {
             "created_at": {"date": "2024-01-01T12:00:00", "sha": "abc123"},
             "last_modified": {"date": "2024-03-15T10:30:00", "sha": "def456"},
             "total_modifications": 5,
         }
-        mock_git_helper.get_function_evolution.return_value = mock_evolution
+
+        # Mock the batched method to return evolutions for all functions
+        def mock_batch(file_path, functions):
+            return {func.get("name"): mock_evolution for func in functions if func.get("name")}
+
+        mock_git_helper.get_functions_evolution_batch = mock_batch
         mock_git_helper.repo_path = tmp_path
 
         # Patch GitHelper to return our mock
@@ -1438,7 +1443,11 @@ end
 
         # Mock GitHelper to raise exception
         mock_git_helper = Mock()
-        mock_git_helper.get_function_evolution.side_effect = Exception("Git error")
+
+        def mock_batch_error(file_path, functions):
+            raise Exception("Git error")
+
+        mock_git_helper.get_functions_evolution_batch = mock_batch_error
         mock_git_helper.repo_path = tmp_path
 
         def mock_git_helper_init(repo_path):

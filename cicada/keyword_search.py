@@ -131,20 +131,29 @@ class KeywordSearcher:
             "keyword_sources": keyword_sources,
         }
 
-        # Include timestamp if available at module level
+        # Include timestamp and git info if available at module level
         if module_data.get("last_modified_at"):
             document["last_modified_at"] = module_data["last_modified_at"]
-        else:
+        if module_data.get("last_modified_sha"):
+            document["last_modified_sha"] = module_data["last_modified_sha"]
+        if module_data.get("last_modified_pr"):
+            document["last_modified_pr"] = module_data["last_modified_pr"]
+
+        if not module_data.get("last_modified_at"):
             # Fall back to most recent function timestamp
             # This allows modules to be filtered by scope="recent" even if
             # the module itself doesn't have a timestamp
             functions = module_data.get("functions", [])
-            function_timestamps = [
-                f.get("last_modified_at") for f in functions if f.get("last_modified_at")
-            ]
-            if function_timestamps:
-                # Use the most recent function timestamp
-                document["last_modified_at"] = max(function_timestamps)
+            functions_with_timestamps = [f for f in functions if f.get("last_modified_at")]
+            if functions_with_timestamps:
+                # Find function with most recent timestamp
+                most_recent = max(functions_with_timestamps, key=lambda f: f["last_modified_at"])
+                document["last_modified_at"] = most_recent["last_modified_at"]
+                # Also use its commit hash and PR
+                if most_recent.get("last_modified_sha"):
+                    document["last_modified_sha"] = most_recent["last_modified_sha"]
+                if most_recent.get("last_modified_pr"):
+                    document["last_modified_pr"] = most_recent["last_modified_pr"]
 
         # Include string sources if available and relevant
         if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
@@ -180,9 +189,19 @@ class KeywordSearcher:
             "keyword_sources": keyword_sources,
         }
 
-        # Include timestamp if available
+        # Include timestamp and git info if available
         if func.get("last_modified_at"):
             document["last_modified_at"] = func["last_modified_at"]
+        if func.get("last_modified_sha"):
+            document["last_modified_sha"] = func["last_modified_sha"]
+        if func.get("last_modified_pr"):
+            document["last_modified_pr"] = func["last_modified_pr"]
+
+        # Include function metadata
+        if func.get("signature"):
+            document["signature"] = func["signature"]
+        if func.get("type"):
+            document["visibility"] = func["type"]
 
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
@@ -565,9 +584,19 @@ class KeywordSearcher:
                 if doc.get("string_sources"):
                     result["string_sources"] = doc["string_sources"]
 
-                # Add timestamp if available (for recent filtering)
+                # Add timestamp, commit hash, and PR if available (for recent filtering and display)
                 if doc.get("last_modified_at"):
                     result["last_modified_at"] = doc["last_modified_at"]
+                if doc.get("last_modified_sha"):
+                    result["last_modified_sha"] = doc["last_modified_sha"]
+                if doc.get("last_modified_pr"):
+                    result["last_modified_pr"] = doc["last_modified_pr"]
+
+                # Add function metadata if available
+                if doc.get("signature"):
+                    result["signature"] = doc["signature"]
+                if doc.get("visibility"):
+                    result["visibility"] = doc["visibility"]
 
                 results.append(result)
 

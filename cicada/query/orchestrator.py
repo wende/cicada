@@ -9,7 +9,7 @@ Author: Cicada Team
 
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cicada.keyword_search import KeywordSearcher
@@ -250,6 +250,8 @@ class QueryOrchestrator:
             signature=result_dict.get("signature"),
             visibility=result_dict.get("visibility"),
             last_modified_at=result_dict.get("last_modified_at"),
+            last_modified_sha=result_dict.get("last_modified_sha"),
+            last_modified_pr=result_dict.get("last_modified_pr"),
         )
 
     def _apply_filters(
@@ -269,7 +271,7 @@ class QueryOrchestrator:
 
         # Scope filter
         if config.scope == "recent":
-            cutoff = datetime.now() - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
             filtered = [r for r in filtered if self._is_recent(r, cutoff)]
         elif config.scope == "public":
             # Only include public functions and all modules
@@ -322,7 +324,7 @@ class QueryOrchestrator:
         return ranked
 
     def _generate_suggestions(
-        self, query: str | list[str], results: list[SearchResult]
+        self, query: str | list[str], results: list[SearchResult], current_scope: str = "all"
     ) -> list[str]:
         """
         Generate smart next-step suggestions based on results.
@@ -330,6 +332,7 @@ class QueryOrchestrator:
         Args:
             query: Original query
             results: Search results
+            current_scope: Currently applied scope filter (all, recent, public, private)
 
         Returns:
             List of suggestion strings
@@ -360,8 +363,8 @@ class QueryOrchestrator:
                 f"search_module_usage('{common_module}') - See where this module is used"
             )
 
-        # Results have recent changes
-        if self._has_recent_changes(results):
+        # Results have recent changes (only suggest if not already using scope='recent')
+        if current_scope != "recent" and self._has_recent_changes(results):
             suggestions.append("Try scope='recent' to focus on recently changed code")
 
         # Module-level results
@@ -397,7 +400,7 @@ class QueryOrchestrator:
 
     def _has_recent_changes(self, results: list[SearchResult]) -> bool:
         """Check if results contain recently modified code."""
-        cutoff = datetime.now() - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
         recent_count = sum(1 for r in results[:10] if self._is_recent(r, cutoff))
         return recent_count >= 2
 
@@ -478,6 +481,52 @@ class QueryOrchestrator:
             if len(doc) > 100:
                 doc = doc[:100] + "..."
             lines.append(f"{doc}\n")
+
+        # Last modified timestamp (if available)
+        if result.last_modified_at:
+            from datetime import datetime
+
+            try:
+                # Parse ISO format timestamp
+                dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
+                # Ensure timezone-aware datetime for consistent comparisons
+                from datetime import timezone
+
+                if dt.tzinfo is None:
+                    # Assume UTC if no timezone info (for backward compatibility)
+                    dt = dt.replace(tzinfo=timezone.utc)
+
+                now = datetime.now(timezone.utc)
+                delta = now - dt
+                if delta.days == 0:
+                    time_ago = "today"
+                elif delta.days == 1:
+                    time_ago = "yesterday"
+                elif delta.days < 7:
+                    time_ago = f"{delta.days} days ago"
+                elif delta.days < 30:
+                    weeks = delta.days // 7
+                    time_ago = f"{weeks} week{'s' if weeks > 1 else ''} ago"
+                elif delta.days < 365:
+                    months = delta.days // 30
+                    time_ago = f"{months} month{'s' if months > 1 else ''} ago"
+                else:
+                    years = delta.days // 365
+                    time_ago = f"{years} year{'s' if years > 1 else ''} ago"
+
+                # Include commit hash and PR if available
+                git_info = []
+                if result.last_modified_sha:
+                    git_info.append(result.last_modified_sha)
+                if result.last_modified_pr:
+                    git_info.append(f"#{result.last_modified_pr}")
+
+                if git_info:
+                    lines.append(f"Last modified: {time_ago} ({' '.join(git_info)})\n")
+                else:
+                    lines.append(f"Last modified: {time_ago}\n")
+            except (ValueError, AttributeError):
+                pass
 
         # Matched keywords with source indicators
         if result.matched_keywords:
@@ -779,7 +828,7 @@ class QueryOrchestrator:
             suggestions = self._generate_zero_result_suggestions(query, filters_applied)
         else:
             # Generate normal suggestions based on results
-            suggestions = self._generate_suggestions(query, ranked_results)
+            suggestions = self._generate_suggestions(query, ranked_results, options.scope)
 
         # Format report
         return self._format_report(

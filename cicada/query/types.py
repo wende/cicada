@@ -5,7 +5,7 @@ Type-safe representations of queries, results, and configurations.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 
@@ -31,6 +31,8 @@ class SearchResult:
     signature: str | None = None
     visibility: Literal["def", "defp"] | None = None
     last_modified_at: str | None = None
+    last_modified_sha: str | None = None
+    last_modified_pr: int | None = None
 
     def is_function(self) -> bool:
         """Check if this result is a function."""
@@ -56,7 +58,12 @@ class SearchResult:
         if not self.last_modified_at:
             return None
         try:
-            return datetime.fromisoformat(self.last_modified_at.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(self.last_modified_at.replace("Z", "+00:00"))
+            # Ensure timezone-aware datetime for consistent comparisons
+            if dt.tzinfo is None:
+                # Assume UTC if no timezone info (for backward compatibility)
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except (ValueError, AttributeError):
             return None
 
@@ -90,6 +97,10 @@ class SearchResult:
                 result["visibility"] = self.visibility
             if self.last_modified_at is not None:
                 result["last_modified_at"] = self.last_modified_at
+            if self.last_modified_sha is not None:
+                result["last_modified_sha"] = self.last_modified_sha
+            if self.last_modified_pr is not None:
+                result["last_modified_pr"] = self.last_modified_pr
 
         return result
 
