@@ -779,25 +779,29 @@ def handle_index_main(args) -> None:
     force_enabled = getattr(args, "force", False) is True
     extraction_method: str | None = None
     expansion_method: str | None = None
+    tier_changed = False
 
     if force_enabled:
         extraction_method, expansion_method = get_extraction_expansion_methods(args)
         assert extraction_method is not None
         assert expansion_method is not None
-        _handle_index_config_update(
+        tier_changed = _handle_index_config_update(
             config_path, storage_dir, repo_path, extraction_method, expansion_method
         )
+        if tier_changed:
+            print("Tier configuration changed. Performing full reindex...")
     elif not config_path.exists():
         _print_tier_requirement_error()
         sys.exit(2)
 
     # Perform indexing
+    # If tier changed, force full reindex to ensure index consistency with new config
     indexer = ElixirIndexer(verbose=True)
     indexer.incremental_index_repository(
         str(repo_path),
         str(index_path),
         extract_keywords=True,
-        force_full=False,
+        force_full=tier_changed,
     )
 
 
@@ -807,7 +811,7 @@ def _handle_index_config_update(
     repo_path: Path,
     extraction_method: str,
     expansion_method: str,
-) -> None:
+) -> bool:
     """Handle config creation or update during forced indexing.
 
     This function is only called when --force is used, so it always
@@ -820,12 +824,26 @@ def _handle_index_config_update(
         repo_path: Repository path
         extraction_method: Extraction method to use
         expansion_method: Expansion method to use
+
+    Returns:
+        True if the tier was changed (requiring full reindex), False otherwise
     """
     from cicada.setup import create_config_yaml
+
+    # Check if config exists and if tier has changed
+    tier_changed = False
+    if config_path.exists():
+        # Load existing config to check for tier changes
+        existing_extraction, existing_expansion = _load_existing_config(config_path)
+        tier_changed = (
+            existing_extraction != extraction_method or existing_expansion != expansion_method
+        )
 
     # When --force is used, always update config to the new tier settings
     # This allows changing tiers without requiring a separate clean step
     create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
+
+    return tier_changed
 
 
 def _print_tier_requirement_error() -> None:
