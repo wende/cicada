@@ -34,6 +34,15 @@ class SearchResult:
     last_modified_sha: str | None = None
     last_modified_pr: int | None = None
 
+    # Statistical scoring fields (added by score distribution analysis)
+    z_score: float | None = None
+    percentile: float | None = None
+    normalized_score: float | None = None
+    tier: str | None = None
+    tier_label: str | None = None
+    tier_description: str | None = None
+    tier_rank: int | None = None
+
     def is_function(self) -> bool:
         """Check if this result is a function."""
         return self.type == "function"
@@ -85,6 +94,22 @@ class SearchResult:
         if self.doc is not None:
             result["doc"] = self.doc
 
+        # Statistical scoring fields
+        if self.z_score is not None:
+            result["z_score"] = self.z_score
+        if self.percentile is not None:
+            result["percentile"] = self.percentile
+        if self.normalized_score is not None:
+            result["normalized_score"] = self.normalized_score
+        if self.tier is not None:
+            result["tier"] = self.tier
+        if self.tier_label is not None:
+            result["tier_label"] = self.tier_label
+        if self.tier_description is not None:
+            result["tier_description"] = self.tier_description
+        if self.tier_rank is not None:
+            result["tier_rank"] = self.tier_rank
+
         # Function-specific fields
         if self.is_function():
             if self.function is not None:
@@ -125,6 +150,7 @@ class FilterConfig:
     path_pattern: str | None = None
     include_tests: bool = True
     arity: int | None = None
+    min_tier_rank: int | None = None
 
 
 @dataclass
@@ -139,6 +165,7 @@ class QueryOptions:
     include_tests: bool = True
     arity: int | None = None
     show_snippets: bool = False
+    min_tier_rank: int | None = None
 
     def to_filter_config(self) -> FilterConfig:
         """Convert to FilterConfig for filtering operations."""
@@ -149,6 +176,7 @@ class QueryOptions:
             path_pattern=self.path_pattern,
             include_tests=self.include_tests,
             arity=self.arity,
+            min_tier_rank=self.min_tier_rank,
         )
 
 

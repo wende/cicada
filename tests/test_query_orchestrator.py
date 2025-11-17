@@ -803,3 +803,52 @@ end
         result_count = result.count("### ")
         if result_count <= 5:
             assert "⚠️" not in result
+
+    def test_tier_scoring_attached_to_results(self, sample_index):
+        """Test that tier scoring information is attached to query results."""
+        orchestrator = QueryOrchestrator(sample_index)
+        result = orchestrator.execute_query("authentication", max_results=5)
+
+        # Check that tier labels are present in the output
+        # At least one of these tier labels should appear
+        tier_labels = [
+            "[Exceptional]",
+            "[Highly Relevant]",
+            "[Above Average]",
+            "[Below Average]",
+            "[Poor]",
+        ]
+        has_tier = any(label in result for label in tier_labels)
+        assert has_tier, "Expected tier labels in query results"
+
+        # Check that confidence is present
+        assert "Confidence:" in result, "Expected Confidence in results"
+
+    def test_tier_filtering_min_tier_rank(self, sample_index):
+        """Test that min_tier_rank filter works correctly."""
+        orchestrator = QueryOrchestrator(sample_index)
+
+        # First get all results
+        all_results = orchestrator.execute_query("authentication", max_results=10)
+        all_count = (
+            all_results.count("\n1. ") + all_results.count("\n2. ") + all_results.count("\n3. ")
+        )
+
+        # Now filter to only top 2 tiers (exceptional and highly relevant)
+        filtered_results = orchestrator.execute_query(
+            "authentication", max_results=10, min_tier_rank=2
+        )
+        filtered_count = (
+            filtered_results.count("\n1. ")
+            + filtered_results.count("\n2. ")
+            + filtered_results.count("\n3. ")
+        )
+
+        # Filtered results should have fewer or equal results
+        assert filtered_count <= all_count, "Filtered results should be subset of all results"
+
+        # All remaining results should be tier rank 2 or better
+        if "[Below Average]" in all_results or "[Poor]" in all_results:
+            # These lower tiers should not appear in filtered results
+            assert "[Below Average]" not in filtered_results
+            assert "[Poor]" not in filtered_results

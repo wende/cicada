@@ -511,6 +511,12 @@ def get_argument_parser():
         help="Show code snippet previews with context lines",
     )
     query_parser.add_argument(
+        "--min-tier",
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        help="Minimum tier rank to show (1=exceptional, 2=highly relevant, 3=above average, 4=below average, 5=poor)",
+    )
+    query_parser.add_argument(
         "--format",
         choices=["text", "json"],
         default="text",
@@ -1039,6 +1045,7 @@ def handle_query(args):
         path_pattern=args.path_pattern,
         include_tests=not args.no_tests,
         show_snippets=args.snippets,
+        min_tier_rank=getattr(args, "min_tier", None),
     )
 
     if args.format == "json":

@@ -15,6 +15,7 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
+from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import is_test_file, matches_glob_pattern
 
 
@@ -258,7 +259,7 @@ class QueryOrchestrator:
         self, results: list[SearchResult], config: FilterConfig
     ) -> list[SearchResult]:
         """
-        Apply scope, path, test, and arity filters to results.
+        Apply scope, path, test, arity, and tier filters to results.
 
         Args:
             results: List of search results
@@ -292,6 +293,14 @@ class QueryOrchestrator:
         if config.arity is not None:
             filtered = [r for r in filtered if r.is_module() or r.arity == config.arity]
 
+        # Tier filter (applied after tier info is attached)
+        if config.min_tier_rank is not None:
+            filtered = [
+                r
+                for r in filtered
+                if r.tier_rank is not None and r.tier_rank <= config.min_tier_rank
+            ]
+
         return filtered
 
     def _rank_and_dedupe(self, results: list[SearchResult]) -> list[SearchResult]:
@@ -322,6 +331,43 @@ class QueryOrchestrator:
         ranked = sorted(by_name.values(), key=lambda x: (-x.score, x.name))
 
         return ranked
+
+    def _attach_tier_info(self, results: list[SearchResult]) -> list[SearchResult]:
+        """
+        Calculate score distribution and attach tier information to each result.
+
+        Args:
+            results: List of search results with scores
+
+        Returns:
+            Results with tier information attached
+        """
+        if not results:
+            return results
+
+        # Extract scores from results
+        scores = [r.score for r in results]
+
+        # Calculate distribution with tiers
+        distribution = calculate_score_distribution_with_tiers(scores)
+
+        # Attach tier info to each result
+        # distribution['distribution'] is sorted by z-score (descending)
+        # but we need to match by score value
+        score_to_tier = {d["score"]: d for d in distribution["distribution"]}
+
+        for result in results:
+            tier_data = score_to_tier.get(result.score)
+            if tier_data:
+                result.z_score = tier_data["z_score"]
+                result.percentile = tier_data["percentile"]
+                result.normalized_score = tier_data["normalized"]
+                result.tier = tier_data["tier"]
+                result.tier_label = tier_data["tier_label"]
+                result.tier_description = tier_data["tier_description"]
+                result.tier_rank = tier_data["tier_rank"]
+
+        return results
 
     def _generate_suggestions(
         self, query: str | list[str], results: list[SearchResult], current_scope: str = "all"
@@ -468,11 +514,21 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Compact header: number, name, and score on first line
-        lines.append(f"{index}. {result.name} | {result.score:.2f}\n")
+        # Compact header: number, name, and tier on first line
+        header_parts = [f"{index}. {result.name}"]
+
+        # Add tier label if available
+        if result.tier_label:
+            header_parts.append(f"[{result.tier_label}]")
+
+        lines.append(" | ".join(header_parts) + "\n")
 
         # Path on second line
         lines.append(f"{result.file}:{result.line}\n")
+
+        # Confidence on third line (if available)
+        if result.percentile is not None:
+            lines.append(f"Confidence: {result.percentile:.1f}%\n")
 
         # First line of documentation (wrapped nicely)
         if result.doc:
@@ -756,6 +812,7 @@ class QueryOrchestrator:
         include_tests: bool = True,
         arity: int | None = None,
         show_snippets: bool = False,
+        min_tier_rank: int | None = None,
     ) -> str:
         """
         Execute a query and return formatted results.
@@ -770,6 +827,8 @@ class QueryOrchestrator:
             include_tests: Whether to include test files
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
+            min_tier_rank: Optional minimum tier rank (1=best, 5=worst). Only show results
+                          with tier_rank <= this value
 
         Returns:
             Markdown formatted report
@@ -788,6 +847,7 @@ class QueryOrchestrator:
             include_tests=include_tests,
             arity=arity,
             show_snippets=show_snippets,
+            min_tier_rank=min_tier_rank,
         )
 
         # Analyze query
@@ -796,12 +856,25 @@ class QueryOrchestrator:
         # Call tools
         raw_results = self._call_tools(strategy, options.filter_type, options.match_source)
 
-        # Apply filters
+        # Apply non-tier filters first
         filter_config = options.to_filter_config()
+        # Temporarily disable tier filter for first pass
+        tier_filter = filter_config.min_tier_rank
+        filter_config.min_tier_rank = None
         filtered_results = self._apply_filters(raw_results, filter_config)
 
         # Rank and deduplicate
         ranked_results = self._rank_and_dedupe(filtered_results)
+
+        # Attach tier information (z-scores, percentiles, tiers)
+        ranked_results = self._attach_tier_info(ranked_results)
+
+        # Apply tier filter if specified
+        if tier_filter is not None:
+            filter_config.min_tier_rank = tier_filter
+            ranked_results = [
+                r for r in ranked_results if r.tier_rank is not None and r.tier_rank <= tier_filter
+            ]
 
         # Check for zero results and generate appropriate suggestions
         if len(ranked_results) == 0:
