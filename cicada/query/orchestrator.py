@@ -689,24 +689,11 @@ class QueryOrchestrator:
                 if func.get("string_keywords"):
                     all_keywords.update(k.lower() for k in func["string_keywords"])
 
-        # Find terms with simple similarity (substring match or character overlap)
+        # Find terms with substring similarity only (removed naive character overlap)
         for keyword in all_keywords:
-            # Substring match
-            if query_lower in keyword or keyword in query_lower:
-                if keyword != query_lower:
-                    related.append(keyword)
-            # Simple character overlap check
-            elif (
-                len(query_lower) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
-                and len(keyword) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
-            ):
-                # Check if significant overlap
-                overlap = sum(1 for c in query_lower if c in keyword)
-                if (
-                    overlap >= len(query_lower) * QueryConfig.RELATED_TERM_SIMILARITY_THRESHOLD
-                    and keyword not in related
-                ):
-                    related.append(keyword)
+            # Only suggest if it's a meaningful substring match
+            if (query_lower in keyword or keyword in query_lower) and keyword != query_lower:
+                related.append(keyword)
 
         return related[:max_terms]
 
