@@ -438,6 +438,11 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
+    index_parser.add_argument(
+        "--extract-cochange",
+        action="store_true",
+        help="Extract co-change data from git history (files and functions that are frequently modified together)",
+    )
 
     index_pr_parser = subparsers.add_parser(
         "index-pr",
@@ -797,10 +802,12 @@ def handle_index_main(args) -> None:
     # Perform indexing
     # If tier changed, force full reindex to ensure index consistency with new config
     indexer = ElixirIndexer(verbose=True)
+    extract_cochange = getattr(args, "extract_cochange", False)
     indexer.incremental_index_repository(
         str(repo_path),
         str(index_path),
         extract_keywords=True,
+        extract_cochange=extract_cochange,
         force_full=tier_changed,
     )
 

@@ -406,6 +406,85 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
+            name="search_by_features",
+            description=(
+                "USE THIS FIRST when exploring code or when you don't know exact module/function names.\n\n"
+                "Search for code by concepts and features - find code by describing what it does, not what it's called. "
+                "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
+                "Examples: ['authentication', 'login'], ['api', 'key', 'storage'], ['email', 'validation']\n\n"
+                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
+                "Searches both documentation keywords AND string literals in code (e.g., SQL queries, error messages).\n"
+                "Use match_source to filter by keyword source: 'all' (default), 'docs' (documentation only), or 'strings' (string literals only).\n\n"
+                "AI USAGE TIPS:\n"
+                "• **USE THIS FIRST** - don't ask user for module names when you can search for concepts\n"
+                "• Try broad queries first: ['authentication'], then narrow: ['oauth', 'token']\n"
+                "• Multiple searches are NORMAL - try 3-5 different keyword combinations\n"
+                "• Empty results? Try broader terms, check spelling, or use wildcards: ['*auth*']\n"
+                "• Results show modules AND functions with relevance scores\n"
+                "• Use filter_type to narrow: 'modules', 'functions', or 'all' (default)\n"
+                "• Use match_source='strings' to find code by actual strings used (e.g., SQL queries, error messages)\n\n"
+                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
+                    },
+                    "min_score": {
+                        "type": "number",
+                        "description": "Minimum relevance score threshold (0.0 to 1.0). Only results with scores >= this value will be shown. Default: 0.0 (no filtering).",
+                    },
+                    "match_source": {
+                        "type": "string",
+                        "enum": ["all", "docs", "strings"],
+                        "description": "Filter by keyword source: 'all' searches both documentation and string literals (default), 'docs' searches only documentation keywords, 'strings' searches only keywords from string literals in code.",
+                    },
+                    "cochange_boost": {
+                        "type": "number",
+                        "description": "Strength of co-change boosting (0.0 to disable, higher values increase boost). Results that frequently change together will be ranked higher. Defaults to 0.5. Requires co-change data in index (run 'cicada index --extract-cochange').",
+                    },
+                },
+                "required": ["keywords"],
+            },
+        ),
+        Tool(
+            name="search_by_keywords",
+            description=(
+                "DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
+                "Search for code by concepts and features when exact names are unknown.\n\n"
+                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
+                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
+                    },
+                    "cochange_boost": {
+                        "type": "number",
+                        "description": "Strength of co-change boosting (0.0 to disable). Defaults to 0.5.",
+                    },
+                },
+                "required": ["keywords"],
+            },
+        ),
+        Tool(
             name="find_dead_code",
             description=(
                 "📊 ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
@@ -572,6 +651,72 @@ def get_tool_definitions() -> list[Tool]:
                     },
                 },
                 "required": ["identifier"],
+            },
+        ),
+        Tool(
+            name="query_jq",
+            description=(
+                "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
+                "Provides direct access to the raw index structure using jq query syntax. "
+                "Ideal for custom analysis, debugging index contents, and exploring data not covered by specialized tools.\n\n"
+                "Index structure: {modules: {<name>: {file, line, functions[], keywords, ...}}, metadata: {...}}\n\n"
+                "Quick Examples:\n"
+                "  • List all modules: '.modules | keys'\n"
+                "  • Count functions per module: '.modules[].functions | length'\n"
+                "  • Find test files: '.modules | to_entries | map(select(.value.file | test(\"test\")))'\n"
+                "  • Get metadata: '.metadata'\n"
+                "  • Find functions by arity: '.modules[].functions[] | select(.arity == 2)'\n\n"
+                "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
+                "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
+                "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
+                "NEW FEATURES:\n"
+                "• Schema Discovery: Append '| schema' to any query to see available fields\n"
+                "  Examples: '.modules | schema' or '.modules[].functions | schema'\n"
+                "• Sample Mode: Set 'sample: true' to auto-limit results to first 5 items\n"
+                "  Great for previewing large datasets without writing complex jq\n"
+                "• Early Size Warning: Get warned before processing huge results (>500KB)\n"
+                "  with specific suggestions for limiting data\n\n"
+                "AI USAGE TIPS:\n"
+                "• Use for custom analysis NOT covered by specialized tools\n"
+                "• Great for exploring index structure and debugging\n"
+                "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
+                "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
+                "• Results are truncated at 1MB - use filters or 'sample: true' to limit data\n"
+                "• If query fails, error includes syntax help with line/column pointer\n"
+                "• See CLAUDE.md for complete schema reference and advanced examples"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "jq query expression to execute against the index. "
+                            "Examples: '.modules | keys', '.modules[].functions[].name', "
+                            "'.modules | map(select(.keywords)) | length'. "
+                            "Use '?' for optional field access (e.g., '.functions[]?'). "
+                            "Append '| schema' to discover available fields (e.g., '.modules | schema')."
+                        ),
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["json", "compact", "pretty"],
+                        "description": (
+                            "Output format: 'json' returns formatted JSON (default), "
+                            "'compact' returns single-line JSON (saves tokens), "
+                            "'pretty' returns pretty-printed JSON with indentation."
+                        ),
+                    },
+                    "sample": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, automatically limit results to first 5 items. "
+                            "Useful for previewing large datasets without writing complex jq. "
+                            "Works for both arrays and objects. Default: false."
+                        ),
+                    },
+                },
+                "required": ["query"],
             },
         ),
     ]
