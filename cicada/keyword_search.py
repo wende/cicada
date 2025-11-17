@@ -144,6 +144,14 @@ class KeywordSearcher:
         if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = module_data["string_sources"]
 
+        # Include timestamp fields if available
+        if module_data.get("last_modified_at"):
+            document["last_modified_at"] = module_data["last_modified_at"]
+        if module_data.get("last_modified_sha"):
+            document["last_modified_sha"] = module_data["last_modified_sha"]
+        if module_data.get("last_modified_pr"):
+            document["last_modified_pr"] = module_data["last_modified_pr"]
+
         return document
 
     def _create_function_document(
@@ -177,6 +185,14 @@ class KeywordSearcher:
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
+
+        # Include timestamp fields if available
+        if func.get("last_modified_at"):
+            document["last_modified_at"] = func["last_modified_at"]
+        if func.get("last_modified_sha"):
+            document["last_modified_sha"] = func["last_modified_sha"]
+        if func.get("last_modified_pr"):
+            document["last_modified_pr"] = func["last_modified_pr"]
 
         return document
 
@@ -567,6 +583,14 @@ class KeywordSearcher:
                 # Add string sources if available
                 if doc.get("string_sources"):
                     result["string_sources"] = doc["string_sources"]
+
+                # Add timestamp fields if available
+                if doc.get("last_modified_at"):
+                    result["last_modified_at"] = doc["last_modified_at"]
+                if doc.get("last_modified_sha"):
+                    result["last_modified_sha"] = doc["last_modified_sha"]
+                if doc.get("last_modified_pr"):
+                    result["last_modified_pr"] = doc["last_modified_pr"]
 
                 results.append(result)
 

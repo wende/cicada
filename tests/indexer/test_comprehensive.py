@@ -1133,7 +1133,6 @@ end
 class TestTimestampComputation:
     """Test git history timestamp computation during indexing."""
 
-    @pytest.mark.skip(reason="compute_timestamps parameter removed in main")
     def test_compute_timestamps_enabled(self, tmp_path, monkeypatch):
         """Test that timestamps are computed when enabled."""
         from cicada.indexer import ElixirIndexer
@@ -1150,7 +1149,7 @@ end
 """
         )
 
-        # Mock GitHelper with batched method
+        # Mock GitHelper
         mock_git_helper = Mock()
         mock_evolution = {
             "created_at": {"date": "2024-01-01T12:00:00", "sha": "abc123"},
@@ -1158,11 +1157,8 @@ end
             "total_modifications": 5,
         }
 
-        # Mock the batched method to return evolutions for all functions
-        def mock_batch(file_path, functions):
-            return {func.get("name"): mock_evolution for func in functions if func.get("name")}
-
-        mock_git_helper.get_functions_evolution_batch = mock_batch
+        # Mock the get_function_evolution method to return evolution for any function
+        mock_git_helper.get_function_evolution = Mock(return_value=mock_evolution)
         mock_git_helper.repo_path = tmp_path
 
         # Patch GitHelper to return our mock
@@ -1191,7 +1187,6 @@ end
         assert func["last_modified_at"] == "2024-03-15T10:30:00"
         assert func["modification_count"] == 5
 
-    @pytest.mark.skip(reason="compute_timestamps parameter removed in main")
     def test_compute_timestamps_disabled(self, tmp_path):
         """Test that timestamps are not computed when disabled."""
         from cicada.indexer import ElixirIndexer
