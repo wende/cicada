@@ -510,13 +510,20 @@ def get_tool_definitions() -> list[Tool]:
                 "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
                 "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
                 "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
+                "NEW FEATURES:\n"
+                "• Schema Discovery: Append '| schema' to any query to see available fields\n"
+                "  Examples: '.modules | schema' or '.modules[].functions | schema'\n"
+                "• Sample Mode: Set 'sample: true' to auto-limit results to first 5 items\n"
+                "  Great for previewing large datasets without writing complex jq\n"
+                "• Early Size Warning: Get warned before processing huge results (>500KB)\n"
+                "  with specific suggestions for limiting data\n\n"
                 "AI USAGE TIPS:\n"
                 "• Use for custom analysis NOT covered by specialized tools\n"
                 "• Great for exploring index structure and debugging\n"
                 "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
                 "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
-                "• Results are truncated at 1MB - use filters to limit data\n"
-                "• If query fails, error includes syntax help and examples\n"
+                "• Results are truncated at 1MB - use filters or 'sample: true' to limit data\n"
+                "• If query fails, error includes syntax help with line/column pointer\n"
                 "• See CLAUDE.md for complete schema reference and advanced examples"
             ),
             inputSchema={
@@ -528,7 +535,8 @@ def get_tool_definitions() -> list[Tool]:
                             "jq query expression to execute against the index. "
                             "Examples: '.modules | keys', '.modules[].functions[].name', "
                             "'.modules | map(select(.keywords)) | length'. "
-                            "Use '?' for optional field access (e.g., '.functions[]?')."
+                            "Use '?' for optional field access (e.g., '.functions[]?'). "
+                            "Append '| schema' to discover available fields (e.g., '.modules | schema')."
                         ),
                     },
                     "format": {
@@ -538,6 +546,14 @@ def get_tool_definitions() -> list[Tool]:
                             "Output format: 'json' returns formatted JSON (default), "
                             "'compact' returns single-line JSON (saves tokens), "
                             "'pretty' returns pretty-printed JSON with indentation."
+                        ),
+                    },
+                    "sample": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, automatically limit results to first 5 items. "
+                            "Useful for previewing large datasets without writing complex jq. "
+                            "Works for both arrays and objects. Default: false."
                         ),
                     },
                 },

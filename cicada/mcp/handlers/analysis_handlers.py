@@ -134,18 +134,28 @@ class AnalysisHandler:
 
         return [TextContent(type="text", text=output)]
 
-    async def query_jq(self, query: str, output_format: str = "json") -> list[TextContent]:
+    async def query_jq(
+        self, query: str, output_format: str = "json", sample: bool = False
+    ) -> list[TextContent]:
         """
         Execute a jq query against the index.
 
         Args:
             query: jq query expression
             output_format: Output format ('json', 'compact', 'pretty')
+            sample: If True, automatically limit results to first 5 items (default: False)
 
         Returns:
             TextContent with jq query results
         """
         try:
+            # Handle schema discovery
+            query = self._handle_schema_query(query)
+
+            # Apply sample mode if requested
+            if sample:
+                query = self._apply_sample_mode(query)
+
             result = await self._execute_jq_query(query)
 
             if result is None:
@@ -155,6 +165,11 @@ class AnalysisHandler:
                         text="Query returned null. The field doesn't exist or filter matched nothing.",
                     )
                 ]
+
+            # Early size estimation before formatting
+            early_warning = self._estimate_result_size(result, query, sample)
+            if early_warning:
+                return [TextContent(type="text", text=early_warning)]
 
             output = self._format_result(result, output_format)
             return self._handle_result_size(output)
@@ -176,7 +191,7 @@ class AnalysisHandler:
                 )
             ]
         except ValueError as e:
-            return self._create_jq_syntax_error_response(e)
+            return self._create_jq_syntax_error_response(e, query)
         except Exception as e:
             sections = {
                 "This may indicate": [
@@ -273,18 +288,143 @@ class AnalysisHandler:
             f"  • Request specific fields instead of entire objects"
         )
 
-    def _create_jq_syntax_error_response(self, error: ValueError) -> list[TextContent]:
-        """Create helpful syntax error response with hints."""
-        error_str = str(error).lower()
+    def _handle_schema_query(self, query: str) -> str:
+        """
+        Handle schema discovery queries by replacing '| schema' with appropriate jq.
 
-        msg = f"jq query failed: {error}\n\nCommon issues:\n"
+        Args:
+            query: Original jq query
+
+        Returns:
+            Modified query with schema discovery replaced
+        """
+        import re
+
+        # Match '| schema' at the end of the query (with optional whitespace)
+        schema_pattern = r"\|\s*schema\s*$"
+
+        if re.search(schema_pattern, query):
+            # Remove '| schema' and replace with structure analysis
+            base_query = re.sub(schema_pattern, "", query).rstrip()
+
+            # Add logic to detect array vs object and show appropriate structure
+            # For arrays: show keys of first element
+            # For objects: show keys directly
+            schema_query = (
+                f"({base_query}) | "
+                f'if type == "array" then '
+                f'(if length > 0 then .[0] | keys else "Empty array" end) '
+                f"else "
+                f"keys "
+                f"end"
+            )
+            return schema_query
+
+        return query
+
+    def _apply_sample_mode(self, query: str) -> str:
+        """
+        Apply sample mode to limit query results.
+
+        Args:
+            query: Original jq query
+
+        Returns:
+            Modified query with result limiting
+        """
+        # Wrap query to limit results to first 5 items
+        # This works for both arrays and object entries
+        return f'({query}) | if type == "array" then .[0:5] else . | to_entries | .[0:5] | from_entries end'
+
+    def _estimate_result_size(self, result: Any, query: str, sample: bool) -> str | None:
+        """
+        Estimate result size before formatting and provide early warning if too large.
+
+        Args:
+            result: Query result from jq
+            query: Original query string
+            sample: Whether sample mode is enabled
+
+        Returns:
+            Warning message if result is too large, None otherwise
+        """
+        # Quick size estimation using compact JSON
+        try:
+            compact_size = len(json.dumps(result, separators=(",", ":")))
+        except (TypeError, ValueError):
+            # Can't estimate, let it proceed
+            return None
+
+        # If size is very large (>500KB), warn before formatting
+        size_threshold = 500 * 1024  # 500KB
+        if compact_size > size_threshold:
+            size_mb = compact_size / (1024 * 1024)
+
+            msg = f"Query result is very large (~{size_mb:.1f}MB, limit: ~1MB).\n\n"
+            msg += "The result will be truncated. Consider:\n"
+
+            # Provide specific suggestions based on the query
+            if ".modules" in query and "to_entries" not in query:
+                msg += "  • Preview count: .modules | keys | length\n"
+                msg += "  • List modules: .modules | keys\n"
+                msg += "  • Preview 10: .modules | to_entries | .[0:10]\n"
+            elif "functions" in query:
+                msg += "  • Count functions: .modules[].functions | length\n"
+                msg += "  • Preview 5: .modules[].functions[0:5]\n"
+            else:
+                msg += "  • Use 'sample: true' parameter for auto-limiting\n"
+                msg += "  • Add '| .[0:10]' to preview first 10 items\n"
+                msg += "  • Use 'select()' to filter data\n"
+
+            if not sample:
+                msg += "\nTip: Set 'sample: true' to automatically limit to 5 results\n"
+
+            return msg
+
+        return None
+
+    def _create_jq_syntax_error_response(self, error: ValueError, query: str) -> list[TextContent]:
+        """Create helpful syntax error response with hints and visual error pointer."""
+        import re
+
+        error_str = str(error)
+        error_str_lower = error_str.lower()
+
+        # Try to extract line and column information from the error message
+        # Format: "jq: error (at <stdin>:0): compile error near line 1, column 29: ..."
+        # or: "jq: parse error: ..."
+        match = re.search(r"line (\d+), column (\d+)", error_str)
+
+        if match:
+            line_num = int(match.group(1))
+            col_num = int(match.group(2))
+
+            # Get the specific line from the query
+            query_lines = query.split("\n")
+            # Use ternary for cleaner code
+            error_line = (
+                query_lines[line_num - 1]
+                if 1 <= line_num <= len(query_lines)
+                else query  # Single-line query or line number out of range
+            )
+
+            # Format error message with visual pointer
+            msg = f"jq: error: syntax error at line {line_num}, column {col_num}:\n"
+            msg += f"    {error_line}\n"
+            msg += " " * (4 + col_num - 1) + "^\n\n"
+        else:
+            # No line/column info, just show the error and query
+            msg = f"jq query failed: {error}\n\n"
+            msg += f"Query: {query}\n\n"
+
+        msg += "Common issues:\n"
         msg += "  • Check jq syntax\n"
         msg += "  • Use '?' for optional fields: '.functions[]?'\n"
         msg += "  • Verify operations match data types\n\n"
 
-        if "iterate" in error_str and "null" in error_str:
+        if "iterate" in error_str_lower and "null" in error_str_lower:
             msg += "HINT: You're iterating over null. Use '.functions[]?' instead of '.functions[]'\n\n"
-        elif "unexpected" in error_str or "invalid" in error_str:
+        elif "unexpected" in error_str_lower or "invalid" in error_str_lower:
             msg += "HINT: Check for missing quotes, unbalanced brackets, or undefined functions\n\n"
 
         msg += "Quick reference:\n"

@@ -243,6 +243,35 @@ class TestJqToolExecution:
         assert "error" in text_lower or "failed" in text_lower
 
     @pytest.mark.asyncio
+    async def test_invalid_jq_syntax_with_line_column(self, test_server):
+        """Should show line and column info with visual pointer for syntax errors."""
+        result = await test_server.call_tool("query_jq", {"query": ".modules | invalid_function()"})
+        assert len(result) == 1
+        text = result[0].text
+        # Should contain error with line/column info
+        assert "error" in text.lower()
+        # Should show the query line
+        assert ".modules | invalid_function()" in text
+        # Should have a visual pointer (^)
+        assert "^" in text
+
+    @pytest.mark.asyncio
+    async def test_invalid_jq_syntax_multiline(self, test_server):
+        """Should show correct line for multiline queries with syntax errors."""
+        multiline_query = """.modules
+| to_entries
+| map(invalid_func())"""
+        result = await test_server.call_tool("query_jq", {"query": multiline_query})
+        assert len(result) == 1
+        text = result[0].text
+        # Should contain error with line/column info
+        assert "error" in text.lower()
+        # Should have a visual pointer (^)
+        assert "^" in text
+        # Should show the error line (line 3 with invalid_func)
+        assert "invalid_func" in text
+
+    @pytest.mark.asyncio
     async def test_query_returns_null(self, test_server):
         """Should handle queries that return null."""
         result = await test_server.call_tool("query_jq", {"query": ".nonexistent_field"})
@@ -698,6 +727,183 @@ class TestJqToolErrorHandling:
             text_lower = result[0].text.lower()
             # Should contain error indication
             assert "error" in text_lower or "failed" in text_lower
+
+
+class TestJqToolNewFeatures:
+    """Test new jq tool features: schema discovery, sample mode, size estimation."""
+
+    @pytest.mark.asyncio
+    async def test_schema_discovery_for_object(self, test_server):
+        """Should handle '| schema' for objects by showing keys."""
+        result = await test_server.call_tool("query_jq", {"query": ".modules | schema"})
+        assert len(result) == 1
+        # Should return array of module names (keys of modules object)
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+        assert "TestModule" in output or "AnotherModule" in output
+
+    @pytest.mark.asyncio
+    async def test_schema_discovery_for_array(self, test_server):
+        """Should handle '| schema' for arrays by showing keys of first element."""
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules.TestModule.functions | schema"}
+        )
+        assert len(result) == 1
+        # Should return keys of first function object
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+        # Should contain function field names
+        assert "name" in output
+        assert "arity" in output
+        assert "type" in output
+
+    @pytest.mark.asyncio
+    async def test_schema_discovery_with_whitespace(self, test_server):
+        """Should handle '| schema' with various whitespace."""
+        result = await test_server.call_tool("query_jq", {"query": ".modules   |   schema  "})
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+
+    @pytest.mark.asyncio
+    async def test_sample_mode_with_array(self, test_server):
+        """Should limit array results to 5 items with sample mode."""
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules | keys", "sample": True}
+        )
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+        # Should have at most 5 items
+        assert len(output) <= 5
+
+    @pytest.mark.asyncio
+    async def test_sample_mode_with_object(self, test_server):
+        """Should limit object results to 5 entries with sample mode."""
+        result = await test_server.call_tool("query_jq", {"query": ".modules", "sample": True})
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        assert isinstance(output, dict)
+        # Should have at most 5 keys
+        assert len(output) <= 5
+
+    @pytest.mark.asyncio
+    async def test_sample_mode_false_returns_all(self, test_server):
+        """Should return all results when sample is false."""
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules | keys", "sample": False}
+        )
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        # Should return both modules
+        assert len(output) == 2
+
+    @pytest.mark.asyncio
+    async def test_sample_mode_invalid_type(self, test_server):
+        """Should reject non-boolean sample parameter."""
+        result = await test_server.call_tool("query_jq", {"query": ".modules", "sample": "yes"})
+        assert len(result) == 1
+        assert "must be a boolean" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_early_size_estimation_large_result(self, tmp_path):
+        """Should warn early when result will be too large."""
+        # Create index with many large modules to exceed 500KB threshold
+        large_modules = {}
+        for i in range(100):
+            large_modules[f"Module{i}"] = {
+                "file": f"lib/module{i}.ex",
+                "line": 1,
+                "moduledoc": "X" * 10000,  # 10KB per module
+                "functions": [
+                    {
+                        "name": f"func{j}",
+                        "arity": j,
+                        "line": j * 10,
+                        "type": "def",
+                        "signature": f"func{j}()",
+                        "doc": "Y" * 1000,
+                        "args": [],
+                        "guards": [],
+                        "full_name": f"func{j}/{j}",
+                        "impl": False,
+                    }
+                    for j in range(10)
+                ],
+                "total_functions": 10,
+            }
+
+        large_index = {"modules": large_modules, "metadata": {"total_modules": 100}}
+
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(large_index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        server = CicadaServer(str(config_path))
+        result = await server.call_tool("query_jq", {"query": ".modules"})
+        assert len(result) == 1
+
+        # Should contain early warning about size
+        text = result[0].text
+        assert "large" in text.lower() or "mb" in text.lower()
+        # Should suggest alternatives
+        assert "consider" in text.lower() or "try" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_size_estimation_with_specific_suggestions(self, tmp_path):
+        """Should provide specific suggestions based on query type."""
+        # Create large index
+        large_modules = {
+            f"Module{i}": {
+                "file": f"lib/module{i}.ex",
+                "line": 1,
+                "moduledoc": "X" * 10000,
+                "functions": [],
+            }
+            for i in range(100)
+        }
+
+        large_index = {"modules": large_modules, "metadata": {"total_modules": 100}}
+
+        index_path = tmp_path / "index.json"
+        with open(index_path, "w") as f:
+            json.dump(large_index, f)
+
+        config = {
+            "repository": {"path": str(tmp_path)},
+            "storage": {"index_path": str(index_path)},
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
+
+        server = CicadaServer(str(config_path))
+        result = await server.call_tool("query_jq", {"query": ".modules"})
+        assert len(result) == 1
+
+        text = result[0].text
+        # Should suggest module-specific operations
+        assert "keys" in text.lower() or "length" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_combined_schema_and_sample(self, test_server):
+        """Should handle schema discovery with sample mode."""
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules | schema", "sample": True}
+        )
+        assert len(result) == 1
+        # Should work - schema returns keys, sample limits them
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+        assert len(output) <= 5
 
 
 class TestJqToolLargeResults:

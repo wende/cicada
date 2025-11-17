@@ -406,6 +406,7 @@ class ToolRouter:
         elif name == "query_jq":
             query = arguments.get("query")
             output_format = arguments.get("format", "json")
+            sample = arguments.get("sample", False)
 
             if error := _validate_jq_query(query):
                 return [TextContent(type="text", text=error)]
@@ -417,7 +418,10 @@ class ToolRouter:
                     )
                 ]
 
-            return await self.analysis_handler.query_jq(cast(str, query), output_format)
+            if not isinstance(sample, bool):
+                return [TextContent(type="text", text="'sample' must be a boolean")]
+
+            return await self.analysis_handler.query_jq(cast(str, query), output_format, sample)
 
         elif name == "get_module_dependencies":
             module_name = arguments.get("module_name")
