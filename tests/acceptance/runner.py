@@ -11,9 +11,22 @@ import sys
 from pathlib import Path
 
 from cicada.mcp.server import CicadaServer
+from cicada.utils.storage import get_config_path
 
-# Default config path
-DEFAULT_CONFIG = "tests/fixtures/.cicada/config.yaml"
+
+# Get config path from centralized storage
+def get_default_config():
+    """Get default config path from test fixtures."""
+    if Path("tests/fixtures/test_project").exists():
+        fixture_dir = Path("tests/fixtures/test_project").resolve()
+    elif Path("tests/fixtures/elixir_project").exists():
+        fixture_dir = Path("tests/fixtures/elixir_project").resolve()
+    else:
+        fixture_dir = Path.cwd()
+    return str(get_config_path(fixture_dir))
+
+
+DEFAULT_CONFIG = get_default_config()
 
 
 async def search_module(module_name: str, output_format: str = "markdown") -> str:

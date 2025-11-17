@@ -277,7 +277,6 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
             output_path=str(index_path),
             extract_keywords=True,
             force_full=force_full,
-            compute_timestamps=True,
         )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:

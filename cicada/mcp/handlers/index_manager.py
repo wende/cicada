@@ -62,7 +62,16 @@ class IndexManager:
 
     def _load_index(self) -> dict[str, Any]:
         """Load the index from JSON file."""
-        index_path = Path(self.config["storage"]["index_path"])
+        # Get repo path from config
+        repo_path = Path(self.config.get("repository", {}).get("path", "."))
+
+        # Use centralized storage (or fall back to config if specified)
+        if "storage" in self.config and "index_path" in self.config["storage"]:
+            index_path = Path(self.config["storage"]["index_path"])
+        else:
+            from cicada.utils.storage import get_index_path
+
+            index_path = get_index_path(repo_path)
 
         try:
             result = load_index(index_path, raise_on_error=True)
@@ -73,7 +82,6 @@ class IndexManager:
             return result
         except json.JSONDecodeError as e:
             # Index file is corrupted - provide helpful message
-            repo_path = self.config.get("repository", {}).get("path", ".")
             raise RuntimeError(
                 f"Index file is corrupted: {index_path}\n"
                 f"Error: {e}\n\n"

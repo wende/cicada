@@ -4,7 +4,6 @@ Elixir Repository Indexer.
 Walks an Elixir repository and indexes all modules and functions.
 """
 
-import argparse
 import os
 import signal
 import sys
@@ -225,11 +224,6 @@ class ElixirIndexer:
         total_functions = 0
         files_processed = 0
         keyword_extraction_failures = 0
-        timestamps_computed = 0
-        total_timestamp_targets = 0
-
-        # Multi-line progress tracking (2 lines: files + timestamps)
-        progress_lines_active = False
 
         for file_path in elixir_files:
             try:
@@ -243,10 +237,6 @@ class ElixirIndexer:
                         # Calculate stats
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
-
-                        # Count functions for timestamp progress tracking
-                        if git_helper:
-                            total_timestamp_targets += len(functions)
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
@@ -298,7 +288,7 @@ class ElixirIndexer:
                                         file=sys.stderr,
                                     )
 
-                        # Enrich function metadata (keywords)
+                        # Enrich function metadata (keywords and timestamps)
                         for func in functions:
                             func_name = func.get("name", "")
 
@@ -357,47 +347,33 @@ class ElixirIndexer:
                                             file=sys.stderr,
                                         )
 
-                        # Compute git history timestamps if enabled (BATCHED by file for speed)
-                        if git_helper and functions:
-                            timestamps_computed += len(functions)
-                            if self.verbose and timestamps_computed % 50 == 0:
-                                # Update timestamp progress on second line (current cursor position)
-                                print(
-                                    f"\r\033[K  Computing timestamps: {timestamps_computed} functions...",
-                                    end="",
-                                    flush=True,
-                                )
+                            # Compute git history timestamps if enabled
+                            if git_helper and func_name:
+                                try:
+                                    # Get function evolution metadata
+                                    evolution = git_helper.get_function_evolution(
+                                        file_path=str(file_path.relative_to(repo_path_obj)),
+                                        function_name=func_name,
+                                    )
 
-                            try:
-                                # Batch query all functions in this file at once (10x faster)
-                                evolutions = git_helper.get_functions_evolution_batch(
-                                    file_path=str(file_path.relative_to(repo_path_obj)),
-                                    functions=functions,
-                                )
-
-                                # Apply evolution data to each function
-                                for func in functions:
-                                    func_name = func.get("name")
-                                    if func_name and func_name in evolutions:
-                                        evolution = evolutions[func_name]
-                                        if evolution:
-                                            func["created_at"] = evolution["created_at"]["date"]
-                                            func["last_modified_at"] = evolution["last_modified"][
-                                                "date"
-                                            ]
-                                            func["last_modified_sha"] = evolution["last_modified"][
-                                                "sha"
-                                            ]
-                                            if evolution["last_modified"].get("pr"):
-                                                func["last_modified_pr"] = evolution[
-                                                    "last_modified"
-                                                ]["pr"]
-                                            func["modification_count"] = evolution[
-                                                "total_modifications"
-                                            ]
-                            except Exception:
-                                # Silently skip timestamp computation errors for this file
-                                pass
+                                    if evolution:
+                                        # Add timestamp fields to function
+                                        func["created_at"] = evolution["created_at"]["date"]
+                                        func["last_modified_at"] = evolution["last_modified"][
+                                            "date"
+                                        ]
+                                        func["last_modified_sha"] = evolution["last_modified"][
+                                            "sha"
+                                        ]
+                                        func["modification_count"] = evolution[
+                                            "total_modifications"
+                                        ]
+                                except Exception as e:
+                                    if self.verbose:
+                                        print(
+                                            f"Warning: Could not compute timestamps for {module_name}.{func_name}: {e}",
+                                            file=sys.stderr,
+                                        )
 
                         # Extract string keywords if enabled
                         module_string_keywords = None
@@ -611,28 +587,9 @@ class ElixirIndexer:
 
                 files_processed += 1
 
-                # Progress reporting (in-place update with multi-line support)
+                # Progress reporting
                 if self.verbose and files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
-                    # Initialize multi-line display if timestamps are being computed
-                    if git_helper and not progress_lines_active:
-                        print()  # Reserve line for timestamp progress
-                        progress_lines_active = True
-
-                    if progress_lines_active:
-                        # Update file progress on first line
-                        print(
-                            f"\033[1A\r\033[K  Processed {files_processed}/{total_files} files...",
-                            end="",
-                            flush=True,
-                        )
-                        print()  # Move back to second line
-                    else:
-                        # Simple single-line update
-                        print(
-                            f"\r  Processed {files_processed}/{total_files} files...",
-                            end="",
-                            flush=True,
-                        )
+                    print(f"  Processed {files_processed}/{total_files} files...")
 
                 # Check for interruption after each file
                 if self._check_and_report_interruption(files_processed, total_files):
@@ -660,16 +617,6 @@ class ElixirIndexer:
 
         # Save to file
         output_path_obj = Path(output_path)
-
-        # Check if .cicada directory exists (first run detection)
-        is_first_run = not output_path_obj.parent.exists()
-
-        # On first run, add .cicada/ to .gitignore if it exists
-        if is_first_run:
-            from cicada.utils.path_utils import ensure_gitignore_has_cicada
-
-            if ensure_gitignore_has_cicada(repo_path_obj) and self.verbose:
-                print("✓ Added .cicada/ to .gitignore")
 
         save_index(index, output_path_obj, create_dirs=True)
 
@@ -700,19 +647,9 @@ class ElixirIndexer:
                     f"\n💡 Run the command again to continue indexing remaining {total_files - files_processed} file(s)"
                 )
             else:
-                # Clear progress lines
-                if progress_lines_active:
-                    # Clear both lines (file + timestamp)
-                    print("\033[1A\r\033[K")  # Clear first line
-                    print("\r\033[K")  # Clear second line
-                elif files_processed > 0:
-                    # Clear single line (file only)
-                    print()
-                print("Indexing complete!")
+                print("\nIndexing complete!")
                 print(f"  Modules: {len(all_modules)}")
                 print(f"  Functions: {total_functions}")
-                if git_helper and timestamps_computed > 0:
-                    print(f"  Timestamps computed: {timestamps_computed}")
 
             # Report keyword extraction failures if any
             if extract_keywords and keyword_extraction_failures > 0:
@@ -732,7 +669,6 @@ class ElixirIndexer:
         output_path: str,
         extract_keywords: bool = False,
         force_full: bool = False,
-        compute_timestamps: bool = True,
     ):
         """
         Incrementally index an Elixir repository using file hashing.
@@ -746,7 +682,6 @@ class ElixirIndexer:
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
             force_full: If True, ignore existing hashes and do full reindex
-            compute_timestamps: If True, compute git history timestamps for functions (default: True)
 
         Returns:
             Dictionary containing the index data
@@ -793,12 +728,7 @@ class ElixirIndexer:
         if not existing_index or not existing_hashes:
             if self.verbose:
                 print("No existing index or hashes found. Performing full index...")
-            return self.index_repository(
-                str(repo_path_obj),
-                str(output_path_obj),
-                extract_keywords,
-                compute_timestamps=compute_timestamps,
-            )
+            return self.index_repository(str(repo_path_obj), str(output_path_obj), extract_keywords)
 
         if self.verbose:
             # Read and display keyword extraction config
@@ -874,31 +804,11 @@ class ElixirIndexer:
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
 
-        # Initialize git helper if timestamps are requested
-        git_helper = None
-        if compute_timestamps:
-            try:
-                from cicada.git.helper import GitHelper
-
-                git_helper = GitHelper(str(repo_path_obj))
-                if self.verbose:
-                    print("Git history tracking enabled - computing function timestamps")
-            except Exception as e:
-                if self.verbose:
-                    print(f"Warning: Could not initialize git helper: {e}")
-                    print("Continuing without timestamp computation...")
-                compute_timestamps = False
-
         # Process changed files
         all_modules = {}
         total_functions = 0
         files_processed = 0
         keyword_extraction_failures = 0
-        timestamps_computed = 0
-        total_timestamp_targets = 0
-
-        # Multi-line progress tracking (2 lines: files + timestamps)
-        progress_lines_active = False
 
         for relative_file in files_to_process:
             file_path = repo_path_obj / relative_file
@@ -913,10 +823,6 @@ class ElixirIndexer:
                         # Calculate stats
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
-
-                        # Count functions for timestamp progress tracking
-                        if git_helper:
-                            total_timestamp_targets += len(functions)
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
@@ -1019,48 +925,6 @@ class ElixirIndexer:
                             module_data, functions
                         )
 
-                        # Compute git history timestamps if enabled (BATCHED by file for speed)
-                        if git_helper and functions:
-                            timestamps_computed += len(functions)
-                            if self.verbose and timestamps_computed % 50 == 0:
-                                # Update timestamp progress on second line (current cursor position)
-                                print(
-                                    f"\r\033[K  Computing timestamps: {timestamps_computed} functions...",
-                                    end="",
-                                    flush=True,
-                                )
-
-                            try:
-                                # Batch query all functions in this file at once (10x faster)
-                                evolutions = git_helper.get_functions_evolution_batch(
-                                    file_path=relative_file,
-                                    functions=functions,
-                                )
-
-                                # Apply evolution data to each function
-                                for func in functions:
-                                    func_name = func.get("name")
-                                    if func_name and func_name in evolutions:
-                                        evolution = evolutions[func_name]
-                                        if evolution:
-                                            func["created_at"] = evolution["created_at"]["date"]
-                                            func["last_modified_at"] = evolution["last_modified"][
-                                                "date"
-                                            ]
-                                            func["last_modified_sha"] = evolution["last_modified"][
-                                                "sha"
-                                            ]
-                                            if evolution["last_modified"].get("pr"):
-                                                func["last_modified_pr"] = evolution[
-                                                    "last_modified"
-                                                ]["pr"]
-                                            func["modification_count"] = evolution[
-                                                "total_modifications"
-                                            ]
-                            except Exception:
-                                # Silently skip timestamp computation errors for this file
-                                pass
-
                         # Store module info
                         module_info = {
                             "file": relative_file,
@@ -1089,29 +953,6 @@ class ElixirIndexer:
 
                 files_processed += 1
 
-                # Progress reporting (in-place update with multi-line support)
-                if self.verbose and files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
-                    # Initialize multi-line display if timestamps are being computed
-                    if git_helper and not progress_lines_active:
-                        print()  # Reserve line for timestamp progress
-                        progress_lines_active = True
-
-                    if progress_lines_active:
-                        # Update file progress on first line
-                        print(
-                            f"\033[1A\r\033[K  Processed {files_processed}/{len(files_to_process)} files...",
-                            end="",
-                            flush=True,
-                        )
-                        print()  # Move back to second line
-                    else:
-                        # Simple single-line update
-                        print(
-                            f"\r  Processed {files_processed}/{len(files_to_process)} files...",
-                            end="",
-                            flush=True,
-                        )
-
                 # Check for interruption after each file
                 if self._check_and_report_interruption(files_processed, len(files_to_process)):
                     break
@@ -1133,18 +974,9 @@ class ElixirIndexer:
             },
         }
 
-        # Clear progress lines
-        if progress_lines_active:
-            # Clear both lines (file + timestamp)
-            print("\033[1A\r\033[K")  # Clear first line
-            print("\r\033[K")  # Clear second line
-        elif files_processed > 0:
-            # Clear single line (file only)
-            print()
-
         # Merge with existing index
         if self.verbose:
-            print("Merging with existing index...")
+            print("\nMerging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
 
         # Update hashes for all current files
@@ -1206,48 +1038,3 @@ class ElixirIndexer:
                     elixir_files.append(file_path)
 
         return sorted(elixir_files)
-
-
-def main():
-    """Main entry point for the indexer CLI."""
-    from cicada.version_check import check_for_updates
-
-    # Check for updates (non-blocking, fails silently)
-    check_for_updates()
-
-    parser = argparse.ArgumentParser(
-        description="Index current Elixir repository to extract modules and functions"
-    )
-    _ = parser.add_argument(
-        "repo",
-        nargs="?",
-        default=".",
-        help="Path to the Elixir repository to index (default: current directory)",
-    )
-    _ = parser.add_argument(
-        "--output",
-        default=".cicada/index.json",
-        help="Output path for the index file (default: .cicada/index.json)",
-    )
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="Force full reindex, ignoring existing hashes (default: incremental)",
-    )
-
-    args = parser.parse_args()
-
-    indexer = ElixirIndexer()
-
-    # Use incremental indexing by default (unless --full flag is set)
-    indexer.incremental_index_repository(
-        args.repo,
-        args.output,
-        extract_keywords=True,
-        force_full=args.full,
-        compute_timestamps=True,
-    )
-
-
-if __name__ == "__main__":
-    main()
