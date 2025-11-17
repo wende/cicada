@@ -32,6 +32,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "watch",
     "index",
     "index-pr",
+    "query",
     "find-dead-code",
     "clean",
     "status",
@@ -461,6 +462,61 @@ def get_argument_parser():
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
     )
 
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Smart code discovery - search by keywords or patterns",
+        description="Smart code discovery - intelligently search by keywords or patterns",
+    )
+    query_parser.add_argument(
+        "query",
+        nargs="+",
+        help="Keywords or patterns to search for (e.g., 'authentication login' or 'MyApp.User.create*')",
+    )
+    query_parser.add_argument(
+        "--scope",
+        choices=["all", "recent", "public", "private"],
+        default="all",
+        help="Filter scope: 'all' (default), 'recent' (last 14 days), 'public' (public only), 'private' (private only)",
+    )
+    query_parser.add_argument(
+        "--filter-type",
+        choices=["all", "modules", "functions"],
+        default="all",
+        help="Result type filter: 'all' (default), 'modules', 'functions'",
+    )
+    query_parser.add_argument(
+        "--match-source",
+        choices=["all", "docs", "strings"],
+        default="all",
+        help="Where to search: 'all' (default), 'docs' (documentation only), 'strings' (string literals only)",
+    )
+    query_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Maximum number of results to show (default: 10)",
+    )
+    query_parser.add_argument(
+        "--path-pattern",
+        help="Optional glob pattern to filter by file path (e.g., 'lib/auth/**')",
+    )
+    query_parser.add_argument(
+        "--no-tests",
+        action="store_true",
+        help="Exclude test files from results",
+    )
+    query_parser.add_argument(
+        "--snippets",
+        action="store_true",
+        help="Show code snippet previews with context lines",
+    )
+    query_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
     dead_code_parser = subparsers.add_parser(
         "find-dead-code",
         help="Find potentially unused public functions in Elixir codebase",
@@ -626,6 +682,7 @@ def handle_command(args) -> bool:
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
+        "query": handle_query,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
@@ -928,6 +985,68 @@ def handle_index_pr(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def handle_query(args):
+    """Handle query command for smart code discovery."""
+    from cicada.query import QueryOrchestrator
+    from cicada.utils import get_index_path, load_index
+
+    index_path = get_index_path(".")
+
+    if not index_path.exists():
+        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
+        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        index = load_index(index_path, raise_on_error=True)
+    except Exception as e:
+        print(f"Error loading index: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    assert index is not None, "Index should not be None after successful load"
+
+    # Check if keywords are available
+    has_keywords = any(
+        module_data.get("keywords") or module_data.get("string_keywords")
+        for module_data in index.get("modules", {}).values()
+    )
+
+    if not has_keywords:
+        print("Error: No keywords found in index.", file=sys.stderr)
+        print("\nPlease rebuild the index with keyword extraction:", file=sys.stderr)
+        print("  cicada index           # Default: reuse configured tier", file=sys.stderr)
+        print("  cicada index --force --regular   # BERT + GloVe (regular tier)", file=sys.stderr)
+        print(
+            "  cicada index --force --fast      # Fast: Token-based + lemminflect", file=sys.stderr
+        )
+        print("  cicada index --force --max       # Max: BERT + FastText", file=sys.stderr)
+        sys.exit(1)
+
+    # Create orchestrator and execute query
+    orchestrator = QueryOrchestrator(index)
+
+    # Convert query list to the format expected by orchestrator
+    query = args.query if len(args.query) > 1 else args.query[0]
+
+    result = orchestrator.execute_query(
+        query=query,
+        scope=args.scope,
+        filter_type=getattr(args, "filter_type", "all"),
+        match_source=getattr(args, "match_source", "all"),
+        max_results=args.max_results,
+        path_pattern=args.path_pattern,
+        include_tests=not args.no_tests,
+        show_snippets=args.snippets,
+    )
+
+    if args.format == "json":
+        # Parse the result text and convert to JSON
+        # For now, just print the text result since orchestrator returns formatted text
+        print(result)
+    else:
+        print(result)
 
 
 def handle_find_dead_code(args):
