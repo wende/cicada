@@ -313,9 +313,7 @@ class ModuleFormatter:
             last_component = module_name.split(".")[-1] if "." in module_name else module_name
             if last_component and last_component.strip():
                 lines.append(f"  • Wildcard search: search_module('*{last_component}*')")
-                lines.append(
-                    f"  • Semantic search: search_by_features(['{last_component.lower()}'])"
-                )
+                lines.append(f"  • Semantic search: query(['{last_component.lower()}'])")
 
         lines.extend(
             [
@@ -679,17 +677,17 @@ class ModuleFormatter:
   • Search without arity: `{func_only}` (if you used /{'{arity}'})
   • Search without module: `{func_only}` (searches all modules)
   • Wildcard search: `*{func_only}*` or `{func_only}*`
-  • Semantic search: search_by_features(['{func_only.lower()}'])
+  • Semantic search: query(['{func_only.lower()}'])
   • Check spelling (function names are case-sensitive)
 
-Tip: If you're exploring code, try search_by_features first to discover functions by what they do.
+Tip: If you're exploring code, try query first to discover functions by what they do.
 
 ## Was this function recently removed?
 
 If this function was deleted:
   • Check recent PRs: get_file_pr_history("<file_path>")
   • Search git history for the function name
-  • Find what replaced it: search_by_features(['<concept>'])
+  • Find what replaced it: query(['<concept>'])
 """
             )
 

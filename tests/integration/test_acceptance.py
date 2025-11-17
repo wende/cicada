@@ -17,7 +17,6 @@ from cicada.mcp.server import CicadaServer
 # Import runner functions - these get coverage when tests run
 from tests.acceptance.runner import (
     get_file_history,
-    search_by_features,
     search_function,
     search_module,
 )
@@ -356,84 +355,3 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
     assert text.strip()
     # Should have function documentation
     assert "add_numbers" in text
-
-
-# Keyword Search Tests (search_by_features.sh)
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_basic(server):
-    """Test basic keyword search functionality."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    assert "add" in text.lower()
-    assert " | " in text  # Score is shown in compact format: "name | score"
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_multiple_keywords(server):
-    """Test keyword search with multiple keywords."""
-    result = await server.analysis_handler.search_by_keywords(["add", "number"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should find results matching these keywords
-    assert len(text) > 0
-    # Should find either add_numbers or add_integers (both match the keywords)
-    assert "add_numbers" in text or "add_integers" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_with_bm25_scoring(server):
-    """Test that BM25 scoring is applied in keyword search results."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Check for BM25 score in output (compact format: "name | score")
-    assert " | " in text
-    # Should have numeric scores in the output
-    import re
-
-    assert re.search(r"\d+\.\d+", text)  # Match decimal numbers like "3.00"
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_identifier_boost(server):
-    """Test that identifier names are prioritized in keyword search."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should find functions with "add" in their name
-    # Functions like "add_numbers" should rank high
-    assert "add" in text.lower()
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_no_results(server):
-    """Test keyword search with keywords that have no matches."""
-    result = await server.analysis_handler.search_by_keywords(["xyzabc123nonexistent"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should show empty results or no results message
-    assert text.strip() or "No results found" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_json_format(server):
-    """Test keyword search with JSON output format."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    # Keyword search only supports markdown format
-    # But verify it returns proper results
-    assert len(result) > 0
-    text = result[0].text
-    assert text.strip()
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_matched_keywords_display(server):
-    """Test that matched keywords are displayed in results."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should show which keywords matched (new format uses "Matched keywords:")
-    assert "Matched keywords:" in text

@@ -2,7 +2,7 @@
 Tests for new filtering features added in Phase 2.
 
 Tests the following new features:
-1. Score threshold filter for search_by_features
+1. Score threshold filter for query tool
 2. Usage type filter for search_module_usage
 3. Relationship shortcuts in search_function
 4. Granular module dependencies
@@ -19,7 +19,7 @@ from cicada.mcp.filter_utils import (
 
 
 class TestScoreFiltering:
-    """Test score threshold filtering for search_by_features."""
+    """Test score threshold filtering for query tool."""
 
     def test_filter_by_score_threshold_basic(self):
         """Test basic score threshold filtering."""

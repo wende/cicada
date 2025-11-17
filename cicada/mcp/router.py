@@ -39,7 +39,7 @@ class ToolRouter:
             git_handler: Handler for git history tools
             pr_handler: Handler for PR history tools
             dependency_handler: Handler for dependency analysis tools
-            analysis_handler: Handler for analysis tools (keywords, dead code)
+            analysis_handler: Handler for analysis tools (query, dead code)
         """
         self.module_handler = module_handler
         self.function_handler = function_handler
@@ -260,38 +260,6 @@ class ToolRouter:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self.pr_handler.get_file_pr_history(file_path)
-
-        elif name == "search_by_features" or name == "search_by_keywords":
-            # Support both names for backward compatibility
-            # search_by_keywords is deprecated but still functional
-            keywords = arguments.get("keywords")
-            filter_type = arguments.get("filter_type", "all")
-            min_score = arguments.get("min_score", 0.0)
-            match_source = arguments.get("match_source", "all")
-
-            if not keywords:
-                error_msg = "'keywords' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not isinstance(keywords, list):
-                error_msg = "'keywords' must be a list of strings"
-                return [TextContent(type="text", text=error_msg)]
-
-            if filter_type not in ("all", "modules", "functions"):
-                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not isinstance(min_score, (int, float)) or min_score < 0.0 or min_score > 1.0:
-                error_msg = "'min_score' must be a number between 0.0 and 1.0"
-                return [TextContent(type="text", text=error_msg)]
-
-            if match_source not in ("all", "docs", "strings"):
-                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.analysis_handler.search_by_keywords(
-                keywords, filter_type, min_score, match_source
-            )
 
         elif name == "query":
             query = arguments.get("query")
