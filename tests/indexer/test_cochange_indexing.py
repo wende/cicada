@@ -6,6 +6,7 @@ from pathlib import Path
 from cicada.indexer import ElixirIndexer
 
 
+@pytest.mark.xdist_group(name="cochange_tests")
 class TestCoChangeIndexing:
     """Test suite for co-change data in index."""
 

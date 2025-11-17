@@ -627,4 +627,3 @@ class TestKeywordSearcher:
         string_results = searcher.search(["select"], top_n=10)
         assert len(doc_results) > 0
         assert len(string_results) > 0
-

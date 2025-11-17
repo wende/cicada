@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.xdist_group(name="cochange_tests")
 class TestCoChangeE2E:
     """End-to-end tests for the complete co-change workflow."""
 

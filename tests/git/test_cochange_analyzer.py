@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
 
 
+@pytest.mark.xdist_group(name="cochange_tests")
 class TestCoChangeAnalyzer:
     """Test suite for CoChangeAnalyzer."""
 
