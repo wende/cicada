@@ -87,6 +87,7 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
             os.environ["CICADA_CONFIG_DIR"] = original_env
 
 
+@pytest.mark.xdist_group(name="chdir_tests")
 def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
     """Test that relative paths are converted to absolute paths and CICADA_CONFIG_DIR is set."""
     # Create a fake Elixir project
@@ -131,6 +132,7 @@ def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
         os.chdir(original_cwd)
 
 
+@pytest.mark.xdist_group(name="chdir_tests")
 def test_cicada_server_dot_argument(monkeypatch, tmp_path):
     """Test that '.' as argument sets CICADA_CONFIG_DIR based on current directory."""
     # Create a fake Elixir project in tmp_path
@@ -229,6 +231,7 @@ def test_workspace_folder_paths_with_multiple_paths(monkeypatch, tmp_path):
                 mcp_server._auto_setup_if_needed()
 
 
+@pytest.mark.xdist_group(name="chdir_tests")
 def test_positional_arg_auto_setup_from_different_directory(monkeypatch, tmp_path):
     """Test that positional arg works for auto-setup when called from different directory."""
     # Create a fake Elixir project in one location
