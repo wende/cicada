@@ -25,6 +25,57 @@ from cicada.utils import (
 EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode"]
 
 
+def _setup_gitattributes(repo_path: Path) -> None:
+    """
+    Create or update .gitattributes and git config for Elixir function tracking.
+
+    This enables git log -L :funcname: syntax to work with Elixir files.
+    """
+    import subprocess
+
+    # Create or update .gitattributes
+    gitattributes_path = repo_path / ".gitattributes"
+    gitattributes_lines = ["*.ex diff=elixir", "*.exs diff=elixir"]
+    created_or_updated = False
+
+    if gitattributes_path.exists():
+        existing_content = gitattributes_path.read_text()
+        # Check if already configured
+        if "diff=elixir" not in existing_content:
+            # Append configuration
+            with open(gitattributes_path, "a") as f:
+                f.write("\n# Cicada: Enable git function tracking for Elixir\n")
+                for line in gitattributes_lines:
+                    f.write(f"{line}\n")
+            print("✓ Updated .gitattributes for git function tracking")
+            created_or_updated = True
+    else:
+        # Create new file
+        with open(gitattributes_path, "w") as f:
+            f.write("# Cicada: Enable git function tracking for Elixir\n")
+            for line in gitattributes_lines:
+                f.write(f"{line}\n")
+        print("✓ Created .gitattributes for git function tracking")
+        created_or_updated = True
+
+    # Configure git diff.elixir.xfuncname pattern in local repo config
+    # This pattern matches Elixir function definitions: def, defp, defmacro, etc.
+    xfuncname_pattern = "^[[:space:]]*(def|defp|defmacro|defmacrop|test)[[:space:]]"
+
+    try:
+        subprocess.run(
+            ["git", "config", "diff.elixir.xfuncname", xfuncname_pattern],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        if created_or_updated:
+            print("✓ Configured git for Elixir function tracking")
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        # Silently ignore if git config fails (e.g., not a git repo, directory doesn't exist)
+        pass
+
+
 def _load_existing_config(config_path: Path) -> dict:
     """
     Load existing configuration file with error handling.
@@ -498,6 +549,10 @@ def setup(
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
     if editor == "claude":
         update_claude_md(repo_path)
+
+    # Create or update .gitattributes for git function tracking
+    # This enables git log -L :funcname: syntax for Elixir files
+    _setup_gitattributes(repo_path)
 
     # Create MCP config for the editor
     config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)

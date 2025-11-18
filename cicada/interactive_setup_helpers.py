@@ -56,14 +56,14 @@ CICADA_DOCS = """
   **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
+  - PRIMARY TOOL: Smart code discovery - search by keywords OR patterns, get suggestions for next steps. `mcp__cicada__query`
+  - PREFERRED for Elixir: View a module's complete API after discovering it with query. `mcp__cicada__search_module`
+  - PREFERRED for Elixir: Find function definitions and call sites after discovering with query. `mcp__cicada__search_function`
   - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
   - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
   - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
   - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
   - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
-  - Semantic search for code by concept/topic when exact names are unknown. `mcp__cicada__search_by_keywords`
   - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
 
   ### DO NOT use Grep for:

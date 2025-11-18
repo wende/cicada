@@ -11,9 +11,22 @@ import sys
 from pathlib import Path
 
 from cicada.mcp.server import CicadaServer
+from cicada.utils.storage import get_config_path
 
-# Default config path
-DEFAULT_CONFIG = "tests/fixtures/.cicada/config.yaml"
+
+# Get config path from centralized storage
+def get_default_config():
+    """Get default config path from test fixtures."""
+    if Path("tests/fixtures/test_project").exists():
+        fixture_dir = Path("tests/fixtures/test_project").resolve()
+    elif Path("tests/fixtures/elixir_project").exists():
+        fixture_dir = Path("tests/fixtures/elixir_project").resolve()
+    else:
+        fixture_dir = Path.cwd()
+    return str(get_config_path(fixture_dir))
+
+
+DEFAULT_CONFIG = get_default_config()
 
 
 async def search_module(module_name: str, output_format: str = "markdown") -> str:
@@ -40,13 +53,6 @@ async def search_function(
         usage_type=usage_type,
     )
     return result[0].text if result else "No results found"
-
-
-async def search_by_features(*keywords: str) -> str:
-    """Search by keywords and return formatted output."""
-    server = CicadaServer(config_path=DEFAULT_CONFIG)
-    result = await server.analysis_handler.search_by_keywords(list(keywords))
-    return result[0].text if result else f"No results found for keywords: {', '.join(keywords)}"
 
 
 async def get_file_history(
@@ -80,7 +86,6 @@ def main():
             "  search_function <function_name> [--examples] [--tests-only] [--limit N]",
             file=sys.stderr,
         )
-        print("  search_keywords <keyword1> [keyword2] ...", file=sys.stderr)
         print(
             "  file_history <file_path> [--function NAME] [--evolution] [--limit N]",
             file=sys.stderr,
@@ -124,14 +129,6 @@ def main():
                     max_examples=max_examples,
                 )
             )
-            print(result)
-
-        elif command == "search_keywords":
-            if len(sys.argv) < 3:
-                print("Error: at least one keyword required", file=sys.stderr)
-                sys.exit(1)
-            keywords = sys.argv[2:]
-            result = asyncio.run(search_by_features(*keywords))
             print(result)
 
         elif command == "file_history":

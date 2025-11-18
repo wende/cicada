@@ -372,7 +372,7 @@ class TestToolIntegration:
         assert "find_pr_for_line" in tool_names
 
         # Verify analysis tools
-        assert "search_by_features" in tool_names
+        assert "query" in tool_names
         assert "find_dead_code" in tool_names
         assert "get_file_pr_history" in tool_names
 
@@ -536,92 +536,6 @@ class TestErrorHandling:
         assert len(result) == 1
         text = result[0].text
         assert "could not find" in text.lower() or "not found" in text.lower()
-
-
-class TestKeywordSearch:
-    """Test keyword search functionality."""
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_without_index(self, e2e_server):
-        """Test keyword search when keywords are not indexed."""
-        result = await e2e_server.call_tool(
-            "search_by_features", {"keywords": ["authentication", "user"]}
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        # Should return meaningful response about missing keywords or search results
-        assert text, "Response should not be empty"
-        assert (
-            len(text) > 20
-        ), "Response too short to be meaningful (should explain missing keywords or provide results)"
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_invalid_input(self, e2e_server):
-        """Test keyword search with invalid input."""
-        result = await e2e_server.call_tool("search_by_features", {"keywords": "not_a_list"})
-
-        assert len(result) == 1
-        text = result[0].text
-        assert "must be a list" in text.lower()
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_empty_list(self, e2e_server):
-        """Test keyword search with empty keywords list."""
-        result = await e2e_server.call_tool("search_by_features", {"keywords": []})
-
-        assert len(result) == 1
-        text = result[0].text
-        assert "required" in text.lower()
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_invalid_filter_type(self, e2e_server):
-        """Test keyword search with invalid filter_type parameter."""
-        result = await e2e_server.call_tool(
-            "search_by_features",
-            {"keywords": ["test"], "filter_type": "invalid_type"},
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        assert "filter_type" in text.lower()
-        assert "all" in text.lower()
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_filter_modules(self, e2e_server):
-        """Test keyword search with modules-only filter."""
-        result = await e2e_server.call_tool(
-            "search_by_features",
-            {"keywords": ["authentication", "user"], "filter_type": "modules"},
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        assert text, "Response should not be empty"
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_filter_functions(self, e2e_server):
-        """Test keyword search with functions-only filter."""
-        result = await e2e_server.call_tool(
-            "search_by_features",
-            {"keywords": ["authentication", "user"], "filter_type": "functions"},
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        assert text, "Response should not be empty"
-
-    @pytest.mark.asyncio
-    async def test_search_by_features_filter_all(self, e2e_server):
-        """Test keyword search with all-types filter (default)."""
-        result = await e2e_server.call_tool(
-            "search_by_features",
-            {"keywords": ["authentication", "user"], "filter_type": "all"},
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        assert text, "Response should not be empty"
 
 
 class TestDeadCodeAnalysis:

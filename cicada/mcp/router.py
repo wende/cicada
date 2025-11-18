@@ -4,7 +4,7 @@ Tool Router for Cicada MCP Server.
 Routes tool calls to appropriate handlers with argument validation.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from mcp.types import TextContent
 
@@ -16,6 +16,110 @@ from cicada.mcp.handlers import (
     ModuleSearchHandler,
     PRHistoryHandler,
 )
+
+# Security limits for jq queries to prevent resource exhaustion
+MAX_JQ_QUERY_LENGTH = 10_000  # Maximum characters in a jq query
+MAX_JQ_NESTING_DEPTH = 50  # Maximum bracket/parenthesis nesting imbalance
+
+
+def _validate_jq_query(query: str | None) -> str | None:
+    """Validate jq query. Returns error message or None if valid."""
+    if not query:
+        return "'query' is required"
+    if not isinstance(query, str):
+        return "'query' must be a string"
+    if not query.strip():
+        return "'query' cannot be empty"
+    if len(query) > MAX_JQ_QUERY_LENGTH:
+        return (
+            f"'query' exceeds maximum length of {MAX_JQ_QUERY_LENGTH:,} characters.\n"
+            f"Current: {len(query):,}. Please simplify your query."
+        )
+
+    # Check for balanced brackets and excessive nesting, ignoring content in strings
+    max_depth, error = _check_bracket_nesting(query)
+    if error:
+        return error
+    if max_depth > MAX_JQ_NESTING_DEPTH:
+        return (
+            f"Query nesting depth ({max_depth}) exceeds maximum ({MAX_JQ_NESTING_DEPTH}). "
+            f"Please simplify your query."
+        )
+    return None
+
+
+def _check_bracket_nesting(query: str) -> tuple[int, str | None]:
+    """
+    Check bracket/paren nesting depth and balance.
+
+    Properly handles strings by ignoring brackets/parens inside quoted strings.
+    Detects unbalanced brackets/parens and excessive nesting depth.
+
+    Args:
+        query: The jq query string to validate
+
+    Returns:
+        Tuple of (max_depth, error_message). error_message is None if valid.
+    """
+    depth = 0
+    max_depth = 0
+    stack: list[str] = []
+    in_string = False
+    escape_next = False
+
+    bracket_pairs = {"[": "]", "(": ")", "{": "}"}
+    closing_brackets = {"]", ")", "}"}
+
+    for i, char in enumerate(query):
+        # Handle string escaping
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == "\\":
+            escape_next = True
+            continue
+
+        # Toggle string state on unescaped quotes
+        if char == '"':
+            in_string = not in_string
+            continue
+
+        # Skip bracket/paren processing inside strings
+        if in_string:
+            continue
+
+        # Track opening brackets/parens
+        if char in bracket_pairs:
+            stack.append(char)
+            depth += 1
+            max_depth = max(max_depth, depth)
+
+        # Track closing brackets/parens
+        elif char in closing_brackets:
+            if not stack:
+                return (max_depth, f"Unbalanced brackets: unexpected '{char}' at position {i}")
+
+            opening = stack.pop()
+            expected_closing = bracket_pairs[opening]
+            if char != expected_closing:
+                return (
+                    max_depth,
+                    f"Mismatched brackets: '{opening}' at position {i - depth} "
+                    f"closed with '{char}' instead of '{expected_closing}'",
+                )
+            depth -= 1
+
+    # Check if we ended inside a string (check this first - it's the root cause)
+    if in_string:
+        return (max_depth, "Unterminated string in query")
+
+    # Check for unclosed brackets
+    if stack:
+        unclosed = ", ".join(f"'{b}'" for b in stack)
+        return (max_depth, f"Unclosed brackets: {unclosed}")
+
+    return (max_depth, None)
 
 
 class ToolRouter:
@@ -39,7 +143,7 @@ class ToolRouter:
             git_handler: Handler for git history tools
             pr_handler: Handler for PR history tools
             dependency_handler: Handler for dependency analysis tools
-            analysis_handler: Handler for analysis tools (keywords, dead code)
+            analysis_handler: Handler for analysis tools (query, dead code)
         """
         self.module_handler = module_handler
         self.function_handler = function_handler
@@ -261,28 +365,82 @@ class ToolRouter:
 
             return await self.pr_handler.get_file_pr_history(file_path)
 
-        elif name == "search_by_features" or name == "search_by_keywords":
-            # Support both names for backward compatibility
-            # search_by_keywords is deprecated but still functional
-            keywords = arguments.get("keywords")
+        elif name == "query":
+            query = arguments.get("query")
+            scope = arguments.get("scope", "all")
             filter_type = arguments.get("filter_type", "all")
-            min_score = arguments.get("min_score", 0.0)
             match_source = arguments.get("match_source", "all")
+            max_results = arguments.get("max_results", 10)
+            path_pattern = arguments.get("path_pattern")
+            include_tests = arguments.get("include_tests", True)
+            show_snippets = arguments.get("show_snippets", False)
 
-            if not keywords:
-                error_msg = "'keywords' is required"
+            # Validate required argument
+            if not query:
+                error_msg = "'query' is required"
                 return [TextContent(type="text", text=error_msg)]
 
-            if not isinstance(keywords, list):
-                error_msg = "'keywords' must be a list of strings"
+            # Validate query type
+            if not isinstance(query, (str, list)):
+                error_msg = "'query' must be a string or list of strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            if isinstance(query, list) and not all(isinstance(q, str) for q in query):
+                error_msg = "'query' list must contain only strings"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate enum parameters
+            if scope not in ("all", "recent", "public", "private"):
+                error_msg = "'scope' must be one of: 'all', 'recent', 'public', 'private'"
                 return [TextContent(type="text", text=error_msg)]
 
             if filter_type not in ("all", "modules", "functions"):
                 error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
                 return [TextContent(type="text", text=error_msg)]
 
-            if not isinstance(min_score, (int, float)) or min_score < 0.0 or min_score > 1.0:
-                error_msg = "'min_score' must be a number between 0.0 and 1.0"
+            if match_source not in ("all", "docs", "strings"):
+                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate max_results
+            if not isinstance(max_results, int) or max_results < 1:
+                error_msg = "'max_results' must be a positive integer"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate include_tests
+            if not isinstance(include_tests, bool):
+                error_msg = "'include_tests' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate show_snippets
+            if not isinstance(show_snippets, bool):
+                error_msg = "'show_snippets' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            return await self.analysis_handler.query(
+                query,
+                scope,
+                filter_type,
+                match_source,
+                max_results,
+                path_pattern,
+                include_tests,
+                show_snippets,
+            )
+
+        elif name in ("search_by_features", "search_by_keywords"):
+            keywords = arguments.get("keywords")
+            filter_type = arguments.get("filter_type", "all")
+            min_score = arguments.get("min_score", 0.0)
+            match_source = arguments.get("match_source", "all")
+            cochange_boost = arguments.get("cochange_boost", 0.5)
+
+            if not keywords:
+                error_msg = "'keywords' is required"
+                return [TextContent(type="text", text=error_msg)]
+
+            if filter_type not in ("all", "modules", "functions"):
+                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
                 return [TextContent(type="text", text=error_msg)]
 
             if match_source not in ("all", "docs", "strings"):
@@ -290,7 +448,7 @@ class ToolRouter:
                 return [TextContent(type="text", text=error_msg)]
 
             return await self.analysis_handler.search_by_keywords(
-                keywords, filter_type, min_score, match_source
+                keywords, filter_type, min_score, match_source, cochange_boost
             )
 
         elif name == "suggest_keywords":
@@ -389,6 +547,26 @@ class ToolRouter:
             output_format = arguments.get("format", "markdown")
 
             return await self.analysis_handler.find_dead_code(min_confidence, output_format)
+
+        elif name == "query_jq":
+            query = arguments.get("query")
+            output_format = arguments.get("format", "json")
+            sample = arguments.get("sample", False)
+
+            if error := _validate_jq_query(query):
+                return [TextContent(type="text", text=error)]
+
+            if output_format not in ("json", "compact", "pretty"):
+                return [
+                    TextContent(
+                        type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
+                    )
+                ]
+
+            if not isinstance(sample, bool):
+                return [TextContent(type="text", text="'sample' must be a boolean")]
+
+            return await self.analysis_handler.query_jq(cast(str, query), output_format, sample)
 
         elif name == "get_module_dependencies":
             module_name = arguments.get("module_name")

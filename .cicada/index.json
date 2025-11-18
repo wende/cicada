@@ -1,0 +1,46 @@
+{
+  "modules": {
+    "TestModule": {
+      "file": "test.ex",
+      "line": 2,
+      "moduledoc": null,
+      "functions": [
+        {
+          "name": "test_func",
+          "arity": 1,
+          "args": [
+            "x"
+          ],
+          "guards": [],
+          "full_name": "test_func/1",
+          "line": 3,
+          "signature": "def test_func",
+          "type": "def",
+          "impl": false,
+          "dependencies": []
+        }
+      ],
+      "total_functions": 1,
+      "public_functions": 1,
+      "private_functions": 0,
+      "aliases": {},
+      "imports": [],
+      "requires": [],
+      "uses": [],
+      "behaviours": [],
+      "value_mentions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      }
+    }
+  },
+  "metadata": {
+    "indexed_at": "2025-11-15T12:49:23.066359",
+    "total_modules": 1,
+    "total_functions": 1,
+    "repo_path": "/private/var/folders/1l/t5zft3hj5zj444636zdwrf2r0000gn/T/pytest-of-wende/pytest-215/popen-gw1/test_main_with_full_flag0",
+    "cicada_version": "0.3.2 (v0.3.2/da65453)"
+  }
+}

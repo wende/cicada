@@ -107,7 +107,7 @@ pre-commit: install
 	@echo "Running pre-commit checks..."
 	@echo "Fetching latest tags..."
 	@git fetch --tags --quiet 2>/dev/null || true
-	@echo "Updating version hash..."
+	@echo "Updating version hash (local only, not committed)..."
 	@set -e; \
 	GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	GIT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown"); \
@@ -116,8 +116,7 @@ pre-commit: install
 		echo ''; \
 		echo "GIT_TAG = \"$$GIT_TAG\""; \
 		echo "GIT_HASH = \"$$GIT_HASH\""; \
-	} > cicada/_version_hash.py; \
-	git add cicada/_version_hash.py
+	} > cicada/_version_hash.py
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
@@ -161,14 +160,12 @@ reset: clean
 	@echo "Performing full cicada reset..."
 	@echo "1. Clearing uv cache..."
 	@uv cache clean 2>&1 || true
-	@echo "2. Removing .cicada directories..."
-	@rm -rf .cicada
-	@rm -rf tests/fixtures/.cicada
-	@rm -rf tests/fixtures/test_project/.cicada
-	@rm -rf tests/fixtures/elixir_project/.cicada
-	@echo "4. Removing .mcp.json..."
+	@echo "2. Removing .mcp.json..."
 	@rm -f .mcp.json
 	@echo "✓ Full reset complete!"
+	@echo ""
+	@echo "Note: Cicada now uses centralized storage at ~/.cicada/projects/"
+	@echo "To clean all cicada data: cicada clean --all"
 	@echo ""
 	@echo "To reinstall cicada:"
 	@echo "  uv tool install --editable . --force"
