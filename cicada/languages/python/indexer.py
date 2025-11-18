@@ -93,7 +93,7 @@ class PythonSCIPIndexer(BaseIndexer):
             output_path=str(output_path),
             extract_keywords=True,
             extract_string_keywords=False,
-            compute_timestamps=False,  # Disabled by default, enable via CLI
+            compute_timestamps=True,  # Enabled by default for timestamp tracking
             extract_cochange=False,
             force_full=force,
         )
