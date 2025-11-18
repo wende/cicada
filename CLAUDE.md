@@ -495,6 +495,148 @@ Doc: "Validates user credentials against stored hash."
    - New developers can quickly find related functionality
    - Co-change patterns reveal architectural relationships
 
+## Unified Git History Tool
+
+Cicada provides a single unified `git_history` MCP tool that consolidates all git history-related functionality. This tool replaces the previous separate tools (`get_blame`, `get_commit_history`, `find_pr_for_line`, `get_file_pr_history`) with smart routing based on the parameters provided.
+
+### How It Works
+
+The `git_history` tool automatically routes to the appropriate analysis method based on the parameters:
+
+1. **Single Line Analysis** (`start_line` only)
+   - Uses `git blame` to find the author of a specific line
+   - Automatically looks up the associated Pull Request (if PR index available)
+   - Perfect for understanding "who wrote this line and why?"
+
+2. **Line Range Analysis** (`start_line` + `end_line`)
+   - Groups consecutive lines by authorship
+   - Optionally enriches with PR information from the index
+   - Shows code snippets with author and commit details
+
+3. **Function Tracking** (`function_name`)
+   - Uses `git log -L :funcname:file` for precise function tracking
+   - Tracks function changes even as it moves within the file
+   - Optionally shows evolution metadata (creation date, modification frequency)
+
+4. **File-Level History** (no line/function params)
+   - Smart fallback: tries PR index first, then falls back to git commits
+   - Shows complete history with descriptions and review comments
+   - Ideal for understanding overall file evolution
+
+### Parameters
+
+```python
+{
+  "file_path": str (required),        # Path to file (relative to repo root)
+  "start_line": int (optional),       # Line number or range start
+  "end_line": int (optional),         # Range end
+  "function_name": str (optional),    # Function name for tracking
+  "show_evolution": bool,             # Include creation/modification metadata
+  "max_results": int (default: 10),   # Maximum results to return
+  "recent": bool | None,              # Time filter (see below)
+  "author": str (optional)            # Filter by author name
+}
+```
+
+### Time Filtering with `recent`
+
+The `recent` parameter provides simple time filtering:
+
+- `recent=true` → Last 14 days only
+- `recent=false` → Older than 14 days only
+- `recent=None` or omitted → All time (no filter)
+
+This three-state parameter replaces the more complex `since_date` and `until_date` parameters from the old tools.
+
+### Usage Examples
+
+#### Single Line Authorship + PR
+```python
+git_history(file_path="lib/auth.ex", start_line=42)
+```
+Returns: Author, commit, date, and associated PR for line 42.
+
+#### Line Range Blame
+```python
+git_history(file_path="lib/auth.ex", start_line=40, end_line=60)
+```
+Returns: Grouped authorship for lines 40-60 with code snippets.
+
+#### Function Evolution
+```python
+git_history(
+    file_path="lib/auth.ex",
+    function_name="validate_user",
+    show_evolution=true,
+    max_results=5
+)
+```
+Returns: Function history with creation date, total modifications, and frequency.
+
+#### File PR History
+```python
+git_history(file_path="lib/auth.ex")
+```
+Returns: All PRs that modified the file (if PR index available) or commit history.
+
+#### Recent Changes by Author
+```python
+git_history(
+    file_path="lib/auth.ex",
+    recent=true,
+    author="john"
+)
+```
+Returns: Changes by "john" in the last 14 days.
+
+### MCP Tool Usage
+
+The `git_history` MCP tool is available through the Cicada MCP server:
+
+```json
+{
+  "name": "git_history",
+  "arguments": {
+    "file_path": "lib/my_app/auth.ex",
+    "start_line": 42,
+    "end_line": 60,
+    "recent": true,
+    "max_results": 10
+  }
+}
+```
+
+### Smart PR Fallback
+
+The tool automatically uses PR index data when available for enriched results:
+
+1. **PR Index Available:** Shows PR numbers, titles, authors, and review comments
+2. **No PR Index:** Falls back to git commands for blame and commit history
+3. **GitHub API Fallback:** Can optionally query GitHub API if PR index is stale
+
+This smart fallback ensures the tool always works, even without a PR index, while providing richer data when the index is available.
+
+### Migration from Old Tools
+
+The unified tool replaces four separate tools with cleaner, more consistent interfaces:
+
+| Old Tool | New Equivalent |
+|----------|----------------|
+| `get_blame(file, start, end)` | `git_history(file, start_line=start, end_line=end)` |
+| `get_commit_history(file, func)` | `git_history(file, function_name=func)` |
+| `find_pr_for_line(file, line)` | `git_history(file, start_line=line)` |
+| `get_file_pr_history(file)` | `git_history(file)` |
+
+The old tools remain available but are marked as deprecated in their descriptions. They will be removed in a future release.
+
+### Implementation
+
+- **Backend:** `cicada/git/history_analyzer.py` - `HistoryAnalyzer` class
+- **Handler:** `cicada/mcp/handlers/git_handlers.py` - `GitHistoryHandler.git_history()`
+- **Tool Definition:** `cicada/mcp/tools.py` - `git_history` tool schema
+- **Router:** `cicada/mcp/router.py` - Routes to appropriate handler
+- **Tests:** `tests/mcp/test_git_history_unified.py` - Comprehensive test suite
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:

@@ -306,80 +306,30 @@ class ToolRouter:
                 module_name, output_format, usage_type
             )
 
-        elif name == "find_pr_for_line":
+        elif name == "git_history":
             file_path = arguments.get("file_path")
-            line_number = arguments.get("line_number")
-            output_format = arguments.get("format", "text")
-
-            if not file_path:
-                error_msg = "'file_path' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not line_number:
-                error_msg = "'line_number' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.pr_handler.find_pr_for_line(file_path, line_number, output_format)
-
-        elif name == "get_commit_history":
-            file_path = arguments.get("file_path")
+            start_line = arguments.get("start_line")
+            end_line = arguments.get("end_line")
             function_name = arguments.get("function_name")
-            start_line = arguments.get("start_line")
-            end_line = arguments.get("end_line")
-            precise_tracking = arguments.get("precise_tracking", False)
             show_evolution = arguments.get("show_evolution", False)
-            max_commits = arguments.get("max_commits", 10)
-            since_date = arguments.get("since_date")
-            until_date = arguments.get("until_date")
+            max_results = arguments.get("max_results", 10)
+            recent = arguments.get("recent")
             author = arguments.get("author")
-            min_changes = arguments.get("min_changes", 0)
 
             if not file_path:
                 error_msg = "'file_path' is required"
                 return [TextContent(type="text", text=error_msg)]
 
-            # Validate line range parameters
-            if (precise_tracking or show_evolution) and (not start_line or not end_line):
-                error_msg = "Both 'start_line' and 'end_line' are required for precise_tracking or show_evolution"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.git_handler.get_file_history(
-                file_path,
-                function_name,
-                start_line,
-                end_line,
-                precise_tracking,
-                show_evolution,
-                max_commits,
-                since_date,
-                until_date,
-                author,
-                min_changes,
+            return await self.git_handler.git_history(
+                file_path=file_path,
+                start_line=start_line,
+                end_line=end_line,
+                function_name=function_name,
+                show_evolution=show_evolution,
+                max_results=max_results,
+                recent=recent,
+                author=author,
             )
-
-        elif name == "get_blame":
-            file_path = arguments.get("file_path")
-            start_line = arguments.get("start_line")
-            end_line = arguments.get("end_line")
-
-            if not file_path:
-                error_msg = "'file_path' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not start_line or not end_line:
-                error_msg = "Both 'start_line' and 'end_line' are required"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.git_handler.get_function_blame(file_path, start_line, end_line)
-
-        elif name == "get_file_pr_history":
-            file_path = arguments.get("file_path")
-
-            if not file_path:
-                error_msg = "'file_path' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.pr_handler.get_file_pr_history(file_path)
 
         elif name == "query":
             query = arguments.get("query")
@@ -442,29 +392,6 @@ class ToolRouter:
                 path_pattern,
                 include_tests,
                 show_snippets,
-            )
-
-        elif name in ("search_by_features", "search_by_keywords"):
-            keywords = arguments.get("keywords")
-            filter_type = arguments.get("filter_type", "all")
-            min_score = arguments.get("min_score", 0.0)
-            match_source = arguments.get("match_source", "all")
-            cochange_boost = arguments.get("cochange_boost", 0.5)
-
-            if not keywords:
-                error_msg = "'keywords' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            if filter_type not in ("all", "modules", "functions"):
-                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
-                return [TextContent(type="text", text=error_msg)]
-
-            if match_source not in ("all", "docs", "strings"):
-                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.analysis_handler.search_by_keywords(
-                keywords, filter_type, min_score, match_source, cochange_boost
             )
 
         elif name == "find_dead_code":

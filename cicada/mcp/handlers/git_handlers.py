@@ -118,7 +118,6 @@ class GitHistoryHandler:
         function_name: str | None = None,
         start_line: int | None = None,
         end_line: int | None = None,
-        _precise_tracking: bool = False,
         show_evolution: bool = False,
         max_commits: int = 10,
         since_date: str | None = None,
@@ -134,7 +133,6 @@ class GitHistoryHandler:
             function_name: Optional function name for function tracking (git log -L :funcname:file)
             start_line: Optional starting line for fallback line-based tracking
             end_line: Optional ending line for fallback line-based tracking
-            precise_tracking: Deprecated (function tracking is always used when function_name provided)
             show_evolution: Include function evolution metadata
             max_commits: Maximum number of commits to return
             since_date: Only include commits after this date (ISO format or relative like '7d', '2w')
@@ -368,4 +366,77 @@ class GitHistoryHandler:
 
         except Exception as e:
             error_msg = f"Error getting blame information: {str(e)}"
+            return [TextContent(type="text", text=error_msg)]
+
+    async def git_history(
+        self,
+        file_path: str,
+        start_line: int | None = None,
+        end_line: int | None = None,
+        function_name: str | None = None,
+        show_evolution: bool = False,
+        max_results: int = 10,
+        recent: bool | None = None,
+        author: str | None = None,
+    ) -> list[TextContent]:
+        """
+        Unified git history tool - consolidates get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.
+
+        Args:
+            file_path: Path to the file
+            start_line: Optional line number or range start
+            end_line: Optional range end
+            function_name: Optional function name for tracking
+            show_evolution: Include evolution metadata
+            max_results: Maximum results to return
+            recent: True (last 14 days), False (older), None (all time)
+            author: Filter by author name
+
+        Returns:
+            TextContent with formatted history
+        """
+        if not self.git_helper:
+            error_msg = "Git history is not available (repository may not be a git repo)"
+            return [TextContent(type="text", text=error_msg)]
+
+        try:
+            # Get repo path and PR index from config
+            from cicada.git import HistoryAnalyzer
+
+            repo_path = self.config.get("repository", {}).get("path", ".")
+
+            # Try to load PR index
+            pr_index = None
+            try:
+                from cicada.utils import load_index
+                from cicada.utils.storage import get_pr_index_path
+
+                pr_index_path = get_pr_index_path(repo_path)
+                if pr_index_path.exists():
+                    pr_index = load_index(pr_index_path, verbose=False, raise_on_error=False)
+            except Exception:
+                pass  # PR index not available
+
+            # Initialize HistoryAnalyzer
+            analyzer = HistoryAnalyzer(repo_path=repo_path, pr_index=pr_index, verbose=False)
+
+            # Perform analysis
+            result = analyzer.analyze(
+                file_path=file_path,
+                start_line=start_line,
+                end_line=end_line,
+                function_name=function_name,
+                show_evolution=show_evolution,
+                max_results=max_results,
+                recent=recent,
+                author=author,
+            )
+
+            # Format result
+            formatted = analyzer.format_result(result)
+
+            return [TextContent(type="text", text=formatted)]
+
+        except Exception as e:
+            error_msg = f"Error analyzing git history: {str(e)}"
             return [TextContent(type="text", text=error_msg)]
