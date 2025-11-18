@@ -870,6 +870,7 @@ def handle_index_main(args) -> None:
         str(repo_path),
         str(index_path),
         extract_keywords=True,
+        compute_timestamps=True,
         extract_cochange=extract_cochange,
         force_full=tier_changed,
     )
