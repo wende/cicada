@@ -470,6 +470,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
@@ -485,6 +486,7 @@ class TestHandleIndex:
 
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
+            mock_get_indexer.return_value = mock_indexer
 
             handle_index(args)
 
@@ -509,6 +511,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
@@ -524,6 +527,7 @@ class TestHandleIndex:
 
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
+            mock_get_indexer.return_value = mock_indexer
 
             handle_index(args)
 

@@ -1,7 +1,7 @@
 """Tests for co-change information in formatted search results."""
 
 import pytest
-from cicada.elixir.format.formatter import ModuleFormatter
+from cicada.format.formatter import ModuleFormatter
 
 
 class TestCoChangeFormatting:

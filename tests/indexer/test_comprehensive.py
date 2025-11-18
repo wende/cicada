@@ -375,6 +375,8 @@ end
             repo_path,
             output_path=".cicada/index.json",
             extract_keywords=False,
+            extract_string_keywords=False,
+            extract_cochange=False,
         ):
             # If extract_keywords is True, simulate import failure
             if extract_keywords:
@@ -382,7 +384,14 @@ end
                 print("Warning: Could not initialize keyword extractor: ImportError")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
-            return original_code(self, repo_path, output_path, extract_keywords)
+            return original_code(
+                self,
+                repo_path,
+                output_path,
+                extract_keywords,
+                extract_string_keywords,
+                extract_cochange,
+            )
 
         monkeypatch.setattr(cicada.indexer.ElixirIndexer, "_index_repository_full", mock_index_repo)
 

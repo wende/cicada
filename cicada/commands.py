@@ -869,14 +869,16 @@ def handle_index_main(args) -> None:
         sys.exit(2)
 
     # Perform indexing using standard interface
-    from cicada.indexer import ElixirIndexer
-
     indexer = LanguageRegistry.get_indexer(language)
 
     # For Elixir, use the specialized method to support extract_cochange
-    if language == "elixir" and isinstance(indexer, ElixirIndexer):
+    if language == "elixir":
+        from typing import cast
+
+        from cicada.indexer import ElixirIndexer
+
         extract_cochange = getattr(args, "extract_cochange", False)
-        indexer.incremental_index_repository(
+        cast(ElixirIndexer, indexer).incremental_index_repository(
             str(repo_path),
             str(index_path),
             extract_keywords=True,

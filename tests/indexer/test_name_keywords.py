@@ -29,7 +29,7 @@ end
 
         # Full index
         output_path = tmp_path / ".cicada" / "index.json"
-        indexer.index_repository(str(tmp_path), str(output_path), extract_keywords=True)
+        indexer.incremental_index_repository(str(tmp_path), str(output_path), extract_keywords=True)
 
         # Add new module WITHOUT @moduledoc
         new_file = tmp_path / "new.ex"
