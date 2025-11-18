@@ -12,16 +12,102 @@ def get_tool_definitions() -> list[Tool]:
     """Return all tool definitions for the Cicada MCP server."""
     return [
         Tool(
+            name="query",
+            description=(
+                "🔍 YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
+                "The 'Google for code' - this is your FIRST STOP for any code search task. "
+                "Intelligently searches by keywords OR patterns, combines results, "
+                "and suggests exactly which specialized tools to use next.\\n\\n"
+                "Smart Auto-Detection:\\n"
+                "• Keywords: ['authentication', 'login'] → semantic search\\n"
+                "• Patterns: 'MyApp.User.create*' → pattern matching\\n"
+                "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\\n\\n"
+                "Power Filters:\\n"
+                "• scope: 'all' (default) | 'recent' (last 14 days) | 'public' | 'private'\\n"
+                "• filter_type: 'all' | 'modules' | 'functions'\\n"
+                "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\\n"
+                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n"
+                "• include_tests: true (default) | false\\n\\n"
+                "Returns:\\n"
+                "• Broad overview with code snippets (shallow but comprehensive)\\n"
+                "• Smart suggestions for next steps with actual tool names to use\\n"
+                "• Match indicators: 📄 (docs), 💬 (strings), 🎯 (pattern)\\n\\n"
+                "AI USAGE TIPS:\\n"
+                "• **ALWAYS START HERE** - This replaces the need to choose between multiple tools\\n"
+                "• Don't ask users for module/function names - query will find them for you\\n"
+                "• Start broad: query('authentication') then follow the tool suggestions\\n"
+                "• Try patterns when you know structure: query('MyApp.*.create*')\\n"
+                "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\\n"
+                "• The results include smart suggestions - follow them to drill deeper\\n"
+                "• Only skip this tool if you already have exact module.function/arity identifiers\\n\\n"
+                "Example Workflow:\\n"
+                "1. query(['jwt', 'authentication']) → discovers relevant code + suggests next steps\\n"
+                "2. Follow suggestion → search_function('verify_token') → see detailed usage\\n"
+                "3. Follow suggestion → search_module('MyApp.Auth') → see complete API\\n\\n"
+                "When NOT to use:\\n"
+                "• You already have exact identifiers like 'MyApp.User.create_user/2'\\n"
+                "• Analyzing git history for known file paths (use history tools directly)\\n"
+                "• Targeted operations on specific, already-identified code"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ],
+                        "description": "Keywords (e.g., ['authentication', 'login']) OR patterns (e.g., 'MyApp.User.create*') OR mixed.",
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": ["all", "recent", "public", "private"],
+                        "description": "Filter scope: 'all' (default) = everything, 'recent' = changed in last 14 days, 'public' = public functions/modules only, 'private' = private functions only.",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Result type filter: 'all' (default) = modules + functions, 'modules' = only modules, 'functions' = only functions.",
+                    },
+                    "match_source": {
+                        "type": "string",
+                        "enum": ["all", "docs", "strings"],
+                        "description": "Where to search: 'all' (default) = docs + strings, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages).",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results to show (default: 10). Use smaller values (3-5) for quick overview, larger (20+) for comprehensive search.",
+                    },
+                    "path_pattern": {
+                        "type": "string",
+                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex').",
+                    },
+                    "include_tests": {
+                        "type": "boolean",
+                        "description": "Include test files in results (default: true). Set to false to exclude test files.",
+                    },
+                    "show_snippets": {
+                        "type": "boolean",
+                        "description": "Show code snippet previews with context lines (default: false). When enabled, displays actual code around each result.",
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
             name="search_module",
             description=(
-                "PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers.\n\n"
+                "🔧 DEEP-DIVE TOOL: View a module's complete API after discovering it with query.\n\n"
+                "Shows full module details: functions with arity, signatures, docs, typespecs, and line numbers. "
+                "Use this when query suggests drilling into a specific module.\n\n"
                 "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
                 "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
-                "Returns public functions in markdown format by default. Start here when exploring modules.\n\n"
+                "Returns public functions in markdown format by default.\n\n"
                 "AI USAGE TIPS:\n"
-                "• Use this when you know the exact module name (e.g., from search_by_features)\n"
-                "• Don't ask user for module names - use search_by_features first to find modules\n"
+                "• After query finds modules, use this to see the full API surface\n"
+                "• Query will suggest using this tool when detailed module info is needed\n"
+                "• Don't ask user for module names - use query first to discover them\n"
                 "• Returns: full API surface, function signatures, line numbers for navigation\n"
                 "• If module not found, error will suggest alternatives - try those suggestions!\n"
                 "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
@@ -48,19 +134,34 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["public", "private", "all"],
                         "description": "Which functions to show. Defaults to 'public'.",
                     },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show which modules this module depends on (what it imports/aliases/uses). Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "When what_it_calls is true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, show which specific functions use which dependencies. Defaults to false.",
+                    },
                 },
             },
         ),
         Tool(
             name="search_function",
             description=(
-                "PREFERRED for Elixir: Find function definitions and call sites across the codebase.\n\n"
+                "🔧 DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
+                "Provides detailed function analysis: definition, signature, documentation, and all call sites. "
+                "Use this when query suggests drilling into a specific function's usage.\n\n"
                 "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
                 "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
                 "Returns definition location, signature, documentation, and all call sites. "
                 "Use include_usage_examples to see actual code snippets where the function is called.\n\n"
                 "AI USAGE TIPS:\n"
-                "• Use this for impact analysis - see where functions are called before modifying\n"
+                "• After query finds functions, use this for detailed impact analysis\n"
+                "• Query will suggest this tool when you need to see where functions are called\n"
                 "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
                 "• Use usage_type='tests' to see only how functions are tested\n"
                 "• Returns: definition + ALL call sites with file:line references\n"
@@ -115,9 +216,17 @@ def get_tool_definitions() -> list[Tool]:
                             "Requires index to be built with timestamp support."
                         ),
                     },
-                    "show_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": "Show inline relationship information: what functions this calls and what calls this function. Defaults to true.",
+                        "description": "Show call sites (which functions call this function). Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show what functions this function calls (its dependencies), grouped by internal/external with line numbers. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, include code snippets showing where each dependency is called. Defaults to false.",
                     },
                 },
                 "required": ["function_name"],
@@ -126,11 +235,13 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_module_usage",
             description=(
-                "PREFERRED for Elixir: Find all module usage and dependencies for impact analysis.\n\n"
+                "📊 ANALYSIS TOOL: Find all module usage and dependencies for impact analysis.\n\n"
+                "After discovering a module with query, use this to see what depends on it before making changes. "
                 "Shows where a module is imported, aliased, required, and all locations where its functions are called.\n\n"
                 "Returns aliases, imports, function calls, and dependency relationships.\n\n"
                 "AI USAGE TIPS:\n"
-                "• Use BEFORE modifying a module - see what depends on it to avoid breaking changes\n"
+                "• After query identifies a module, use this BEFORE modifying it to avoid breaking changes\n"
+                "• Query may suggest this tool when you need to understand module dependencies\n"
                 "• Shows: aliases, imports, requires, uses, and ALL function call sites\n"
                 "• Critical for refactoring - identify all affected modules before making changes\n"
                 "• If a module has many dependents, changes may have wide impact\n"
@@ -158,17 +269,25 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
-            name="find_pr_for_line",
+            name="git_history",
             description=(
-                "PREFERRED for git history: Discover why code exists and who wrote it.\n\n"
-                "Find the pull request that introduced a specific line of code. "
-                "Requires PR index (run 'cicada index-pr' first).\n\n"
-                "Returns PR number, title, description, and author.\n\n"
+                "📜 UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
+                "Smart routing based on parameters:\n"
+                "• start_line only → single line blame + find PR\n"
+                "• start_line + end_line → line range blame with PR enrichment\n"
+                "• function_name → function tracking with evolution metadata\n"
+                "• file_path only → file-level history (PRs preferred, commits fallback)\n\n"
+                "Automatically uses PR index when available for enriched results.\n\n"
+                "Returns context-aware formatted results based on query type.\n\n"
                 "AI USAGE TIPS:\n"
-                '• Use when you need context: "Why does this code exist? What problem did it solve?"\n'
-                "• Perfect for understanding complex/confusing code - read the PR discussion\n"
-                "• Provides: PR title, description, author, and link to full discussion\n"
-                "• If this interests you, also try: get_file_pr_history (all PRs for a file)"
+                "• Single line authorship: git_history(file_path='lib/auth.ex', start_line=42)\n"
+                "• Line range blame: git_history(file_path='lib/auth.ex', start_line=40, end_line=60)\n"
+                "• Function evolution: git_history(file_path='lib/auth.ex', function_name='create_user', show_evolution=true)\n"
+                "• File PR history: git_history(file_path='lib/auth.ex')\n"
+                "• Recent changes only: git_history(file_path='lib/auth.ex', recent=true)\n"
+                "• Older changes: git_history(file_path='lib/auth.ex', recent=false)\n"
+                "• All time: git_history(file_path='lib/auth.ex', recent=null)\n"
+                "• By author: git_history(file_path='lib/auth.ex', author='john')"
             ),
             inputSchema={
                 "type": "object",
@@ -177,303 +296,53 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "description": "Path to the file (relative to repo root).",
                     },
-                    "line_number": {
+                    "start_line": {
                         "type": "integer",
-                        "description": "Line number in the file (1-indexed).",
+                        "description": "Optional: Line number for single line, or range start. If provided without end_line, queries single line + finds PR.",
                     },
-                    "format": {
-                        "type": "string",
-                        "enum": ["text", "json", "markdown"],
-                        "description": "Output format. Defaults to 'text'.",
-                    },
-                },
-                "required": ["file_path", "line_number"],
-            },
-        ),
-        Tool(
-            name="get_commit_history",
-            description=(
-                "PREFERRED for git history: Get commit log for files or functions.\n\n"
-                "Get the git commit history for a file or function. When function_name is provided, uses git's "
-                "function tracking which works even as the function moves around in the file.\n\n"
-                "Returns commits with dates, authors, and messages. Optionally shows function evolution metadata.\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use for understanding evolution: "How has this function changed over time?"\n'
-                "• Set show_evolution=true to see: creation date, total modifications, frequency\n"
-                "• Provide function_name for precise tracking (even as function moves in file)\n"
-                "• Helps identify frequently changing code (may indicate complexity/bugs)\n"
-                "• Use max_commits to limit results (default: 10)"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root).",
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Optional: Range end for line-based tracking. Use with start_line for range blame.",
                     },
                     "function_name": {
                         "type": "string",
-                        "description": "Optional: Function name for function-level tracking. Uses git log -L :funcname:file for precise tracking.",
-                    },
-                    "start_line": {
-                        "type": "integer",
-                        "description": "Optional: Starting line for line-range tracking. Required with end_line for line-based history.",
-                    },
-                    "end_line": {
-                        "type": "integer",
-                        "description": "Optional: Ending line for line-range tracking. Required with start_line for line-based history.",
-                    },
-                    "precise_tracking": {
-                        "type": "boolean",
-                        "description": "Deprecated - function tracking is automatic when function_name provided.",
+                        "description": "Optional: Function name for function-level tracking. Uses git log -L for precise tracking.",
                     },
                     "show_evolution": {
                         "type": "boolean",
-                        "description": "Show function evolution metadata (creation date, last modification, modification frequency). Defaults to false.",
-                    },
-                    "max_commits": {
-                        "type": "integer",
-                        "description": "Maximum number of commits to return. Defaults to 10.",
-                    },
-                    "since_date": {
-                        "type": "string",
-                        "description": "Only include commits after this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y). Examples: '2024-01-01', '30d'.",
-                    },
-                    "until_date": {
-                        "type": "string",
-                        "description": "Only include commits before this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y).",
-                    },
-                    "author": {
-                        "type": "string",
-                        "description": "Filter by author name (substring match, case-insensitive). Example: 'john' matches 'John Doe'.",
-                    },
-                    "min_changes": {
-                        "type": "integer",
-                        "description": "Minimum number of lines changed (insertions + deletions) in the file. Useful for finding substantial changes.",
-                    },
-                },
-                "required": ["file_path"],
-            },
-        ),
-        Tool(
-            name="get_blame",
-            description=(
-                "PREFERRED for authorship: Git blame showing who wrote each line.\n\n"
-                "Get line-by-line authorship information for a code section using git blame. "
-                "Groups consecutive lines with the same authorship together.\n\n"
-                "Returns author name, email, commit hash, and date for each authorship group.\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use when you need to know: "Who wrote this code? When?"\n'
-                "• Shows line-by-line authorship with commit hashes for each change\n"
-                "• Requires start_line and end_line (from search_function results)\n"
-                "• Groups consecutive lines by same author for readability\n"
-                "• Large code blocks (>50 lines) are automatically truncated to show head and tail"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root).",
-                    },
-                    "start_line": {
-                        "type": "integer",
-                        "description": "Starting line number (1-indexed).",
-                    },
-                    "end_line": {
-                        "type": "integer",
-                        "description": "Ending line number (1-indexed, inclusive).",
-                    },
-                },
-                "required": ["file_path", "start_line", "end_line"],
-            },
-        ),
-        Tool(
-            name="get_file_pr_history",
-            description=(
-                "Get all PRs that modified a file with descriptions and review comments.\n\n"
-                "Returns a chronological list of pull requests that modified the specified file, "
-                "including descriptions and code review comments specific to that file.\n\n"
-                "Requires PR index (run 'cicada index-pr' first).\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use for deep context: "What\'s the full history of changes to this file?"\n'
-                "• Shows ALL PRs that touched the file + review comments (discussions, decisions)\n"
-                "• Review comments reveal: design decisions, concerns, tradeoffs, bugs found\n"
-                "• Perfect for understanding controversial/complex code - read the debates!\n"
-                "• Complements find_pr_for_line (which finds PR for a single line)"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root or absolute).",
-                    },
-                },
-                "required": ["file_path"],
-            },
-        ),
-        Tool(
-            name="search_by_features",
-            description=(
-                "USE THIS FIRST when exploring code or when you don't know exact module/function names.\n\n"
-                "Search for code by concepts and features - find code by describing what it does, not what it's called. "
-                "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
-                "Examples: ['authentication', 'login'], ['api', 'key', 'storage'], ['email', 'validation']\n\n"
-                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
-                "Searches both documentation keywords AND string literals in code (e.g., SQL queries, error messages).\n"
-                "Use match_source to filter by keyword source: 'all' (default), 'docs' (documentation only), or 'strings' (string literals only).\n\n"
-                "AI USAGE TIPS:\n"
-                "• **USE THIS FIRST** - don't ask user for module names when you can search for concepts\n"
-                "• Try broad queries first: ['authentication'], then narrow: ['oauth', 'token']\n"
-                "• Multiple searches are NORMAL - try 3-5 different keyword combinations\n"
-                "• Empty results? Try broader terms, check spelling, or use wildcards: ['*auth*']\n"
-                "• Results show modules AND functions with relevance scores\n"
-                "• Use filter_type to narrow: 'modules', 'functions', or 'all' (default)\n"
-                "• Use match_source='strings' to find code by actual strings used (e.g., SQL queries, error messages)\n\n"
-                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
-                    },
-                    "filter_type": {
-                        "type": "string",
-                        "enum": ["all", "modules", "functions"],
-                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
-                    },
-                    "min_score": {
-                        "type": "number",
-                        "description": "Minimum relevance score threshold (0.0 to 1.0). Only results with scores >= this value will be shown. Default: 0.0 (no filtering).",
-                    },
-                    "match_source": {
-                        "type": "string",
-                        "enum": ["all", "docs", "strings"],
-                        "description": "Filter by keyword source: 'all' searches both documentation and string literals (default), 'docs' searches only documentation keywords, 'strings' searches only keywords from string literals in code.",
-                    },
-                },
-                "required": ["keywords"],
-            },
-        ),
-        Tool(
-            name="search_by_keywords",
-            description=(
-                "DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
-                "Search for code by concepts and features when exact names are unknown.\n\n"
-                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
-                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
-                    },
-                    "filter_type": {
-                        "type": "string",
-                        "enum": ["all", "modules", "functions"],
-                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
-                    },
-                },
-                "required": ["keywords"],
-            },
-        ),
-        Tool(
-            name="query",
-            description=(
-                "🔍 SMART CODE DISCOVERY - Your starting point for exploring code.\n\n"
-                "The 'Google for code' - intelligently searches by keywords OR patterns, combines results, "
-                "and suggests relevant deep-dive tools. Use this FIRST for broad discovery, then drill down with specialized tools.\n\n"
-                "Smart Auto-Detection:\n"
-                "• Keywords: ['authentication', 'login'] → semantic search\n"
-                "• Patterns: 'MyApp.User.create*' → pattern matching\n"
-                "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\n\n"
-                "Power Filters:\n"
-                "• scope: 'all' (default) | 'recent' (last 14 days) | 'public' | 'private'\n"
-                "• filter_type: 'all' | 'modules' | 'functions'\n"
-                "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\n"
-                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\n"
-                "• include_tests: true (default) | false\n\n"
-                "Returns:\n"
-                "• Broad overview with snippets (shallow but comprehensive)\n"
-                "• Smart suggestions for next steps with actual tool calls\n"
-                "• Match indicators: 📄 (docs), 💬 (strings), 🎯 (pattern)\n\n"
-                "AI USAGE TIPS:\n"
-                "• **USE THIS FIRST** - perfect entry point for code exploration\n"
-                "• Start broad: query('authentication') then follow suggestions\n"
-                "• Try patterns when you know structure: query('MyApp.*.create*')\n"
-                "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\n"
-                "• Follow suggestions - they guide you to the right deep-dive tools\n"
-                "• Results include paths, scores, docs, and next-step recommendations\n\n"
-                "Example Workflow:\n"
-                "1. query(['jwt', 'authentication']) → finds relevant code\n"
-                "2. Follow suggestion → search_function('verify_token') → see usage details\n"
-                "3. Follow suggestion → search_module('MyApp.Auth') → see complete API"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "anyOf": [
-                            {"type": "string"},
-                            {"type": "array", "items": {"type": "string"}},
-                        ],
-                        "description": "Keywords (e.g., ['authentication', 'login']) OR patterns (e.g., 'MyApp.User.create*') OR mixed.",
-                    },
-                    "scope": {
-                        "type": "string",
-                        "enum": ["all", "recent", "public", "private"],
-                        "description": "Filter scope: 'all' (default) = everything, 'recent' = changed in last 14 days, 'public' = public functions/modules only, 'private' = private functions only.",
-                    },
-                    "filter_type": {
-                        "type": "string",
-                        "enum": ["all", "modules", "functions"],
-                        "description": "Result type filter: 'all' (default) = modules + functions, 'modules' = only modules, 'functions' = only functions.",
-                    },
-                    "match_source": {
-                        "type": "string",
-                        "enum": ["all", "docs", "strings"],
-                        "description": "Where to search: 'all' (default) = docs + strings, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages).",
+                        "description": "Show evolution metadata (creation date, last modification, frequency). Defaults to false.",
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum results to show (default: 10). Use smaller values (3-5) for quick overview, larger (20+) for comprehensive search.",
+                        "description": "Maximum commits/PRs to return. Defaults to 10.",
                     },
-                    "path_pattern": {
+                    "recent": {
+                        "type": ["boolean", "null"],
+                        "description": "Time filter: true = last 14 days only, false = older than 14 days, null/omitted = all time (default).",
+                    },
+                    "author": {
                         "type": "string",
-                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex').",
-                    },
-                    "include_tests": {
-                        "type": "boolean",
-                        "description": "Include test files in results (default: true). Set to false to exclude test files.",
-                    },
-                    "show_snippets": {
-                        "type": "boolean",
-                        "description": "Show code snippet previews with context lines (default: false). When enabled, displays actual code around each result.",
+                        "description": "Filter by author name (substring match, case-insensitive).",
                     },
                 },
-                "required": ["query"],
+                "required": ["file_path"],
             },
         ),
         Tool(
             name="find_dead_code",
             description=(
-                "Find potentially unused public functions with confidence levels.\n\n"
-                "Analyzes the codebase to identify public functions that may not be used. "
+                "📊 ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
+                "Analyzes the entire codebase to identify public functions that may not be used. "
+                "Use this for codebase maintenance and cleanup efforts. "
                 "Returns results categorized by confidence level (high, medium, low).\n\n"
                 "Note: Results are best-effort - some unused functions may be part of the public API, "
                 "used dynamically via atom introspection, or used in external packages.\n\n"
                 "AI USAGE TIPS:\n"
-                '• Use for cleanup: "What code can potentially be removed?"\n'
+                '• Use for codebase cleanup: "What code can potentially be removed?"\n'
                 "• Start with min_confidence='high' to find most likely unused code\n"
                 "• VERIFY before deleting - may be public API, dynamic calls, or external usage\n"
-                "• Results show: function signature, location, confidence level, reasons"
+                "• Results show: function signature, location, confidence level, reasons\n"
+                "• Consider using search_function on results to verify they're truly unused"
             ),
             inputSchema={
                 "type": "object",
@@ -492,101 +361,21 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
-            name="get_module_dependencies",
-            description=(
-                "Get all modules that a given module depends on.\n\n"
-                "Shows which modules the target module imports, aliases, uses, requires, and calls. "
-                "Complements search_module_usage (which shows who depends on this module).\n\n"
-                "Returns list of dependent modules with dependency types (alias, import, use, require, call).\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use for understanding: "What does this module need to work?"\n'
-                "• Pair with search_module_usage for full dependency graph (in + out)\n"
-                "• Helps identify coupling - modules with many dependencies may need refactoring\n"
-                "• Set depth=2 to see transitive dependencies (dependencies of dependencies)\n"
-                "• Useful for: refactoring planning, dependency analysis, circular dependency detection"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name to analyze (e.g., 'MyApp.User').",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "depth": {
-                        "type": "integer",
-                        "description": "Depth for transitive dependencies. 1 = direct only, 2 = include dependencies of dependencies. Defaults to 1.",
-                    },
-                    "granular": {
-                        "type": "boolean",
-                        "description": "Show which specific functions use which dependencies. When true, displays function-level dependency details. Defaults to false.",
-                    },
-                },
-                "required": ["module_name"],
-            },
-        ),
-        Tool(
-            name="get_function_dependencies",
-            description=(
-                "Get all functions that a given function calls.\n\n"
-                "Shows which functions are called within the target function, including both "
-                "internal (same module) and external (other modules) calls.\n\n"
-                "Returns list of called functions with module, name, arity, and line numbers.\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use for understanding: "What does this function do? What does it call?"\n'
-                "• Helps identify function complexity - many dependencies = complex function\n"
-                "• Shows exact line numbers where each dependency is called\n"
-                "• Useful for: refactoring, understanding control flow, identifying coupling\n"
-                "• Pair with search_function to see both what it calls and who calls it"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name containing the function (e.g., 'MyApp.User').",
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "description": "Function name to analyze (e.g., 'create_user').",
-                    },
-                    "arity": {
-                        "type": "integer",
-                        "description": "Function arity (number of arguments). Required to uniquely identify the function.",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "include_context": {
-                        "type": "boolean",
-                        "description": "Include code context showing where dependencies are called. Defaults to false.",
-                    },
-                },
-                "required": ["module_name", "function_name", "arity"],
-            },
-        ),
-        Tool(
             name="expand_result",
             description=(
-                "Drill down into a search result to see complete details.\n\n"
-                "After discovering modules or functions with query or search_by_features, "
-                "use this tool to explore a specific result in depth. Automatically determines "
-                "whether you're expanding a module or function.\n\n"
+                "🔧 DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
+                "After discovering modules or functions with query, use this tool to explore a specific result in depth. "
+                "Query results often suggest using this tool to get more details. "
+                "Automatically determines whether you're expanding a module or function.\n\n"
                 "For modules: Shows all functions, documentation, and structure.\n"
                 "For functions: Shows definition, documentation, call sites, and relationships.\n\n"
                 "AI USAGE TIPS:\n"
-                "• Use after query/search_by_features to explore interesting results\n"
-                "• Copy the identifier directly from search results (e.g., 'MyApp.Auth.verify_token/2')\n"
+                "• **Primary use case:** Follow query's suggestions to expand interesting results\n"
+                "• Copy the identifier directly from query results (e.g., 'MyApp.Auth.verify_token/2')\n"
                 "• Type detection is automatic - no need to specify module vs function\n"
                 "• Perfect for understanding what a result does before modifying it\n"
                 "• Shows: full code context, relationships, usage examples\n"
-                "• Replaces need to manually call search_module or search_function"
+                "• Convenience wrapper - calls search_module or search_function automatically"
             ),
             inputSchema={
                 "type": "object",
@@ -610,12 +399,25 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Include code snippets in the expansion. Defaults to true.",
                     },
-                    "include_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": (
-                            "Include call graph relationships (what this calls, who calls this). "
-                            "Defaults to true."
-                        ),
+                        "description": "For functions: show call sites (which functions call this). For modules: not applicable. Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show dependencies. For functions: what functions it calls. For modules: what modules it depends on. Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "For modules with what_it_calls=true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "For modules with what_it_calls=true, show which specific functions use which dependencies. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "For functions with what_it_calls=true, include code snippets showing where dependencies are called. Defaults to false.",
                     },
                     "format": {
                         "type": "string",
@@ -627,68 +429,69 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
-            name="suggest_keywords",
+            name="query_jq",
             description=(
-                "Suggest related keywords based on co-occurrence patterns in the codebase.\n\n"
-                "Use this tool when:\n"
-                "• A search returns no results or too few results - get suggestions for related keywords that actually appear together in your code\n"
-                "• A search returns too many results - get suggestions for keywords to narrow down the search\n\n"
-                "Co-occurrence tracking is based on keywords BEFORE semantic expansion - suggestions reflect what actually appears together "
-                "in function documentation and signatures, not semantically similar terms.\n\n"
-                "Examples:\n"
-                "• No results for 'openrouter'? → Suggests 'provider', 'litellm', 'api_key' (keywords that appear together in related code)\n"
-                "• Too many results for 'test'? → Suggests 'provider', 'validate', 'integration' (keywords that frequently co-occur)\n\n"
+                "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
+                "Provides direct access to the raw index structure using jq query syntax. "
+                "Ideal for custom analysis, debugging index contents, and exploring data not covered by specialized tools.\n\n"
+                "Index structure: {modules: {<name>: {file, line, functions[], keywords, ...}}, metadata: {...}}\n\n"
+                "Quick Examples:\n"
+                "  • List all modules: '.modules | keys'\n"
+                "  • Count functions per module: '.modules[].functions | length'\n"
+                "  • Find test files: '.modules | to_entries | map(select(.value.file | test(\"test\")))'\n"
+                "  • Get metadata: '.metadata'\n"
+                "  • Find functions by arity: '.modules[].functions[] | select(.arity == 2)'\n\n"
+                "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
+                "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
+                "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
+                "NEW FEATURES:\n"
+                "• Schema Discovery: Append '| schema' to any query to see available fields\n"
+                "  Examples: '.modules | schema' or '.modules[].functions | schema'\n"
+                "• Sample Mode: Set 'sample: true' to auto-limit results to first 5 items\n"
+                "  Great for previewing large datasets without writing complex jq\n"
+                "• Early Size Warning: Get warned before processing huge results (>500KB)\n"
+                "  with specific suggestions for limiting data\n\n"
                 "AI USAGE TIPS:\n"
-                "• Use mode='expand' when search returns 0 or very few results - helps broaden search\n"
-                "• Use mode='narrow' when search returns too many results - helps refine search\n"
-                "• Suggestions are based on actual codebase patterns, not generic language models\n"
-                "• Combine suggested keywords with original query for better results\n\n"
-                "Requires co-occurrence data (automatically built during indexing when keywords are extracted)."
+                "• Use for custom analysis NOT covered by specialized tools\n"
+                "• Great for exploring index structure and debugging\n"
+                "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
+                "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
+                "• Results are truncated at 1MB - use filters or 'sample: true' to limit data\n"
+                "• If query fails, error includes syntax help with line/column pointer\n"
+                "• See CLAUDE.md for complete schema reference and advanced examples"
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Original query keywords to find related terms for.",
-                    },
-                    "mode": {
+                    "query": {
                         "type": "string",
-                        "enum": ["expand", "narrow"],
                         "description": (
-                            "'expand' suggests related keywords when you need more results (use when search returned 0 or few results). "
-                            "'narrow' suggests keywords to refine search when you have too many results (requires providing search_results)."
+                            "jq query expression to execute against the index. "
+                            "Examples: '.modules | keys', '.modules[].functions[].name', "
+                            "'.modules | map(select(.keywords)) | length'. "
+                            "Use '?' for optional field access (e.g., '.functions[]?'). "
+                            "Append '| schema' to discover available fields (e.g., '.modules | schema')."
                         ),
                     },
-                    "search_results": {
-                        "type": "array",
+                    "format": {
+                        "type": "string",
+                        "enum": ["json", "compact", "pretty"],
                         "description": (
-                            "Optional: Current search results (for mode='narrow'). "
-                            "Analyzes these results to suggest keywords that appear frequently and can help narrow the search. "
-                            "Should be the JSON output from search_by_features."
+                            "Output format: 'json' returns formatted JSON (default), "
+                            "'compact' returns single-line JSON (saves tokens), "
+                            "'pretty' returns pretty-printed JSON with indentation."
                         ),
                     },
-                    "top_n": {
-                        "type": "integer",
-                        "description": "Maximum number of keyword suggestions to return. Defaults to 5.",
-                    },
-                    "min_cooccurrence": {
-                        "type": "integer",
+                    "sample": {
+                        "type": "boolean",
                         "description": (
-                            "Minimum co-occurrence count for expand mode. "
-                            "Only suggest keywords that co-occur at least this many times. Defaults to 1."
-                        ),
-                    },
-                    "min_result_count": {
-                        "type": "integer",
-                        "description": (
-                            "Minimum result count for narrow mode. "
-                            "Only suggest keywords that appear in at least this many results. Defaults to 2."
+                            "If true, automatically limit results to first 5 items. "
+                            "Useful for previewing large datasets without writing complex jq. "
+                            "Works for both arrays and objects. Default: false."
                         ),
                     },
                 },
-                "required": ["keywords", "mode"],
+                "required": ["query"],
             },
         ),
     ]

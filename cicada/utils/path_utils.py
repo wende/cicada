@@ -5,7 +5,6 @@ This module provides centralized path normalization and resolution
 functions used throughout the codebase.
 """
 
-import fnmatch
 import re
 from pathlib import Path
 
@@ -229,11 +228,12 @@ def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
     Supports:
     - * for single-level wildcards
     - ** for recursive directory matching
+    - {a,b,c} for brace expansion (OR patterns)
     - Standard glob patterns
 
     Args:
         file_path: File path to check
-        pattern: Glob pattern (e.g., "lib/**/*.ex", "**/*_test.ex")
+        pattern: Glob pattern (e.g., "lib/**/*.ex", "**/*.{ex,heex}")
 
     Returns:
         True if path matches pattern
@@ -242,78 +242,90 @@ def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
         matches_glob_pattern('lib/auth/user.ex', 'lib/**/*.ex') -> True
         matches_glob_pattern('lib/user.ex', 'lib/*') -> True
         matches_glob_pattern('test/user_test.ex', '**/*_test.ex') -> True
+        matches_glob_pattern('lib/user.heex', '**/*.{ex,heex}') -> True
     """
     # Normalize both paths
     file_path_norm = normalize_file_path(file_path)
     pattern_norm = normalize_file_path(pattern)
 
-    # Handle ** recursive matching
-    if "**" in pattern_norm:
+    # Expand brace patterns {a,b,c} into multiple patterns
+    patterns_to_test = _expand_braces(pattern_norm)
+
+    # Test each pattern (OR logic)
+    for p in patterns_to_test:
         # Convert glob pattern to regex
-        regex_pattern = pattern_norm.replace("**", ".*").replace("*", "[^/]*")
+        # Always use regex conversion to properly handle * (should not match /)
+
+        # Handle /** specially - it should match zero or more directory levels
+        # Replace /** with a special marker first
+        regex_pattern = p.replace("/**/", "/__RECURSIVEDIR__/")
+        # Also handle ** at start
+        if regex_pattern.startswith("**/"):
+            regex_pattern = "__RECURSIVEDIR__/" + regex_pattern[3:]
+        # And ** at end
+        if regex_pattern.endswith("/**"):
+            regex_pattern = regex_pattern[:-3] + "/__RECURSIVEDIR__"
+
+        # Step 1: Replace remaining ** with a unique placeholder (edge case)
+        regex_pattern = regex_pattern.replace("**", "__DOUBLESTAR__")
+        # Step 2: Replace remaining * with a different placeholder
+        regex_pattern = regex_pattern.replace("*", "__STAR__")
+        # Step 3: Escape special regex characters
+        regex_pattern = re.escape(regex_pattern)
+        # Step 4: Replace placeholders with actual regex patterns
+        # /** matches zero or more directories: (/.+)?
+        # We use (/.+)? to mean "optionally, slash followed by one or more characters"
+        # This makes lib/**/*.ex match both lib/user.ex and lib/auth/user.ex
+        regex_pattern = regex_pattern.replace("/__RECURSIVEDIR__/", "(/.*)?/")
+        # **/ at start matches zero or more directories
+        regex_pattern = regex_pattern.replace("__RECURSIVEDIR__/", "(.*/)?")
+        # /** at end matches zero or more directories
+        regex_pattern = regex_pattern.replace("/__RECURSIVEDIR__", "(/.+)?")
+        # Remaining ** (edge case, not recommended usage)
+        regex_pattern = regex_pattern.replace("__DOUBLESTAR__", ".*")
+        # * matches within a directory: [^/]*
+        regex_pattern = regex_pattern.replace("__STAR__", "[^/]*")
         regex_pattern = "^" + regex_pattern + "$"
-        return bool(re.match(regex_pattern, file_path_norm))
 
-    # Use fnmatch for simple patterns
-    return fnmatch.fnmatch(file_path_norm, pattern_norm)
+        if re.match(regex_pattern, file_path_norm):
+            return True
+
+    return False
 
 
-def ensure_gitignore_has_cicada(repo_root: str | Path) -> bool:
+def _expand_braces(pattern: str) -> list[str]:
     """
-    Ensure .gitignore contains .cicada/ directory entry.
-
-    If .gitignore exists and doesn't already contain .cicada/, adds it.
-    If .gitignore doesn't exist, this function does nothing.
+    Expand brace patterns like {a,b,c} into multiple patterns.
 
     Args:
-        repo_root: Repository root directory
+        pattern: Pattern possibly containing braces (e.g., "**/*.{ex,heex}")
 
     Returns:
-        True if .cicada/ was added to .gitignore, False otherwise
+        List of expanded patterns (e.g., ["**/*.ex", "**/*.heex"])
 
     Example:
-        ensure_gitignore_has_cicada('/repo') -> True (if added)
-        ensure_gitignore_has_cicada('/repo') -> False (if already present or no .gitignore)
+        _expand_braces("**/*.{ex,heex}") -> ["**/*.ex", "**/*.heex"]
+        _expand_braces("**/*.ex") -> ["**/*.ex"]
     """
-    repo_root_path = Path(repo_root).resolve()
-    gitignore_path = repo_root_path / ".gitignore"
+    # Find brace expressions using regex
+    brace_pattern = r"\{([^}]+)\}"
+    match = re.search(brace_pattern, pattern)
 
-    # Do nothing if .gitignore doesn't exist
-    if not gitignore_path.exists():
-        return False
+    if not match:
+        # No braces, return as-is
+        return [pattern]
 
-    try:
-        # Read existing .gitignore
-        with open(gitignore_path) as f:
-            content = f.read()
+    # Extract alternatives from braces
+    alternatives = match.group(1).split(",")
 
-        # Check if .cicada/ is already present in actual gitignore patterns
-        # (ignore comment lines starting with #)
-        for line in content.splitlines():
-            # Strip whitespace and skip empty lines and comments
-            stripped = line.strip()
-            # Check if this line contains .cicada as a gitignore pattern
-            # Valid patterns: .cicada, .cicada/, /.cicada, /.cicada/, **/.cicada/, etc.
-            if (
-                stripped
-                and not stripped.startswith("#")
-                and (
-                    stripped in (".cicada", ".cicada/")
-                    or stripped.endswith(("/.cicada", "/.cicada/"))
-                )
-            ):
-                return False
+    # Generate patterns by replacing braces with each alternative
+    expanded = []
+    before = pattern[: match.start()]
+    after = pattern[match.end() :]
 
-        # Add .cicada/ to .gitignore
-        with open(gitignore_path, "a") as f:
-            # Add newline if file doesn't end with one
-            if content and not content.endswith("\n"):
-                f.write("\n")
+    for alt in alternatives:
+        expanded_pattern = before + alt.strip() + after
+        # Recursively expand in case there are nested or multiple brace groups
+        expanded.extend(_expand_braces(expanded_pattern))
 
-            f.write(".cicada/\n")
-
-        return True
-
-    except OSError:
-        # Fail silently if we can't read/write the file
-        return False
+    return expanded

@@ -85,8 +85,8 @@ class TestGetFunctionBlameFormatting:
         assert "dev2" in text
 
         # Check line ranges with new format
-        assert ":10-12" in text
-        assert ":13-13" in text
+        assert "Lines 10-12" in text
+        assert "Lines 13-13" in text
 
         # Check code content
         assert "def function do" in text

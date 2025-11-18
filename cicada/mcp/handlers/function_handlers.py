@@ -16,16 +16,137 @@ from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
 class FunctionSearchHandler:
     """Handler for function search and call site analysis."""
 
-    def __init__(self, index: dict[str, Any], config: dict[str, Any]):
+    # Constants for dependency context
+    DEPENDENCY_CONTEXT_LINES_BEFORE = 2
+    DEPENDENCY_CONTEXT_LINES_AFTER = 1
+
+    # Constants for call site context extraction
+    CALL_CONTEXT_LINES = 2  # Lines before and after the call line
+
+    def __init__(
+        self,
+        index: dict[str, Any],
+        config: dict[str, Any],
+        dependency_handler: Any | None = None,
+    ):
         """
         Initialize the function search handler.
 
         Args:
             index: The code index containing modules and functions
             config: Configuration dictionary
+            dependency_handler: Optional DependencyHandler for detailed dependency info
         """
         self.index = index
         self.config = config
+        self.dependency_handler = dependency_handler
+
+    def _extract_dependency_contexts(
+        self, dependencies: list[dict[str, Any]], file_path: str
+    ) -> dict[int, str]:
+        """
+        Extract code context for dependency call sites.
+
+        Args:
+            dependencies: List of dependency dictionaries with 'line' keys
+            file_path: Path to the source file (relative to repo root)
+
+        Returns:
+            Dictionary mapping line numbers to context strings
+        """
+        context_lines = {}
+        repo_path = self.config.get("repository", {}).get("path", ".")
+        full_path = Path(repo_path) / file_path
+
+        try:
+            with open(full_path) as f:
+                source_lines = f.readlines()
+
+            for dep in dependencies:
+                line_num = dep["line"]
+                is_valid_line = 1 <= line_num <= len(source_lines)
+
+                if not is_valid_line:
+                    continue
+
+                start_line = max(0, line_num - self.DEPENDENCY_CONTEXT_LINES_BEFORE)
+                end_line = min(len(source_lines), line_num + self.DEPENDENCY_CONTEXT_LINES_AFTER)
+                context = "".join(source_lines[start_line:end_line])
+                context_lines[line_num] = context.rstrip()
+
+        except OSError:
+            # If we can't read the file, return empty dict
+            pass
+
+        return context_lines
+
+    def _enrich_dependency_with_context(
+        self, dep: dict[str, Any], context_lines: dict[int, str]
+    ) -> dict[str, Any]:
+        """
+        Add context to a dependency if available.
+
+        Args:
+            dep: Dependency dictionary
+            context_lines: Dictionary mapping line numbers to context strings
+
+        Returns:
+            Dependency dictionary with optional 'context' key added
+        """
+        enriched_dep = dep.copy()
+        if dep["line"] in context_lines:
+            enriched_dep["context"] = context_lines[dep["line"]]
+        return enriched_dep
+
+    def _get_detailed_dependencies(
+        self,
+        module_name: str,
+        func: dict[str, Any],
+        file_path: str,
+        include_context: bool,
+    ) -> dict[str, Any] | None:
+        """
+        Get detailed dependency information for a function.
+
+        Args:
+            module_name: Module containing the function
+            func: Function dictionary from index
+            file_path: Path to the source file
+            include_context: Whether to include code context for each dependency
+
+        Returns:
+            Dictionary with dependency information and optional context
+        """
+        dependencies = func.get("dependencies", [])
+        if not dependencies:
+            return None
+
+        # Extract context if requested
+        context_lines = (
+            self._extract_dependency_contexts(dependencies, file_path) if include_context else {}
+        )
+
+        # Group dependencies into internal (same module) and external (other modules)
+        internal_deps = []
+        external_deps = []
+
+        for dep in dependencies:
+            enriched_dep = (
+                self._enrich_dependency_with_context(dep, context_lines)
+                if include_context
+                else dep.copy()
+            )
+
+            if dep["module"] == module_name:
+                internal_deps.append(enriched_dep)
+            else:
+                external_deps.append(enriched_dep)
+
+        return {
+            "internal": internal_deps,
+            "external": external_deps,
+            "total_count": len(dependencies),
+        }
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """
@@ -178,9 +299,53 @@ class FunctionSearchHandler:
         """
         return [site for site in call_sites if "test" in site["file"].lower()]
 
+    def _calculate_min_indentation(self, lines: list[str]) -> int:
+        """
+        Calculate the minimum indentation level across non-empty lines.
+
+        Args:
+            lines: List of code lines
+
+        Returns:
+            Minimum indentation (number of leading spaces), or 0 if no non-empty lines
+        """
+        min_indent: int | None = None
+
+        for line in lines:
+            if not line.strip():  # Skip empty/whitespace-only lines
+                continue
+
+            leading_spaces = len(line) - len(line.lstrip())
+            min_indent = leading_spaces if min_indent is None else min(min_indent, leading_spaces)
+
+        return 0 if min_indent is None else min_indent
+
+    def _dedent_lines(self, lines: list[str], indent_amount: int) -> list[str]:
+        """
+        Remove common leading indentation from lines.
+
+        Args:
+            lines: List of code lines
+            indent_amount: Number of spaces to remove from the start of each line
+
+        Returns:
+            Dedented lines
+        """
+        if indent_amount == 0:
+            return lines
+
+        dedented = []
+        for line in lines:
+            if len(line) >= indent_amount:
+                dedented.append(line[indent_amount:])
+            else:
+                dedented.append(line)
+
+        return dedented
+
     def _extract_complete_call(self, lines: list[str], start_line: int) -> str | None:
         """
-        Extract code with ±2 lines of context around the call line.
+        Extract code with context around the call line.
 
         Args:
             lines: All lines from the file
@@ -195,37 +360,21 @@ class FunctionSearchHandler:
         # Convert to 0-indexed
         call_idx = start_line - 1
 
-        # Calculate context range (±2 lines)
-        context_lines = 2
-        start_idx = max(0, call_idx - context_lines)
-        end_idx = min(len(lines), call_idx + context_lines + 1)
+        # Calculate context range
+        start_idx = max(0, call_idx - self.CALL_CONTEXT_LINES)
+        end_idx = min(len(lines), call_idx + self.CALL_CONTEXT_LINES + 1)
 
         # Extract the lines with context
-        extracted_lines = []
-        for i in range(start_idx, end_idx):
-            extracted_lines.append(lines[i].rstrip("\n"))
+        extracted_lines = [lines[i].rstrip("\n") for i in range(start_idx, end_idx)]
 
-        # Dedent: strip common leading whitespace
-        if extracted_lines:
-            # Find minimum indentation (excluding empty/whitespace-only lines)
-            min_indent: int | float = float("inf")
-            for line in extracted_lines:
-                if line.strip():  # Skip empty/whitespace-only lines
-                    leading_spaces = len(line) - len(line.lstrip())
-                    min_indent = min(min_indent, leading_spaces)
+        if not extracted_lines:
+            return None
 
-            # Strip the common indentation from all lines
-            if min_indent != float("inf") and min_indent > 0:
-                dedented_lines = []
-                min_indent_int = int(min_indent)
-                for line in extracted_lines:
-                    if len(line) >= min_indent_int:
-                        dedented_lines.append(line[min_indent_int:])
-                    else:
-                        dedented_lines.append(line)
-                extracted_lines = dedented_lines
+        # Remove common indentation
+        min_indent = self._calculate_min_indentation(extracted_lines)
+        dedented_lines = self._dedent_lines(extracted_lines, min_indent)
 
-        return "\n".join(extracted_lines) if extracted_lines else None
+        return "\n".join(dedented_lines)
 
     def _add_code_examples(self, call_sites: list):
         """
@@ -330,8 +479,10 @@ class FunctionSearchHandler:
         max_examples: int = 5,
         usage_type: str = "source",
         changed_since: str | None = None,
-        show_relationships: bool = True,
+        what_calls_it: bool = True,
         module_path: str | None = None,
+        what_it_calls: bool = False,
+        include_code_context: bool = False,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -401,37 +552,45 @@ class FunctionSearchHandler:
                     if key in seen_functions:
                         continue
                     seen_functions.add(key)
-                    # Find call sites for this function
-                    call_sites = self._find_call_sites(
-                        target_module=module_name,
-                        target_function=func["name"],
-                        target_arity=func["arity"],
-                    )
 
-                    # Filter call sites by file type if not 'all'
-                    if usage_type != "all":
-                        from cicada.mcp.filter_utils import filter_by_file_type
-
-                        call_sites = filter_by_file_type(call_sites, usage_type)
-
-                    # Optionally include usage examples (actual code lines)
+                    # Find call sites if what_calls_it is enabled
+                    call_sites = []
                     call_sites_with_examples = []
-                    if include_usage_examples and call_sites:
-                        # Consolidate call sites by calling module (one example per module)
-                        consolidated_sites = self._consolidate_call_sites_by_module(call_sites)
-                        # Limit the number of examples
-                        call_sites_with_examples = consolidated_sites[:max_examples]
-                        # Extract code lines for each call site
-                        self._add_code_examples(call_sites_with_examples)
+                    if what_calls_it:
+                        call_sites = self._find_call_sites(
+                            target_module=module_name,
+                            target_function=func["name"],
+                            target_arity=func["arity"],
+                        )
+
+                        # Filter call sites by file type if not 'all'
+                        if usage_type != "all":
+                            from cicada.mcp.filter_utils import filter_by_file_type
+
+                            call_sites = filter_by_file_type(call_sites, usage_type)
+
+                        # Optionally include usage examples (actual code lines)
+                        if include_usage_examples and call_sites:
+                            # Consolidate call sites by calling module (one example per module)
+                            consolidated_sites = self._consolidate_call_sites_by_module(call_sites)
+                            # Limit the number of examples
+                            call_sites_with_examples = consolidated_sites[:max_examples]
+                            # Extract code lines for each call site
+                            self._add_code_examples(call_sites_with_examples)
 
                     # Get PR context for this function (we'll need pr_handler reference)
                     # For now, we'll skip this or pass it from server
                     pr_info = None
 
-                    # Get function dependencies if show_relationships is enabled
-                    dependencies = []
-                    if show_relationships:
-                        dependencies = func.get("dependencies", [])
+                    # Get detailed dependency info if what_it_calls is enabled
+                    detailed_dependencies = None
+                    if what_it_calls and self.dependency_handler:
+                        detailed_dependencies = self._get_detailed_dependencies(
+                            module_name,
+                            func,
+                            module_data["file"],
+                            include_code_context,
+                        )
 
                     results.append(
                         {
@@ -442,7 +601,7 @@ class FunctionSearchHandler:
                             "call_sites": call_sites,
                             "call_sites_with_examples": call_sites_with_examples,
                             "pr_info": pr_info,
-                            "dependencies": dependencies,
+                            "detailed_dependencies": detailed_dependencies,
                         }
                     )
 
@@ -455,7 +614,7 @@ class FunctionSearchHandler:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, show_relationships
+                function_name, results, staleness_info, what_it_calls
             )
 
         return [TextContent(type="text", text=result)]
