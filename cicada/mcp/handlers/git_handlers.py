@@ -339,21 +339,29 @@ class GitHistoryHandler:
             lines.append(f"Found {len(blame_groups)} authorship group(s)\n")
 
             for i, group in enumerate(blame_groups, 1):
-                # Compact header: ## 1/3
-                lines.append(f"## {i}/{len(blame_groups)}")
+                # Header with line range: ## 1/4 • Lines 37-38
+                line_range = f"Lines {group['line_start']}-{group['line_end']}"
+                lines.append(f"## {i}/{len(blame_groups)} • {line_range}")
 
-                # Compact metadata line: :150-156 • wende • 0d89fb7b • 2025-10-16
-                line_range = f":{group['line_start']}-{group['line_end']}"
-                lines.append(
-                    f" {line_range} • {group['author']} • {group['sha']} • {group['date'][:10]}"
-                )
+                # Author line with indentation
+                lines.append(f"  Author: {group['author']}")
 
-                # Show code lines
-                lines.append(" ```elixir")
+                # Commit line with hash and date
+                lines.append(f"  Commit: {group['sha']} • {group['date'][:10]}")
+
+                # Empty line before code block
+                lines.append("")
+
+                # Show code lines with 3-space indentation
+                lines.append("  ```elixir")
                 for line_info in group["lines"]:
-                    # Show line content with leading space for proper indentation
-                    lines.append(f"  {line_info['content']}")
-                lines.append(" ```\n")
+                    # Show line content with 5 spaces total (2 for block + 3 for content)
+                    lines.append(f"     {line_info['content']}")
+                lines.append("  ```")
+
+                # Empty line and separator
+                lines.append("")
+                lines.append("  ---\n")
 
             result = "\n".join(lines)
             return [TextContent(type="text", text=result)]
