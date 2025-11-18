@@ -49,62 +49,46 @@ class HistoryAnalyzer:
         self.git_helper = GitHelper(str(self.repo_path))
 
         # Initialize PR finder (with index if available)
-        self.pr_finder: PRFinder | None
+        self.pr_finder: PRFinder | None = self._init_pr_finder()
+
+    def _init_pr_finder(self) -> PRFinder | None:
+        """Best-effort PR finder initialization with compact logging."""
         try:
             from cicada.utils.storage import get_pr_index_path
+        except (ImportError, AttributeError) as exc:
+            if self.verbose:
+                print(f"Warning: PR finder dependencies not available: {exc}")
+            return None
 
-            index_path = get_pr_index_path(self.repo_path)
-            use_index = pr_index is not None or index_path.exists()
+        index_path = get_pr_index_path(self.repo_path)
+        use_index = self.pr_index is not None or index_path.exists()
 
-            self.pr_finder = PRFinder(
+        try:
+            return PRFinder(
                 repo_path=str(self.repo_path),
                 use_index=use_index,
                 index_path=str(index_path) if use_index else None,
-                verbose=verbose,
+                verbose=self.verbose,
             )
-        except (ImportError, AttributeError) as e:
-            # Expected failures - dependencies not available
+        except (OSError, ValueError) as exc:
             if self.verbose:
-                print(f"Warning: PR finder dependencies not available: {e}")
-            self.pr_finder = None
-        except (OSError, ValueError) as e:
-            # Expected failures - file system or path issues
+                print(f"Warning: Could not initialize PR finder due to path/file issue: {exc}")
+            return None
+        except Exception as exc:
             if self.verbose:
-                print(f"Warning: Could not initialize PR finder due to path/file issue: {e}")
-            self.pr_finder = None
-        except Exception as e:
-            # Unexpected failure - log and re-raise in verbose mode for debugging
-            error_msg = f"Unexpected error initializing PR finder: {e}"
-            if self.verbose:
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: Unexpected error initializing PR finder: {exc}")
                 import traceback
 
                 traceback.print_exc()
-            # Still set to None to allow operation without PR enrichment
-            self.pr_finder = None
+            return None
 
     def _parse_recent_filter(self, recent: bool | None) -> tuple[datetime | None, datetime | None]:
-        """
-        Convert recent filter to date range.
-
-        Args:
-            recent: True (last DEFAULT_RECENT_DAYS), False (older than DEFAULT_RECENT_DAYS),
-                   None (all time)
-
-        Returns:
-            Tuple of (since_date, until_date)
-        """
+        """Convert the recent flag to a (since, until) tuple."""
         if recent is None:
             return None, None
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.DEFAULT_RECENT_DAYS)
-
-        if recent:
-            # Last N days: since=cutoff, until=None
-            return cutoff, None
-        else:
-            # Older than N days: since=None, until=cutoff
-            return None, cutoff
+        return (cutoff, None) if recent else (None, cutoff)
 
     def _filter_by_date(
         self,
@@ -112,17 +96,6 @@ class HistoryAnalyzer:
         since_date: datetime | None,
         until_date: datetime | None,
     ) -> bool:
-        """
-        Check if a date falls within the specified range.
-
-        Args:
-            date_str: ISO format date string
-            since_date: Optional minimum date (inclusive)
-            until_date: Optional maximum date (inclusive)
-
-        Returns:
-            True if date is within range, False otherwise
-        """
         if not (since_date or until_date):
             return True
 
@@ -131,14 +104,17 @@ class HistoryAnalyzer:
             if commit_date.tzinfo is None:
                 commit_date = commit_date.replace(tzinfo=timezone.utc)
 
-            if since_date and commit_date < since_date:
-                return False
-            return not (until_date and commit_date > until_date)
-        except Exception as e:
-            # Log error in verbose mode
+            too_early = since_date and commit_date < since_date
+            too_late = until_date and commit_date > until_date
+            return not (too_early or too_late)
+        except Exception as exc:
             if self.verbose:
-                print(f"Warning: Could not parse date '{date_str}': {e}")
+                print(f"Warning: Could not parse date '{date_str}': {exc}")
             return True  # Don't filter on parsing errors
+
+    @staticmethod
+    def _author_matches(target: str | None, author: str | None) -> bool:
+        return not author or author.lower() in (target or "").lower()
 
     def analyze(
         self,
@@ -170,22 +146,21 @@ class HistoryAnalyzer:
                 - data: Formatted result data
                 - pr_enriched: Whether PR data was included
         """
-        # Convert recent filter to date range
         since_date, until_date = self._parse_recent_filter(recent)
 
-        # Route to appropriate analyzer method
         if start_line is not None and end_line is None:
-            # Single line - blame + find PR
             return self._analyze_single_line(file_path, start_line)
-
-        elif start_line is not None and end_line is not None:
-            # Line range - blame with optional PR enrichment
+        if start_line is not None and end_line is not None:
             return self._analyze_line_range(
-                file_path, start_line, end_line, max_results, since_date, until_date, author
+                file_path,
+                start_line,
+                end_line,
+                max_results,
+                since_date,
+                until_date,
+                author,
             )
-
-        elif function_name is not None:
-            # Function tracking
+        if function_name is not None:
             return self._analyze_function(
                 file_path,
                 function_name,
@@ -197,12 +172,9 @@ class HistoryAnalyzer:
                 until_date,
                 author,
             )
-
-        else:
-            # File-level - try PRs first, fallback to commits
-            return self._analyze_file(
-                file_path, max_results, since_date, until_date, author, show_evolution
-            )
+        return self._analyze_file(
+            file_path, max_results, since_date, until_date, author, show_evolution
+        )
 
     def _analyze_single_line(self, file_path: str, line_number: int) -> dict[str, Any]:
         """
@@ -215,10 +187,8 @@ class HistoryAnalyzer:
         Returns:
             Dictionary with blame info and PR data
         """
-        # Get blame info
         blame_groups = self.git_helper.get_function_history(file_path, line_number, line_number)
-
-        if not blame_groups or len(blame_groups) == 0:
+        if not blame_groups:
             return {
                 "type": "single_line",
                 "data": None,
@@ -226,18 +196,15 @@ class HistoryAnalyzer:
                 "error": f"No blame information for line {line_number}",
             }
 
-        # Should only be one group for a single line
         blame = blame_groups[0]
 
-        # Try to find associated PR
         pr_info = None
         if self.pr_finder:
             try:
-                result = self.pr_finder.find_pr_for_line(file_path, line_number)
-                pr_info = result.get("pr")
-            except Exception as e:
+                pr_info = (self.pr_finder.find_pr_for_line(file_path, line_number) or {}).get("pr")
+            except Exception as exc:
                 if self.verbose:
-                    print(f"Warning: Could not find PR for line: {e}")
+                    print(f"Warning: Could not find PR for line: {exc}")
 
         return {
             "type": "single_line",
@@ -280,7 +247,6 @@ class HistoryAnalyzer:
         Returns:
             Dictionary with grouped blame info and PR enrichment
         """
-        # Get blame groups
         blame_groups = self.git_helper.get_function_history(file_path, start_line, end_line)
 
         if not blame_groups:
@@ -291,21 +257,12 @@ class HistoryAnalyzer:
                 "error": f"No blame information for lines {start_line}-{end_line}",
             }
 
-        # Apply filters
-        filtered_groups = []
-        for group in blame_groups:
-            # Date filter
-            if not self._filter_by_date(group["date"], since_date, until_date):
-                continue
-
-            # Author filter
-            if author and author.lower() not in group["author"].lower():
-                continue
-
-            filtered_groups.append(group)
-
-        # Limit results
-        filtered_groups = filtered_groups[:max_results]
+        filtered_groups = [
+            group
+            for group in blame_groups
+            if self._filter_by_date(group["date"], since_date, until_date)
+            and self._author_matches(group["author"], author)
+        ][:max_results]
 
         # Try to enrich with PR data
         pr_enriched = False
@@ -314,21 +271,23 @@ class HistoryAnalyzer:
             prs_data = self.pr_index.get("prs", {})
 
             for group in filtered_groups:
-                commit_sha = group["full_sha"]
-                pr_number = commit_to_pr.get(commit_sha)
+                pr_number = commit_to_pr.get(group["full_sha"])
+                if not pr_number:
+                    continue
 
-                if pr_number:
-                    pr = prs_data.get(str(pr_number))
-                    if pr:
-                        group["pr"] = {
-                            "number": pr["number"],
-                            "title": pr["title"],
-                            "author": pr.get("author", "unknown"),
-                            "status": pr.get("status", "unknown"),
-                            "merged": pr.get("merged", False),
-                            "url": pr.get("url", ""),
-                        }
-                        pr_enriched = True
+                pr = prs_data.get(str(pr_number))
+                if not pr:
+                    continue
+
+                group["pr"] = {
+                    "number": pr["number"],
+                    "title": pr["title"],
+                    "author": pr.get("author", "unknown"),
+                    "status": pr.get("status", "unknown"),
+                    "merged": pr.get("merged", False),
+                    "url": pr.get("url", ""),
+                }
+                pr_enriched = True
 
         return {
             "type": "line_range",
@@ -370,7 +329,6 @@ class HistoryAnalyzer:
         Returns:
             Dictionary with function history and evolution data
         """
-        # Get function history
         commits = self.git_helper.get_function_history_precise(
             file_path,
             start_line=start_line,
@@ -387,28 +345,23 @@ class HistoryAnalyzer:
                 "error": f"No history found for function {function_name}",
             }
 
-        # Apply filters (note: git log -L doesn't support these natively)
-        filtered_commits = []
-        for commit in commits:
-            # Date filter
-            if not self._filter_by_date(commit["date"], since_date, until_date):
-                continue
+        filtered_commits = [
+            commit
+            for commit in commits
+            if self._filter_by_date(commit["date"], since_date, until_date)
+            and self._author_matches(commit["author"], author)
+        ]
 
-            # Author filter
-            if author and author.lower() not in commit["author"].lower():
-                continue
-
-            filtered_commits.append(commit)
-
-        # Get evolution metadata if requested
-        evolution = None
-        if show_evolution:
-            evolution = self.git_helper.get_function_evolution(
+        evolution = (
+            self.git_helper.get_function_evolution(
                 file_path,
                 start_line=start_line,
                 end_line=end_line,
                 function_name=function_name,
             )
+            if show_evolution
+            else None
+        )
 
         return {
             "type": "function",
@@ -444,22 +397,17 @@ class HistoryAnalyzer:
         Returns:
             Dictionary with file history (PRs preferred, commits fallback)
         """
-        # Try PR index first (fast, rich data)
-        if self.pr_index:
-            pr_data = self._get_file_pr_history(
-                file_path, max_results, since_date, until_date, author
-            )
-            if pr_data:
-                return {
-                    "type": "file",
-                    "data": pr_data,
-                    "pr_enriched": True,
-                }
+        pr_data = (
+            self._get_file_pr_history(file_path, max_results, since_date, until_date, author)
+            if self.pr_index
+            else None
+        )
+        if pr_data:
+            return {"type": "file", "data": pr_data, "pr_enriched": True}
 
-        # Fallback to commit history
         has_filters = since_date or until_date or author
-        if has_filters:
-            commits = self.git_helper.get_file_history_filtered(
+        commits = (
+            self.git_helper.get_file_history_filtered(
                 file_path,
                 max_commits=max_results,
                 since_date=since_date,
@@ -467,8 +415,9 @@ class HistoryAnalyzer:
                 author=author,
                 min_changes=0,
             )
-        else:
-            commits = self.git_helper.get_file_history(file_path, max_results)
+            if has_filters
+            else self.git_helper.get_file_history(file_path, max_results)
+        )
 
         return {
             "type": "file",
@@ -503,34 +452,24 @@ class HistoryAnalyzer:
         if not self.pr_index:
             return None
 
-        file_to_prs = self.pr_index.get("file_to_prs", {})
-        pr_numbers = file_to_prs.get(file_path, [])
-
-        if not pr_numbers:
-            return None
-
+        pr_numbers = self.pr_index.get("file_to_prs", {}).get(file_path, [])
         prs_data = self.pr_index.get("prs", {})
-        prs = []
+        prs: list[dict[str, Any]] = []
 
         for pr_num in pr_numbers:
+            if len(prs) >= max_results:
+                break
+
             pr = prs_data.get(str(pr_num))
             if not pr:
                 continue
 
-            # Apply filters
-            # Date filter (use PR merged_at or created_at)
-            pr_date_str = pr.get("merged_at") or pr.get("created_at")
-            if pr_date_str:
-                # Normalize GitHub's Z suffix to +00:00 for ISO parsing
-                pr_date_str = pr_date_str.replace("Z", "+00:00")
-                if not self._filter_by_date(pr_date_str, since_date, until_date):
-                    continue
-
-            # Author filter
-            if author and author.lower() not in pr.get("author", "").lower():
+            pr_date_str = (pr.get("merged_at") or pr.get("created_at") or "").replace("Z", "+00:00")
+            if pr_date_str and not self._filter_by_date(pr_date_str, since_date, until_date):
+                continue
+            if not self._author_matches(pr.get("author", ""), author):
                 continue
 
-            # Get comments for this file
             comments = pr.get("comments", [])
             file_comments = [c for c in comments if c.get("path") == file_path]
 
@@ -548,9 +487,6 @@ class HistoryAnalyzer:
                     "comments": file_comments,
                 }
             )
-
-            if len(prs) >= max_results:
-                break
 
         if not prs:
             return None
@@ -574,16 +510,33 @@ class HistoryAnalyzer:
             error = result.get("error", "No data available")
             return f"**Error:** {error}"
 
-        if result_type == "single_line":
-            return self._format_single_line(data)
-        elif result_type == "line_range":
-            return self._format_line_range(data)
-        elif result_type == "function":
-            return self._format_function(data)
-        elif result_type == "file":
+        formatter_map = {
+            "single_line": self._format_single_line,
+            "line_range": self._format_line_range,
+            "function": self._format_function,
+        }
+
+        if result_type == "file":
             return self._format_file(data, result["pr_enriched"])
+
+        formatter = formatter_map.get(result_type)
+        return formatter(data) if formatter else f"**Unknown result type:** {result_type}"
+
+    @staticmethod
+    def _append_code_block(
+        lines: list[str], code_lines: list[dict[str, Any]], allow_long: bool = False
+    ) -> None:
+        if not code_lines:
+            return
+
+        lines.append("```")
+        if allow_long and len(code_lines) > 10:
+            lines.extend(line["content"] for line in code_lines[:5])
+            lines.append("...")
+            lines.extend(line["content"] for line in code_lines[-5:])
         else:
-            return f"**Unknown result type:** {result_type}"
+            lines.extend(line["content"] for line in (code_lines if allow_long else code_lines[:5]))
+        lines.append("```")
 
     def _format_single_line(self, data: dict[str, Any]) -> str:
         """Format single line result."""
@@ -607,10 +560,7 @@ class HistoryAnalyzer:
         code_lines = data.get("lines", [])
         if code_lines:
             lines.append("")
-            lines.append("```")
-            for line in code_lines[:5]:  # Limit to 5 lines
-                lines.append(line["content"])
-            lines.append("```")
+            self._append_code_block(lines, code_lines)
 
         return "\n".join(lines)
 
@@ -636,18 +586,7 @@ class HistoryAnalyzer:
             # Show code snippet (limit to avoid huge output)
             code_lines = group.get("lines", [])
             if code_lines:
-                lines.append("```")
-                # Show first 5 and last 5 if more than 10 lines
-                if len(code_lines) > 10:
-                    for line in code_lines[:5]:
-                        lines.append(line["content"])
-                    lines.append("...")
-                    for line in code_lines[-5:]:
-                        lines.append(line["content"])
-                else:
-                    for line in code_lines:
-                        lines.append(line["content"])
-                lines.append("```")
+                self._append_code_block(lines, code_lines, allow_long=True)
 
             # Show PR if available
             pr = group.get("pr")
@@ -704,52 +643,43 @@ class HistoryAnalyzer:
         file_path = data["file_path"]
         lines = [f"## History for {file_path}", ""]
 
-        if pr_enriched:
-            # Format PR history
-            prs = data.get("prs", [])
-            for pr in prs:
-                pr_status = "merged" if pr.get("merged") else pr.get("status", "unknown")
-                date = pr.get("merged_at") or pr.get("created_at", "")
-                date_str = date[:10] if date else "unknown"
-
-                lines.append(f"### PR #{pr['number']}: {pr['title']} ({pr_status}, {date_str})")
-                lines.append(f"**Author:** @{pr['author']}")
-                lines.append(f"**URL:** {pr['url']}")
-
-                # Show description (truncated)
-                description = pr.get("description", "")
-                if description:
-                    desc_lines = description.split("\n")
-                    if len(desc_lines) > 10:
-                        lines.append("")
-                        lines.extend(desc_lines[:10])
-                        lines.append("*(truncated)*")
-                    else:
-                        lines.append("")
-                        lines.extend(desc_lines)
-
-                # Show comments
-                comments = pr.get("comments", [])
-                if comments:
-                    lines.append("")
-                    lines.append("**Review comments:**")
-                    for comment in comments[:5]:  # Limit to 5 comments
-                        line_num = comment.get("line")
-                        author = comment.get("author", "unknown")
-                        body = comment.get("body", "")
-                        resolved = " (resolved)" if comment.get("resolved") else ""
-                        lines.append(f"> Line {line_num} ({author}{resolved}): {body[:100]}")
-
-                lines.append("")
-                lines.append("---")
-                lines.append("")
-
-        else:
-            # Format commit history
-            commits = data.get("commits", [])
-            for commit in commits:
+        if not pr_enriched:
+            for commit in data.get("commits", []):
                 lines.append(f"### {commit['sha']} ({commit['date'][:10]}) - {commit['author']}")
                 lines.append(f"{commit['summary']}")
                 lines.append("")
+            return "\n".join(lines)
+
+        for pr in data.get("prs", []):
+            pr_status = "merged" if pr.get("merged") else pr.get("status", "unknown")
+            date = pr.get("merged_at") or pr.get("created_at", "")
+            date_str = date[:10] if date else "unknown"
+
+            lines.append(f"### PR #{pr['number']}: {pr['title']} ({pr_status}, {date_str})")
+            lines.append(f"**Author:** @{pr['author']}")
+            lines.append(f"**URL:** {pr['url']}")
+
+            description = pr.get("description", "")
+            if description:
+                desc_lines = description.split("\n")
+                lines.append("")
+                lines.extend(desc_lines[:10])
+                if len(desc_lines) > 10:
+                    lines.append("*(truncated)*")
+
+            comments = pr.get("comments", [])
+            if comments:
+                lines.append("")
+                lines.append("**Review comments:**")
+                for comment in comments[:5]:  # Limit to 5 comments
+                    line_num = comment.get("line")
+                    author = comment.get("author", "unknown")
+                    body = comment.get("body", "")
+                    resolved = " (resolved)" if comment.get("resolved") else ""
+                    lines.append(f"> Line {line_num} ({author}{resolved}): {body[:100]}")
+
+            lines.append("")
+            lines.append("---")
+            lines.append("")
 
         return "\n".join(lines)

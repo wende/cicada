@@ -16,6 +16,11 @@ from cicada.utils import find_similar_names
 class ModuleSearchHandler:
     """Handler for module search and usage analysis."""
 
+    # Constants
+    MAX_WILDCARD_RESULTS = 20  # Maximum modules to show in wildcard search
+    COMPACT_FORMAT_THRESHOLD = 4  # Number of modules to trigger compact format
+    APPROXIMATE_FUNCTION_LENGTH = 100  # Estimated lines for functions without known end
+
     def __init__(
         self,
         index: dict[str, Any],
@@ -33,6 +38,94 @@ class ModuleSearchHandler:
         self.index = index
         self.config = config
         self.dependency_handler = dependency_handler
+
+    def _collect_transitive_dependencies(
+        self,
+        module_name: str,
+        direct_dependencies: list[str],
+        max_depth: int,
+    ) -> dict[str, list[str]]:
+        """
+        Collect transitive dependencies up to a specified depth.
+
+        Args:
+            module_name: The root module name (to avoid including it in results)
+            direct_dependencies: List of direct dependency module names
+            max_depth: Maximum depth to traverse
+
+        Returns:
+            Dictionary mapping transitive dependency names to lists of modules that depend on them
+        """
+        visited = {module_name}  # Avoid cycles
+        transitive_deps: dict[str, set[str]] = {}
+
+        def collect_recursive(mod: str, current_depth: int) -> None:
+            should_stop = current_depth >= max_depth or mod in visited
+            if should_stop:
+                return
+
+            visited.add(mod)
+
+            mod_data = self.index["modules"].get(mod)
+            if not mod_data:
+                return
+
+            deps = mod_data.get("dependencies", {}).get("modules", [])
+            for dep in deps:
+                is_direct = dep in direct_dependencies
+                is_self = dep == module_name
+
+                if is_direct or is_self:
+                    continue
+
+                if dep not in transitive_deps:
+                    transitive_deps[dep] = set()
+                transitive_deps[dep].add(mod)
+                collect_recursive(dep, current_depth + 1)
+
+        for dep in direct_dependencies:
+            collect_recursive(dep, 1)
+
+        # Convert sets to lists for JSON serialization
+        return {k: list(v) for k, v in transitive_deps.items()}
+
+    def _build_granular_dependency_info(
+        self,
+        module_data: dict[str, Any],
+        direct_dependencies: list[str],
+    ) -> dict[str, list[str]]:
+        """
+        Build granular information showing which functions use which dependencies.
+
+        Args:
+            module_data: Module dictionary from index
+            direct_dependencies: List of direct dependency module names
+
+        Returns:
+            Dictionary mapping dependency module names to lists of function signatures
+        """
+        granular_info: dict[str, list[str]] = {}
+
+        for func in module_data.get("functions", []):
+            func_sig = f"{func['name']}/{func['arity']}"
+            func_deps = func.get("dependencies", [])
+
+            for dep in func_deps:
+                dep_module = dep["module"]
+
+                is_direct_dependency = dep_module in direct_dependencies
+                if not is_direct_dependency:
+                    continue
+
+                # Initialize list for this dependency module if needed
+                if dep_module not in granular_info:
+                    granular_info[dep_module] = []
+
+                # Add function signature if not already present
+                if func_sig not in granular_info[dep_module]:
+                    granular_info[dep_module].append(func_sig)
+
+        return granular_info
 
     async def _get_module_dependencies(
         self,
@@ -59,56 +152,45 @@ class ModuleSearchHandler:
         if not dependent_modules:
             return None
 
-        result = {"direct": [], "transitive": {}, "granular": {}}
-
-        # Build direct dependencies list
-        result["direct"] = dependent_modules.copy()
+        result = {
+            "direct": dependent_modules.copy(),
+            "transitive": {},
+            "granular": {},
+        }
 
         # Build transitive dependencies if depth > 1
         if depth > 1:
-            visited = {module_name}  # Avoid cycles
-            transitive_deps: dict[str, set[str]] = {}
-
-            def collect_transitive(mod: str, current_depth: int) -> None:
-                if current_depth >= depth or mod in visited:
-                    return
-                visited.add(mod)
-
-                mod_data = self.index["modules"].get(mod)
-                if not mod_data:
-                    return
-
-                deps = mod_data.get("dependencies", {}).get("modules", [])
-                for dep in deps:
-                    if dep not in dependent_modules and dep != module_name:
-                        if dep not in transitive_deps:
-                            transitive_deps[dep] = set()
-                        transitive_deps[dep].add(mod)
-                        collect_transitive(dep, current_depth + 1)
-
-            for dep in dependent_modules:
-                collect_transitive(dep, 1)
-
-            # Convert sets to lists for JSON serialization
-            result["transitive"] = {k: list(v) for k, v in transitive_deps.items()}
+            result["transitive"] = self._collect_transitive_dependencies(
+                module_name, dependent_modules, depth
+            )
 
         # Build granular info if requested
         if granular:
-            granular_info: dict[str, list[str]] = {}
-            for func in module_data.get("functions", []):
-                func_deps = func.get("dependencies", [])
-                for dep in func_deps:
-                    dep_module = dep["module"]
-                    if dep_module in dependent_modules:
-                        if dep_module not in granular_info:
-                            granular_info[dep_module] = []
-                        func_sig = f"{func['name']}/{func['arity']}"
-                        if func_sig not in granular_info[dep_module]:
-                            granular_info[dep_module].append(func_sig)
-
-            result["granular"] = granular_info
+            result["granular"] = self._build_granular_dependency_info(
+                module_data, dependent_modules
+            )
 
         return result
+
+    def _calculate_function_end_line(
+        self, functions: list[Any], current_index: int, func_line: int
+    ) -> int:
+        """
+        Calculate the end line for a function.
+
+        Args:
+            functions: List of all functions in the module
+            current_index: Index of current function
+            func_line: Start line of current function
+
+        Returns:
+            Estimated end line of the function
+        """
+        has_next_function = current_index + 1 < len(functions)
+        if has_next_function:
+            return functions[current_index + 1]["line"] - 1
+
+        return func_line + self.APPROXIMATE_FUNCTION_LENGTH
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """
@@ -131,13 +213,11 @@ class ModuleSearchHandler:
         best_match: dict[str, Any] | None = None
         for i, func in enumerate(functions):
             func_line = func["line"]
-            # The function must be defined before or at the line
-            # Keep the closest one
-            if func_line <= line and (best_match is None or func_line > best_match["line"]):
-                # Calculate end_line: either the next function's line - 1, or approximate end
-                end_line = (
-                    functions[i + 1]["line"] - 1 if i + 1 < len(functions) else func_line + 100
-                )
+            is_before_or_at_target = func_line <= line
+            is_closer_match = best_match is None or func_line > best_match["line"]
+
+            if is_before_or_at_target and is_closer_match:
+                end_line = self._calculate_function_end_line(functions, i, func_line)
                 best_match = {
                     "name": func["name"],
                     "arity": func["arity"],
@@ -246,16 +326,17 @@ class ModuleSearchHandler:
                     error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
                 return [TextContent(type="text", text=error_result)]
 
-            # Apply limit to prevent overwhelming results (max 20 modules)
-            max_wildcard_results = 20
+            # Apply limit to prevent overwhelming results
             total_matches = len(matching_modules)
-            truncated = total_matches > max_wildcard_results
+            truncated = total_matches > self.MAX_WILDCARD_RESULTS
             if truncated:
-                matching_modules = matching_modules[:max_wildcard_results]
+                matching_modules = matching_modules[: self.MAX_WILDCARD_RESULTS]
 
             # Format all matching modules
-            # Use compact format when showing 4+ modules
-            use_compact = total_matches >= 4 and output_format == "markdown"
+            # Use compact format when showing multiple modules
+            use_compact = (
+                total_matches >= self.COMPACT_FORMAT_THRESHOLD and output_format == "markdown"
+            )
 
             results: list[str] = []
             for mod_name, mod_data in matching_modules:
@@ -275,7 +356,7 @@ class ModuleSearchHandler:
                 # For markdown, separate with horizontal rules (or blank lines for compact)
                 header = f"Found {total_matches} module(s) matching pattern '{module_name}'"
                 if truncated:
-                    header += f" (showing first {max_wildcard_results}, use more specific pattern to see others)"
+                    header += f" (showing first {self.MAX_WILDCARD_RESULTS}, use more specific pattern to see others)"
                 header += ":\n\n"
 
                 if use_compact:
