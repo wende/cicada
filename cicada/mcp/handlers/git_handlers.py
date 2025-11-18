@@ -11,6 +11,7 @@ from typing import Any
 from mcp.types import TextContent
 
 from cicada.git import GitHelper
+from cicada.git.formatter import GitFormatter
 
 
 class GitHistoryHandler:
@@ -184,7 +185,6 @@ class GitHistoryHandler:
                     function_name=function_name,
                     max_commits=max_commits,
                 )
-                title = f"Git History for {function_name} in {file_path}"
                 tracking_method = "function"
 
                 # Get evolution metadata if requested
@@ -204,7 +204,6 @@ class GitHistoryHandler:
                     end_line=end_line,
                     max_commits=max_commits,
                 )
-                title = f"Git History for {file_path} (lines {start_line}-{end_line})"
                 tracking_method = "line"
 
                 if show_evolution:
@@ -224,20 +223,13 @@ class GitHistoryHandler:
                     )
                 else:
                     commits = self.git_helper.get_file_history(file_path, max_commits)
-                title = f"Git History for {file_path}"
 
             if not commits:
                 result = f"No commit history found for {file_path}"
                 return [TextContent(type="text", text=result)]
 
-            # Format the results as markdown
-            lines = [f"# {title}\n"]
-
-            # Add warning if filters were specified but not used
-            if warning_msg:
-                lines.append(warning_msg)
-
-            # Add filter information if filters were used
+            # Build filter info string
+            filter_info = ""
             if has_filters and not (function_name or (start_line and end_line)):
                 filter_parts = []
                 if since_date:
@@ -248,59 +240,20 @@ class GitHistoryHandler:
                     filter_parts.append(f"author: {author}")
                 if min_changes > 0:
                     filter_parts.append(f"min changes: {min_changes}")
-                lines.append(f"*Filters: {', '.join(filter_parts)}*\n")
+                filter_info = f"Filters: {', '.join(filter_parts)}"
 
-            # Add tracking method info
-            if tracking_method == "function":
-                lines.append(
-                    "*Using function tracking (git log -L :funcname:file) - tracks function even as it moves*\n"
-                )
-            elif tracking_method == "line":
-                lines.append("*Using line-based tracking (git log -L start,end:file)*\n")
-
-            # Add evolution metadata if available
-            if evolution:
-                lines.append("## Function Evolution\n")
-                created = evolution["created_at"]
-                modified = evolution["last_modified"]
-
-                lines.append(
-                    f"- **Created:** {created['date'][:10]} by {created['author']} (commit `{created['sha']}`)"
-                )
-                lines.append(
-                    f"- **Last Modified:** {modified['date'][:10]} by {modified['author']} (commit `{modified['sha']}`)"
-                )
-                lines.append(
-                    f"- **Total Modifications:** {evolution['total_modifications']} commit(s)"
-                )
-
-                if evolution.get("modification_frequency"):
-                    freq = evolution["modification_frequency"]
-                    lines.append(f"- **Modification Frequency:** {freq:.2f} commits/month")
-
-                lines.append("")  # Empty line
-
-            lines.append(f"Found {len(commits)} commit(s)\n")
-
-            for i, commit in enumerate(commits, 1):
-                # Extract just the date (YYYY-MM-DD) from the full datetime string
-                date_only = commit["date"][:10] if len(commit["date"]) >= 10 else commit["date"]
-
-                lines.append(f"{i}. {commit['summary']}")
-                lines.append(f"   {commit['sha']} • {commit['author']} • {date_only}")
-
-                # Add relevance indicator for function searches
-                if "relevance" in commit:
-                    relevance_text = (
-                        "[Function mentioned]"
-                        if commit["relevance"] == "mentioned"
-                        else "[File changed]"
-                    )
-                    lines.append(f"   {relevance_text}")
-
-                lines.append("")  # Empty line between commits
-
-            result = "\n".join(lines)
+            # Use centralized formatter
+            result = GitFormatter.format_file_history(
+                file_path=file_path,
+                commits=commits,
+                function_name=function_name,
+                start_line=start_line,
+                end_line=end_line,
+                evolution=evolution,
+                tracking_method=tracking_method,
+                warning_msg=warning_msg,
+                filter_info=filter_info,
+            )
             return [TextContent(type="text", text=result)]
 
         except Exception as e:
@@ -332,36 +285,8 @@ class GitHistoryHandler:
                 result = f"No blame information found for {file_path} lines {start_line}-{end_line}"
                 return [TextContent(type="text", text=result)]
 
-            # Format the results as markdown
-            lines = [f"# Git Blame for {file_path} (lines {start_line}-{end_line})\n"]
-            lines.append(f"Found {len(blame_groups)} authorship group(s)\n")
-
-            for i, group in enumerate(blame_groups, 1):
-                # Header with line range: ## 1/4 • Lines 37-38
-                line_range = f"Lines {group['line_start']}-{group['line_end']}"
-                lines.append(f"## {i}/{len(blame_groups)} • {line_range}")
-
-                # Author line with indentation
-                lines.append(f"  Author: {group['author']}")
-
-                # Commit line with hash and date
-                lines.append(f"  Commit: {group['sha']} • {group['date'][:10]}")
-
-                # Empty line before code block
-                lines.append("")
-
-                # Show code lines with 3-space indentation
-                lines.append("  ```elixir")
-                for line_info in group["lines"]:
-                    # Show line content with 5 spaces total (2 for block + 3 for content)
-                    lines.append(f"     {line_info['content']}")
-                lines.append("  ```")
-
-                # Empty line and separator
-                lines.append("")
-                lines.append("  ---\n")
-
-            result = "\n".join(lines)
+            # Use centralized formatter
+            result = GitFormatter.format_blame(file_path, start_line, end_line, blame_groups)
             return [TextContent(type="text", text=result)]
 
         except Exception as e:
