@@ -24,6 +24,9 @@ class HistoryAnalyzer:
     - get_file_pr_history: Complete PR history for files
     """
 
+    # "Recent" means commits within the last N days
+    DEFAULT_RECENT_DAYS = 14
+
     def __init__(
         self,
         repo_path: str,
@@ -59,9 +62,25 @@ class HistoryAnalyzer:
                 index_path=str(index_path) if use_index else None,
                 verbose=verbose,
             )
-        except Exception as e:
+        except (ImportError, AttributeError) as e:
+            # Expected failures - dependencies not available
             if self.verbose:
-                print(f"Warning: Could not initialize PR finder: {e}")
+                print(f"Warning: PR finder dependencies not available: {e}")
+            self.pr_finder = None
+        except (OSError, ValueError) as e:
+            # Expected failures - file system or path issues
+            if self.verbose:
+                print(f"Warning: Could not initialize PR finder due to path/file issue: {e}")
+            self.pr_finder = None
+        except Exception as e:
+            # Unexpected failure - log and re-raise in verbose mode for debugging
+            error_msg = f"Unexpected error initializing PR finder: {e}"
+            if self.verbose:
+                print(f"ERROR: {error_msg}")
+                import traceback
+
+                traceback.print_exc()
+            # Still set to None to allow operation without PR enrichment
             self.pr_finder = None
 
     def _parse_recent_filter(self, recent: bool | None) -> tuple[datetime | None, datetime | None]:
@@ -69,7 +88,8 @@ class HistoryAnalyzer:
         Convert recent filter to date range.
 
         Args:
-            recent: True (last 14 days), False (older than 14 days), None (all time)
+            recent: True (last DEFAULT_RECENT_DAYS), False (older than DEFAULT_RECENT_DAYS),
+                   None (all time)
 
         Returns:
             Tuple of (since_date, until_date)
@@ -77,14 +97,48 @@ class HistoryAnalyzer:
         if recent is None:
             return None, None
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.DEFAULT_RECENT_DAYS)
 
         if recent:
-            # Last 14 days: since=cutoff, until=None
+            # Last N days: since=cutoff, until=None
             return cutoff, None
         else:
-            # Older than 14 days: since=None, until=cutoff
+            # Older than N days: since=None, until=cutoff
             return None, cutoff
+
+    def _filter_by_date(
+        self,
+        date_str: str,
+        since_date: datetime | None,
+        until_date: datetime | None,
+    ) -> bool:
+        """
+        Check if a date falls within the specified range.
+
+        Args:
+            date_str: ISO format date string
+            since_date: Optional minimum date (inclusive)
+            until_date: Optional maximum date (inclusive)
+
+        Returns:
+            True if date is within range, False otherwise
+        """
+        if not (since_date or until_date):
+            return True
+
+        try:
+            commit_date = datetime.fromisoformat(date_str)
+            if commit_date.tzinfo is None:
+                commit_date = commit_date.replace(tzinfo=timezone.utc)
+
+            if since_date and commit_date < since_date:
+                return False
+            return not (until_date and commit_date > until_date)
+        except Exception as e:
+            # Log error in verbose mode
+            if self.verbose:
+                print(f"Warning: Could not parse date '{date_str}': {e}")
+            return True  # Don't filter on parsing errors
 
     def analyze(
         self,
@@ -241,19 +295,8 @@ class HistoryAnalyzer:
         filtered_groups = []
         for group in blame_groups:
             # Date filter
-            if since_date or until_date:
-                try:
-                    commit_date = datetime.fromisoformat(group["date"])
-                    if commit_date.tzinfo is None:
-                        commit_date = commit_date.replace(tzinfo=timezone.utc)
-
-                    if since_date and commit_date < since_date:
-                        continue
-                    if until_date and commit_date > until_date:
-                        continue
-                except Exception:
-                    # Skip date filtering if parsing fails
-                    pass
+            if not self._filter_by_date(group["date"], since_date, until_date):
+                continue
 
             # Author filter
             if author and author.lower() not in group["author"].lower():
@@ -348,18 +391,8 @@ class HistoryAnalyzer:
         filtered_commits = []
         for commit in commits:
             # Date filter
-            if since_date or until_date:
-                try:
-                    commit_date = datetime.fromisoformat(commit["date"])
-                    if commit_date.tzinfo is None:
-                        commit_date = commit_date.replace(tzinfo=timezone.utc)
-
-                    if since_date and commit_date < since_date:
-                        continue
-                    if until_date and commit_date > until_date:
-                        continue
-                except Exception:
-                    pass
+            if not self._filter_by_date(commit["date"], since_date, until_date):
+                continue
 
             # Author filter
             if author and author.lower() not in commit["author"].lower():
@@ -486,17 +519,12 @@ class HistoryAnalyzer:
 
             # Apply filters
             # Date filter (use PR merged_at or created_at)
-            if since_date or until_date:
-                try:
-                    pr_date_str = pr.get("merged_at") or pr.get("created_at")
-                    if pr_date_str:
-                        pr_date = datetime.fromisoformat(pr_date_str.replace("Z", "+00:00"))
-                        if since_date and pr_date < since_date:
-                            continue
-                        if until_date and pr_date > until_date:
-                            continue
-                except Exception:
-                    pass
+            pr_date_str = pr.get("merged_at") or pr.get("created_at")
+            if pr_date_str:
+                # Normalize GitHub's Z suffix to +00:00 for ISO parsing
+                pr_date_str = pr_date_str.replace("Z", "+00:00")
+                if not self._filter_by_date(pr_date_str, since_date, until_date):
+                    continue
 
             # Author filter
             if author and author.lower() not in pr.get("author", "").lower():
