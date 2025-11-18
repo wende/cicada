@@ -6,6 +6,7 @@ Author: Cursor(Auto)
 import pytest
 
 from cicada.dead_code.analyzer import DeadCodeAnalyzer
+from cicada.utils.path_utils import is_test_file
 
 
 @pytest.fixture
@@ -237,18 +238,16 @@ def test_skip_test_files(sample_index):
 
 def test_is_test_file():
     """Test test file detection."""
-    analyzer = DeadCodeAnalyzer({"modules": {}})
-
     # Test various test file patterns
-    assert analyzer._is_test_file("test/my_test.ex")
-    assert analyzer._is_test_file("lib/my_app/test/helper.ex")
-    assert analyzer._is_test_file("lib/my_module_test.ex")
-    assert analyzer._is_test_file("config/config.exs")
-    assert analyzer._is_test_file("mix.exs")
+    assert is_test_file("test/my_test.ex")
+    assert is_test_file("lib/my_app/test/helper.ex")
+    assert is_test_file("lib/my_module_test.ex")
+    assert is_test_file("config/config.exs")
+    assert is_test_file("mix.exs")
 
     # Non-test files
-    assert not analyzer._is_test_file("lib/my_app/module.ex")
-    assert not analyzer._is_test_file("lib/controllers/user.ex")
+    assert not is_test_file("lib/my_app/module.ex")
+    assert not is_test_file("lib/controllers/user.ex")
 
 
 def test_medium_confidence_with_behaviours(sample_index):

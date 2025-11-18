@@ -5,46 +5,36 @@ Integration tests for MCP server git history functionality.
 import asyncio
 import json
 import os
+from pathlib import Path
 
 import pytest
 import yaml
 
 from cicada.mcp.server import CicadaServer
+from cicada.utils.storage import get_index_path, get_config_path, get_storage_dir
 
 
 @pytest.fixture
 def test_server(tmp_path):
     """Fixture to create a test MCP server instance."""
-    # Create a minimal valid index for testing in isolated tmp directory
-    cicada_dir = tmp_path / ".cicada"
-    cicada_dir.mkdir()
+    # Use centralized storage in the mocked home directory
+    repo_path = Path.cwd()
+    storage_dir = get_storage_dir(repo_path)
+    storage_dir.mkdir(parents=True, exist_ok=True)
 
-    minimal_index = {
-        "modules": {},
-        "metadata": {"total_modules": 0, "repo_path": str(tmp_path)},
-    }
-
-    index_path = cicada_dir / "index.json"
+    # Create a minimal index in centralized storage
+    minimal_index = {"modules": {}, "metadata": {"total_modules": 0, "repo_path": str(repo_path)}}
+    index_path = get_index_path(repo_path)
     with open(index_path, "w") as f:
         json.dump(minimal_index, f)
 
-    # Create a test config
-    test_config = {
-        "repository": {"path": str(tmp_path)},
-        "storage": {"index_path": str(index_path)},
-    }
-
-    test_config_path = tmp_path / "test_mcp_git_config.yaml"
-    with open(test_config_path, "w") as f:
+    # Create config in centralized storage
+    config_path = get_config_path(repo_path)
+    test_config = {"repository": {"path": str(repo_path)}}
+    with open(config_path, "w") as f:
         yaml.dump(test_config, f)
 
-    server = CicadaServer(str(test_config_path))
-    # Override git_helper to use the actual repo root, not tmp_path
-    from cicada.git import GitHelper
-
-    server.git_helper = GitHelper(".")
-    server.git_handler.git_helper = server.git_helper
-
+    server = CicadaServer(str(config_path))
     yield server
 
 
@@ -206,41 +196,53 @@ def test_git_helper_not_available(tmp_path):
     """Test behavior when git helper is not available."""
     print("\nTesting behavior when git is not available...")
 
-    # Create a minimal valid index for this test in isolated tmp directory
-    cicada_dir = tmp_path / ".cicada"
-    cicada_dir.mkdir()
+    # Create a minimal index in centralized storage for /tmp (non-git directory)
+    import tempfile
 
-    minimal_index = {
-        "modules": {},
-        "metadata": {"total_modules": 0, "repo_path": str(tmp_path)},
-    }
+    test_dir = tempfile.mkdtemp()
 
-    index_path = cicada_dir / "test_nogit_index.json"
-    with open(index_path, "w") as f:
-        json.dump(minimal_index, f)
+    try:
+        # Create centralized storage for the test directory
+        storage_dir = get_storage_dir(test_dir)
+        storage_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create a config pointing to a non-git directory
-    test_config = {
-        "repository": {"path": str(tmp_path)},
-        "storage": {"index_path": str(index_path)},
-    }
+        minimal_index = {
+            "modules": {},
+            "metadata": {"total_modules": 0, "repo_path": test_dir},
+        }
 
-    test_config_path = tmp_path / "test_nogit_config.yaml"
-    with open(test_config_path, "w") as f:
-        yaml.dump(test_config, f)
+        # Write index to centralized storage
+        index_path = get_index_path(test_dir)
+        with open(index_path, "w") as f:
+            json.dump(minimal_index, f)
 
-    server = CicadaServer(str(test_config_path))
+        # Write config to centralized storage
+        config_path = get_config_path(test_dir)
+        test_config = {"repository": {"path": test_dir}}
+        with open(config_path, "w") as f:
+            yaml.dump(test_config, f)
 
-    # git_helper should be None
-    assert server.git_helper is None, "git_helper should be None for non-git repo"
+        server = CicadaServer(str(config_path))
 
-    # Try to get file history
-    result = asyncio.run(server.git_handler.get_file_history("README.md"))
+        # git_helper should be None
+        assert server.git_helper is None, "git_helper should be None for non-git repo"
 
-    text = result[0].text
-    assert "not available" in text.lower(), "Should indicate git is not available"
+        # Try to get file history
+        result = asyncio.run(server.git_handler.get_file_history("README.md"))
 
-    print("  ✓ Non-git repo handled gracefully")
+        text = result[0].text
+        assert "not available" in text.lower(), "Should indicate git is not available"
+
+        print("  ✓ Non-git repo handled gracefully")
+
+    finally:
+        # Cleanup test directory and its centralized storage
+        import shutil
+
+        if Path(test_dir).exists():
+            shutil.rmtree(test_dir)
+        if storage_dir.exists():
+            shutil.rmtree(storage_dir)
 
 
 def test_get_commit_history_markdown_format(test_server):
@@ -302,25 +304,25 @@ def test_git_history_includes_all_fields(test_server):
 if __name__ == "__main__":
     print("Running MCP git integration tests...\n")
 
-    # Create a minimal valid index for standalone testing
-    os.makedirs(".cicada", exist_ok=True)
+    # Use centralized storage for standalone testing
+    repo_path = Path.cwd()
+    storage_dir = get_storage_dir(repo_path)
+    storage_dir.mkdir(parents=True, exist_ok=True)
 
-    minimal_index = {"modules": {}, "metadata": {"total_modules": 0, "repo_path": "."}}
+    minimal_index = {"modules": {}, "metadata": {"total_modules": 0, "repo_path": str(repo_path)}}
 
-    # Use a unique index file for standalone execution
-    index_path = ".cicada/test_standalone_index.json"
+    # Write to centralized storage
+    index_path = get_index_path(repo_path)
     with open(index_path, "w") as f:
         json.dump(minimal_index, f)
 
-    # Create a test server for standalone execution
-    test_config = {"repository": {"path": "."}, "storage": {"index_path": index_path}}
-
-    test_config_path = "test_mcp_git_config.yaml"
-    with open(test_config_path, "w") as f:
+    config_path = get_config_path(repo_path)
+    test_config = {"repository": {"path": str(repo_path)}}
+    with open(config_path, "w") as f:
         yaml.dump(test_config, f)
 
     try:
-        server = CicadaServer(test_config_path)
+        server = CicadaServer(str(config_path))
 
         # Run all tests
         test_server_has_git_helper(server)
@@ -352,9 +354,3 @@ if __name__ == "__main__":
 
         traceback.print_exc()
         exit(1)
-    finally:
-        # Cleanup - remove test-specific files only
-        if os.path.exists(test_config_path):
-            os.remove(test_config_path)
-        if os.path.exists(index_path):
-            os.remove(index_path)

@@ -11,20 +11,30 @@ Author: Cicada Team
 import fnmatch
 from typing import Any
 
+from cicada.scoring import (
+    apply_module_boost,
+    calculate_score,
+    calculate_wildcard_score,
+)
+
 
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
 
-    def __init__(self, index: dict[str, Any], match_source: str = "all"):
+    def __init__(
+        self, index: dict[str, Any], match_source: str = "all", cochange_boost: float = 0.5
+    ):
         """
         Initialize the keyword searcher.
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
             match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
+            cochange_boost: Boost factor for co-change relationships (0.0 to disable). Defaults to 0.5.
         """
         self.index = index
         self.match_source = match_source
+        self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
 
     def _merge_keywords(
@@ -134,6 +144,14 @@ class KeywordSearcher:
         if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = module_data["string_sources"]
 
+        # Include timestamp fields if available
+        if module_data.get("last_modified_at"):
+            document["last_modified_at"] = module_data["last_modified_at"]
+        if module_data.get("last_modified_sha"):
+            document["last_modified_sha"] = module_data["last_modified_sha"]
+        if module_data.get("last_modified_pr"):
+            document["last_modified_pr"] = module_data["last_modified_pr"]
+
         return document
 
     def _create_function_document(
@@ -168,6 +186,14 @@ class KeywordSearcher:
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
 
+        # Include timestamp fields if available
+        if func.get("last_modified_at"):
+            document["last_modified_at"] = func["last_modified_at"]
+        if func.get("last_modified_sha"):
+            document["last_modified_sha"] = func["last_modified_sha"]
+        if func.get("last_modified_pr"):
+            document["last_modified_pr"] = func["last_modified_pr"]
+
         return document
 
     def _match_wildcard(self, pattern: str, text: str) -> bool:
@@ -200,6 +226,8 @@ class KeywordSearcher:
 
         Args:
             query_keywords: Query keywords (normalized to lowercase)
+            keyword_groups: Group indexes mapping each keyword to original position
+            total_terms: Total number of original query terms (before OR expansion)
             doc_keywords: Document keywords with their scores
 
         Returns:
@@ -208,24 +236,7 @@ class KeywordSearcher:
             - matched_keywords: List of matched keywords
             - confidence: Percentage of query keywords that matched
         """
-        matched_keywords = []
-        matched_groups: set[int] = set()
-        total_score = 0.0
-
-        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
-            if query_kw in doc_keywords:
-                matched_keywords.append(query_kw)
-                matched_groups.add(group_idx)
-                total_score += doc_keywords[query_kw]
-
-        denominator = total_terms if total_terms else len(query_keywords)
-        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-        return {
-            "score": total_score,
-            "matched_keywords": matched_keywords,
-            "confidence": round(confidence, 1),
-        }
+        return calculate_score(query_keywords, keyword_groups, total_terms, doc_keywords)
 
     def _calculate_wildcard_score(
         self,
@@ -239,6 +250,8 @@ class KeywordSearcher:
 
         Args:
             query_keywords: Query keywords with potential wildcards (normalized to lowercase)
+            keyword_groups: Group indexes mapping each keyword to original position
+            total_terms: Total number of original query terms (before OR expansion)
             doc_keywords: Document keywords with their scores
 
         Returns:
@@ -247,30 +260,9 @@ class KeywordSearcher:
             - matched_keywords: List of matched query patterns
             - confidence: Percentage of query keywords that matched
         """
-        matched_keywords = []
-        matched_groups: set[int] = set()
-        total_score = 0.0
-
-        for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
-            # Find all doc keywords matching this pattern
-            for doc_kw, weight in doc_keywords.items():
-                if self._match_wildcard(query_kw, doc_kw):
-                    # Add query keyword to matched list (not the doc keyword)
-                    if query_kw not in matched_keywords:
-                        matched_keywords.append(query_kw)
-                        matched_groups.add(group_idx)
-                    # Add the weight only once per query keyword
-                    total_score += weight
-                    break
-
-        denominator = total_terms if total_terms else len(query_keywords)
-        confidence = (len(matched_groups) / denominator * 100) if denominator else 0
-
-        return {
-            "score": total_score,
-            "matched_keywords": matched_keywords,
-            "confidence": round(confidence, 1),
-        }
+        return calculate_wildcard_score(
+            query_keywords, keyword_groups, total_terms, doc_keywords, self._match_wildcard
+        )
 
     def _has_wildcards(self, keywords: list[str]) -> bool:
         """Check if any keywords contain wildcard patterns (* or |)."""
@@ -356,6 +348,125 @@ class KeywordSearcher:
             return self._match_wildcard(module_pattern, doc_module)
         return module_pattern.lower() == doc_module.lower()
 
+    def _apply_cochange_boost(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Apply co-change boosting to search results and populate co-change information.
+
+        Results get a score boost proportional to their co-change relationship strength.
+        Boost is applied based on total co-change frequency (sum of all co-change counts).
+
+        Also adds 'cochange_info' field to results containing related files and functions.
+
+        Args:
+            results: List of search results
+
+        Returns:
+            Results with boosted scores and co-change information
+        """
+        if not results:
+            return results
+
+        # Apply boosts
+        for result in results:
+            boost_amount = 0.0
+
+            # Get co-change data from the index
+            module_data = self.index["modules"].get(result["module"])
+            if not module_data:
+                continue
+
+            if result["type"] == "module":
+                # File-level co-change boost
+                # Boost based on total co-change activity
+                cochange_files = module_data.get("cochange_files", [])
+                total_cochange_count = sum(c["count"] for c in cochange_files)
+                # Boost is proportional to total co-change activity and current score
+                boost_amount += total_cochange_count * self.cochange_boost * 0.01 * result["score"]
+
+                # Add co-change information to result
+                if cochange_files:
+                    result["cochange_info"] = {
+                        "related_files": self._resolve_cochange_files(cochange_files),
+                    }
+
+            else:  # function
+                # Function-level co-change boost
+                func_data = None
+                for func in module_data.get("functions", []):
+                    if func["name"] == result["function"] and func.get("arity") == result["arity"]:
+                        func_data = func
+                        break
+
+                if func_data:
+                    # Function-level co-changes
+                    cochange_functions = func_data.get("cochange_functions", [])
+                    total_func_cochange = sum(c["count"] for c in cochange_functions)
+                    boost_amount += (
+                        total_func_cochange * self.cochange_boost * 0.02 * result["score"]
+                    )
+
+                    # File-level co-changes (weaker boost for functions)
+                    cochange_files = module_data.get("cochange_files", [])
+                    total_file_cochange = sum(c["count"] for c in cochange_files)
+                    boost_amount += (
+                        total_file_cochange * self.cochange_boost * 0.005 * result["score"]
+                    )
+
+                    # Add co-change information to result
+                    cochange_info = {}
+
+                    if cochange_files:
+                        cochange_info["related_files"] = self._resolve_cochange_files(
+                            cochange_files
+                        )
+
+                    if cochange_functions:
+                        cochange_info["related_functions"] = cochange_functions
+
+                    if cochange_info:
+                        result["cochange_info"] = cochange_info
+
+            # Apply the boost
+            result["score"] += boost_amount
+
+        return results
+
+    def _find_module_by_file(self, file_path: str) -> str | None:
+        """
+        Find the module name for a given file path.
+
+        Args:
+            file_path: File path (relative or absolute)
+
+        Returns:
+            Module name or None if not found
+        """
+        for module_name, module_data in self.index["modules"].items():
+            module_file = module_data.get("file", "")
+            # Normalize paths for comparison
+            if file_path in module_file or module_file.endswith(file_path):
+                return module_name
+        return None
+
+    def _resolve_cochange_files(self, cochange_files: list[dict]) -> list[dict]:
+        """
+        Resolve module names for co-changed files.
+
+        Args:
+            cochange_files: List of co-change file dictionaries with 'file' and 'count' keys
+
+        Returns:
+            List of dictionaries with 'file', 'count', and 'module' keys
+        """
+        return [
+            {
+                "file": cochange["file"],
+                "count": cochange["count"],
+                "module": self._find_module_by_file(cochange["file"]),
+            }
+            for cochange in cochange_files
+        ]
+
     def search(
         self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
     ) -> list[dict[str, Any]]:
@@ -429,7 +540,7 @@ class KeywordSearcher:
                 for module_pattern in module_patterns:
                     if self._match_module_name(module_pattern, doc["module"]):
                         # Boost score for module match (substantial boost to prioritize module-qualified searches)
-                        result_data["score"] += 2.0
+                        result_data["score"] = apply_module_boost(result_data["score"], True)
                         module_matched = True
                         break
 
@@ -473,6 +584,14 @@ class KeywordSearcher:
                 if doc.get("string_sources"):
                     result["string_sources"] = doc["string_sources"]
 
+                # Add timestamp fields if available
+                if doc.get("last_modified_at"):
+                    result["last_modified_at"] = doc["last_modified_at"]
+                if doc.get("last_modified_sha"):
+                    result["last_modified_sha"] = doc["last_modified_sha"]
+                if doc.get("last_modified_pr"):
+                    result["last_modified_pr"] = doc["last_modified_pr"]
+
                 results.append(result)
 
         # Apply type filter
@@ -480,6 +599,10 @@ class KeywordSearcher:
             results = [r for r in results if r["type"] == "module"]
         elif filter_type == "functions":
             results = [r for r in results if r["type"] == "function"]
+
+        # Apply co-change boosting if enabled
+        if self.cochange_boost > 0:
+            results = self._apply_cochange_boost(results)
 
         # Sort by score (descending), then by name for stable results
         results.sort(key=lambda x: (-x["score"], x["name"]))

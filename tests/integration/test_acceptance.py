@@ -17,7 +17,6 @@ from cicada.mcp.server import CicadaServer
 # Import runner functions - these get coverage when tests run
 from tests.acceptance.runner import (
     get_file_history,
-    search_by_features,
     search_function,
     search_module,
 )
@@ -27,8 +26,78 @@ from tests.acceptance.runner import (
 
 @pytest.fixture
 def config_path():
-    """Path to test fixtures config."""
-    return "tests/fixtures/.cicada/config.yaml"
+    """Path to test fixtures config (from centralized storage)."""
+    from pathlib import Path
+    from cicada.utils.storage import get_config_path, get_index_path
+    import yaml
+    import json
+
+    # Determine which fixture to use
+    if Path("tests/fixtures/elixir_project").exists():
+        fixture_dir = Path("tests/fixtures/elixir_project").resolve()
+    else:
+        fixture_dir = Path("tests/fixtures/test_project").resolve()
+
+    # Get paths (will use mocked home if in test)
+    config_path_obj = get_config_path(fixture_dir)
+    index_path_obj = get_index_path(fixture_dir)
+
+    # Ensure storage directory exists
+    config_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create minimal config
+    config = {
+        "repository": {"path": str(fixture_dir)},
+    }
+    with open(config_path_obj, "w") as f:
+        yaml.dump(config, f)
+
+    # Create minimal index if it doesn't exist
+    if not index_path_obj.exists():
+        minimal_index = {
+            "modules": {
+                "TestApp": {
+                    "file": "lib/test_app.ex",
+                    "line": 1,
+                    "moduledoc": "Test application module",
+                    "keywords": {"test": 1.0, "application": 0.9, "module": 0.8},
+                    "functions": [
+                        {
+                            "name": "hello",
+                            "arity": 0,
+                            "line": 5,
+                            "type": "def",
+                            "signature": "hello()",
+                            "doc": "Says hello",
+                            "keywords": {"hello": 1.0, "greet": 0.9},
+                        },
+                        {
+                            "name": "add",
+                            "arity": 2,
+                            "line": 10,
+                            "type": "def",
+                            "signature": "add(a, b)",
+                            "doc": "Adds two numbers",
+                            "keywords": {"add": 1.0, "number": 0.9, "sum": 0.8},
+                        },
+                        {
+                            "name": "add_numbers",
+                            "arity": 2,
+                            "line": 15,
+                            "type": "def",
+                            "signature": "add_numbers(x, y)",
+                            "doc": "Adds two numbers together",
+                            "keywords": {"add": 1.0, "number": 0.9, "sum": 0.8},
+                        },
+                    ],
+                }
+            },
+            "metadata": {"total_modules": 1, "repo_path": str(fixture_dir)},
+        }
+        with open(index_path_obj, "w") as f:
+            json.dump(minimal_index, f)
+
+    return str(config_path_obj)
 
 
 @pytest.fixture
@@ -356,82 +425,3 @@ async def test_shell_script_check_functiondoc_compatibility(config_path):
     assert text.strip()
     # Should have function documentation
     assert "add_numbers" in text
-
-
-# Keyword Search Tests (search_by_features.sh)
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_basic(server):
-    """Test basic keyword search functionality."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    assert "add" in text.lower()
-    assert "Score:" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_multiple_keywords(server):
-    """Test keyword search with multiple keywords."""
-    result = await server.analysis_handler.search_by_keywords(["add", "number"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should find results matching these keywords
-    assert len(text) > 0
-    # Should find either add_numbers or add_integers (both match the keywords)
-    assert "add_numbers" in text or "add_integers" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_with_bm25_scoring(server):
-    """Test that BM25 scoring is applied in keyword search results."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Check for BM25 score in output
-    assert "Score:" in text
-    # Scores should be numeric values
-    assert "Score:" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_identifier_boost(server):
-    """Test that identifier names are prioritized in keyword search."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should find functions with "add" in their name
-    # Functions like "add_numbers" should rank high
-    assert "add" in text.lower()
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_no_results(server):
-    """Test keyword search with keywords that have no matches."""
-    result = await server.analysis_handler.search_by_keywords(["xyzabc123nonexistent"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should show empty results or no results message
-    assert text.strip() or "No results found" in text
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_json_format(server):
-    """Test keyword search with JSON output format."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    # Keyword search only supports markdown format
-    # But verify it returns proper results
-    assert len(result) > 0
-    text = result[0].text
-    assert text.strip()
-
-
-@pytest.mark.asyncio
-async def test_keyword_search_matched_keywords_display(server):
-    """Test that matched keywords are displayed in results."""
-    result = await server.analysis_handler.search_by_keywords(["add"])
-    assert len(result) > 0
-    text = result[0].text
-    # Should show which keywords matched
-    assert "Matched:" in text

@@ -4,7 +4,7 @@ Complete documentation of CICADA's Model Context Protocol tools for code intelli
 
 ## Overview
 
-CICADA provides 11 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
+CICADA provides 12 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
 
 ---
 
@@ -254,7 +254,129 @@ Shows all functions that create_user/2 calls, plus functions those call.
 
 ---
 
-### 10. search_by_keywords
+### 10. query
+
+**Purpose:** Smart code discovery - your starting point for exploring code (🚀 NEW).
+
+**What it does:**
+- Intelligently searches by keywords OR patterns automatically
+- Combines results from multiple search strategies
+- Provides broad overview with snippets
+- Suggests relevant deep-dive tools for next steps
+- The "Google for code" - simple entry point for all code exploration
+
+**Key Features:**
+- **Smart Auto-Detection**: Automatically detects keywords vs patterns
+  - Keywords: `["authentication", "login"]` → semantic search
+  - Patterns: `"MyApp.User.create*"` → pattern matching
+  - Mixed: `["oauth", "MyApp.Auth.*"]` → combines both
+- **Power Filters**:
+  - `scope`: "all" (default), "recent" (last 14 days), "public", "private"
+  - `filter_type`: "all", "modules", "functions"
+  - `match_source`: "all", "docs", "strings" (search in code strings like SQL)
+  - `path_pattern`: glob patterns ("lib/auth/**", "**/*_controller.ex")
+  - `include_tests`: true/false
+- **Rich Results**: Snippets with docs, paths, scores, and match indicators
+- **Smart Suggestions**: Context-aware next-step recommendations with actual tool calls
+- **Match Indicators**: 📄 (docs), 💬 (strings), 🎯 (pattern)
+
+**Parameters:**
+- `query` (required) - String or list of strings (keywords OR patterns)
+- `scope` (optional) - Filter scope: "all" | "recent" | "public" | "private" (default: "all")
+- `filter_type` (optional) - Result type: "all" | "modules" | "functions" (default: "all")
+- `match_source` (optional) - Search location: "all" | "docs" | "strings" (default: "all")
+- `max_results` (optional) - Maximum results to show (default: 20)
+- `path_pattern` (optional) - Glob pattern to filter by path
+- `include_tests` (optional) - Include test files (default: true)
+
+**Query Examples:**
+```python
+# Simple keyword search
+query("authentication")
+
+# Multiple keywords
+query(["jwt", "token", "verify"])
+
+# Pattern search
+query("MyApp.Auth.verify*")
+
+# Mixed keywords and patterns
+query(["authentication", "MyApp.Auth.*"])
+
+# With filters
+query("login", scope="recent", path_pattern="lib/auth/**")
+
+# Find SQL queries in code strings
+query("SELECT users", match_source="strings")
+
+# Find recent public functions
+query("create*", scope="recent", filter_type="functions")
+```
+
+**Use Cases:**
+- **Start here**: Use as entry point for ALL code exploration
+- **Broad discovery**: Find relevant code quickly without knowing exact names
+- **Guided exploration**: Follow suggestions to the right deep-dive tool
+- **Recent changes**: scope="recent" to focus on new code
+- **Public API**: scope="public" to explore exported functions
+- **SQL/strings**: match_source="strings" to find queries and literals
+
+**Example Workflow:**
+```
+1. query(["jwt", "authentication"])
+   → Finds MyApp.Auth.verify_token/2, MyApp.Auth.login/2
+
+2. Follow suggestion: search_function("verify_token", module_path="MyApp.Auth", include_usage_examples=true)
+   → See detailed usage with code examples
+
+3. Follow suggestion: search_module("MyApp.Auth")
+   → View complete API surface
+```
+
+**Output Format:**
+Returns markdown report with:
+- Query summary with result count
+- Snippet for each result (path, score, match %, doc, signature)
+- Match indicators showing how it matched (docs/strings/pattern)
+- Suggested next steps with actual tool invocations
+- Visibility info for functions (Public/Private)
+
+**Requirements:** Index built with keyword extraction for keyword search to work
+
+**CLI Usage:**
+```bash
+# Keyword search
+cicada query authentication
+
+# Multiple keywords
+cicada query jwt token verify
+
+# Pattern search
+cicada query "MyApp.Auth.verify*"
+
+# With filters
+cicada query authentication --scope recent
+cicada query "create*" --filter-type functions
+cicada query "SELECT" --match-source strings
+cicada query login --path-pattern "lib/auth/**"
+cicada query user --scope public --no-tests
+cicada query auth --max-results 10
+
+# Get help
+cicada query --help
+```
+
+**Best for:**
+- Starting point for ANY code exploration task
+- Finding code by concept when names unknown
+- Quick overviews before deep dives
+- Discovering relevant code in unfamiliar codebases
+- Filtering large codebases to specific areas
+- Command-line exploration and scripting
+
+---
+
+### 11. search_by_keywords (Deprecated - use `query` instead)
 
 **Purpose:** Search for modules and functions by semantic keywords extracted from documentation (EXPERIMENTAL).
 
@@ -296,7 +418,7 @@ Shows all functions that create_user/2 calls, plus functions those call.
 
 ---
 
-### 11. find_dead_code
+### 12. find_dead_code
 
 **Purpose:** Identify potentially unused public functions in your codebase.
 
@@ -339,6 +461,7 @@ All tools support flexible output formats:
 
 | Tool | Input | Output | Key Use Case |
 |------|-------|--------|--------------|
+| `query` 🚀 | Keywords/patterns ± filters | Snippets + suggestions | **START HERE** - Smart code discovery |
 | `search_module` | Module name/pattern/file path | Functions & signatures | Find module contents (supports `*` and `\|`) |
 | `search_function` | Function name/pattern ± arity ± module | Definition & call sites | Understand function usage (supports `*` and `\|`) |
 | `search_module_usage` | Module name | Imports & function calls | Track module dependencies |
@@ -348,5 +471,5 @@ All tools support flexible output formats:
 | `get_file_pr_history` | File path | PR list with reviews | File change history |
 | `get_commit_history` | File path ± function | Commits & evolution | Track modifications |
 | `get_blame` | File path & line range | Line-by-line authors | Code ownership |
-| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery (supports `*` and `\|`) |
+| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery (DEPRECATED - use `query`) |
 | `find_dead_code` | Index path (CLI) | Unused functions report | Code cleanup |

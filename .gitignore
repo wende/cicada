@@ -60,12 +60,12 @@ cov_annotate/
 
 # Cicada data and generated files
 data/
-.cicada/
 .claude
 .mcp.json
 config.yaml
 test_config.yaml
 scip_doc/
+cicada/_version_hash.py
 
 # Test fixtures - local-only test projects
 tests/fixtures/elixir_project

@@ -32,6 +32,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "watch",
     "index",
     "index-pr",
+    "query",
     "find-dead-code",
     "clean",
     "status",
@@ -438,6 +439,11 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
+    index_parser.add_argument(
+        "--extract-cochange",
+        action="store_true",
+        help="Extract co-change data from git history (files and functions that are frequently modified together)",
+    )
 
     index_pr_parser = subparsers.add_parser(
         "index-pr",
@@ -454,6 +460,67 @@ def get_argument_parser():
         "--clean",
         action="store_true",
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
+    )
+
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Smart code discovery - search by keywords or patterns",
+        description="Smart code discovery - intelligently search by keywords or patterns",
+    )
+    query_parser.add_argument(
+        "query",
+        nargs="+",
+        help="Keywords or patterns to search for (e.g., 'authentication login' or 'MyApp.User.create*')",
+    )
+    query_parser.add_argument(
+        "--scope",
+        choices=["all", "recent", "public", "private"],
+        default="all",
+        help="Filter scope: 'all' (default), 'recent' (last 14 days), 'public' (public only), 'private' (private only)",
+    )
+    query_parser.add_argument(
+        "--filter-type",
+        choices=["all", "modules", "functions"],
+        default="all",
+        help="Result type filter: 'all' (default), 'modules', 'functions'",
+    )
+    query_parser.add_argument(
+        "--match-source",
+        choices=["all", "docs", "strings"],
+        default="all",
+        help="Where to search: 'all' (default), 'docs' (documentation only), 'strings' (string literals only)",
+    )
+    query_parser.add_argument(
+        "--max-results",
+        type=int,
+        default=10,
+        help="Maximum number of results to show (default: 10)",
+    )
+    query_parser.add_argument(
+        "--path-pattern",
+        help="Optional glob pattern to filter by file path (e.g., 'lib/auth/**')",
+    )
+    query_parser.add_argument(
+        "--no-tests",
+        action="store_true",
+        help="Exclude test files from results",
+    )
+    query_parser.add_argument(
+        "--snippets",
+        action="store_true",
+        help="Show code snippet previews with context lines",
+    )
+    query_parser.add_argument(
+        "--min-tier",
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        help="Minimum tier rank to show (1=exceptional, 2=highly relevant, 3=above average, 4=below average, 5=poor)",
+    )
+    query_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
     )
 
     dead_code_parser = subparsers.add_parser(
@@ -621,6 +688,7 @@ def handle_command(args) -> bool:
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
+        "query": handle_query,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
@@ -785,27 +853,45 @@ def handle_index_main(args) -> None:
     force_enabled = getattr(args, "force", False) is True
     extraction_method: str | None = None
     expansion_method: str | None = None
+    tier_changed = False
 
     if force_enabled:
         extraction_method, expansion_method = get_extraction_expansion_methods(args)
         assert extraction_method is not None
         assert expansion_method is not None
-        _handle_index_config_update(
+        tier_changed = _handle_index_config_update(
             config_path, storage_dir, repo_path, extraction_method, expansion_method
         )
+        if tier_changed:
+            print("Tier configuration changed. Performing full reindex...")
     elif not config_path.exists():
         _print_tier_requirement_error()
         sys.exit(2)
 
     # Perform indexing using standard interface
+    from cicada.indexer import ElixirIndexer
+
     indexer = LanguageRegistry.get_indexer(language)
-    indexer.index_repository(
-        repo_path=str(repo_path),
-        output_path=str(index_path),
-        force=False,
-        verbose=True,
-        config_path=str(config_path),
-    )
+
+    # For Elixir, use the specialized method to support extract_cochange
+    if language == "elixir" and isinstance(indexer, ElixirIndexer):
+        extract_cochange = getattr(args, "extract_cochange", False)
+        indexer.incremental_index_repository(
+            str(repo_path),
+            str(index_path),
+            extract_keywords=True,
+            extract_cochange=extract_cochange,
+            force_full=tier_changed,
+        )
+    else:
+        # Use standard interface for other languages
+        indexer.index_repository(
+            repo_path=str(repo_path),
+            output_path=str(index_path),
+            force=tier_changed,
+            verbose=True,
+            config_path=str(config_path),
+        )
 
 
 def _handle_index_config_update(
@@ -814,8 +900,12 @@ def _handle_index_config_update(
     repo_path: Path,
     extraction_method: str,
     expansion_method: str,
-) -> None:
-    """Handle config creation or validation during indexing.
+) -> bool:
+    """Handle config creation or update during forced indexing.
+
+    This function is only called when --force is used, so it always
+    updates the config to the specified extraction and expansion methods
+    without validation. This allows users to change tiers between indexing runs.
 
     Args:
         config_path: Path to config.yaml
@@ -823,67 +913,26 @@ def _handle_index_config_update(
         repo_path: Repository path
         extraction_method: Extraction method to use
         expansion_method: Expansion method to use
+
+    Returns:
+        True if the tier was changed (requiring full reindex), False otherwise
     """
     from cicada.setup import create_config_yaml
 
+    # Check if config exists and if tier has changed
+    tier_changed = False
     if config_path.exists():
+        # Load existing config to check for tier changes
         existing_extraction, existing_expansion = _load_existing_config(config_path)
+        tier_changed = (
+            existing_extraction != extraction_method or existing_expansion != expansion_method
+        )
 
-        extraction_changed = existing_extraction != extraction_method
-        expansion_changed = existing_expansion != expansion_method
-
-        if extraction_changed or expansion_changed:
-            _print_config_change_error(
-                existing_extraction,
-                existing_expansion,
-                extraction_method,
-                expansion_method,
-                extraction_changed,
-                expansion_changed,
-            )
-            sys.exit(1)
-
+    # When --force is used, always update config to the new tier settings
+    # This allows changing tiers without requiring a separate clean step
     create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
 
-
-def _print_config_change_error(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> None:
-    """Print error message for config changes."""
-    change_desc = _describe_config_change(
-        existing_extraction,
-        existing_expansion,
-        extraction_method,
-        expansion_method,
-        extraction_changed,
-        expansion_changed,
-    )
-
-    print(f"Error: Cannot change {change_desc}", file=sys.stderr)
-    print("\nTo reindex with different settings, first run:", file=sys.stderr)
-    print("  cicada clean", file=sys.stderr)
-    print("\nThen run your index command again.", file=sys.stderr)
-
-
-def _describe_config_change(
-    existing_extraction: str,
-    existing_expansion: str,
-    extraction_method: str,
-    expansion_method: str,
-    extraction_changed: bool,
-    expansion_changed: bool,
-) -> str:
-    """Generate description of config change."""
-    if extraction_changed and expansion_changed:
-        return f"extraction from {existing_extraction} to {extraction_method} and expansion from {existing_expansion} to {expansion_method}"
-    if extraction_changed:
-        return f"extraction from {existing_extraction} to {extraction_method}"
-    return f"expansion from {existing_expansion} to {expansion_method}"
+    return tier_changed
 
 
 def _print_tier_requirement_error() -> None:
@@ -961,6 +1010,69 @@ def handle_index_pr(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def handle_query(args):
+    """Handle query command for smart code discovery."""
+    from cicada.query import QueryOrchestrator
+    from cicada.utils import get_index_path, load_index
+
+    index_path = get_index_path(".")
+
+    if not index_path.exists():
+        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
+        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        index = load_index(index_path, raise_on_error=True)
+    except Exception as e:
+        print(f"Error loading index: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    assert index is not None, "Index should not be None after successful load"
+
+    # Check if keywords are available
+    has_keywords = any(
+        module_data.get("keywords") or module_data.get("string_keywords")
+        for module_data in index.get("modules", {}).values()
+    )
+
+    if not has_keywords:
+        print("Error: No keywords found in index.", file=sys.stderr)
+        print("\nPlease rebuild the index with keyword extraction:", file=sys.stderr)
+        print("  cicada index           # Default: reuse configured tier", file=sys.stderr)
+        print("  cicada index --force --regular   # BERT + GloVe (regular tier)", file=sys.stderr)
+        print(
+            "  cicada index --force --fast      # Fast: Token-based + lemminflect", file=sys.stderr
+        )
+        print("  cicada index --force --max       # Max: BERT + FastText", file=sys.stderr)
+        sys.exit(1)
+
+    # Create orchestrator and execute query
+    orchestrator = QueryOrchestrator(index)
+
+    # Convert query list to the format expected by orchestrator
+    query = args.query if len(args.query) > 1 else args.query[0]
+
+    result = orchestrator.execute_query(
+        query=query,
+        scope=args.scope,
+        filter_type=getattr(args, "filter_type", "all"),
+        match_source=getattr(args, "match_source", "all"),
+        max_results=args.max_results,
+        path_pattern=args.path_pattern,
+        include_tests=not args.no_tests,
+        show_snippets=args.snippets,
+        min_tier_rank=getattr(args, "min_tier", None),
+    )
+
+    if args.format == "json":
+        # Parse the result text and convert to JSON
+        # For now, just print the text result since orchestrator returns formatted text
+        print(result)
+    else:
+        print(result)
 
 
 def handle_find_dead_code(args):

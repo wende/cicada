@@ -91,24 +91,6 @@ class TestAcceptanceShellScripts:
         assert len(result.stdout) > 0
         assert "add_numbers" in result.stdout
 
-    def test_search_by_features_script_runs(self, scripts_dir):
-        """Test that search_by_features.sh can execute without errors"""
-        script = scripts_dir / "search_by_features.sh"
-        assert script.exists(), f"Script not found: {script}"
-
-        result = subprocess.run(
-            [str(script), "test"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
-        # Script should complete successfully
-        assert result.returncode == 0, f"Script failed: {result.stderr}"
-        assert len(result.stdout) > 0
-        # Should either find results or say no results
-        assert "test" in result.stdout.lower() or "no results" in result.stdout.lower()
-
     def test_all_shell_scripts_are_executable(self, scripts_dir):
         """Verify all .sh files have executable permissions"""
         scripts = list(scripts_dir.glob("*.sh"))

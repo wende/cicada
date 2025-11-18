@@ -19,6 +19,27 @@ import git
 class GitHelper:
     """Helper class for extracting git commit history"""
 
+    @staticmethod
+    def _extract_pr_number(message: str) -> int | None:
+        """
+        Extract PR number from commit message.
+
+        Looks for patterns like (#123) or (PR #123) at the end of the message.
+
+        Args:
+            message: Commit message
+
+        Returns:
+            PR number as integer, or None if not found
+        """
+        import re
+
+        # Match (#123) or (PR #123) or similar patterns
+        match = re.search(r"\((?:PR )?#(\d+)\)", message)
+        if match:
+            return int(match.group(1))
+        return None
+
     def __init__(self, repo_path: str):
         """
         Initialize GitHelper with a repository path
@@ -208,15 +229,11 @@ class GitHelper:
                         }
                     )
 
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             # git log -L failed
-            error_msg = e.stderr if e.stderr else str(e)
-
             # If function tracking failed and we have line numbers, try fallback
             if use_function_tracking and start_line and end_line:
-                print(
-                    f"Function tracking failed for {function_name}, falling back to line tracking"
-                )
+                # Silently try line-based tracking as fallback
                 return self.get_function_history_precise(
                     file_path,
                     start_line=start_line,
@@ -224,14 +241,244 @@ class GitHelper:
                     max_commits=max_commits,
                 )
             else:
-                print(f"Warning: git log -L failed for {file_path}: {error_msg}")
+                # Silently skip - git log -L fails for new files, renamed functions, etc.
                 return []
 
-        except Exception as e:
-            print(f"Error getting precise history for {file_path}: {e}")
+        except Exception:
+            # Silently skip errors - not critical for indexing
             return []
 
         return commits
+
+    def get_functions_evolution_batch(
+        self,
+        file_path: str,
+        functions: list[dict],
+    ) -> dict[str, dict | None]:
+        """
+        Get evolution metadata for multiple functions in a single file using batched git queries.
+
+        This is much faster than calling get_function_evolution() for each function individually,
+        as it makes a single git log call with multiple -L flags.
+
+        Args:
+            file_path: Relative path to file from repo root
+            functions: List of function dicts with 'name' and optionally 'line' fields
+
+        Returns:
+            Dictionary mapping function_name -> evolution_dict (same format as get_function_evolution)
+            Returns None for functions where git history lookup failed
+        """
+        if not functions:
+            return {}
+
+        results: dict[str, dict | None] = {}
+
+        # Try function-based tracking first (requires .gitattributes or git built-in support)
+        cmd = ["git", "log", "--format=%H|%an|%ae|%aI|%s", "--no-patch"]
+
+        # Add -L flag for each function using function names
+        for func in functions:
+            func_name = func.get("name")
+            if func_name:
+                cmd.append(f"-L:{func_name}:{file_path}")
+
+        try:
+            # Run single batched command
+            result = subprocess.run(
+                cmd,
+                cwd=str(self.repo_path),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Parse output - git log with multiple -L flags shows commits for each function
+            # The output format is still one commit per line, but filtered to only show
+            # commits that touched ANY of the specified functions
+            commits = []
+            for line in result.stdout.strip().split("\n"):
+                if not line or line.startswith("diff"):
+                    continue
+
+                parts = line.split("|")
+                if len(parts) >= 5:
+                    full_sha = parts[0]
+                    message = parts[4]
+                    pr_number = self._extract_pr_number(message)
+
+                    commit_info: dict[str, str | int] = {
+                        "sha": full_sha[:8],
+                        "full_sha": full_sha,
+                        "author": parts[1],
+                        "author_email": parts[2],
+                        "date": parts[3],
+                        "summary": message,
+                        "message": message,
+                    }
+                    if pr_number:
+                        commit_info["pr"] = pr_number
+
+                    commits.append(commit_info)
+
+            # If we got commits, compute evolution for each function
+            # Since we can't easily separate which commits belong to which function in batch mode,
+            # we use the combined history as an approximation for all functions
+            # This is a reasonable tradeoff for the massive speed improvement
+            if commits:
+                created_info = {
+                    "sha": commits[-1]["sha"],
+                    "full_sha": commits[-1]["full_sha"],
+                    "date": commits[-1]["date"],
+                    "author": commits[-1]["author"],
+                    "author_email": commits[-1]["author_email"],
+                    "message": commits[-1]["summary"],
+                }
+                if "pr" in commits[-1]:
+                    created_info["pr"] = commits[-1]["pr"]
+
+                last_modified_info = {
+                    "sha": commits[0]["sha"],
+                    "full_sha": commits[0]["full_sha"],
+                    "date": commits[0]["date"],
+                    "author": commits[0]["author"],
+                    "author_email": commits[0]["author_email"],
+                    "message": commits[0]["summary"],
+                }
+                if "pr" in commits[0]:
+                    last_modified_info["pr"] = commits[0]["pr"]
+
+                evolution = {
+                    "created_at": created_info,
+                    "last_modified": last_modified_info,
+                    "total_modifications": len(commits),
+                }
+
+                # Apply same evolution to all functions (approximate but fast)
+                for func in functions:
+                    func_name = func.get("name")
+                    if func_name:
+                        results[func_name] = evolution
+            else:
+                # No commits found, return None for all functions
+                for func in functions:
+                    func_name = func.get("name")
+                    if func_name:
+                        results[func_name] = None
+
+            return results
+
+        except subprocess.CalledProcessError:
+            # Function-based tracking failed - try line-based fallback
+            # This happens when .gitattributes is not configured for Elixir
+
+            # Silently fall back to line-based tracking
+            # Note: Fallback happens when function-based tracking fails, which can occur even
+            # with .gitattributes configured if any function in the batch doesn't match git history
+            # (e.g., recently added functions, renamed functions, or git pattern matching issues)
+
+            # Build fallback command with line numbers instead of function names
+            cmd = ["git", "log", "--format=%H|%an|%ae|%aI|%s", "--no-patch"]
+
+            for func in functions:
+                func_line = func.get("line")
+                if func_line:
+                    # Use a range of 50 lines to capture the whole function
+                    end_line = func_line + 50
+                    cmd.append(f"-L{func_line},{end_line}:{file_path}")
+
+            # Try line-based tracking
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(self.repo_path),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+
+                # Parse output
+                commits = []
+                if result.stdout.strip():
+                    for line in result.stdout.strip().split("\n"):
+                        if not line or line.startswith("diff"):
+                            continue
+
+                        parts = line.split("|")
+                        if len(parts) >= 5:
+                            full_sha = parts[0]
+                            message = parts[4]
+                            pr_number = self._extract_pr_number(message)
+
+                            commit_info: dict[str, str | int] = {
+                                "sha": full_sha[:8],
+                                "full_sha": full_sha,
+                                "author": parts[1],
+                                "author_email": parts[2],
+                                "date": parts[3],
+                                "summary": message,
+                                "message": message,
+                            }
+                            if pr_number:
+                                commit_info["pr"] = pr_number
+
+                            commits.append(commit_info)
+
+                # Apply evolution data
+                if commits:
+                    created_info = {
+                        "sha": commits[-1]["sha"],
+                        "full_sha": commits[-1]["full_sha"],
+                        "date": commits[-1]["date"],
+                        "author": commits[-1]["author"],
+                        "author_email": commits[-1]["author_email"],
+                        "message": commits[-1]["summary"],
+                    }
+                    if "pr" in commits[-1]:
+                        created_info["pr"] = commits[-1]["pr"]
+
+                    last_modified_info = {
+                        "sha": commits[0]["sha"],
+                        "full_sha": commits[0]["full_sha"],
+                        "date": commits[0]["date"],
+                        "author": commits[0]["author"],
+                        "author_email": commits[0]["author_email"],
+                        "message": commits[0]["summary"],
+                    }
+                    if "pr" in commits[0]:
+                        last_modified_info["pr"] = commits[0]["pr"]
+
+                    evolution = {
+                        "created_at": created_info,
+                        "last_modified": last_modified_info,
+                        "total_modifications": len(commits),
+                    }
+
+                    for func in functions:
+                        func_name = func.get("name")
+                        if func_name:
+                            results[func_name] = evolution
+                else:
+                    for func in functions:
+                        func_name = func.get("name")
+                        if func_name:
+                            results[func_name] = None
+
+            except Exception:
+                # Line-based tracking also failed
+                for func in functions:
+                    func_name = func.get("name")
+                    if func_name:
+                        results[func_name] = None
+
+        except Exception:
+            # Any other error - return None for all functions
+            for func in functions:
+                func_name = func.get("name")
+                if func_name:
+                    results[func_name] = None
+
+        return results
 
     def get_function_evolution(
         self,
@@ -485,12 +732,11 @@ class GitHelper:
                 current_group["line_count"] = len(current_group["lines"])
                 blame_groups.append(current_group)
 
-        except subprocess.CalledProcessError as e:
-            error_msg = e.stderr if e.stderr else str(e)
-            print(f"Warning: git blame failed for {file_path}:{start_line}-{end_line}: {error_msg}")
+        except subprocess.CalledProcessError:
+            # Silently skip - git blame fails for new/modified files
             return []
-        except Exception as e:
-            print(f"Error getting blame for {file_path}: {e}")
+        except Exception:
+            # Silently skip errors - not critical for indexing
             return []
 
         return blame_groups

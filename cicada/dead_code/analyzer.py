@@ -6,6 +6,8 @@ Identifies potentially unused public functions using the indexed codebase data.
 Author: Cursor(Auto)
 """
 
+from cicada.utils.path_utils import is_test_file
+
 
 class DeadCodeAnalyzer:
     """Analyzes Elixir code index to find potentially unused public functions."""
@@ -53,7 +55,7 @@ class DeadCodeAnalyzer:
         # Analyze each module
         for module_name, module_data in self.modules.items():
             # Skip test files and .exs files entirely
-            if self._is_test_file(module_data["file"]):
+            if is_test_file(module_data["file"]):
                 skipped_files += sum(1 for f in module_data["functions"] if f["type"] == "def")
                 continue
 
@@ -123,28 +125,6 @@ class DeadCodeAnalyzer:
             },
             "candidates": candidates,
         }
-
-    def _is_test_file(self, file_path: str) -> bool:
-        """
-        Check if a file should be skipped from dead code analysis.
-
-        Files are skipped if they are:
-        - Test files (in 'test/' directory or '_test.ex' suffix)
-        - Script files (.exs extension)
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if the file should be skipped
-        """
-        file_lower = file_path.lower()
-        return (
-            # Test files
-            "/test/" in file_lower
-            or file_lower.startswith("test/")
-            or file_lower.endswith(("_test.ex", ".exs"))
-        )
 
     def _find_usages(self, target_module: str, target_function: str, target_arity: int) -> int:
         """

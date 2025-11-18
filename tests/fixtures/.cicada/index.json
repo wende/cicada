@@ -1,0 +1,244 @@
+{
+  "modules": {
+    "TestApp.Math": {
+      "file": "lib/test_app/math.ex",
+      "line": 1,
+      "moduledoc": "\n  Math utilities for testing.\n  ",
+      "functions": [
+        {
+          "name": "multiply",
+          "arity": 2,
+          "args": [
+            "a",
+            "b"
+          ],
+          "guards": [],
+          "full_name": "multiply/2",
+          "line": 10,
+          "signature": "def multiply",
+          "type": "def",
+          "impl": false,
+          "doc": "\nMultiplies two numbers.\n",
+          "keywords": {
+            "multiplied": 0.7,
+            "multiplies": 1,
+            "multiply": 1,
+            "multiplying": 0.7,
+            "numbers": 1,
+            "two": 1
+          },
+          "dependencies": []
+        },
+        {
+          "name": "divide",
+          "arity": 2,
+          "args": [
+            "a",
+            "b"
+          ],
+          "guards": [
+            "b != 0"
+          ],
+          "full_name": "divide/2",
+          "line": 16,
+          "signature": "def divide",
+          "type": "def",
+          "impl": false,
+          "doc": "\nDivides two numbers.\n",
+          "keywords": {
+            "divide": 1,
+            "divided": 0.7,
+            "divides": 1,
+            "dividing": 0.7,
+            "numbers": 1,
+            "two": 1
+          },
+          "dependencies": []
+        }
+      ],
+      "total_functions": 2,
+      "public_functions": 2,
+      "private_functions": 0,
+      "aliases": {},
+      "imports": [],
+      "requires": [],
+      "uses": [],
+      "behaviours": [],
+      "value_mentions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "keywords": {
+        "math": 1,
+        "maths": 0.7,
+        "testing": 1,
+        "testings": 0.7,
+        "utilities": 1
+      }
+    },
+    "TestApp": {
+      "file": "lib/test_app.ex",
+      "line": 1,
+      "moduledoc": "\n  A test application for Cicada acceptance tests.\n  ",
+      "functions": [
+        {
+          "name": "hello",
+          "arity": 0,
+          "args": [],
+          "guards": [],
+          "full_name": "hello/0",
+          "line": 16,
+          "signature": "def hello",
+          "type": "def",
+          "impl": false,
+          "doc": "Returns a greeting message.",
+          "examples": "iex> TestApp.hello()\n\"Hello, World!\"",
+          "keywords": {
+            "greeting": 1,
+            "greetings": 0.7,
+            "hello": 1,
+            "hellos": 0.7,
+            "message": 1,
+            "messaged": 0.7,
+            "messages": 0.7,
+            "messaging": 0.7,
+            "returns": 1
+          },
+          "dependencies": []
+        },
+        {
+          "name": "add_numbers",
+          "arity": 2,
+          "args": [
+            "a",
+            "b"
+          ],
+          "guards": [],
+          "full_name": "add_numbers/2",
+          "line": 30,
+          "signature": "def add_numbers",
+          "type": "def",
+          "impl": false,
+          "doc": "Adds two numbers together.",
+          "examples": "iex> TestApp.add_numbers(2, 3)\n5",
+          "keywords": {
+            "add": 3,
+            "add_numbers": 11,
+            "added": 2.0999999999999996,
+            "adding": 2.0999999999999996,
+            "adds": 1,
+            "numbers": 4,
+            "together": 1,
+            "two": 1
+          },
+          "dependencies": []
+        },
+        {
+          "name": "process_value",
+          "arity": 1,
+          "args": [
+            "value"
+          ],
+          "guards": [],
+          "full_name": "process_value/1",
+          "line": 37,
+          "signature": "def process_value",
+          "type": "def",
+          "impl": false,
+          "doc": "\nProcesses a value.\nUsed for testing history tracking.\n",
+          "keywords": {
+            "histories": 0.7,
+            "history": 1,
+            "process": 3,
+            "process_value": 11,
+            "processed": 2.0999999999999996,
+            "processes": 1,
+            "processing": 2.0999999999999996,
+            "testing": 1,
+            "testings": 0.7,
+            "tracking": 1,
+            "used": 1,
+            "value": 4,
+            "valued": 2.8,
+            "values": 2.8,
+            "valuing": 2.8
+          },
+          "dependencies": []
+        }
+      ],
+      "total_functions": 3,
+      "public_functions": 3,
+      "private_functions": 0,
+      "aliases": {},
+      "imports": [],
+      "requires": [],
+      "uses": [],
+      "behaviours": [],
+      "value_mentions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "keywords": {
+        "acceptance": 1,
+        "acceptances": 0.7,
+        "application": 1,
+        "applications": 0.7,
+        "cicada": 1,
+        "cicadae": 0.7,
+        "cicadas": 0.7,
+        "test": 1,
+        "tested": 0.7,
+        "testing": 0.7,
+        "tests": 1
+      }
+    },
+    "TestApp.MixProject": {
+      "file": "mix.exs",
+      "line": 1,
+      "moduledoc": null,
+      "functions": [
+        {
+          "name": "project",
+          "arity": 0,
+          "args": [],
+          "guards": [],
+          "full_name": "project/0",
+          "line": 4,
+          "signature": "def project",
+          "type": "def",
+          "impl": false,
+          "dependencies": []
+        }
+      ],
+      "total_functions": 1,
+      "public_functions": 1,
+      "private_functions": 0,
+      "aliases": {},
+      "imports": [],
+      "requires": [],
+      "uses": [
+        "Mix.Project"
+      ],
+      "behaviours": [],
+      "value_mentions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [
+          "Mix.Project"
+        ],
+        "has_dynamic_calls": false
+      }
+    }
+  },
+  "metadata": {
+    "indexed_at": "2025-11-15T11:41:25.692844",
+    "total_modules": 3,
+    "total_functions": 6,
+    "repo_path": "/Users/wende/projects/cicada-normal-distribution/tests/fixtures/test_project",
+    "cicada_version": "0.3.2 (v0.3.2/f6c9924)"
+  }
+}

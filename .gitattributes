@@ -1,6 +1,3 @@
 # Elixir function tracking for git log -L
 *.ex diff=elixir
 *.exs diff=elixir
-
-# Auto-generated file - always keep local version during merges
-cicada/_version_hash.py merge=ours

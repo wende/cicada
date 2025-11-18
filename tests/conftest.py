@@ -21,7 +21,7 @@ def setup_test_environment():
     # Get the tests directory
     tests_dir = Path(__file__).parent
 
-    # Create tests/data directory if it doesn't exist
+    # Create data directory for test files
     os.makedirs(tests_dir / "data", exist_ok=True)
 
     # Generate test index with sample data for tests
@@ -102,6 +102,15 @@ def setup_test_environment():
     test_index_path = tests_dir / "data" / "test_index.json"
     with open(test_index_path, "w") as f:
         json.dump(test_index, f, indent=2)
+
+    # Create config.yaml file (no longer includes index_path - uses centralized storage)
+    config = {
+        "repository": {"path": "."},
+    }
+
+    config_path = "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
 
     yield
 

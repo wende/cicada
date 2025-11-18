@@ -5,6 +5,8 @@ This module provides centralized path normalization and resolution
 functions used throughout the codebase.
 """
 
+import fnmatch
+import re
 from pathlib import Path
 
 
@@ -192,62 +194,65 @@ def ensure_relative_to_repo(
     return normalize_file_path(resolved)
 
 
-def ensure_gitignore_has_cicada(repo_root: str | Path) -> bool:
+def is_test_file(file_path: str) -> bool:
     """
-    Ensure .gitignore contains .cicada/ directory entry.
+    Check if a file is a test file or script file.
 
-    If .gitignore exists and doesn't already contain .cicada/, adds it.
-    If .gitignore doesn't exist, this function does nothing.
+    Files are considered test/script files if they:
+    - Are in 'test/' directory (anywhere in path or at start)
+    - End with '_test.ex' suffix
+    - End with '.exs' extension (Elixir script files)
 
     Args:
-        repo_root: Repository root directory
+        file_path: Path to the file
 
     Returns:
-        True if .cicada/ was added to .gitignore, False otherwise
+        True if the file is a test file or script
 
     Example:
-        ensure_gitignore_has_cicada('/repo') -> True (if added)
-        ensure_gitignore_has_cicada('/repo') -> False (if already present or no .gitignore)
+        is_test_file('test/user_test.ex') -> True
+        is_test_file('lib/mix_task.exs') -> True
+        is_test_file('lib/user.ex') -> False
     """
-    repo_root_path = Path(repo_root).resolve()
-    gitignore_path = repo_root_path / ".gitignore"
+    file_lower = file_path.lower()
+    return (
+        "/test/" in file_lower
+        or file_lower.startswith("test/")
+        or file_lower.endswith(("_test.ex", ".exs"))
+    )
 
-    # Do nothing if .gitignore doesn't exist
-    if not gitignore_path.exists():
-        return False
 
-    try:
-        # Read existing .gitignore
-        with open(gitignore_path) as f:
-            content = f.read()
+def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
+    """
+    Check if file path matches a glob pattern.
 
-        # Check if .cicada/ is already present in actual gitignore patterns
-        # (ignore comment lines starting with #)
-        for line in content.splitlines():
-            # Strip whitespace and skip empty lines and comments
-            stripped = line.strip()
-            # Check if this line contains .cicada as a gitignore pattern
-            # Valid patterns: .cicada, .cicada/, /.cicada, /.cicada/, **/.cicada/, etc.
-            if (
-                stripped
-                and not stripped.startswith("#")
-                and (
-                    stripped in (".cicada", ".cicada/")
-                    or stripped.endswith(("/.cicada", "/.cicada/"))
-                )
-            ):
-                return False
+    Supports:
+    - * for single-level wildcards
+    - ** for recursive directory matching
+    - Standard glob patterns
 
-        # Add .cicada/ to .gitignore
-        with open(gitignore_path, "a") as f:
-            # Add newline if file doesn't end with one
-            if content and not content.endswith("\n"):
-                f.write("\n")
+    Args:
+        file_path: File path to check
+        pattern: Glob pattern (e.g., "lib/**/*.ex", "**/*_test.ex")
 
-            f.write(".cicada/\n")
+    Returns:
+        True if path matches pattern
 
-        return True
+    Example:
+        matches_glob_pattern('lib/auth/user.ex', 'lib/**/*.ex') -> True
+        matches_glob_pattern('lib/user.ex', 'lib/*') -> True
+        matches_glob_pattern('test/user_test.ex', '**/*_test.ex') -> True
+    """
+    # Normalize both paths
+    file_path_norm = normalize_file_path(file_path)
+    pattern_norm = normalize_file_path(pattern)
 
-    except OSError:
-        # Fail silently if we can't read/write the file
-        return False
+    # Handle ** recursive matching
+    if "**" in pattern_norm:
+        # Convert glob pattern to regex
+        regex_pattern = pattern_norm.replace("**", ".*").replace("*", "[^/]*")
+        regex_pattern = "^" + regex_pattern + "$"
+        return bool(re.match(regex_pattern, file_path_norm))
+
+    # Use fnmatch for simple patterns
+    return fnmatch.fnmatch(file_path_norm, pattern_norm)
