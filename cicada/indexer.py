@@ -232,8 +232,13 @@ class ElixirIndexer:
                 print(f"Tier: {tier.upper()}")
 
         # Set up signal handlers for graceful interruption
-        signal.signal(signal.SIGINT, self._handle_interrupt)
-        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        # Only works in main thread - skip if called from background thread
+        try:
+            signal.signal(signal.SIGINT, self._handle_interrupt)
+            signal.signal(signal.SIGTERM, self._handle_interrupt)
+        except ValueError:
+            # Running in background thread - signal handlers unavailable
+            pass
         self._interrupted = False
 
         # Initialize keyword extractor and expander if requested
@@ -878,8 +883,13 @@ class ElixirIndexer:
             print(f"Tier: {tier.upper()}")
 
         # Set up signal handlers for graceful interruption
-        signal.signal(signal.SIGINT, self._handle_interrupt)
-        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        # Only works in main thread - skip if called from background thread
+        try:
+            signal.signal(signal.SIGINT, self._handle_interrupt)
+            signal.signal(signal.SIGTERM, self._handle_interrupt)
+        except ValueError:
+            # Running in background thread - signal handlers unavailable
+            pass
         self._interrupted = False
 
         # Find all current Elixir files
