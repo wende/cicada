@@ -878,12 +878,10 @@ def handle_index_main(args) -> None:
     # Perform indexing
     # If tier changed, force full reindex to ensure index consistency with new config
     indexer = ElixirIndexer(verbose=True)
-    extract_cochange = getattr(args, "extract_cochange", False)
     indexer.incremental_index_repository(
         str(repo_path),
         str(index_path),
         extract_keywords=True,
-        extract_cochange=extract_cochange,
         force_full=tier_changed,
     )
 
@@ -1058,7 +1056,6 @@ def handle_query(args):
         path_pattern=args.path_pattern,
         include_tests=not args.no_tests,
         show_snippets=args.snippets,
-        min_tier_rank=getattr(args, "min_tier", None),
     )
 
     if args.format == "json":

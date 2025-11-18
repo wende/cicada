@@ -1040,9 +1040,14 @@ class ElixirIndexer:
                                         module_keywords[word] = score
 
                                 # Store extracted keywords (pre-expansion) for co-occurrence tracking
-                                module_extracted_keywords = dict(name_keywords)  # Start with name keywords
+                                module_extracted_keywords = dict(
+                                    name_keywords
+                                )  # Start with name keywords
                                 for word, score in doc_extracted_keywords.items():
-                                    if word not in module_extracted_keywords or score > module_extracted_keywords[word]:
+                                    if (
+                                        word not in module_extracted_keywords
+                                        or score > module_extracted_keywords[word]
+                                    ):
                                         module_extracted_keywords[word] = score
 
                             except Exception:

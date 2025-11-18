@@ -17,16 +17,20 @@ from cicada.mcp.pattern_utils import has_wildcards, match_wildcard
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
 
-    def __init__(self, index: dict[str, Any], match_source: str = "all"):
+    def __init__(
+        self, index: dict[str, Any], match_source: str = "all", cochange_boost: float = 0.5
+    ):
         """
         Initialize the keyword searcher.
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
             match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
+            cochange_boost: Boost factor for co-change relationships (default: 0.5, set to 0.0 to disable).
         """
         self.index = index
         self.match_source = match_source
+        self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
 
         # Initialize co-occurrence analyzer if data is available
@@ -143,6 +147,10 @@ class KeywordSearcher:
         if module_data.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = module_data["string_sources"]
 
+        # Include co-change data if available
+        if module_data.get("cochange_files"):
+            document["cochange_files"] = module_data["cochange_files"]
+
         return document
 
     def _create_function_document(
@@ -180,6 +188,10 @@ class KeywordSearcher:
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
+
+        # Include co-change data if available
+        if func.get("cochange_functions"):
+            document["cochange_functions"] = func["cochange_functions"]
 
         return document
 
@@ -330,6 +342,79 @@ class KeywordSearcher:
 
         return list(module_patterns)
 
+    def _calculate_cochange_boost(self, doc: dict[str, Any]) -> float:
+        """
+        Calculate the co-change boost value for a document.
+
+        Co-change relationships indicate modules/functions that are frequently modified together,
+        providing context about code dependencies and relationships.
+
+        Boost calculation:
+        - Module-level: 0.01 × total co-change count across all co-changed files
+        - Function-level: 0.02 × total co-change count across all co-changed functions
+        - File-level (for functions): 0.005 × total co-change count for the function's file
+
+        Args:
+            doc: Document containing type, cochange_files, and cochange_functions (if applicable)
+
+        Returns:
+            Float representing the boost value (will be multiplied by cochange_boost factor)
+        """
+        boost = 0.0
+
+        # Module-level boost
+        if doc["type"] == "module" and "cochange_files" in doc:
+            total_cochange_count = sum(f.get("count", 0) for f in doc["cochange_files"])
+            boost += 0.01 * total_cochange_count
+
+        # Function-level boost
+        if doc["type"] == "function" and "cochange_functions" in doc:
+            total_cochange_count = sum(f.get("count", 0) for f in doc["cochange_functions"])
+            boost += 0.02 * total_cochange_count
+
+        return boost
+
+    def _build_cochange_info(self, doc: dict[str, Any]) -> dict[str, Any] | None:
+        """
+        Build co-change information for display in search results.
+
+        Args:
+            doc: Document containing cochange_files and/or cochange_functions
+
+        Returns:
+            Dictionary with 'related_files' and/or 'related_functions' keys, or None if no co-change data
+        """
+        cochange_info = {}
+
+        # Add related files for modules
+        if doc["type"] == "module" and "cochange_files" in doc:
+            related_files = [
+                {
+                    "file": f.get("file"),
+                    "module": f.get("module"),
+                    "count": f.get("count", 0),
+                }
+                for f in doc["cochange_files"]
+            ]
+            if related_files:
+                cochange_info["related_files"] = related_files
+
+        # Add related functions for functions
+        if doc["type"] == "function" and "cochange_functions" in doc:
+            related_functions = [
+                {
+                    "module": f.get("module"),
+                    "function": f.get("function"),
+                    "arity": f.get("arity"),
+                    "count": f.get("count", 0),
+                }
+                for f in doc["cochange_functions"]
+            ]
+            if related_functions:
+                cochange_info["related_functions"] = related_functions
+
+        return cochange_info if cochange_info else None
+
     def _match_module_name(self, module_pattern: str, doc_module: str) -> bool:
         """
         Check if a document's module name matches a module pattern.
@@ -424,6 +509,11 @@ class KeywordSearcher:
                         module_matched = True
                         break
 
+            # Apply co-change boosting if enabled
+            if self.cochange_boost > 0.0 and result_data["score"] > 0:
+                cochange_boost_value = self._calculate_cochange_boost(doc)
+                result_data["score"] += cochange_boost_value * self.cochange_boost
+
             # Only include results with at least one matched keyword OR a module match
             if result_data["score"] > 0:
                 result = {
@@ -467,6 +557,12 @@ class KeywordSearcher:
                 # Add timestamp if available (for recent filtering)
                 if doc.get("last_modified_at"):
                     result["last_modified_at"] = doc["last_modified_at"]
+
+                # Add co-change information if available
+                if self.cochange_boost > 0.0:
+                    cochange_info = self._build_cochange_info(doc)
+                    if cochange_info:
+                        result["cochange_info"] = cochange_info
 
                 results.append(result)
 
