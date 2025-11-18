@@ -16,16 +16,99 @@ from cicada.utils import find_similar_names
 class ModuleSearchHandler:
     """Handler for module search and usage analysis."""
 
-    def __init__(self, index: dict[str, Any], config: dict[str, Any]):
+    def __init__(
+        self,
+        index: dict[str, Any],
+        config: dict[str, Any],
+        dependency_handler: Any | None = None,
+    ):
         """
         Initialize the module search handler.
 
         Args:
             index: The code index containing modules and functions
             config: Configuration dictionary
+            dependency_handler: Optional DependencyHandler for detailed dependency info
         """
         self.index = index
         self.config = config
+        self.dependency_handler = dependency_handler
+
+    async def _get_module_dependencies(
+        self,
+        module_name: str,
+        module_data: dict[str, Any],
+        depth: int,
+        granular: bool,
+    ) -> dict[str, Any] | None:
+        """
+        Get detailed dependency information for a module.
+
+        Args:
+            module_name: Module name
+            module_data: Module dictionary from index
+            depth: Dependency depth (1 = direct only, 2+ = transitive)
+            granular: Whether to show which functions use which dependencies
+
+        Returns:
+            Dictionary with dependency information
+        """
+        dependencies_data = module_data.get("dependencies", {})
+        dependent_modules = dependencies_data.get("modules", [])
+
+        if not dependent_modules:
+            return None
+
+        result = {"direct": [], "transitive": {}, "granular": {}}
+
+        # Build direct dependencies list
+        result["direct"] = dependent_modules.copy()
+
+        # Build transitive dependencies if depth > 1
+        if depth > 1:
+            visited = {module_name}  # Avoid cycles
+            transitive_deps: dict[str, set[str]] = {}
+
+            def collect_transitive(mod: str, current_depth: int) -> None:
+                if current_depth >= depth or mod in visited:
+                    return
+                visited.add(mod)
+
+                mod_data = self.index["modules"].get(mod)
+                if not mod_data:
+                    return
+
+                deps = mod_data.get("dependencies", {}).get("modules", [])
+                for dep in deps:
+                    if dep not in dependent_modules and dep != module_name:
+                        if dep not in transitive_deps:
+                            transitive_deps[dep] = set()
+                        transitive_deps[dep].add(mod)
+                        collect_transitive(dep, current_depth + 1)
+
+            for dep in dependent_modules:
+                collect_transitive(dep, 1)
+
+            # Convert sets to lists for JSON serialization
+            result["transitive"] = {k: list(v) for k, v in transitive_deps.items()}
+
+        # Build granular info if requested
+        if granular:
+            granular_info: dict[str, list[str]] = {}
+            for func in module_data.get("functions", []):
+                func_deps = func.get("dependencies", [])
+                for dep in func_deps:
+                    dep_module = dep["module"]
+                    if dep_module in dependent_modules:
+                        if dep_module not in granular_info:
+                            granular_info[dep_module] = []
+                        func_sig = f"{func['name']}/{func['arity']}"
+                        if func_sig not in granular_info[dep_module]:
+                            granular_info[dep_module].append(func_sig)
+
+            result["granular"] = granular_info
+
+        return result
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """
@@ -125,6 +208,9 @@ class ModuleSearchHandler:
         visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
+        what_it_calls: bool = False,
+        dependency_depth: int = 1,
+        show_function_usage: bool = False,
     ) -> list[TextContent]:
         """
         Search for a module and return its information.
@@ -207,11 +293,25 @@ class ModuleSearchHandler:
         if module_name in self.index["modules"]:
             data = self.index["modules"][module_name]
 
+            # Get detailed dependency info if requested
+            detailed_dependencies = None
+            if what_it_calls and self.dependency_handler:
+                detailed_dependencies = await self._get_module_dependencies(
+                    module_name, data, dependency_depth, show_function_usage
+                )
+
             if output_format == "json":
-                result = ModuleFormatter.format_module_json(module_name, data, visibility)
+                result = ModuleFormatter.format_module_json(
+                    module_name, data, visibility, detailed_dependencies
+                )
             else:
                 result = ModuleFormatter.format_module_markdown(
-                    module_name, data, visibility, pr_info, staleness_info
+                    module_name,
+                    data,
+                    visibility,
+                    pr_info,
+                    staleness_info,
+                    detailed_dependencies,
                 )
 
             return [TextContent(type="text", text=result)]

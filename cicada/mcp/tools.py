@@ -134,6 +134,18 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["public", "private", "all"],
                         "description": "Which functions to show. Defaults to 'public'.",
                     },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show which modules this module depends on (what it imports/aliases/uses). Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "When what_it_calls is true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, show which specific functions use which dependencies. Defaults to false.",
+                    },
                 },
             },
         ),
@@ -204,9 +216,17 @@ def get_tool_definitions() -> list[Tool]:
                             "Requires index to be built with timestamp support."
                         ),
                     },
-                    "show_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": "Show inline relationship information: what functions this calls and what calls this function. Defaults to true.",
+                        "description": "Show call sites (which functions call this function). Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show what functions this function calls (its dependencies), grouped by internal/external with line numbers. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, include code snippets showing where each dependency is called. Defaults to false.",
                     },
                 },
                 "required": ["function_name"],
@@ -517,88 +537,6 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
-            name="get_module_dependencies",
-            description=(
-                "📊 ANALYSIS TOOL: Get all modules that a given module depends on.\n\n"
-                "After discovering a module with query, use this to understand what it needs to work. "
-                "Shows which modules the target module imports, aliases, uses, requires, and calls. "
-                "Complements search_module_usage (which shows who depends on this module).\n\n"
-                "Returns list of dependent modules with dependency types (alias, import, use, require, call).\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding a module, use this to understand: "What does this module need to work?"\n'
-                "• Pair with search_module_usage for full dependency graph (in + out)\n"
-                "• Helps identify coupling - modules with many dependencies may need refactoring\n"
-                "• Set depth=2 to see transitive dependencies (dependencies of dependencies)\n"
-                "• Useful for: refactoring planning, dependency analysis, circular dependency detection"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name to analyze (e.g., 'MyApp.User').",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "depth": {
-                        "type": "integer",
-                        "description": "Depth for transitive dependencies. 1 = direct only, 2 = include dependencies of dependencies. Defaults to 1.",
-                    },
-                    "granular": {
-                        "type": "boolean",
-                        "description": "Show which specific functions use which dependencies. When true, displays function-level dependency details. Defaults to false.",
-                    },
-                },
-                "required": ["module_name"],
-            },
-        ),
-        Tool(
-            name="get_function_dependencies",
-            description=(
-                "📊 ANALYSIS TOOL: Get all functions that a given function calls.\n\n"
-                "After discovering a function with query, use this to understand what it does internally. "
-                "Shows which functions are called within the target function, including both "
-                "internal (same module) and external (other modules) calls.\n\n"
-                "Returns list of called functions with module, name, arity, and line numbers.\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding a function, use this to understand: "What does this function do? What does it call?"\n'
-                "• Helps identify function complexity - many dependencies = complex function\n"
-                "• Shows exact line numbers where each dependency is called\n"
-                "• Useful for: refactoring, understanding control flow, identifying coupling\n"
-                "• Pair with search_function to see both what it calls and who calls it"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name containing the function (e.g., 'MyApp.User').",
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "description": "Function name to analyze (e.g., 'create_user').",
-                    },
-                    "arity": {
-                        "type": "integer",
-                        "description": "Function arity (number of arguments). Required to uniquely identify the function.",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "include_context": {
-                        "type": "boolean",
-                        "description": "Include code context showing where dependencies are called. Defaults to false.",
-                    },
-                },
-                "required": ["module_name", "function_name", "arity"],
-            },
-        ),
-        Tool(
             name="expand_result",
             description=(
                 "🔧 DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
@@ -637,12 +575,25 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Include code snippets in the expansion. Defaults to true.",
                     },
-                    "include_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": (
-                            "Include call graph relationships (what this calls, who calls this). "
-                            "Defaults to true."
-                        ),
+                        "description": "For functions: show call sites (which functions call this). For modules: not applicable. Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show dependencies. For functions: what functions it calls. For modules: what modules it depends on. Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "For modules with what_it_calls=true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "For modules with what_it_calls=true, show which specific functions use which dependencies. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "For functions with what_it_calls=true, include code snippets showing where dependencies are called. Defaults to false.",
                     },
                     "format": {
                         "type": "string",

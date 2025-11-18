@@ -204,6 +204,11 @@ class ToolRouter:
             # Resolve visibility parameter with backward compatibility
             visibility = self._resolve_visibility_parameter(arguments)
 
+            # Get dependency parameters
+            what_it_calls = arguments.get("what_it_calls", False)
+            dependency_depth = arguments.get("dependency_depth", 1)
+            show_function_usage = arguments.get("show_function_usage", False)
+
             # Validate that at least one is provided
             if not module_name and not file_path:
                 error_msg = "Either 'module_name' or 'file_path' must be provided"
@@ -230,7 +235,14 @@ class ToolRouter:
 
             assert module_name is not None, "module_name must be provided"
             return await self.module_handler.search_module(
-                module_name, output_format, visibility, pr_info, staleness_info
+                module_name,
+                output_format,
+                visibility,
+                pr_info,
+                staleness_info,
+                what_it_calls,
+                dependency_depth,
+                show_function_usage,
             )
 
         elif name == "search_function":
@@ -248,7 +260,9 @@ class ToolRouter:
                 usage_type = "tests" if test_files_only else "all"
 
             changed_since = arguments.get("changed_since")
-            show_relationships = arguments.get("show_relationships", True)
+            what_calls_it = arguments.get("what_calls_it", True)
+            what_it_calls = arguments.get("what_it_calls", False)
+            include_code_context = arguments.get("include_code_context", False)
 
             if not function_name:
                 error_msg = "'function_name' is required"
@@ -267,8 +281,10 @@ class ToolRouter:
                 max_examples,
                 usage_type,
                 changed_since,
-                show_relationships,
+                what_calls_it,
                 module_path,
+                what_it_calls,
+                include_code_context,
             )
 
         elif name == "search_module_usage":
@@ -477,41 +493,16 @@ class ToolRouter:
 
             return await self.analysis_handler.query_jq(cast(str, query), output_format, sample)
 
-        elif name == "get_module_dependencies":
-            module_name = arguments.get("module_name")
-            if not module_name:
-                raise ValueError("module_name is required")
-            output_format = arguments.get("format", "markdown")
-            depth = arguments.get("depth", 1)
-            granular = arguments.get("granular", False)
-
-            return await self.dependency_handler.get_module_dependencies(
-                module_name, output_format, depth, granular
-            )
-
-        elif name == "get_function_dependencies":
-            module_name = arguments.get("module_name")
-            function_name = arguments.get("function_name")
-            arity = arguments.get("arity")
-            if not module_name:
-                raise ValueError("module_name is required")
-            if not function_name:
-                raise ValueError("function_name is required")
-            if arity is None:
-                raise ValueError("arity is required")
-            output_format = arguments.get("format", "markdown")
-            include_context = arguments.get("include_context", False)
-
-            return await self.dependency_handler.get_function_dependencies(
-                module_name, function_name, arity, output_format, include_context
-            )
-
         elif name == "expand_result":
             identifier = arguments.get("identifier")
             result_type = arguments.get("type", "auto")
             include_code = arguments.get("include_code", True)
-            include_relationships = arguments.get("include_relationships", True)
+            what_calls_it = arguments.get("what_calls_it", True)
             output_format = arguments.get("format", "markdown")
+            what_it_calls = arguments.get("what_it_calls", False)
+            dependency_depth = arguments.get("dependency_depth", 1)
+            show_function_usage = arguments.get("show_function_usage", False)
+            include_code_context = arguments.get("include_code_context", False)
 
             # Validate required parameter
             if not identifier:
@@ -532,8 +523,12 @@ class ToolRouter:
                 error_msg = "'include_code' must be a boolean"
                 return [TextContent(type="text", text=error_msg)]
 
-            if not isinstance(include_relationships, bool):
-                error_msg = "'include_relationships' must be a boolean"
+            if not isinstance(what_calls_it, bool):
+                error_msg = "'what_calls_it' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            if not isinstance(what_it_calls, bool):
+                error_msg = "'what_it_calls' must be a boolean"
                 return [TextContent(type="text", text=error_msg)]
 
             # Auto-detect type if needed
@@ -562,6 +557,9 @@ class ToolRouter:
                     visibility="all",  # Show all functions (public and private)
                     pr_info=None,
                     staleness_info=None,
+                    what_it_calls=what_it_calls,
+                    dependency_depth=dependency_depth,
+                    show_function_usage=show_function_usage,
                 )
             else:  # function
                 # Parse function reference to extract components
@@ -583,12 +581,14 @@ class ToolRouter:
                 return await self.function_handler.search_function(
                     function_name=function_name,
                     output_format=output_format,
-                    include_usage_examples=include_relationships,  # Show usage if requested
+                    include_usage_examples=what_calls_it,  # Show usage if requested
                     max_examples=5,
                     usage_type="all",
                     changed_since=None,
-                    show_relationships=include_relationships,
+                    what_calls_it=what_calls_it,
                     module_path=module_path,
+                    what_it_calls=what_it_calls,
+                    include_code_context=include_code_context,
                 )
 
         else:

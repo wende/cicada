@@ -16,16 +16,86 @@ from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
 class FunctionSearchHandler:
     """Handler for function search and call site analysis."""
 
-    def __init__(self, index: dict[str, Any], config: dict[str, Any]):
+    def __init__(
+        self,
+        index: dict[str, Any],
+        config: dict[str, Any],
+        dependency_handler: Any | None = None,
+    ):
         """
         Initialize the function search handler.
 
         Args:
             index: The code index containing modules and functions
             config: Configuration dictionary
+            dependency_handler: Optional DependencyHandler for detailed dependency info
         """
         self.index = index
         self.config = config
+        self.dependency_handler = dependency_handler
+
+    def _get_detailed_dependencies(
+        self,
+        module_name: str,
+        func: dict[str, Any],
+        file_path: str,
+        include_context: bool,
+    ) -> dict[str, Any] | None:
+        """
+        Get detailed dependency information for a function.
+
+        Args:
+            module_name: Module containing the function
+            func: Function dictionary from index
+            file_path: Path to the source file
+            include_context: Whether to include code context for each dependency
+
+        Returns:
+            Dictionary with dependency information and optional context
+        """
+        dependencies = func.get("dependencies", [])
+        if not dependencies:
+            return None
+
+        # If include_context is True, fetch the source code
+        context_lines = {}
+        if include_context:
+            repo_path = self.config.get("repository", {}).get("path", ".")
+            full_path = Path(repo_path) / file_path
+            try:
+                with open(full_path) as f:
+                    source_lines = f.readlines()
+                    # Get context for each dependency call
+                    for dep in dependencies:
+                        line_num = dep["line"]
+                        if 1 <= line_num <= len(source_lines):
+                            # Get ±2 lines of context
+                            start = max(0, line_num - 2)
+                            end = min(len(source_lines), line_num + 1)
+                            context = "".join(source_lines[start:end])
+                            context_lines[line_num] = context.rstrip()
+            except OSError:
+                pass  # If we can't read the file, just skip context
+
+        # Group dependencies into internal (same module) and external (other modules)
+        internal_deps = []
+        external_deps = []
+
+        for dep in dependencies:
+            dep_with_context = dep.copy()
+            if include_context and dep["line"] in context_lines:
+                dep_with_context["context"] = context_lines[dep["line"]]
+
+            if dep["module"] == module_name:
+                internal_deps.append(dep_with_context)
+            else:
+                external_deps.append(dep_with_context)
+
+        return {
+            "internal": internal_deps,
+            "external": external_deps,
+            "total_count": len(dependencies),
+        }
 
     def _find_function_at_line(self, module_name: str, line: int) -> dict | None:
         """
@@ -330,8 +400,10 @@ class FunctionSearchHandler:
         max_examples: int = 5,
         usage_type: str = "source",
         changed_since: str | None = None,
-        show_relationships: bool = True,
+        what_calls_it: bool = True,
         module_path: str | None = None,
+        what_it_calls: bool = False,
+        include_code_context: bool = False,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -401,37 +473,45 @@ class FunctionSearchHandler:
                     if key in seen_functions:
                         continue
                     seen_functions.add(key)
-                    # Find call sites for this function
-                    call_sites = self._find_call_sites(
-                        target_module=module_name,
-                        target_function=func["name"],
-                        target_arity=func["arity"],
-                    )
 
-                    # Filter call sites by file type if not 'all'
-                    if usage_type != "all":
-                        from cicada.mcp.filter_utils import filter_by_file_type
-
-                        call_sites = filter_by_file_type(call_sites, usage_type)
-
-                    # Optionally include usage examples (actual code lines)
+                    # Find call sites if what_calls_it is enabled
+                    call_sites = []
                     call_sites_with_examples = []
-                    if include_usage_examples and call_sites:
-                        # Consolidate call sites by calling module (one example per module)
-                        consolidated_sites = self._consolidate_call_sites_by_module(call_sites)
-                        # Limit the number of examples
-                        call_sites_with_examples = consolidated_sites[:max_examples]
-                        # Extract code lines for each call site
-                        self._add_code_examples(call_sites_with_examples)
+                    if what_calls_it:
+                        call_sites = self._find_call_sites(
+                            target_module=module_name,
+                            target_function=func["name"],
+                            target_arity=func["arity"],
+                        )
+
+                        # Filter call sites by file type if not 'all'
+                        if usage_type != "all":
+                            from cicada.mcp.filter_utils import filter_by_file_type
+
+                            call_sites = filter_by_file_type(call_sites, usage_type)
+
+                        # Optionally include usage examples (actual code lines)
+                        if include_usage_examples and call_sites:
+                            # Consolidate call sites by calling module (one example per module)
+                            consolidated_sites = self._consolidate_call_sites_by_module(call_sites)
+                            # Limit the number of examples
+                            call_sites_with_examples = consolidated_sites[:max_examples]
+                            # Extract code lines for each call site
+                            self._add_code_examples(call_sites_with_examples)
 
                     # Get PR context for this function (we'll need pr_handler reference)
                     # For now, we'll skip this or pass it from server
                     pr_info = None
 
-                    # Get function dependencies if show_relationships is enabled
-                    dependencies = []
-                    if show_relationships:
-                        dependencies = func.get("dependencies", [])
+                    # Get detailed dependency info if what_it_calls is enabled
+                    detailed_dependencies = None
+                    if what_it_calls and self.dependency_handler:
+                        detailed_dependencies = self._get_detailed_dependencies(
+                            module_name,
+                            func,
+                            module_data["file"],
+                            include_code_context,
+                        )
 
                     results.append(
                         {
@@ -442,7 +522,7 @@ class FunctionSearchHandler:
                             "call_sites": call_sites,
                             "call_sites_with_examples": call_sites_with_examples,
                             "pr_info": pr_info,
-                            "dependencies": dependencies,
+                            "detailed_dependencies": detailed_dependencies,
                         }
                     )
 
@@ -455,7 +535,7 @@ class FunctionSearchHandler:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, show_relationships
+                function_name, results, staleness_info, what_it_calls
             )
 
         return [TextContent(type="text", text=result)]
