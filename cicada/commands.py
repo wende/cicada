@@ -868,26 +868,22 @@ def handle_index_main(args) -> None:
         _print_tier_requirement_error()
         sys.exit(2)
 
-    # Perform indexing using standard interface
+    # Perform indexing using unified interface
     indexer = LanguageRegistry.get_indexer(language)
 
-    # For Elixir, use the specialized method to support extract_cochange
-    if language == "elixir":
-        from typing import cast
-
-        from cicada.indexer import ElixirIndexer
-
+    # Check if indexer supports incremental_index_repository (new unified API)
+    if hasattr(indexer, "incremental_index_repository"):
         extract_cochange = getattr(args, "extract_cochange", False)
-        cast(ElixirIndexer, indexer).incremental_index_repository(
-            str(repo_path),
-            str(index_path),
+        indexer.incremental_index_repository(
+            repo_path=str(repo_path),
+            output_path=str(index_path),
             extract_keywords=True,
             compute_timestamps=True,
             extract_cochange=extract_cochange,
             force_full=tier_changed,
         )
     else:
-        # Use standard interface for other languages
+        # Fallback to basic interface for legacy indexers
         indexer.index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),

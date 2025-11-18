@@ -104,7 +104,7 @@ def create_keyword_extractor(extraction_method: str, expansion_method: str, verb
 
     if extraction_method == "bert":
         try:
-            from cicada.languages.elixir.extractors.keybert import KeyBERTExtractor
+            from cicada.extractors.keybert import KeyBERTExtractor
 
             if verbose:
                 print("  Using KeyBERT extractor", file=sys.stderr)
@@ -123,7 +123,7 @@ def create_keyword_extractor(extraction_method: str, expansion_method: str, verb
             return None
 
     # Default: regular (fast, lightweight, no external dependencies)
-    from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
+    from cicada.extractors.keyword import RegularKeywordExtractor
 
     if verbose:
         print("  Using regular extractor (lemminflect)", file=sys.stderr)

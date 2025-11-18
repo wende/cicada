@@ -10,7 +10,7 @@ from pathlib import Path
 
 from cicada.languages.scip.reader import SCIPReader
 from cicada.languages.scip.converter import SCIPConverter
-from cicada.languages.elixir.extractors.keyword import RegularKeywordExtractor
+from cicada.extractors.keyword import RegularKeywordExtractor
 from cicada.parsing.schema import UniversalIndexSchema
 
 

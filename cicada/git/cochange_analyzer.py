@@ -6,7 +6,6 @@ that code dependencies don't show.
 """
 
 import logging
-import re
 import subprocess
 from collections import defaultdict
 from collections.abc import Callable
@@ -15,18 +14,30 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from cicada.extractors import SignatureExtractorRegistry
+from cicada.extractors.base_signature import FunctionSignatureExtractor
 
-# Regex patterns for parsing Elixir code
-# Note: Elixir allows ? and ! in function names (e.g., empty?, save!)
-ELIXIR_FUNCTION_PATTERN = re.compile(
-    r"^\s*def[p]?\s+([a-z_][a-z0-9_?!]*)\s*\(([^)]*)\)", re.MULTILINE
-)
-ELIXIR_MODULE_PATTERN = re.compile(r"defmodule\s+([A-Z][A-Za-z0-9_.]*)\s+do")
+logger = logging.getLogger(__name__)
 
 
 class CoChangeAnalyzer:
     """Analyzes git history to find co-change patterns."""
+
+    def __init__(self, language: str = "elixir"):
+        """Initialize the co-change analyzer.
+
+        Args:
+            language: Programming language for function signature extraction
+        """
+        self.language = language
+        self.signature_extractor: FunctionSignatureExtractor | None = (
+            SignatureExtractorRegistry.get(language)
+        )
+        if self.signature_extractor is None:
+            logger.warning(
+                f"No signature extractor registered for '{language}'. "
+                "Function-level co-change analysis will be disabled."
+            )
 
     @staticmethod
     def find_cochange_pairs(
@@ -205,33 +216,31 @@ class CoChangeAnalyzer:
         Returns:
             List of function signatures (e.g., "ModuleName.func_name/arity")
         """
+        # If no signature extractor is available, return empty list
+        if self.signature_extractor is None:
+            return []
+
         functions = set()
         files = self._get_files_in_commit(repo_path, commit_sha)
 
-        for file_path in self._filter_elixir_files(files):
-            module_name = self._extract_module_name(repo_path, commit_sha, file_path)
-            if not module_name:
-                continue
+        # Filter files by language extension using the extractor
+        language_files = self.signature_extractor.filter_files(files)
 
+        for file_path in language_files:
             content = self._get_file_content_at_commit(repo_path, commit_sha, file_path)
             if content is None:
                 continue
 
-            file_functions = self._extract_function_signatures(content, module_name)
+            module_name = self.signature_extractor.extract_module_name(content, file_path)
+            if not module_name:
+                continue
+
+            file_functions = self.signature_extractor.extract_function_signatures(
+                content, module_name
+            )
             functions.update(file_functions)
 
         return list(functions)
-
-    def _filter_elixir_files(self, files: list[str]) -> list[str]:
-        """Filter list to include only Elixir files.
-
-        Args:
-            files: List of file paths
-
-        Returns:
-            List of Elixir file paths (.ex and .exs files)
-        """
-        return [f for f in files if f.endswith((".ex", ".exs"))]
 
     def _get_file_content_at_commit(
         self, repo_path: Path, commit_sha: str, file_path: str
@@ -261,73 +270,3 @@ class CoChangeAnalyzer:
                 f"{e.stderr.strip() if e.stderr else 'unknown error'}"
             )
             return None
-
-    def _extract_function_signatures(self, content: str, module_name: str) -> set[str]:
-        """Extract all function signatures from Elixir code content.
-
-        Args:
-            content: Elixir source code
-            module_name: Module name for the functions
-
-        Returns:
-            Set of function signatures (e.g., {"ModuleName.func_name/2"})
-        """
-        # Module name should start with uppercase (Elixir convention)
-        if not module_name or not module_name[0].isupper():
-            return set()
-
-        signatures = set()
-        for match in ELIXIR_FUNCTION_PATTERN.finditer(content):
-            func_name = match.group(1)
-            # Function name should start with lowercase (Elixir convention)
-            # The regex pattern already enforces this, so this check is defensive
-            if func_name and func_name[0].islower():
-                arity = self._calculate_arity(match.group(2))
-                signatures.add(f"{module_name}.{func_name}/{arity}")
-
-        return signatures
-
-    def _calculate_arity(self, params: str) -> int:
-        """Calculate function arity from parameter string.
-
-        This uses a simple comma-counting heuristic that works for most cases
-        but may be inaccurate for complex patterns like:
-        - Functions with default arguments: foo(x, y \\\\ [])
-        - Pattern matched parameters: foo(%{a: x}, [h | t])
-        - Functions with map literals: foo(%{key: 1, key2: 2})
-
-        This is acceptable because co-change analysis cares about relationships,
-        not exact arity values. Functions will still be tracked correctly even
-        if arity is off by one.
-
-        Args:
-            params: Function parameter string from regex match
-
-        Returns:
-            Approximate arity (parameter count)
-        """
-        if not params.strip():
-            return 0
-        return len([p for p in params.split(",") if p.strip()])
-
-    def _extract_module_name(self, repo_path: Path, commit_sha: str, file_path: str) -> str | None:
-        """Extract the module name from an Elixir file.
-
-        Args:
-            repo_path: Path to repository
-            commit_sha: Commit SHA
-            file_path: Path to Elixir file (must be .ex or .exs, caller ensures this)
-
-        Returns:
-            Module name or None if not found
-        """
-        content = self._get_file_content_at_commit(repo_path, commit_sha, file_path)
-        if content is None:
-            return None
-
-        # Look for defmodule declaration using pre-compiled pattern
-        module_match = ELIXIR_MODULE_PATTERN.search(content)
-        if module_match:
-            return module_match.group(1)
-
-        return None

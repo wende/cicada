@@ -317,7 +317,7 @@ class TestCreateKeywordExtractor:
         mock_extractor.__class__.__name__ = "KeyBERTExtractor"
 
         with patch(
-            "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor",
+            "cicada.extractors.keybert.KeyBERTExtractor",
             return_value=mock_extractor,
         ):
             extractor = create_keyword_extractor("bert", "glove", verbose=False)
@@ -332,7 +332,7 @@ class TestCreateKeywordExtractor:
         mock_extractor.__class__.__name__ = "KeyBERTExtractor"
 
         with patch(
-            "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor",
+            "cicada.extractors.keybert.KeyBERTExtractor",
             return_value=mock_extractor,
         ):
             extractor = create_keyword_extractor("bert", "glove", verbose=True)
@@ -348,17 +348,17 @@ class TestCreateKeywordExtractor:
         import sys
 
         # Save original modules
-        original_keybert_module = sys.modules.get("cicada.languages.elixir.extractors.keybert")
+        original_keybert_module = sys.modules.get("cicada.extractors.keybert")
 
         # Remove the module to force re-import
-        if "cicada.languages.elixir.extractors.keybert" in sys.modules:
-            del sys.modules["cicada.languages.elixir.extractors.keybert"]
+        if "cicada.extractors.keybert" in sys.modules:
+            del sys.modules["cicada.extractors.keybert"]
 
         # Create a mock module that raises ImportError
         mock_module = MagicMock()
         mock_module.KeyBERTExtractor = MagicMock(side_effect=ImportError("KeyBERT not available"))
 
-        sys.modules["cicada.languages.elixir.extractors.keybert"] = mock_module
+        sys.modules["cicada.extractors.keybert"] = mock_module
 
         try:
             extractor = create_keyword_extractor("bert", "glove", verbose=True)
@@ -371,9 +371,9 @@ class TestCreateKeywordExtractor:
         finally:
             # Restore original module
             if original_keybert_module is not None:
-                sys.modules["cicada.languages.elixir.extractors.keybert"] = original_keybert_module
-            elif "cicada.languages.elixir.extractors.keybert" in sys.modules:
-                del sys.modules["cicada.languages.elixir.extractors.keybert"]
+                sys.modules["cicada.extractors.keybert"] = original_keybert_module
+            elif "cicada.extractors.keybert" in sys.modules:
+                del sys.modules["cicada.extractors.keybert"]
 
     def test_bert_initialization_error_returns_none(self, capsys):
         """Should return None and print warning when extractor initialization fails"""
@@ -381,7 +381,7 @@ class TestCreateKeywordExtractor:
         mock_extractor = MagicMock(side_effect=Exception("Model download failed"))
 
         with patch(
-            "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor",
+            "cicada.extractors.keybert.KeyBERTExtractor",
             mock_extractor,
         ):
             extractor = create_keyword_extractor("bert", "glove", verbose=True)
@@ -466,7 +466,7 @@ class TestGetKeywordExtractorFromConfig:
 
         with patch("cicada.utils.keyword_utils.get_config_path", return_value=config_path):
             with patch(
-                "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor",
+                "cicada.extractors.keybert.KeyBERTExtractor",
                 return_value=mock_extractor,
             ):
                 with open(config_path, "w") as f:
@@ -574,7 +574,7 @@ class TestGetKeywordExtractorFromConfig:
 
         with patch("cicada.utils.keyword_utils.get_config_path", return_value=config_path):
             with patch(
-                "cicada.languages.elixir.extractors.keybert.KeyBERTExtractor",
+                "cicada.extractors.keybert.KeyBERTExtractor",
                 return_value=mock_extractor,
             ):
                 with open(config_path, "w") as f:
