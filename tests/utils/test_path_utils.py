@@ -7,9 +7,11 @@ from pathlib import Path
 import pytest
 
 from cicada.utils.path_utils import (
+    _expand_braces,
     ensure_relative_to_repo,
     find_repo_root,
     match_file_path,
+    matches_glob_pattern,
     normalize_file_path,
     resolve_to_repo_root,
 )
@@ -346,3 +348,138 @@ class TestEnsureRelativeToRepo:
         file_path = tmp_path / "lib" / "myapp" / "controllers" / "user.ex"
         result = ensure_relative_to_repo(file_path, tmp_path)
         assert result == "lib/myapp/controllers/user.ex"
+
+
+class TestMatchesGlobPattern:
+    """Tests for matches_glob_pattern function"""
+
+    def test_simple_wildcard_match(self):
+        """Test simple * wildcard matching"""
+        assert matches_glob_pattern("lib/user.ex", "lib/*.ex") is True
+        assert matches_glob_pattern("test/user.ex", "test/*.ex") is True
+
+    def test_simple_wildcard_no_match(self):
+        """Test simple * wildcard not matching wrong extension"""
+        assert matches_glob_pattern("lib/user.heex", "lib/*.ex") is False
+
+    def test_simple_wildcard_does_not_match_subdirs(self):
+        """Test that * does not match across directory separators"""
+        assert matches_glob_pattern("lib/auth/user.ex", "lib/*.ex") is False
+
+    def test_double_star_matches_any_depth(self):
+        """Test ** matches files at any directory depth"""
+        assert matches_glob_pattern("lib/user.ex", "**/*.ex") is True
+        assert matches_glob_pattern("lib/auth/user.ex", "**/*.ex") is True
+        assert matches_glob_pattern("lib/auth/controllers/user.ex", "**/*.ex") is True
+        assert matches_glob_pattern("test/unit/user_test.ex", "**/*.ex") is True
+
+    def test_double_star_with_prefix(self):
+        """Test ** with directory prefix"""
+        assert matches_glob_pattern("lib/user.ex", "lib/**/*.ex") is True
+        assert matches_glob_pattern("lib/auth/user.ex", "lib/**/*.ex") is True
+        assert matches_glob_pattern("lib/auth/controllers/user.ex", "lib/**/*.ex") is True
+        assert matches_glob_pattern("test/user.ex", "lib/**/*.ex") is False
+
+    def test_brace_expansion_basic(self):
+        """Test basic brace expansion {a,b}"""
+        assert matches_glob_pattern("lib/user.ex", "**/*.{ex,heex}") is True
+        assert matches_glob_pattern("lib/user.heex", "**/*.{ex,heex}") is True
+        assert matches_glob_pattern("lib/user.js", "**/*.{ex,heex}") is False
+
+    def test_brace_expansion_multiple_options(self):
+        """Test brace expansion with multiple options"""
+        assert matches_glob_pattern("lib/user.ex", "**/*.{ex,heex,eex}") is True
+        assert matches_glob_pattern("lib/user.heex", "**/*.{ex,heex,eex}") is True
+        assert matches_glob_pattern("lib/user.eex", "**/*.{ex,heex,eex}") is True
+        assert matches_glob_pattern("lib/user.js", "**/*.{ex,heex,eex}") is False
+
+    def test_brace_expansion_with_simple_wildcard(self):
+        """Test brace expansion with simple * wildcard"""
+        assert matches_glob_pattern("lib/user.ex", "lib/*.{ex,heex}") is True
+        assert matches_glob_pattern("lib/user.heex", "lib/*.{ex,heex}") is True
+        assert matches_glob_pattern("lib/auth/user.ex", "lib/*.{ex,heex}") is False
+
+    def test_pattern_with_leading_dot_slash(self):
+        """Test pattern with leading ./ is normalized"""
+        assert matches_glob_pattern("lib/user.ex", "./lib/*.ex") is True
+        assert matches_glob_pattern("./lib/user.ex", "lib/*.ex") is True
+        assert matches_glob_pattern("./lib/user.ex", "./lib/*.ex") is True
+
+    def test_pattern_matching_test_files(self):
+        """Test pattern matching test files"""
+        assert matches_glob_pattern("test/user_test.ex", "**/*_test.ex") is True
+        assert matches_glob_pattern("test/unit/user_test.ex", "**/*_test.ex") is True
+        assert matches_glob_pattern("lib/user.ex", "**/*_test.ex") is False
+
+    def test_exact_filename_pattern(self):
+        """Test pattern matching exact filename"""
+        assert matches_glob_pattern("mix.exs", "mix.exs") is True
+        assert matches_glob_pattern("lib/mix.exs", "mix.exs") is False
+
+    def test_pattern_with_path_object(self):
+        """Test matching with Path object"""
+        path = Path("lib/user.ex")
+        assert matches_glob_pattern(path, "lib/*.ex") is True
+
+    def test_complex_pattern_nested_braces(self):
+        """Test pattern with multiple brace groups"""
+        # Pattern: lib/**/*.{ex,heex}
+        assert matches_glob_pattern("lib/auth/user.ex", "lib/**/*.{ex,heex}") is True
+        assert matches_glob_pattern("lib/auth/view.heex", "lib/**/*.{ex,heex}") is True
+        assert matches_glob_pattern("test/auth/user.ex", "lib/**/*.{ex,heex}") is False
+
+    def test_pattern_matching_specific_subdirectory(self):
+        """Test pattern matching specific subdirectory"""
+        assert matches_glob_pattern("lib/auth/user.ex", "lib/auth/*.ex") is True
+        assert matches_glob_pattern("lib/admin/user.ex", "lib/auth/*.ex") is False
+        assert matches_glob_pattern("lib/auth/controllers/user.ex", "lib/auth/*.ex") is False
+
+    def test_pattern_empty_string(self):
+        """Test matching empty string pattern"""
+        assert matches_glob_pattern("", "") is True
+        assert matches_glob_pattern("lib/user.ex", "") is False
+
+    def test_pattern_with_special_chars(self):
+        """Test pattern with dots in filename"""
+        assert matches_glob_pattern("lib/user.controller.ex", "**/*.ex") is True
+        assert matches_glob_pattern("lib/user.controller.ex", "**/*.controller.ex") is True
+
+
+class TestExpandBraces:
+    """Tests for _expand_braces helper function"""
+
+    def test_expand_no_braces(self):
+        """Test pattern without braces returns as-is"""
+        result = _expand_braces("**/*.ex")
+        assert result == ["**/*.ex"]
+
+    def test_expand_simple_braces(self):
+        """Test simple brace expansion"""
+        result = _expand_braces("**/*.{ex,heex}")
+        assert set(result) == {"**/*.ex", "**/*.heex"}
+
+    def test_expand_multiple_alternatives(self):
+        """Test brace expansion with multiple alternatives"""
+        result = _expand_braces("**/*.{ex,heex,eex}")
+        assert set(result) == {"**/*.ex", "**/*.heex", "**/*.eex"}
+
+    def test_expand_braces_with_spaces(self):
+        """Test brace expansion handles spaces in alternatives"""
+        result = _expand_braces("**/*.{ex, heex}")
+        assert set(result) == {"**/*.ex", "**/*.heex"}
+
+    def test_expand_multiple_brace_groups(self):
+        """Test pattern with multiple brace groups"""
+        result = _expand_braces("{lib,test}/**/*.{ex,heex}")
+        # Should expand to: lib/**/*.ex, lib/**/*.heex, test/**/*.ex, test/**/*.heex
+        assert set(result) == {
+            "lib/**/*.ex",
+            "lib/**/*.heex",
+            "test/**/*.ex",
+            "test/**/*.heex",
+        }
+
+    def test_expand_single_alternative(self):
+        """Test brace with single alternative"""
+        result = _expand_braces("**/*.{ex}")
+        assert result == ["**/*.ex"]

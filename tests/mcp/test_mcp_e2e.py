@@ -367,14 +367,11 @@ class TestToolIntegration:
         assert "search_module_usage" in tool_names
 
         # Verify git tools
-        assert "get_commit_history" in tool_names
-        assert "get_blame" in tool_names
-        assert "find_pr_for_line" in tool_names
+        assert "git_history" in tool_names
 
         # Verify analysis tools
         assert "query" in tool_names
         assert "find_dead_code" in tool_names
-        assert "get_file_pr_history" in tool_names
 
     @pytest.mark.asyncio
     async def test_json_output_format(self, e2e_server):

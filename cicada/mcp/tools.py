@@ -134,6 +134,18 @@ def get_tool_definitions() -> list[Tool]:
                         "enum": ["public", "private", "all"],
                         "description": "Which functions to show. Defaults to 'public'.",
                     },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show which modules this module depends on (what it imports/aliases/uses). Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "When what_it_calls is true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, show which specific functions use which dependencies. Defaults to false.",
+                    },
                 },
             },
         ),
@@ -204,9 +216,17 @@ def get_tool_definitions() -> list[Tool]:
                             "Requires index to be built with timestamp support."
                         ),
                     },
-                    "show_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": "Show inline relationship information: what functions this calls and what calls this function. Defaults to true.",
+                        "description": "Show call sites (which functions call this function). Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show what functions this function calls (its dependencies), grouped by internal/external with line numbers. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "When what_it_calls is true, include code snippets showing where each dependency is called. Defaults to false.",
                     },
                 },
                 "required": ["function_name"],
@@ -249,17 +269,25 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
-            name="find_pr_for_line",
+            name="git_history",
             description=(
-                "📜 HISTORY TOOL: Discover why code exists and who wrote it.\n\n"
-                "After locating code with query or other tools, use this to find the pull request that introduced a specific line. "
-                "Requires PR index (run 'cicada index-pr' first).\n\n"
-                "Returns PR number, title, description, and author.\n\n"
+                "📜 UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
+                "Smart routing based on parameters:\n"
+                "• start_line only → single line blame + find PR\n"
+                "• start_line + end_line → line range blame with PR enrichment\n"
+                "• function_name → function tracking with evolution metadata\n"
+                "• file_path only → file-level history (PRs preferred, commits fallback)\n\n"
+                "Automatically uses PR index when available for enriched results.\n\n"
+                "Returns context-aware formatted results based on query type.\n\n"
                 "AI USAGE TIPS:\n"
-                '• After finding code, use this to understand: "Why does this code exist? What problem did it solve?"\n'
-                "• Perfect for understanding complex/confusing code - read the PR discussion\n"
-                "• Provides: PR title, description, author, and link to full discussion\n"
-                "• If this interests you, also try: get_file_pr_history (all PRs for a file)"
+                "• Single line authorship: git_history(file_path='lib/auth.ex', start_line=42)\n"
+                "• Line range blame: git_history(file_path='lib/auth.ex', start_line=40, end_line=60)\n"
+                "• Function evolution: git_history(file_path='lib/auth.ex', function_name='create_user', show_evolution=true)\n"
+                "• File PR history: git_history(file_path='lib/auth.ex')\n"
+                "• Recent changes only: git_history(file_path='lib/auth.ex', recent=true)\n"
+                "• Older changes: git_history(file_path='lib/auth.ex', recent=false)\n"
+                "• All time: git_history(file_path='lib/auth.ex', recent=null)\n"
+                "• By author: git_history(file_path='lib/auth.ex', author='john')"
             ),
             inputSchema={
                 "type": "object",
@@ -268,220 +296,36 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "description": "Path to the file (relative to repo root).",
                     },
-                    "line_number": {
+                    "start_line": {
                         "type": "integer",
-                        "description": "Line number in the file (1-indexed).",
+                        "description": "Optional: Line number for single line, or range start. If provided without end_line, queries single line + finds PR.",
                     },
-                    "format": {
-                        "type": "string",
-                        "enum": ["text", "json", "markdown"],
-                        "description": "Output format. Defaults to 'text'.",
-                    },
-                },
-                "required": ["file_path", "line_number"],
-            },
-        ),
-        Tool(
-            name="get_commit_history",
-            description=(
-                "📜 HISTORY TOOL: Get git history for files or functions.\n\n"
-                "After discovering code with query, use this to see its evolution over time. "
-                "When function_name is provided, uses git's function tracking which works even as the function moves around in the file.\n\n"
-                "Returns git commits with dates, authors, and messages. Optionally shows function evolution metadata.\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding code, use this to understand evolution: "How has this function changed over time?"\n'
-                "• Set show_evolution=true to see: creation date, total modifications, frequency\n"
-                "• Provide function_name for precise tracking (even as function moves in file)\n"
-                "• Helps identify frequently changing code (may indicate complexity/bugs)\n"
-                "• Use max_commits to limit results (default: 10)"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root).",
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Optional: Range end for line-based tracking. Use with start_line for range blame.",
                     },
                     "function_name": {
                         "type": "string",
-                        "description": "Optional: Function name for function-level tracking. Uses git log -L :funcname:file for precise tracking.",
-                    },
-                    "start_line": {
-                        "type": "integer",
-                        "description": "Optional: Starting line for line-range tracking. Required with end_line for line-based history.",
-                    },
-                    "end_line": {
-                        "type": "integer",
-                        "description": "Optional: Ending line for line-range tracking. Required with start_line for line-based history.",
-                    },
-                    "precise_tracking": {
-                        "type": "boolean",
-                        "description": "Deprecated - function tracking is automatic when function_name provided.",
+                        "description": "Optional: Function name for function-level tracking. Uses git log -L for precise tracking.",
                     },
                     "show_evolution": {
                         "type": "boolean",
-                        "description": "Show function evolution metadata (creation date, last modification, modification frequency). Defaults to false.",
+                        "description": "Show evolution metadata (creation date, last modification, frequency). Defaults to false.",
                     },
-                    "max_commits": {
+                    "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of commits to return. Defaults to 10.",
+                        "description": "Maximum commits/PRs to return. Defaults to 10.",
                     },
-                    "since_date": {
-                        "type": "string",
-                        "description": "Only include commits after this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y). Examples: '2024-01-01', '30d'.",
-                    },
-                    "until_date": {
-                        "type": "string",
-                        "description": "Only include commits before this date. Format: ISO date (YYYY-MM-DD) or relative (7d, 2w, 3m, 1y).",
+                    "recent": {
+                        "type": ["boolean", "null"],
+                        "description": "Time filter: true = last 14 days only, false = older than 14 days, null/omitted = all time (default).",
                     },
                     "author": {
                         "type": "string",
-                        "description": "Filter by author name (substring match, case-insensitive). Example: 'john' matches 'John Doe'.",
-                    },
-                    "min_changes": {
-                        "type": "integer",
-                        "description": "Minimum number of lines changed (insertions + deletions) in the file. Useful for finding substantial changes.",
+                        "description": "Filter by author name (substring match, case-insensitive).",
                     },
                 },
                 "required": ["file_path"],
-            },
-        ),
-        Tool(
-            name="get_blame",
-            description=(
-                "📜 HISTORY TOOL: Git blame showing who wrote each line.\n\n"
-                "After locating code with query or other tools, use this to see line-by-line authorship. "
-                "Groups consecutive lines with the same authorship together.\n\n"
-                "Returns author name, email, commit hash, and date for each authorship group.\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding code, use this to know: "Who wrote this code? When?"\n'
-                "• Shows line-by-line authorship with commit hashes for each change\n"
-                "• Requires start_line and end_line (from search_function results)\n"
-                "• Groups consecutive lines by same author for readability\n"
-                "• Large code blocks (>50 lines) are automatically truncated to show head and tail"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root).",
-                    },
-                    "start_line": {
-                        "type": "integer",
-                        "description": "Starting line number (1-indexed).",
-                    },
-                    "end_line": {
-                        "type": "integer",
-                        "description": "Ending line number (1-indexed, inclusive).",
-                    },
-                },
-                "required": ["file_path", "start_line", "end_line"],
-            },
-        ),
-        Tool(
-            name="get_file_pr_history",
-            description=(
-                "📜 HISTORY TOOL: Get all PRs that modified a file with descriptions and review comments.\n\n"
-                "After discovering a file with query, use this to understand its complete evolution through pull requests. "
-                "Returns a chronological list of pull requests that modified the specified file, "
-                "including descriptions and code review comments specific to that file.\n\n"
-                "Requires PR index (run 'cicada index-pr' first).\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding a file, use this for deep context: "What\'s the full history of changes to this file?"\n'
-                "• Shows ALL PRs that touched the file + review comments (discussions, decisions)\n"
-                "• Review comments reveal: design decisions, concerns, tradeoffs, bugs found\n"
-                "• Perfect for understanding controversial/complex code - read the debates!\n"
-                "• Complements find_pr_for_line (which finds PR for a single line)"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file (relative to repo root or absolute).",
-                    },
-                },
-                "required": ["file_path"],
-            },
-        ),
-        Tool(
-            name="search_by_features",
-            description=(
-                "USE THIS FIRST when exploring code or when you don't know exact module/function names.\n\n"
-                "Search for code by concepts and features - find code by describing what it does, not what it's called. "
-                "Perfect for discovering relevant code when exploring unfamiliar codebases.\n\n"
-                "Examples: ['authentication', 'login'], ['api', 'key', 'storage'], ['email', 'validation']\n\n"
-                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
-                "Searches both documentation keywords AND string literals in code (e.g., SQL queries, error messages).\n"
-                "Use match_source to filter by keyword source: 'all' (default), 'docs' (documentation only), or 'strings' (string literals only).\n\n"
-                "AI USAGE TIPS:\n"
-                "• **USE THIS FIRST** - don't ask user for module names when you can search for concepts\n"
-                "• Try broad queries first: ['authentication'], then narrow: ['oauth', 'token']\n"
-                "• Multiple searches are NORMAL - try 3-5 different keyword combinations\n"
-                "• Empty results? Try broader terms, check spelling, or use wildcards: ['*auth*']\n"
-                "• Results show modules AND functions with relevance scores\n"
-                "• Use filter_type to narrow: 'modules', 'functions', or 'all' (default)\n"
-                "• Use match_source='strings' to find code by actual strings used (e.g., SQL queries, error messages)\n\n"
-                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
-                    },
-                    "filter_type": {
-                        "type": "string",
-                        "enum": ["all", "modules", "functions"],
-                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
-                    },
-                    "min_score": {
-                        "type": "number",
-                        "description": "Minimum relevance score threshold (0.0 to 1.0). Only results with scores >= this value will be shown. Default: 0.0 (no filtering).",
-                    },
-                    "match_source": {
-                        "type": "string",
-                        "enum": ["all", "docs", "strings"],
-                        "description": "Filter by keyword source: 'all' searches both documentation and string literals (default), 'docs' searches only documentation keywords, 'strings' searches only keywords from string literals in code.",
-                    },
-                    "cochange_boost": {
-                        "type": "number",
-                        "description": "Strength of co-change boosting (0.0 to disable, higher values increase boost). Results that frequently change together will be ranked higher. Defaults to 0.5. Requires co-change data in index (run 'cicada index --extract-cochange').",
-                    },
-                },
-                "required": ["keywords"],
-            },
-        ),
-        Tool(
-            name="search_by_keywords",
-            description=(
-                "DEPRECATED: Use 'search_by_features' instead. This tool will be removed in a future version.\n\n"
-                "Search for code by concepts and features when exact names are unknown.\n\n"
-                "Uses AI-powered keyword extraction and semantic similarity. Supports wildcards like 'create*', '*_user', 'validate_*'.\n\n"
-                "Requires keywords in index (run 'cicada index' first - uses semantic extraction by default)."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of keywords to search for (e.g., ['authentication', 'login']).",
-                    },
-                    "filter_type": {
-                        "type": "string",
-                        "enum": ["all", "modules", "functions"],
-                        "description": "Filter results to include only modules, only functions, or all results (default: 'all').",
-                    },
-                    "cochange_boost": {
-                        "type": "number",
-                        "description": "Strength of co-change boosting (0.0 to disable). Defaults to 0.5.",
-                    },
-                },
-                "required": ["keywords"],
             },
         ),
         Tool(
@@ -514,88 +358,6 @@ def get_tool_definitions() -> list[Tool]:
                         "description": "Output format. Defaults to 'markdown'.",
                     },
                 },
-            },
-        ),
-        Tool(
-            name="get_module_dependencies",
-            description=(
-                "📊 ANALYSIS TOOL: Get all modules that a given module depends on.\n\n"
-                "After discovering a module with query, use this to understand what it needs to work. "
-                "Shows which modules the target module imports, aliases, uses, requires, and calls. "
-                "Complements search_module_usage (which shows who depends on this module).\n\n"
-                "Returns list of dependent modules with dependency types (alias, import, use, require, call).\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding a module, use this to understand: "What does this module need to work?"\n'
-                "• Pair with search_module_usage for full dependency graph (in + out)\n"
-                "• Helps identify coupling - modules with many dependencies may need refactoring\n"
-                "• Set depth=2 to see transitive dependencies (dependencies of dependencies)\n"
-                "• Useful for: refactoring planning, dependency analysis, circular dependency detection"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name to analyze (e.g., 'MyApp.User').",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "depth": {
-                        "type": "integer",
-                        "description": "Depth for transitive dependencies. 1 = direct only, 2 = include dependencies of dependencies. Defaults to 1.",
-                    },
-                    "granular": {
-                        "type": "boolean",
-                        "description": "Show which specific functions use which dependencies. When true, displays function-level dependency details. Defaults to false.",
-                    },
-                },
-                "required": ["module_name"],
-            },
-        ),
-        Tool(
-            name="get_function_dependencies",
-            description=(
-                "📊 ANALYSIS TOOL: Get all functions that a given function calls.\n\n"
-                "After discovering a function with query, use this to understand what it does internally. "
-                "Shows which functions are called within the target function, including both "
-                "internal (same module) and external (other modules) calls.\n\n"
-                "Returns list of called functions with module, name, arity, and line numbers.\n\n"
-                "AI USAGE TIPS:\n"
-                '• After finding a function, use this to understand: "What does this function do? What does it call?"\n'
-                "• Helps identify function complexity - many dependencies = complex function\n"
-                "• Shows exact line numbers where each dependency is called\n"
-                "• Useful for: refactoring, understanding control flow, identifying coupling\n"
-                "• Pair with search_function to see both what it calls and who calls it"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name containing the function (e.g., 'MyApp.User').",
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "description": "Function name to analyze (e.g., 'create_user').",
-                    },
-                    "arity": {
-                        "type": "integer",
-                        "description": "Function arity (number of arguments). Required to uniquely identify the function.",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "include_context": {
-                        "type": "boolean",
-                        "description": "Include code context showing where dependencies are called. Defaults to false.",
-                    },
-                },
-                "required": ["module_name", "function_name", "arity"],
             },
         ),
         Tool(
@@ -637,12 +399,25 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Include code snippets in the expansion. Defaults to true.",
                     },
-                    "include_relationships": {
+                    "what_calls_it": {
                         "type": "boolean",
-                        "description": (
-                            "Include call graph relationships (what this calls, who calls this). "
-                            "Defaults to true."
-                        ),
+                        "description": "For functions: show call sites (which functions call this). For modules: not applicable. Defaults to true.",
+                    },
+                    "what_it_calls": {
+                        "type": "boolean",
+                        "description": "Show dependencies. For functions: what functions it calls. For modules: what modules it depends on. Defaults to false.",
+                    },
+                    "dependency_depth": {
+                        "type": "integer",
+                        "description": "For modules with what_it_calls=true, controls transitive dependency depth. 1 = direct only, 2+ = include dependencies of dependencies. Defaults to 1.",
+                    },
+                    "show_function_usage": {
+                        "type": "boolean",
+                        "description": "For modules with what_it_calls=true, show which specific functions use which dependencies. Defaults to false.",
+                    },
+                    "include_code_context": {
+                        "type": "boolean",
+                        "description": "For functions with what_it_calls=true, include code snippets showing where dependencies are called. Defaults to false.",
                     },
                     "format": {
                         "type": "string",

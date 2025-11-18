@@ -162,6 +162,7 @@ class ModuleFormatter:
         visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
+        detailed_dependencies: dict | None = None,
     ) -> str:
         """
         Format module data as Markdown.
@@ -172,6 +173,7 @@ class ModuleFormatter:
             visibility: Which functions to show: 'public' (default), 'private', or 'all'
             pr_info: Optional PR context (number, title, comment_count)
             staleness_info: Optional staleness info (is_stale, age_str)
+            detailed_dependencies: Optional detailed dependency information
 
         Returns:
             Formatted Markdown string
@@ -228,7 +230,10 @@ class ModuleFormatter:
 
     @staticmethod
     def format_module_json(
-        module_name: str, data: dict[str, Any], visibility: str = "public"
+        module_name: str,
+        data: dict[str, Any],
+        visibility: str = "public",
+        detailed_dependencies: dict | None = None,
     ) -> str:
         """
         Format module data as JSON.
@@ -237,6 +242,7 @@ class ModuleFormatter:
             module_name: The name of the module
             data: The module data dictionary from the index
             visibility: Which functions to show: 'public' (default), 'private', or 'all'
+            detailed_dependencies: Optional detailed dependency information
 
         Returns:
             Formatted JSON string

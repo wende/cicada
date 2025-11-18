@@ -376,6 +376,7 @@ end
             output_path=".cicada/index.json",
             extract_keywords=False,
             extract_string_keywords=False,
+            compute_timestamps=True,
             extract_cochange=False,
         ):
             # If extract_keywords is True, simulate import failure
@@ -390,6 +391,7 @@ end
                 output_path,
                 extract_keywords,
                 extract_string_keywords,
+                compute_timestamps,
                 extract_cochange,
             )
 
@@ -1176,8 +1178,12 @@ end
             "total_modifications": 5,
         }
 
-        # Mock the get_function_evolution method to return evolution for any function
-        mock_git_helper.get_function_evolution = Mock(return_value=mock_evolution)
+        # Mock the get_functions_evolution_batch method to return evolution for any function
+        def mock_batch_evolution(file_path, functions):
+            # Return evolution for all functions in the batch
+            return {func["name"]: mock_evolution for func in functions}
+
+        mock_git_helper.get_functions_evolution_batch = Mock(side_effect=mock_batch_evolution)
         mock_git_helper.repo_path = tmp_path
 
         # Patch GitHelper to return our mock

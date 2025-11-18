@@ -104,12 +104,6 @@ class TestToolInputValidation:
             ),
             ("search_function", {}, "'function_name' is required"),
             ("search_module_usage", {}, "'module_name' is required"),
-            ("find_pr_for_line", {"line_number": 42}, "'file_path' is required"),
-            ("find_pr_for_line", {"file_path": "test.ex"}, "'line_number' is required"),
-            ("get_commit_history", {}, "'file_path' is required"),
-            ("get_blame", {"start_line": 1, "end_line": 10}, "'file_path' is required"),
-            ("get_blame", {"file_path": "test.ex"}, "start_line"),
-            ("get_file_pr_history", {}, "'file_path' is required"),
         ],
     )
     async def test_tool_validation(self, tool, args, expected_error, test_server):
@@ -117,15 +111,6 @@ class TestToolInputValidation:
         result = await test_server.call_tool(tool, args)
         assert len(result) == 1
         assert expected_error in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_precise_tracking_requires_lines(self, test_server):
-        """Should require line range when precise_tracking is enabled"""
-        result = await test_server.call_tool(
-            "get_commit_history", {"file_path": "test.ex", "precise_tracking": True}
-        )
-        assert len(result) == 1
-        assert "start_line" in result[0].text and "end_line" in result[0].text
 
 
 class TestResolveFileToModule:
@@ -283,10 +268,7 @@ class TestListTools:
             "search_module",
             "search_function",
             "search_module_usage",
-            "find_pr_for_line",
-            "get_commit_history",
-            "get_blame",
-            "get_file_pr_history",
+            "git_history",
         ]
 
         for expected in expected_tools:
