@@ -997,7 +997,7 @@ class ElixirIndexer:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
             extract_keywords: If True, extract keywords from documentation using NLP
-            extract_string_keywords: If True, extract keywords from string literals in function bodies
+            extract_string_keywords: If True, extract keywords from string literals
             compute_timestamps: If True, compute git history timestamps for functions (default: True)
             extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, ignore existing hashes and do full reindex
@@ -1140,6 +1140,21 @@ class ElixirIndexer:
         if extract_string_keywords and self.verbose:
             print("Warning: String keyword extraction not supported in incremental mode")
             extract_string_keywords = False
+
+        # Initialize git helper if timestamp computation is enabled
+        git_helper = None
+        if compute_timestamps:
+            try:
+                from cicada.git.helper import GitHelper
+
+                git_helper = GitHelper(str(repo_path_obj))
+                if self.verbose:
+                    print("Git history tracking enabled - computing function timestamps")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize git helper: {e}")
+                    print("Continuing without timestamp computation...")
+                compute_timestamps = False
 
         # Initialize git helper if timestamp computation is enabled
         git_helper = None
