@@ -9,7 +9,7 @@ Author: Cicada Team
 
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cicada.keyword_search import KeywordSearcher
@@ -45,6 +45,9 @@ class QueryOrchestrator:
         # Use SearchResult's built-in get_last_modified method
         last_modified = result.get_last_modified()
         if last_modified:
+            # Ensure last_modified is timezone-aware for comparison
+            if last_modified.tzinfo is None:
+                last_modified = last_modified.replace(tzinfo=timezone.utc)
             return last_modified >= cutoff
 
         # If no timestamp available, exclude from "recent" filter
@@ -269,7 +272,7 @@ class QueryOrchestrator:
 
         # Scope filter
         if config.scope == "recent":
-            cutoff = datetime.now() - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
             filtered = [r for r in filtered if self._is_recent(r, cutoff)]
         elif config.scope == "public":
             # Only include public functions and all modules
@@ -397,7 +400,7 @@ class QueryOrchestrator:
 
     def _has_recent_changes(self, results: list[SearchResult]) -> bool:
         """Check if results contain recently modified code."""
-        cutoff = datetime.now() - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
         recent_count = sum(1 for r in results[:10] if self._is_recent(r, cutoff))
         return recent_count >= 2
 
