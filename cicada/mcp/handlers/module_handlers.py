@@ -398,7 +398,8 @@ class ModuleSearchHandler:
                         module_name, usage_results
                     )
                     usage_json = json.loads(usage_info)
-                    module_json["usage"] = usage_json.get("usage", {})
+                    # format_module_usage_json returns usage data at top level, not nested
+                    module_json["usage"] = usage_json
                     result = json.dumps(module_json, indent=2)
             else:
                 result = ModuleFormatter.format_module_markdown(

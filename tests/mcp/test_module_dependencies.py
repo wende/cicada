@@ -54,6 +54,8 @@ def sample_index():
                 "file": "lib/my_app/user.ex",
                 "line": 1,
                 "doc": "User module",
+                "public_functions": 2,
+                "private_functions": 0,
                 "dependencies": {
                     "modules": ["MyApp.Repo", "MyApp.Schema"],
                 },
@@ -352,6 +354,39 @@ class TestSearchModuleWithDependencies:
 
         assert len(result) == 1
         assert "not found" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_module_json_with_usage(self, handler):
+        """Test search_module JSON output includes usage data when what_calls_it=True."""
+        import json
+
+        result = await handler.search_module(
+            module_name="MyApp.User",
+            what_calls_it=True,
+            output_format="json",
+        )
+
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+
+        # Verify module info is present
+        assert output["module"] == "MyApp.User"
+
+        # Verify usage data is present and not empty
+        assert "usage" in output
+        assert output["usage"] is not None
+        assert isinstance(output["usage"], dict)
+
+        # Verify usage has expected structure from format_module_usage_json
+        assert "module" in output["usage"]
+        assert output["usage"]["module"] == "MyApp.User"
+        assert "aliases" in output["usage"]
+        assert "imports" in output["usage"]
+        assert "function_calls" in output["usage"]
+        assert "summary" in output["usage"]
+
+        # Verify it's not an empty dict (the bug we're fixing)
+        assert len(output["usage"]) > 1  # At least module + one data field
 
 
 class TestLookupModuleWithError:
