@@ -444,6 +444,79 @@ class TestMatchesGlobPattern:
         assert matches_glob_pattern("lib/user.controller.ex", "**/*.ex") is True
         assert matches_glob_pattern("lib/user.controller.ex", "**/*.controller.ex") is True
 
+    def test_negation_excludes_test_directory(self):
+        """Test negation pattern excludes test directory"""
+        assert matches_glob_pattern("test/user_test.ex", "!**/test/**") is False
+        assert matches_glob_pattern("test/unit/user_test.ex", "!**/test/**") is False
+        assert matches_glob_pattern("lib/user.ex", "!**/test/**") is True
+        assert matches_glob_pattern("lib/auth/user.ex", "!**/test/**") is True
+
+    def test_negation_excludes_test_files_by_suffix(self):
+        """Test negation pattern excludes files by suffix"""
+        assert matches_glob_pattern("test/user_test.ex", "!**/*_test.ex") is False
+        assert matches_glob_pattern("lib/user_test.ex", "!**/*_test.ex") is False
+        assert matches_glob_pattern("lib/user.ex", "!**/*_test.ex") is True
+        assert matches_glob_pattern("test/user.ex", "!**/*_test.ex") is True
+
+    def test_negation_with_simple_wildcard(self):
+        """Test negation with simple * wildcard"""
+        assert matches_glob_pattern("lib/user.ex", "!lib/*.ex") is False
+        assert matches_glob_pattern("lib/auth/user.ex", "!lib/*.ex") is True
+        assert matches_glob_pattern("test/user.ex", "!lib/*.ex") is True
+
+    def test_negation_with_specific_directory(self):
+        """Test negation excluding specific directory"""
+        assert matches_glob_pattern("deps/package/file.ex", "!deps/**") is False
+        assert matches_glob_pattern("lib/user.ex", "!deps/**") is True
+        assert matches_glob_pattern("deps/nested/deep/file.ex", "!deps/**") is False
+
+    def test_negation_with_brace_expansion(self):
+        """Test negation with brace expansion"""
+        assert matches_glob_pattern("lib/user.exs", "!**/*.{exs,heex}") is False
+        assert matches_glob_pattern("lib/user.heex", "!**/*.{exs,heex}") is False
+        assert matches_glob_pattern("lib/user.ex", "!**/*.{exs,heex}") is True
+
+    def test_negation_multiple_directories(self):
+        """Test negation excluding multiple directory patterns"""
+        # Exclude both deps and _build
+        assert matches_glob_pattern("deps/package/file.ex", "!deps/**") is False
+        assert matches_glob_pattern("_build/dev/lib/file.ex", "!_build/**") is False
+        assert matches_glob_pattern("lib/user.ex", "!deps/**") is True
+        assert matches_glob_pattern("lib/user.ex", "!_build/**") is True
+
+    def test_negation_at_start_of_path(self):
+        """Test negation with pattern matching start of path"""
+        assert matches_glob_pattern("test/user.ex", "!test/**") is False
+        assert matches_glob_pattern("lib/test/user.ex", "!test/**") is True
+        assert matches_glob_pattern("lib/user.ex", "!test/**") is True
+
+    def test_negation_exact_path(self):
+        """Test negation with exact path match"""
+        assert matches_glob_pattern("mix.exs", "!mix.exs") is False
+        assert matches_glob_pattern("lib/mix.exs", "!mix.exs") is True
+        assert matches_glob_pattern("user.ex", "!mix.exs") is True
+
+    def test_negation_with_leading_dot_slash(self):
+        """Test negation with normalized leading ./"""
+        assert matches_glob_pattern("./test/user.ex", "!test/**") is False
+        assert matches_glob_pattern("test/user.ex", "!./test/**") is False
+        assert matches_glob_pattern("./lib/user.ex", "!./test/**") is True
+
+    def test_negation_empty_pattern(self):
+        """Test negation with empty pattern after !"""
+        # Pattern "!" alone should be normalized to empty string
+        # No files match empty string, so negation means all files pass
+        assert matches_glob_pattern("lib/user.ex", "!") is True
+        assert matches_glob_pattern("test/user.ex", "!") is True
+
+    def test_negation_complex_pattern(self):
+        """Test negation with complex nested pattern"""
+        # Exclude test files in nested directories
+        assert matches_glob_pattern("test/unit/helpers/user_test.ex", "!test/**/*_test.ex") is False
+        assert matches_glob_pattern("test/user_test.ex", "!test/**/*_test.ex") is False
+        assert matches_glob_pattern("lib/user_test.ex", "!test/**/*_test.ex") is True
+        assert matches_glob_pattern("test/user.ex", "!test/**/*_test.ex") is True
+
 
 class TestExpandBraces:
     """Tests for _expand_braces helper function"""

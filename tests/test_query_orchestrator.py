@@ -286,6 +286,26 @@ class TestQueryOrchestrator:
         # Should include both test and non-test files when no path filter
         assert "user" in result.lower()
 
+    def test_path_pattern_negation_excludes_tests(self, sample_index):
+        """Test negated path_pattern excludes matching files."""
+        orchestrator = QueryOrchestrator(sample_index)
+
+        # Query without filter (baseline)
+        result_all = orchestrator.execute_query("user")
+
+        # Query with negation to exclude test directory
+        result_no_tests = orchestrator.execute_query("user", path_pattern="!**/test/**")
+
+        # Both should have found something
+        assert "**Found**:" in result_all
+        assert "**Found**:" in result_no_tests
+
+        # Result with negation should not contain test/ paths
+        # (if there were any test files in the results)
+        lines_no_tests = [line for line in result_no_tests.split("\n") if "test/" in line.lower()]
+        # Should have no lines mentioning test/ paths
+        assert len(lines_no_tests) == 0
+
     def test_max_results(self, sample_index):
         """Test max_results limits output."""
         orchestrator = QueryOrchestrator(sample_index)
