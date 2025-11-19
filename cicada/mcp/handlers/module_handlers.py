@@ -382,25 +382,21 @@ class ModuleSearchHandler:
                     module_name, data, dependency_depth, show_function_usage
                 )
 
-            # Get usage info if requested (what calls it)
-            usage_info = None
+            # Get usage data if requested (what calls it)
+            usage_results = None
             if what_calls_it:
-                usage_result = await self.search_module_usage(
-                    module_name, output_format, usage_type
-                )
-                # Extract the usage data from the result
-                if usage_result and len(usage_result) > 0:
-                    usage_text = usage_result[0].text
-                    # For markdown, we'll append it; for JSON we need to parse and merge
-                    usage_info = usage_text
+                usage_results = self._get_module_usage_data(module_name, usage_type)
 
             if output_format == "json":
                 result = ModuleFormatter.format_module_json(
                     module_name, data, visibility, detailed_dependencies
                 )
-                # If we have usage info, merge it into the JSON
-                if usage_info:
+                # If we have usage data, merge it into the JSON
+                if usage_results:
                     module_json = json.loads(result)
+                    usage_info = ModuleFormatter.format_module_usage_json(
+                        module_name, usage_results
+                    )
                     usage_json = json.loads(usage_info)
                     module_json["usage"] = usage_json.get("usage", {})
                     result = json.dumps(module_json, indent=2)
@@ -414,25 +410,47 @@ class ModuleSearchHandler:
                     detailed_dependencies,
                 )
                 # Append usage info for markdown
-                if usage_info:
+                if usage_results:
                     result += "\n\n---\n\n## Module Usage (what calls it)\n\n"
-                    # Extract just the usage section (skip the header from search_module_usage)
-                    usage_lines = usage_info.split("\n")
-
-                    # Defensive: check for expected format and skip header if present
+                    # Format the usage data directly (no header parsing needed)
+                    usage_text = ModuleFormatter.format_module_usage_markdown(
+                        module_name, usage_results
+                    )
+                    # Skip the first line (header) from the usage formatter
+                    usage_lines = usage_text.split("\n")
                     if usage_lines and usage_lines[0].startswith("Module Usage for"):
-                        # Skip header and blank line (lines 0 and 1)
+                        # Skip header and blank line
                         if len(usage_lines) > self.USAGE_HEADER_LINES_TO_SKIP:
-                            usage_info = "\n".join(usage_lines[self.USAGE_HEADER_LINES_TO_SKIP :])
+                            usage_text = "\n".join(usage_lines[self.USAGE_HEADER_LINES_TO_SKIP :])
                         else:
-                            usage_info = ""  # Not enough lines, use empty string
-                    # else: usage_info is already in the right format (no header)
-
-                    # Only append if we have actual content
-                    if usage_info.strip():
-                        result += usage_info
+                            usage_text = ""
+                    if usage_text.strip():
+                        result += usage_text
 
             return [TextContent(type="text", text=result)]
+
+        # Module not found - try with wildcard prefix to match partial names
+        # This allows "SomeModule" to match "MyProject.SomeModule"
+        wildcard_pattern = f"*.{module_name}"
+        matching_modules = [
+            mod_name
+            for mod_name in self.index["modules"]
+            if match_any_pattern([wildcard_pattern], mod_name)
+        ]
+        if matching_modules:
+            # Retry with wildcard pattern
+            return await self.search_module(
+                wildcard_pattern,
+                output_format,
+                visibility,
+                pr_info,
+                staleness_info,
+                what_calls_it,
+                usage_type,
+                what_it_calls,
+                dependency_depth,
+                show_function_usage,
+            )
 
         # Module not found - compute suggestions and provide helpful error message
         total_modules = self.index["metadata"]["total_modules"]
@@ -451,25 +469,17 @@ class ModuleSearchHandler:
 
         return [TextContent(type="text", text=error_result)]
 
-    async def search_module_usage(
-        self, module_name: str, output_format: str = "markdown", usage_type: str = "source"
-    ) -> list[TextContent]:
+    def _get_module_usage_data(self, module_name: str, usage_type: str = "source") -> dict:
         """
-        Search for all locations where a module is used (aliased/imported and called).
+        Get structured module usage data without formatting.
 
         Args:
             module_name: The module to search for (e.g., "MyApp.User")
-            output_format: Output format ('markdown' or 'json')
             usage_type: Filter by file type ('source', 'tests', 'all')
 
         Returns:
-            TextContent with usage information
+            Dictionary with usage data structured by category
         """
-        # Check if the module exists in the index
-        if module_name not in self.index["modules"]:
-            error_msg = f"Module '{module_name}' not found in index."
-            return [TextContent(type="text", text=error_msg)]
-
         usage_results = {
             "aliases": [],  # Modules that alias the target module
             "imports": [],  # Modules that import the target module
@@ -579,6 +589,30 @@ class ModuleSearchHandler:
                 "function_calls",
             ]:
                 usage_results[category] = filter_by_file_type(usage_results[category], usage_type)
+
+        return usage_results
+
+    async def search_module_usage(
+        self, module_name: str, output_format: str = "markdown", usage_type: str = "source"
+    ) -> list[TextContent]:
+        """
+        Search for all locations where a module is used (aliased/imported and called).
+
+        Args:
+            module_name: The module to search for (e.g., "MyApp.User")
+            output_format: Output format ('markdown' or 'json')
+            usage_type: Filter by file type ('source', 'tests', 'all')
+
+        Returns:
+            TextContent with usage information
+        """
+        # Check if the module exists in the index
+        if module_name not in self.index["modules"]:
+            error_msg = f"Module '{module_name}' not found in index."
+            return [TextContent(type="text", text=error_msg)]
+
+        # Get structured usage data
+        usage_results = self._get_module_usage_data(module_name, usage_type)
 
         # Format results
         if output_format == "json":

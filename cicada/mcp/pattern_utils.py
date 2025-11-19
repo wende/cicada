@@ -42,6 +42,13 @@ def matches_pattern(pattern: str | None, text: str) -> bool:
     if not pattern or pattern == "*":
         return True
     if "*" in pattern:
+        # Special case: *.Something should match both "X.Something" AND "Something"
+        if pattern.startswith("*."):
+            suffix = pattern[2:]  # Remove "*."
+            if text.lower() == suffix.lower():
+                return True  # Exact match without prefix
+            # Match with any prefix
+            return text.lower().endswith("." + suffix.lower())
         return match_wildcard(pattern, text)
     return pattern.lower() == text.lower()
 
@@ -85,6 +92,10 @@ class FunctionPattern:
 
         if "." in name_pattern:
             module_pattern, name_pattern = name_pattern.rsplit(".", 1)
+            # Add wildcard prefix to module pattern if it doesn't have one
+            # This allows "SomeModule.func" to match "MyProject.SomeModule.func"
+            if module_pattern and "*" not in module_pattern and "|" not in module_pattern:
+                module_pattern = f"*.{module_pattern}"
 
         if "/" in name_pattern:
             name_part, arity_part = name_pattern.rsplit("/", 1)
