@@ -873,7 +873,7 @@ def handle_index_main(args) -> None:
     # Perform indexing
     # If tier changed, force full reindex to ensure index consistency with new config
     indexer = ElixirIndexer(verbose=True)
-    extract_cochange = getattr(args, "extract_cochange", False)
+    extract_cochange = getattr(args, "extract_cochange", True)
     indexer.incremental_index_repository(
         str(repo_path),
         str(index_path),

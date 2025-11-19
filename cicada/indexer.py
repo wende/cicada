@@ -983,7 +983,7 @@ class ElixirIndexer:
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
-        extract_cochange: bool = False,
+        extract_cochange: bool = True,
         force_full: bool = False,
     ):
         """

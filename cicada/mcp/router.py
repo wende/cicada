@@ -458,7 +458,10 @@ class ToolRouter:
                     visibility="all",  # Show all functions (public and private)
                     pr_info=None,
                     staleness_info=None,
-                    what_calls_it=False,  # expand_result doesn't expose what_calls_it yet
+                    # Note: what_calls_it not supported in expand_result context to avoid
+                    # expanding usage info for every result in large result sets, which would
+                    # significantly increase token usage and response time.
+                    what_calls_it=False,
                     usage_type="source",
                     what_it_calls=what_it_calls,
                     dependency_depth=dependency_depth,

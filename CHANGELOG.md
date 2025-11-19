@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.4.0
+
+### Changed
+
+- **Co-change extraction now enabled by default** - Co-change analysis (tracking files and functions modified together) now runs automatically during indexing. This provides better search relevance but may increase initial indexing time by 10-30%.
+- **Query API simplified** - Split `scope` parameter into orthogonal filters:
+  - `scope` now only controls visibility: 'all', 'public', 'private' (removed 'recent')
+  - Added separate `recent` boolean parameter for time-based filtering
+  - Enables new combinations like `scope='public', recent=True` (recent public functions only)
+- **Test filtering improved** - Replaced `include_tests` boolean with path pattern negation:
+  - OLD: `include_tests=False`
+  - NEW: `path_pattern='!**/test/**'`
+  - More flexible - can exclude any path pattern, not just tests
+- **query_jq default format changed** - Default output format changed from 'json' to 'compact' (single-line JSON) to reduce token usage. Use `format='pretty'` for readable formatting.
+
+### Removed
+
+- **Removed CLI flags:**
+  - `--extract-cochange` flag (feature now always enabled)
+  - `--no-tests` flag (use `--path-pattern='!**/test/**'` instead)
+- **Removed MCP tool:** `search_module_usage` (merged into `search_module` with `what_calls_it=True` parameter)
+- **Removed internal handler:** `DependencyHandler` class (functionality merged into `ModuleSearchHandler` and `FunctionSearchHandler`)
+
+### Migration Guide
+
+**If you were using `--extract-cochange`:**
+- Remove the flag - it's now the default behavior
+- First-time reindex may be slightly slower but subsequent updates are unchanged
+
+**If you were using `scope='recent'`:**
+- Change to: `scope='all', recent=True`
+- Or combine with visibility: `scope='public', recent=True`
+
+**If you were using `include_tests=False`:**
+- Change to: `path_pattern='!**/test/**'`
+- Can now exclude other patterns: `path_pattern='!**/vendor/**'`
+
+**If you were using `search_module_usage` MCP tool:**
+- Change to: `search_module` with `what_calls_it=True`
+- Provides same functionality with unified interface
+
 ## [0.3.2] - 2025-11-14
 
 ### Added

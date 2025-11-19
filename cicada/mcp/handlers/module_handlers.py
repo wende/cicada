@@ -4,6 +4,7 @@ Module Search Tool Handlers.
 Handles tools for searching modules and analyzing module usage.
 """
 
+import json
 from typing import Any, cast
 
 from mcp.types import TextContent
@@ -20,6 +21,7 @@ class ModuleSearchHandler:
     MAX_WILDCARD_RESULTS = 20  # Maximum modules to show in wildcard search
     COMPACT_FORMAT_THRESHOLD = 4  # Number of modules to trigger compact format
     APPROXIMATE_FUNCTION_LENGTH = 100  # Estimated lines for functions without known end
+    USAGE_HEADER_LINES_TO_SKIP = 2  # Lines to skip in usage output (header + blank line)
 
     def __init__(
         self,
@@ -398,8 +400,6 @@ class ModuleSearchHandler:
                 )
                 # If we have usage info, merge it into the JSON
                 if usage_info:
-                    import json
-
                     module_json = json.loads(result)
                     usage_json = json.loads(usage_info)
                     module_json["usage"] = usage_json.get("usage", {})
@@ -418,10 +418,19 @@ class ModuleSearchHandler:
                     result += "\n\n---\n\n## Module Usage (what calls it)\n\n"
                     # Extract just the usage section (skip the header from search_module_usage)
                     usage_lines = usage_info.split("\n")
-                    # Skip the first line which is "Module Usage for X:"
+
+                    # Defensive: check for expected format and skip header if present
                     if usage_lines and usage_lines[0].startswith("Module Usage for"):
-                        usage_info = "\n".join(usage_lines[2:])  # Skip header and blank line
-                    result += usage_info
+                        # Skip header and blank line (lines 0 and 1)
+                        if len(usage_lines) > self.USAGE_HEADER_LINES_TO_SKIP:
+                            usage_info = "\n".join(usage_lines[self.USAGE_HEADER_LINES_TO_SKIP :])
+                        else:
+                            usage_info = ""  # Not enough lines, use empty string
+                    # else: usage_info is already in the right format (no header)
+
+                    # Only append if we have actual content
+                    if usage_info.strip():
+                        result += usage_info
 
             return [TextContent(type="text", text=result)]
 
