@@ -232,6 +232,20 @@ class TestJqToolExecution:
         assert isinstance(output, list)
 
     @pytest.mark.asyncio
+    async def test_json_format_backward_compatibility(self, test_server):
+        """Should accept format='json' for backward compatibility (maps to compact)."""
+        result = await test_server.call_tool(
+            "query_jq", {"query": ".modules | keys", "format": "json"}
+        )
+        assert len(result) == 1
+        # format='json' should behave like 'compact' (one line, no indentation)
+        lines = result[0].text.strip().split("\n")
+        assert len(lines) == 1
+        # Should still be valid JSON
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+
+    @pytest.mark.asyncio
     async def test_invalid_jq_syntax(self, test_server):
         """Should handle invalid jq syntax gracefully."""
         result = await test_server.call_tool(

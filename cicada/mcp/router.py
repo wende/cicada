@@ -384,9 +384,15 @@ class ToolRouter:
             if error := _validate_jq_query(query):
                 return [TextContent(type="text", text=error)]
 
+            # Backward compatibility: 'json' maps to 'compact'
+            if output_format == "json":
+                output_format = "compact"
+
             if output_format not in ("compact", "pretty"):
                 return [
-                    TextContent(type="text", text="'format' must be one of: 'compact', 'pretty'")
+                    TextContent(
+                        type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
+                    )
                 ]
 
             if not isinstance(sample, bool):
