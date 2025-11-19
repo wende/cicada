@@ -25,7 +25,6 @@ class ModuleSearchHandler:
         self,
         index: dict[str, Any],
         config: dict[str, Any],
-        dependency_handler: Any | None = None,
     ):
         """
         Initialize the module search handler.
@@ -33,11 +32,9 @@ class ModuleSearchHandler:
         Args:
             index: The code index containing modules and functions
             config: Configuration dictionary
-            dependency_handler: Optional DependencyHandler for detailed dependency info
         """
         self.index = index
         self.config = config
-        self.dependency_handler = dependency_handler
 
     def _collect_transitive_dependencies(
         self,
@@ -288,6 +285,8 @@ class ModuleSearchHandler:
         visibility: str = "public",
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
+        what_calls_it: bool = False,
+        usage_type: str = "source",
         what_it_calls: bool = False,
         dependency_depth: int = 1,
         show_function_usage: bool = False,
@@ -376,15 +375,35 @@ class ModuleSearchHandler:
 
             # Get detailed dependency info if requested
             detailed_dependencies = None
-            if what_it_calls and self.dependency_handler:
+            if what_it_calls:
                 detailed_dependencies = await self._get_module_dependencies(
                     module_name, data, dependency_depth, show_function_usage
                 )
+
+            # Get usage info if requested (what calls it)
+            usage_info = None
+            if what_calls_it:
+                usage_result = await self.search_module_usage(
+                    module_name, output_format, usage_type
+                )
+                # Extract the usage data from the result
+                if usage_result and len(usage_result) > 0:
+                    usage_text = usage_result[0].text
+                    # For markdown, we'll append it; for JSON we need to parse and merge
+                    usage_info = usage_text
 
             if output_format == "json":
                 result = ModuleFormatter.format_module_json(
                     module_name, data, visibility, detailed_dependencies
                 )
+                # If we have usage info, merge it into the JSON
+                if usage_info:
+                    import json
+
+                    module_json = json.loads(result)
+                    usage_json = json.loads(usage_info)
+                    module_json["usage"] = usage_json.get("usage", {})
+                    result = json.dumps(module_json, indent=2)
             else:
                 result = ModuleFormatter.format_module_markdown(
                     module_name,
@@ -394,6 +413,15 @@ class ModuleSearchHandler:
                     staleness_info,
                     detailed_dependencies,
                 )
+                # Append usage info for markdown
+                if usage_info:
+                    result += "\n\n---\n\n## Module Usage (what calls it)\n\n"
+                    # Extract just the usage section (skip the header from search_module_usage)
+                    usage_lines = usage_info.split("\n")
+                    # Skip the first line which is "Module Usage for X:"
+                    if usage_lines and usage_lines[0].startswith("Module Usage for"):
+                        usage_info = "\n".join(usage_lines[2:])  # Skip header and blank line
+                    result += usage_info
 
             return [TextContent(type="text", text=result)]
 

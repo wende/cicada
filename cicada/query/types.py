@@ -108,11 +108,11 @@ class QueryStrategy:
 class FilterConfig:
     """Configuration for result filtering."""
 
-    scope: Literal["all", "recent", "public", "private"] = "all"
+    scope: Literal["all", "public", "private"] = "all"
+    recent: bool = False
     filter_type: Literal["all", "modules", "functions"] = "all"
     match_source: Literal["all", "docs", "strings"] = "all"
     path_pattern: str | None = None
-    include_tests: bool = True
     arity: int | None = None
 
 
@@ -120,12 +120,12 @@ class FilterConfig:
 class QueryOptions:
     """Options for query execution."""
 
-    scope: Literal["all", "recent", "public", "private"] = "all"
+    scope: Literal["all", "public", "private"] = "all"
+    recent: bool = False
     filter_type: Literal["all", "modules", "functions"] = "all"
     match_source: Literal["all", "docs", "strings"] = "all"
     max_results: int = 10
     path_pattern: str | None = None
-    include_tests: bool = True
     arity: int | None = None
     show_snippets: bool = False
 
@@ -133,10 +133,10 @@ class QueryOptions:
         """Convert to FilterConfig for filtering operations."""
         return FilterConfig(
             scope=self.scope,
+            recent=self.recent,
             filter_type=self.filter_type,
             match_source=self.match_source,
             path_pattern=self.path_pattern,
-            include_tests=self.include_tests,
             arity=self.arity,
         )
 

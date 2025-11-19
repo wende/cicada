@@ -23,11 +23,11 @@ def get_tool_definitions() -> list[Tool]:
                 "• Patterns: 'MyApp.User.create*' → pattern matching\\n"
                 "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\\n\\n"
                 "Power Filters:\\n"
-                "• scope: 'all' (default) | 'recent' (last 14 days) | 'public' | 'private'\\n"
+                "• scope: 'all' (default) | 'public' | 'private'\\n"
                 "• filter_type: 'all' | 'modules' | 'functions'\\n"
                 "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\\n"
-                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n"
-                "• include_tests: true (default) | false\\n\\n"
+                "• recent: false (default) | true (last 14 days only)\\n"
+                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n\\n"
                 "Returns:\\n"
                 "• Broad overview with code snippets (shallow but comprehensive)\\n"
                 "• Smart suggestions for next steps with actual tool names to use\\n"
@@ -61,8 +61,12 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "scope": {
                         "type": "string",
-                        "enum": ["all", "recent", "public", "private"],
-                        "description": "Filter scope: 'all' (default) = everything, 'recent' = changed in last 14 days, 'public' = public functions/modules only, 'private' = private functions only.",
+                        "enum": ["all", "public", "private"],
+                        "description": "Filter scope: 'all' (default) = everything, 'public' = public functions/modules only, 'private' = private functions only.",
+                    },
+                    "recent": {
+                        "type": "boolean",
+                        "description": "Filter to recently changed code only (last 14 days). Defaults to false.",
                     },
                     "filter_type": {
                         "type": "string",
@@ -80,11 +84,7 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "path_pattern": {
                         "type": "string",
-                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex').",
-                    },
-                    "include_tests": {
-                        "type": "boolean",
-                        "description": "Include test files in results (default: true). Set to false to exclude test files.",
+                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex'). To exclude tests, use negative patterns like '!**/test/**'.",
                     },
                     "show_snippets": {
                         "type": "boolean",
@@ -97,8 +97,9 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_module",
             description=(
-                "🔧 DEEP-DIVE TOOL: View a module's complete API after discovering it with query.\n\n"
+                "🔧 DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query.\n\n"
                 "Shows full module details: functions with arity, signatures, docs, typespecs, and line numbers. "
+                "Analyze both what this module depends on (what_it_calls) and what depends on it (what_calls_it). "
                 "Use this when query suggests drilling into a specific module.\n\n"
                 "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
@@ -108,6 +109,8 @@ def get_tool_definitions() -> list[Tool]:
                 "• After query finds modules, use this to see the full API surface\n"
                 "• Query will suggest using this tool when detailed module info is needed\n"
                 "• Don't ask user for module names - use query first to discover them\n"
+                "• Use what_calls_it=true BEFORE modifying a module to see impact (what depends on it)\n"
+                "• Use what_it_calls=true to see what this module depends on\n"
                 "• Returns: full API surface, function signatures, line numbers for navigation\n"
                 "• If module not found, error will suggest alternatives - try those suggestions!\n"
                 "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
@@ -133,6 +136,15 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "string",
                         "enum": ["public", "private", "all"],
                         "description": "Which functions to show. Defaults to 'public'.",
+                    },
+                    "what_calls_it": {
+                        "type": "boolean",
+                        "description": "Show where this module is used: aliases, imports, requires, uses, and all function call sites. Critical for impact analysis before refactoring. Defaults to false.",
+                    },
+                    "usage_type": {
+                        "type": "string",
+                        "enum": ["all", "tests", "source"],
+                        "description": "When what_calls_it is true, filter usage sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
                     },
                     "what_it_calls": {
                         "type": "boolean",
@@ -230,42 +242,6 @@ def get_tool_definitions() -> list[Tool]:
                     },
                 },
                 "required": ["function_name"],
-            },
-        ),
-        Tool(
-            name="search_module_usage",
-            description=(
-                "📊 ANALYSIS TOOL: Find all module usage and dependencies for impact analysis.\n\n"
-                "After discovering a module with query, use this to see what depends on it before making changes. "
-                "Shows where a module is imported, aliased, required, and all locations where its functions are called.\n\n"
-                "Returns aliases, imports, function calls, and dependency relationships.\n\n"
-                "AI USAGE TIPS:\n"
-                "• After query identifies a module, use this BEFORE modifying it to avoid breaking changes\n"
-                "• Query may suggest this tool when you need to understand module dependencies\n"
-                "• Shows: aliases, imports, requires, uses, and ALL function call sites\n"
-                "• Critical for refactoring - identify all affected modules before making changes\n"
-                "• If a module has many dependents, changes may have wide impact\n"
-                "• Function call line numbers are automatically truncated for heavily-used modules (>30 lines)"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "module_name": {
-                        "type": "string",
-                        "description": "Module name to search (e.g., 'MyApp.User').",
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["markdown", "json"],
-                        "description": "Output format. Defaults to 'markdown'.",
-                    },
-                    "usage_type": {
-                        "type": "string",
-                        "enum": ["all", "tests", "source"],
-                        "description": "Filter usage sites by file type. 'source' shows only source files (default), 'tests' shows only test files, 'all' shows everything. Defaults to 'source'.",
-                    },
-                },
-                "required": ["module_name"],
             },
         ),
         Tool(
@@ -475,11 +451,10 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "format": {
                         "type": "string",
-                        "enum": ["json", "compact", "pretty"],
+                        "enum": ["compact", "pretty"],
                         "description": (
-                            "Output format: 'json' returns formatted JSON (default), "
-                            "'compact' returns single-line JSON (saves tokens), "
-                            "'pretty' returns pretty-printed JSON with indentation."
+                            "Output format: 'compact' returns single-line JSON (default, saves tokens), "
+                            "'pretty' returns pretty-printed JSON with indentation (use only when user explicitly requests readable formatting)."
                         ),
                     },
                     "sample": {

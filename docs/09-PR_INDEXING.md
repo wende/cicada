@@ -241,19 +241,20 @@ GitHub API has rate limits:
 
 ## MCP Tools
 
-The PR index is accessible via MCP tools in the Cicada server:
+> **Note:** As of v0.4, the PR index is accessible via the unified `git_history` MCP tool, which consolidates all git history operations.
 
-### find_pr_for_line
+The PR index is accessible via the `git_history` MCP tool in the Cicada server:
+
+### Line-level PR attribution
 
 Find the PR that introduced a specific line of code.
 
-**Usage:**
+**Usage (v0.4+):**
 ```python
-# Via MCP
-cicada.find_pr_for_line(
+# Via MCP (unified git_history tool)
+cicada.git_history(
     file_path="lib/my_app/user.ex",
-    line_number=42,
-    format="markdown"
+    start_line=42
 )
 ```
 
@@ -262,14 +263,14 @@ cicada.find_pr_for_line(
 - PR number, title, and URL
 - PR status (merged/open/closed)
 
-### get_file_pr_history
+### File PR history
 
 Get all PRs that modified a file, with descriptions and review comments.
 
-**Usage:**
+**Usage (v0.4+):**
 ```python
-# Via MCP
-cicada.get_file_pr_history(
+# Via MCP (unified git_history tool)
+cicada.git_history(
     file_path="lib/my_app/user.ex"
 )
 ```

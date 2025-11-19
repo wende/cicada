@@ -244,11 +244,11 @@ class AnalysisHandler:
         self,
         query: str | list[str],
         scope: str = "all",
+        recent: bool = False,
         filter_type: str = "all",
         match_source: str = "all",
         max_results: int = 10,
         path_pattern: str | None = None,
-        include_tests: bool = True,
         show_snippets: bool = False,
     ) -> list[TextContent]:
         """
@@ -256,12 +256,12 @@ class AnalysisHandler:
 
         Args:
             query: Query string or list of strings (keywords OR patterns)
-            scope: Scope filter ('all', 'recent', 'public', 'private')
+            scope: Scope filter ('all', 'public', 'private')
+            recent: Filter to recently changed code only (last 14 days)
             filter_type: Type filter ('all', 'modules', 'functions')
             match_source: Match source filter ('all', 'docs', 'strings')
             max_results: Maximum number of results to show
             path_pattern: Optional glob pattern for file paths
-            include_tests: Whether to include test files
             show_snippets: Whether to show code snippet previews (default: False)
 
         Returns:
@@ -287,11 +287,11 @@ class AnalysisHandler:
         result = orchestrator.execute_query(
             query=query,
             scope=scope,
+            recent=recent,
             filter_type=filter_type,
             match_source=match_source,
             max_results=max_results,
             path_pattern=path_pattern,
-            include_tests=include_tests,
             show_snippets=show_snippets,
         )
 

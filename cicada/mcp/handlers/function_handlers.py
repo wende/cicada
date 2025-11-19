@@ -27,7 +27,6 @@ class FunctionSearchHandler:
         self,
         index: dict[str, Any],
         config: dict[str, Any],
-        dependency_handler: Any | None = None,
     ):
         """
         Initialize the function search handler.
@@ -35,11 +34,9 @@ class FunctionSearchHandler:
         Args:
             index: The code index containing modules and functions
             config: Configuration dictionary
-            dependency_handler: Optional DependencyHandler for detailed dependency info
         """
         self.index = index
         self.config = config
-        self.dependency_handler = dependency_handler
 
     def _extract_dependency_contexts(
         self, dependencies: list[dict[str, Any]], file_path: str
@@ -584,7 +581,7 @@ class FunctionSearchHandler:
 
                     # Get detailed dependency info if what_it_calls is enabled
                     detailed_dependencies = None
-                    if what_it_calls and self.dependency_handler:
+                    if what_it_calls:
                         detailed_dependencies = self._get_detailed_dependencies(
                             module_name,
                             func,

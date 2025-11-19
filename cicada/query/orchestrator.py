@@ -15,7 +15,7 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
-from cicada.utils.path_utils import is_test_file, matches_glob_pattern
+from cicada.utils.path_utils import matches_glob_pattern
 
 
 class QueryOrchestrator:
@@ -270,11 +270,13 @@ class QueryOrchestrator:
         """
         filtered = results
 
-        # Scope filter
-        if config.scope == "recent":
+        # Recent filter
+        if config.recent:
             cutoff = datetime.now(timezone.utc) - timedelta(days=QueryConfig.RECENT_DAYS_THRESHOLD)
             filtered = [r for r in filtered if self._is_recent(r, cutoff)]
-        elif config.scope == "public":
+
+        # Scope filter
+        if config.scope == "public":
             # Only include public functions and all modules
             filtered = [r for r in filtered if r.is_module() or r.is_public()]
         elif config.scope == "private":
@@ -284,10 +286,6 @@ class QueryOrchestrator:
         # Path pattern filter
         if config.path_pattern:
             filtered = [r for r in filtered if matches_glob_pattern(r.file, config.path_pattern)]
-
-        # Test filter
-        if not config.include_tests:
-            filtered = [r for r in filtered if not is_test_file(r.file)]
 
         # Arity filter (only for functions)
         if config.arity is not None:
@@ -365,7 +363,7 @@ class QueryOrchestrator:
 
         # Results have recent changes
         if self._has_recent_changes(results):
-            suggestions.append("Try scope='recent' to focus on recently changed code")
+            suggestions.append("Try recent=true to focus on recently changed code")
 
         # Module-level results
         if self._has_many_module_results(results):
@@ -704,12 +702,12 @@ class QueryOrchestrator:
         active_filters = []
         if filters_applied.get("scope") != "all":
             active_filters.append(f"scope='{filters_applied['scope']}'")
+        if filters_applied.get("recent"):
+            active_filters.append("recent=true")
         if filters_applied.get("filter_type") != "all":
             active_filters.append(f"filter_type='{filters_applied['filter_type']}'")
         if filters_applied.get("path_pattern"):
             active_filters.append(f"path_pattern='{filters_applied['path_pattern']}'")
-        if not filters_applied.get("include_tests", True):
-            active_filters.append("include_tests=False")
 
         if active_filters:
             suggestions.append(f"Try broadening: Remove filters ({', '.join(active_filters)})")
@@ -724,11 +722,11 @@ class QueryOrchestrator:
         self,
         query: str | list[str],
         scope: str = "all",
+        recent: bool = False,
         filter_type: str = "all",
         match_source: str = "all",
         max_results: int = 10,
         path_pattern: str | None = None,
-        include_tests: bool = True,
         arity: int | None = None,
         show_snippets: bool = False,
     ) -> str:
@@ -737,12 +735,12 @@ class QueryOrchestrator:
 
         Args:
             query: Query string or list of strings
-            scope: Scope filter ("all", "recent", "public", "private")
+            scope: Scope filter ("all", "public", "private")
+            recent: Filter to recently changed code only (last 14 days)
             filter_type: Type filter ("all", "modules", "functions")
             match_source: Match source filter ("all", "docs", "strings")
             max_results: Maximum number of results to show
             path_pattern: Optional glob pattern for file paths
-            include_tests: Whether to include test files
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
 
@@ -756,11 +754,11 @@ class QueryOrchestrator:
         # Create options object for internal use
         options = QueryOptions(
             scope=scope,  # type: ignore
+            recent=recent,
             filter_type=filter_type,  # type: ignore
             match_source=match_source,  # type: ignore
             max_results=max_results,
             path_pattern=path_pattern,
-            include_tests=include_tests,
             arity=arity,
             show_snippets=show_snippets,
         )
@@ -783,9 +781,9 @@ class QueryOrchestrator:
             # Generate zero-result suggestions
             filters_applied = {
                 "scope": options.scope,
+                "recent": options.recent,
                 "filter_type": options.filter_type,
                 "path_pattern": options.path_pattern,
-                "include_tests": options.include_tests,
             }
             suggestions = self._generate_zero_result_suggestions(query, filters_applied)
         else:

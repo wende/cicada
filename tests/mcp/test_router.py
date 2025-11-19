@@ -21,7 +21,6 @@ def router():
         function_handler=Mock(),
         git_handler=Mock(),
         pr_handler=Mock(),
-        dependency_handler=Mock(),
         analysis_handler=Mock(),
     )
 
