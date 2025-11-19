@@ -50,33 +50,51 @@ CLAUDE_MD_ITEMS = [
     "No - Skip CLAUDE.md setup",
 ]
 
-# CLAUDE.md documentation content
-CICADA_DOCS = """
+
+def _generate_claude_docs() -> str:
+    """
+    Generate CLAUDE.md documentation content focusing on the query tool.
+
+    The query tool is the primary entry point that automatically suggests
+    which specialized tools to use next, so users don't need to know about
+    all available tools upfront.
+
+    Returns:
+        Formatted CLAUDE.md content with query tool documentation
+    """
+    return """
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+  **PRIMARY: Always use `mcp__cicada__query` for understanding Elixir code.**
 
-  ### Use cicada tools for:
-  - PRIMARY TOOL: Smart code discovery - search by keywords OR patterns, get suggestions for next steps. `mcp__cicada__query`
-  - PREFERRED for Elixir: View a module's complete API after discovering it with query. `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites after discovering with query. `mcp__cicada__search_function`
-  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
-  - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
-  - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
-  - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
-  - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
-  - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
+  Cicada beats builtin tools for code exploration:
+  - **vs Grep**: Semantic search by purpose, not literal text. Finds "authentication logic" without knowing exact function names. Understands code relationships and string literals semantically.
+  - **vs Glob**: Discovers modules by functionality, not file names. Finds "rate limiting" without knowing it's in `lib/my_app/plugs/rate_limiter.ex`.
+  - **vs Read**: Tells you WHICH files to read and WHY they're relevant. Shows connections between modules so you read the right files in the right order.
 
-  ### DO NOT use Grep for:
-  - ❌ Searching for module structure
-  - ❌ Searching for function definitions
-  - ❌ Searching for module imports/usage
+  ## Usage
+  Query by keywords `['authentication', 'login']` or patterns `'MyApp.User.*'` or both.
+  Follow returned suggestions - they tell you which specialized tool to use next.
 
-  ### You can still use Grep for:
-  - ✓ Non-code files (markdown, JSON, config)
-  - ✓ String literal searches
-  - ✓ Pattern matching in single line comments
+  ## Parameters
+  - `scope`: 'all' | 'public' | 'private'
+  - `filter_type`: 'all' | 'modules' | 'functions'
+  - `match_source`: 'all' | 'docs' | 'strings' (semantic search in code strings)
+  - `recent`: true (14 days) | false (all time, default)
+  - `path_pattern`: 'lib/auth/**' or '!**/test/**' (! negates)
+  - `show_snippets`: true | false (default)
+
+  ## Workflow
+  1. `query(['jwt'])` → semantic matches + relationships + suggestions
+  2. Follow suggestion → explore connections/usage
+  3. Repeat → understand functionality
+
+  Use Grep/Glob/Read only for non-Elixir files or when you already have exact paths/strings.
 </cicada>
 """
+
+
+# CLAUDE.md documentation content (generated from registered tools)
+CICADA_DOCS = _generate_claude_docs()
 
 
 def display_tier_selection(tier_index: int) -> None:

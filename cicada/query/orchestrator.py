@@ -358,7 +358,7 @@ class QueryOrchestrator:
         if self._has_multiple_results_in_same_module(results):
             common_module = self._get_most_common_module(results)
             suggestions.append(
-                f"search_module_usage('{common_module}') - See where this module is used"
+                f"search_module('{common_module}', what_calls_it=True) - See where this module is used"
             )
 
         # Results have recent changes

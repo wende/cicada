@@ -14,7 +14,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="query",
             description=(
-                "🔍 YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
+                "YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
                 "The 'Google for code' - this is your FIRST STOP for any code search task. "
                 "Intelligently searches by keywords OR patterns, combines results, "
                 "and suggests exactly which specialized tools to use next.\\n\\n"
@@ -97,7 +97,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_module",
             description=(
-                "🔧 DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query.\n\n"
+                "DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query.\n\n"
                 "Shows full module details: functions with arity, signatures, docs, typespecs, and line numbers. "
                 "Analyze both what this module depends on (what_it_calls) and what depends on it (what_calls_it). "
                 "Use this when query suggests drilling into a specific module.\n\n"
@@ -164,7 +164,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="search_function",
             description=(
-                "🔧 DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
+                "DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
                 "Provides detailed function analysis: definition, signature, documentation, and all call sites. "
                 "Use this when query suggests drilling into a specific function's usage.\n\n"
                 "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
@@ -247,7 +247,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="git_history",
             description=(
-                "📜 UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
+                "UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
                 "Smart routing based on parameters:\n"
                 "• start_line only → single line blame + find PR\n"
                 "• start_line + end_line → line range blame with PR enrichment\n"
@@ -307,7 +307,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="find_dead_code",
             description=(
-                "📊 ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
+                "ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
                 "Analyzes the entire codebase to identify public functions that may not be used. "
                 "Use this for codebase maintenance and cleanup efforts. "
                 "Returns results categorized by confidence level (high, medium, low).\n\n"
@@ -339,7 +339,7 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="expand_result",
             description=(
-                "🔧 DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
+                "DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
                 "After discovering modules or functions with query, use this tool to explore a specific result in depth. "
                 "Query results often suggest using this tool to get more details. "
                 "Automatically determines whether you're expanding a module or function.\n\n"
