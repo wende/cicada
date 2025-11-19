@@ -4,14 +4,15 @@ Elixir Repository Indexer.
 Walks an Elixir repository and indexes all modules and functions.
 """
 
+import argparse
 import os
 import signal
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from cicada.cooccurrence import CooccurrenceAnalyzer
 from cicada.git import GitHelper
-from cicada.git.cochange_analyzer import CoChangeAnalyzer
 from cicada.languages.elixir.dependency_analyzer import (
     calculate_function_end_line,
     extract_function_dependencies,
@@ -268,6 +269,8 @@ class ElixirIndexer(BaseIndexer):
             file_to_module: Mapping from file paths to module names
             repo_path: Path to repository root
         """
+        from cicada.git.cochange_analyzer import CoChangeAnalyzer
+
         for _module_name, module_info in all_modules.items():
             module_file = self._normalize_file_path(module_info.get("file", ""), repo_path)
 
@@ -313,6 +316,8 @@ class ElixirIndexer(BaseIndexer):
         Returns:
             List of related function dicts with module, function, arity, count keys
         """
+        from cicada.git.cochange_analyzer import CoChangeAnalyzer
+
         cochange_functions = []
 
         # Find all functions that co-changed with this function
@@ -527,60 +532,50 @@ class ElixirIndexer(BaseIndexer):
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
-                        if keyword_extractor:
+                        module_extracted_keywords = None
+                        if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                # Always extract keywords from module name
-                                name_keywords = self._extract_name_keywords(
-                                    module_name, keyword_extractor, keyword_expander
+                                # Step 1: Extract keywords with scores
+                                extraction_result = keyword_extractor.extract_keywords(
+                                    module_data["moduledoc"], top_n=10
                                 )
+                                extracted_keywords = [
+                                    kw for kw, _ in extraction_result["top_keywords"]
+                                ]
+                                keyword_scores = {
+                                    kw.lower(): score
+                                    for kw, score in extraction_result["top_keywords"]
+                                }
 
-                                # Extract keywords from documentation if available
-                                doc_keywords = {}
-                                if module_data.get("moduledoc"):
-                                    # Step 1: Extract keywords with scores
-                                    extraction_result = keyword_extractor.extract_keywords(
-                                        module_data["moduledoc"], top_n=10
+                                # Store extracted keywords (pre-expansion) for co-occurrence tracking
+                                module_extracted_keywords = keyword_scores
+
+                                # Step 2: Expand keywords with scores
+                                if keyword_expander and extracted_keywords:
+                                    expansion_result = keyword_expander.expand_keywords(
+                                        extracted_keywords,
+                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                        return_scores=True,
+                                        keyword_scores=keyword_scores,
                                     )
-                                    extracted_keywords = [
-                                        kw for kw, _ in extraction_result["top_keywords"]
-                                    ]
-                                    keyword_scores = {
-                                        kw.lower(): score
-                                        for kw, score in extraction_result["top_keywords"]
-                                    }
-
-                                    # Step 2: Expand keywords with scores
-                                    if keyword_expander and extracted_keywords:
-                                        expansion_result = keyword_expander.expand_keywords(
-                                            extracted_keywords,
-                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                            return_scores=True,
-                                            keyword_scores=keyword_scores,
+                                    # Convert to dict: word -> max_score
+                                    module_keywords = {}
+                                    # When return_scores=True, expansion_result is a dict
+                                    if not isinstance(expansion_result, dict):
+                                        raise TypeError(
+                                            "Expected dict from expand_keywords with return_scores=True"
                                         )
-                                        # Convert to dict: word -> max_score
-                                        # When return_scores=True, expansion_result is a dict
-                                        if not isinstance(expansion_result, dict):
-                                            raise TypeError(
-                                                "Expected dict from expand_keywords with return_scores=True"
-                                            )
-                                        for item in expansion_result["words"]:
-                                            word = item["word"]
-                                            score = item["score"]
-                                            if (
-                                                word not in doc_keywords
-                                                or score > doc_keywords[word]
-                                            ):
-                                                doc_keywords[word] = score
-                                    else:
-                                        doc_keywords = keyword_scores
-
-                                # Merge name and doc keywords (take max score for duplicates)
-                                module_keywords = dict(name_keywords)  # Start with name keywords
-                                for word, score in doc_keywords.items():
-                                    if word not in module_keywords or score > module_keywords[word]:
-                                        module_keywords[word] = score
-
+                                    for item in expansion_result["words"]:
+                                        word = item["word"]
+                                        score = item["score"]
+                                        if (
+                                            word not in module_keywords
+                                            or score > module_keywords[word]
+                                        ):
+                                            module_keywords[word] = score
+                                else:
+                                    module_keywords = keyword_scores
                             except Exception as e:
                                 keyword_extraction_failures += 1
                                 if self.verbose:
@@ -593,63 +588,53 @@ class ElixirIndexer(BaseIndexer):
                         for func in functions:
                             func_name = func.get("name", "")
 
-                            # Extract and expand keywords from function name and docs
-                            if keyword_extractor and func_name:
+                            # Extract and expand keywords from function docs
+                            if keyword_extractor and func.get("doc"):
                                 try:
-                                    # Always extract keywords from function name
-                                    name_keywords = self._extract_name_keywords(
-                                        func_name, keyword_extractor, keyword_expander
+                                    # Include function name in text for keyword extraction
+                                    # This ensures the function name identifier gets 10x weight
+                                    text_for_keywords = f"{func_name} {func['doc']}"
+                                    # Step 1: Extract keywords with scores
+                                    extraction_result = keyword_extractor.extract_keywords(
+                                        text_for_keywords, top_n=10
                                     )
+                                    extracted_keywords = [
+                                        kw for kw, _ in extraction_result["top_keywords"]
+                                    ]
+                                    keyword_scores = {
+                                        kw.lower(): score
+                                        for kw, score in extraction_result["top_keywords"]
+                                    }
 
-                                    # Extract keywords from documentation if available
-                                    doc_keywords = {}
-                                    if func.get("doc"):
-                                        # Include function name in text for keyword extraction
-                                        # This ensures the function name identifier gets 10x weight
-                                        text_for_keywords = f"{func_name} {func['doc']}"
-                                        # Step 1: Extract keywords with scores
-                                        extraction_result = keyword_extractor.extract_keywords(
-                                            text_for_keywords, top_n=10
+                                    # Store extracted keywords (pre-expansion) for co-occurrence tracking
+                                    func["extracted_keywords"] = keyword_scores
+
+                                    # Step 2: Expand keywords with scores
+                                    if keyword_expander and extracted_keywords:
+                                        expansion_result = keyword_expander.expand_keywords(
+                                            extracted_keywords,
+                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                            return_scores=True,
+                                            keyword_scores=keyword_scores,
                                         )
-                                        extracted_keywords = [
-                                            kw for kw, _ in extraction_result["top_keywords"]
-                                        ]
-                                        keyword_scores = {
-                                            kw.lower(): score
-                                            for kw, score in extraction_result["top_keywords"]
-                                        }
-
-                                        # Step 2: Expand keywords with scores
-                                        if keyword_expander and extracted_keywords:
-                                            expansion_result = keyword_expander.expand_keywords(
-                                                extracted_keywords,
-                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                return_scores=True,
-                                                keyword_scores=keyword_scores,
+                                        # Convert to dict: word -> max_score
+                                        func_keywords = {}
+                                        # When return_scores=True, expansion_result is a dict
+                                        if not isinstance(expansion_result, dict):
+                                            raise TypeError(
+                                                "Expected dict from expand_keywords with return_scores=True"
                                             )
-                                            # Convert to dict: word -> max_score
-                                            # When return_scores=True, expansion_result is a dict
-                                            if not isinstance(expansion_result, dict):
-                                                raise TypeError(
-                                                    "Expected dict from expand_keywords with return_scores=True"
-                                                )
-                                            for item in expansion_result["words"]:
-                                                word = item["word"]
-                                                score = item["score"]
-                                                if (
-                                                    word not in doc_keywords
-                                                    or score > doc_keywords[word]
-                                                ):
-                                                    doc_keywords[word] = score
-                                        else:
-                                            doc_keywords = keyword_scores
-
-                                    # Merge name and doc keywords (take max score for duplicates)
-                                    func_keywords = dict(name_keywords)  # Start with name keywords
-                                    for word, score in doc_keywords.items():
-                                        if word not in func_keywords or score > func_keywords[word]:
-                                            func_keywords[word] = score
+                                        for item in expansion_result["words"]:
+                                            word = item["word"]
+                                            score = item["score"]
+                                            if (
+                                                word not in func_keywords
+                                                or score > func_keywords[word]
+                                            ):
+                                                func_keywords[word] = score
+                                    else:
+                                        func_keywords = keyword_scores
 
                                     if func_keywords:
                                         func["keywords"] = func_keywords
@@ -705,6 +690,7 @@ class ElixirIndexer(BaseIndexer):
 
                         # Extract string keywords if enabled
                         module_string_keywords = None
+                        module_extracted_string_keywords = None
                         module_string_sources = []
                         if string_extractor and keyword_extractor:
                             try:
@@ -773,6 +759,11 @@ class ElixirIndexer(BaseIndexer):
                                                         ]
                                                     }
 
+                                                    # Store extracted string keywords (pre-expansion) for co-occurrence
+                                                    module_extracted_string_keywords = (
+                                                        keyword_scores
+                                                    )
+
                                                     # Expand keywords
                                                     if keyword_expander and extracted_keywords:
                                                         expansion_result = keyword_expander.expand_keywords(
@@ -829,6 +820,11 @@ class ElixirIndexer(BaseIndexer):
                                                                 "top_keywords"
                                                             ]
                                                         }
+
+                                                        # Store extracted string keywords (pre-expansion) for co-occurrence
+                                                        func["extracted_string_keywords"] = (
+                                                            keyword_scores
+                                                        )
 
                                                         # Expand keywords
                                                         if keyword_expander and extracted_keywords:
@@ -905,9 +901,17 @@ class ElixirIndexer(BaseIndexer):
                         if module_keywords:
                             module_info["keywords"] = module_keywords
 
+                        # Add module extracted keywords (pre-expansion) for co-occurrence tracking
+                        if module_extracted_keywords:
+                            module_info["extracted_keywords"] = module_extracted_keywords
+
                         # Add module string keywords and sources if extracted
                         if module_string_keywords:
                             module_info["string_keywords"] = module_string_keywords
+                        if module_extracted_string_keywords:
+                            module_info["extracted_string_keywords"] = (
+                                module_extracted_string_keywords
+                            )
                         if module_string_sources:
                             module_info["string_sources"] = module_string_sources
 
@@ -952,24 +956,6 @@ class ElixirIndexer(BaseIndexer):
                     break
                 continue
 
-        # Extract co-change relationships if requested
-        cochange_data = None
-        if extract_cochange:
-            if self.verbose:
-                print("Analyzing co-change patterns from git history...")
-
-            analyzer = CoChangeAnalyzer()
-            cochange_data = analyzer.analyze_repository(str(repo_path_obj))
-
-            # Integrate co-change data into modules and functions
-            self._integrate_cochange_data(all_modules, cochange_data, repo_path_obj)
-
-            if self.verbose:
-                print(
-                    f"  Found {cochange_data['metadata']['file_pairs']} file pairs, "
-                    f"{cochange_data['metadata']['function_pairs']} function pairs"
-                )
-
         # Build final index
         index = {
             "modules": all_modules,
@@ -982,13 +968,25 @@ class ElixirIndexer(BaseIndexer):
             },
         }
 
-        # Add co-change metadata if available
-        if cochange_data:
-            index["cochange_metadata"] = cochange_data["metadata"]
+        # Build co-occurrence matrix if keywords were extracted
+        if extract_keywords or extract_string_keywords:
+            if self.verbose:
+                print("Building keyword co-occurrence matrix...")
+            try:
+                analyzer = CooccurrenceAnalyzer(index)
+                index["cooccurrences"] = analyzer.cooccurrence_matrix
+                stats = analyzer.get_statistics()
+                if self.verbose:
+                    print(f"  ✓ Tracked {stats['total_keywords']} keywords")
+                    print(f"  ✓ Found {stats['total_cooccurrences']} co-occurrence relationships")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
 
         # Save to file
         output_path_obj = Path(output_path)
 
+        # Check if .cicada directory exists (first run detection)
         save_index(index, output_path_obj, create_dirs=True)
 
         # Compute and save hashes for all PROCESSED files for future incremental updates
@@ -1192,6 +1190,27 @@ class ElixirIndexer(BaseIndexer):
                 print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
+                extract_string_keywords = False
+
+        # Note: String keyword extraction not yet implemented for incremental mode
+        if extract_string_keywords and self.verbose:
+            print("Warning: String keyword extraction not supported in incremental mode")
+            extract_string_keywords = False
+
+        # Initialize git helper if timestamp computation is enabled
+        git_helper = None
+        if compute_timestamps:
+            try:
+                from cicada.git.helper import GitHelper
+
+                git_helper = GitHelper(str(repo_path_obj))
+                if self.verbose:
+                    print("Git history tracking enabled - computing function timestamps")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize git helper: {e}")
+                    print("Continuing without timestamp computation...")
+                compute_timestamps = False
 
         # Initialize git helper if timestamp computation is enabled
         git_helper = None
@@ -1234,6 +1253,7 @@ class ElixirIndexer(BaseIndexer):
 
                         # Extract and expand keywords if enabled
                         module_keywords = None
+                        module_extracted_keywords = None  # For co-occurrence tracking
                         if keyword_extractor:
                             try:
                                 # Always extract keywords from module name
@@ -1243,6 +1263,7 @@ class ElixirIndexer(BaseIndexer):
 
                                 # Extract keywords from documentation if available
                                 doc_keywords = {}
+                                doc_extracted_keywords = {}  # Pre-expansion for co-occurrence
                                 if module_data.get("moduledoc"):
                                     # Step 1: Extract keywords with scores
                                     extraction_result = keyword_extractor.extract_keywords(
@@ -1255,6 +1276,9 @@ class ElixirIndexer(BaseIndexer):
                                         kw.lower(): score
                                         for kw, score in extraction_result["top_keywords"]
                                     }
+
+                                    # Store pre-expansion doc keywords for co-occurrence tracking
+                                    doc_extracted_keywords = keyword_scores.copy()
 
                                     # Step 2: Expand keywords with scores
                                     if keyword_expander and extracted_keywords:
@@ -1288,72 +1312,65 @@ class ElixirIndexer(BaseIndexer):
                                     if word not in module_keywords or score > module_keywords[word]:
                                         module_keywords[word] = score
 
+                                # Store extracted keywords (pre-expansion) for co-occurrence tracking
+                                module_extracted_keywords = dict(
+                                    name_keywords
+                                )  # Start with name keywords
+                                for word, score in doc_extracted_keywords.items():
+                                    if (
+                                        word not in module_extracted_keywords
+                                        or score > module_extracted_keywords[word]
+                                    ):
+                                        module_extracted_keywords[word] = score
+
                             except Exception:
                                 keyword_extraction_failures += 1
 
-                        # Extract and expand keywords from function name and docs
+                        # Extract and expand keywords from function docs
                         if keyword_extractor:
                             for func in functions:
-                                func_name = func.get("name", "")
-                                if func_name:
+                                if func.get("doc"):
                                     try:
-                                        # Always extract keywords from function name
-                                        name_keywords = self._extract_name_keywords(
-                                            func_name, keyword_extractor, keyword_expander
+                                        func_name = func.get("name", "")
+                                        text_for_keywords = f"{func_name} {func['doc']}"
+                                        # Step 1: Extract keywords with scores
+                                        extraction_result = keyword_extractor.extract_keywords(
+                                            text_for_keywords, top_n=10
                                         )
+                                        extracted_keywords = [
+                                            kw for kw, _ in extraction_result["top_keywords"]
+                                        ]
+                                        keyword_scores = {
+                                            kw.lower(): score
+                                            for kw, score in extraction_result["top_keywords"]
+                                        }
 
-                                        # Extract keywords from documentation if available
-                                        doc_keywords = {}
-                                        if func.get("doc"):
-                                            text_for_keywords = f"{func_name} {func['doc']}"
-                                            # Step 1: Extract keywords with scores
-                                            extraction_result = keyword_extractor.extract_keywords(
-                                                text_for_keywords, top_n=10
+                                        # Step 2: Expand keywords with scores
+                                        if keyword_expander and extracted_keywords:
+                                            expansion_result = keyword_expander.expand_keywords(
+                                                extracted_keywords,
+                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                return_scores=True,
+                                                keyword_scores=keyword_scores,
                                             )
-                                            extracted_keywords = [
-                                                kw for kw, _ in extraction_result["top_keywords"]
-                                            ]
-                                            keyword_scores = {
-                                                kw.lower(): score
-                                                for kw, score in extraction_result["top_keywords"]
-                                            }
-
-                                            # Step 2: Expand keywords with scores
-                                            if keyword_expander and extracted_keywords:
-                                                expansion_result = keyword_expander.expand_keywords(
-                                                    extracted_keywords,
-                                                    top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                    threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                    return_scores=True,
-                                                    keyword_scores=keyword_scores,
+                                            # Convert to dict: word -> max_score
+                                            func_keywords = {}
+                                            # When return_scores=True, expansion_result is a dict
+                                            if not isinstance(expansion_result, dict):
+                                                raise TypeError(
+                                                    "Expected dict from expand_keywords with return_scores=True"
                                                 )
-                                                # Convert to dict: word -> max_score
-                                                # When return_scores=True, expansion_result is a dict
-                                                if not isinstance(expansion_result, dict):
-                                                    raise TypeError(
-                                                        "Expected dict from expand_keywords with return_scores=True"
-                                                    )
-                                                for item in expansion_result["words"]:
-                                                    word = item["word"]
-                                                    score = item["score"]
-                                                    if (
-                                                        word not in doc_keywords
-                                                        or score > doc_keywords[word]
-                                                    ):
-                                                        doc_keywords[word] = score
-                                            else:
-                                                doc_keywords = keyword_scores
-
-                                        # Merge name and doc keywords (take max score for duplicates)
-                                        func_keywords = dict(
-                                            name_keywords
-                                        )  # Start with name keywords
-                                        for word, score in doc_keywords.items():
-                                            if (
-                                                word not in func_keywords
-                                                or score > func_keywords[word]
-                                            ):
-                                                func_keywords[word] = score
+                                            for item in expansion_result["words"]:
+                                                word = item["word"]
+                                                score = item["score"]
+                                                if (
+                                                    word not in func_keywords
+                                                    or score > func_keywords[word]
+                                                ):
+                                                    func_keywords[word] = score
+                                        else:
+                                            func_keywords = keyword_scores
 
                                         if func_keywords:
                                             func["keywords"] = func_keywords
@@ -1432,6 +1449,10 @@ class ElixirIndexer(BaseIndexer):
                         if module_keywords:
                             module_info["keywords"] = module_keywords
 
+                        # Add module extracted keywords (pre-expansion) for co-occurrence tracking
+                        if module_extracted_keywords:
+                            module_info["extracted_keywords"] = module_extracted_keywords
+
                         all_modules[module_name] = module_info
                         total_functions += len(functions)
 
@@ -1486,42 +1507,20 @@ class ElixirIndexer(BaseIndexer):
             print("\nMerging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
 
-        # Extract co-change relationships if requested
-        if extract_cochange or extract_string_keywords:
-            # If co-change data was requested, recompute it for the entire repo
-            # (co-change relationships span multiple files, so we need full analysis)
-            if extract_cochange:
+        # Rebuild co-occurrence matrix if keywords were extracted
+        if extract_keywords or extract_string_keywords:
+            if self.verbose:
+                print("Rebuilding keyword co-occurrence matrix...")
+            try:
+                analyzer = CooccurrenceAnalyzer(merged_index)
+                merged_index["cooccurrences"] = analyzer.cooccurrence_matrix
+                stats = analyzer.get_statistics()
                 if self.verbose:
-                    print("Analyzing co-change patterns from git history...")
-
-                from cicada.git.cochange_analyzer import CoChangeAnalyzer
-
-                analyzer = CoChangeAnalyzer()
-                cochange_data = analyzer.analyze_repository(str(repo_path_obj))
-
-                # Integrate co-change data into modules and functions
-                self._integrate_cochange_data(merged_index["modules"], cochange_data, repo_path_obj)
-
-                # Add co-change metadata
-                merged_index["cochange_metadata"] = cochange_data["metadata"]
-
+                    print(f"  ✓ Tracked {stats['total_keywords']} keywords")
+                    print(f"  ✓ Found {stats['total_cooccurrences']} co-occurrence relationships")
+            except Exception as e:
                 if self.verbose:
-                    print(
-                        f"  Found {cochange_data['metadata']['file_pairs']} file pairs, "
-                        f"{cochange_data['metadata']['function_pairs']} function pairs"
-                    )
-
-            # If string keywords were requested, extract them for all modules
-            # (this requires re-processing since string extraction isn't incremental yet)
-            if extract_string_keywords:
-                if self.verbose:
-                    print("Extracting string keywords from all modules...")
-                # TODO: Implement incremental string keyword extraction
-                # For now, we skip this in incremental mode
-                if self.verbose:
-                    print(
-                        "  Note: String keyword extraction is not yet supported in incremental mode"
-                    )
+                    print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
 
         # Update hashes for all current files
         if self.verbose:
@@ -1582,3 +1581,47 @@ class ElixirIndexer(BaseIndexer):
                     elixir_files.append(file_path)
 
         return sorted(elixir_files)
+
+
+def main():
+    """Main entry point for the indexer CLI."""
+    from cicada.version_check import check_for_updates
+
+    # Check for updates (non-blocking, fails silently)
+    check_for_updates()
+
+    parser = argparse.ArgumentParser(
+        description="Index current Elixir repository to extract modules and functions"
+    )
+    _ = parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the Elixir repository to index (default: current directory)",
+    )
+    _ = parser.add_argument(
+        "--output",
+        default=".cicada/index.json",
+        help="Output path for the index file (default: .cicada/index.json)",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force full reindex, ignoring existing hashes (default: incremental)",
+    )
+
+    args = parser.parse_args()
+
+    indexer = ElixirIndexer()
+
+    # Use incremental indexing by default (unless --full flag is set)
+    indexer.incremental_index_repository(
+        args.repo,
+        args.output,
+        extract_keywords=True,
+        force_full=args.full,
+    )
+
+
+if __name__ == "__main__":
+    main()

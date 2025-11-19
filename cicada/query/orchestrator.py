@@ -15,7 +15,6 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
-from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import is_test_file, matches_glob_pattern
 
 
@@ -46,6 +45,9 @@ class QueryOrchestrator:
         # Use SearchResult's built-in get_last_modified method
         last_modified = result.get_last_modified()
         if last_modified:
+            # Ensure last_modified is timezone-aware for comparison
+            if last_modified.tzinfo is None:
+                last_modified = last_modified.replace(tzinfo=timezone.utc)
             return last_modified >= cutoff
 
         # If no timestamp available, exclude from "recent" filter
@@ -251,15 +253,13 @@ class QueryOrchestrator:
             signature=result_dict.get("signature"),
             visibility=result_dict.get("visibility"),
             last_modified_at=result_dict.get("last_modified_at"),
-            last_modified_sha=result_dict.get("last_modified_sha"),
-            last_modified_pr=result_dict.get("last_modified_pr"),
         )
 
     def _apply_filters(
         self, results: list[SearchResult], config: FilterConfig
     ) -> list[SearchResult]:
         """
-        Apply scope, path, test, arity, and tier filters to results.
+        Apply scope, path, test, and arity filters to results.
 
         Args:
             results: List of search results
@@ -293,14 +293,6 @@ class QueryOrchestrator:
         if config.arity is not None:
             filtered = [r for r in filtered if r.is_module() or r.arity == config.arity]
 
-        # Tier filter (applied after tier info is attached)
-        if config.min_tier_rank is not None:
-            filtered = [
-                r
-                for r in filtered
-                if r.tier_rank is not None and r.tier_rank <= config.min_tier_rank
-            ]
-
         return filtered
 
     def _rank_and_dedupe(self, results: list[SearchResult]) -> list[SearchResult]:
@@ -332,45 +324,8 @@ class QueryOrchestrator:
 
         return ranked
 
-    def _attach_tier_info(self, results: list[SearchResult]) -> list[SearchResult]:
-        """
-        Calculate score distribution and attach tier information to each result.
-
-        Args:
-            results: List of search results with scores
-
-        Returns:
-            Results with tier information attached
-        """
-        if not results:
-            return results
-
-        # Extract scores from results
-        scores = [r.score for r in results]
-
-        # Calculate distribution with tiers
-        distribution = calculate_score_distribution_with_tiers(scores)
-
-        # Attach tier info to each result
-        # distribution['distribution'] is sorted by z-score (descending)
-        # but we need to match by score value
-        score_to_tier = {d["score"]: d for d in distribution["distribution"]}
-
-        for result in results:
-            tier_data = score_to_tier.get(result.score)
-            if tier_data:
-                result.z_score = tier_data["z_score"]
-                result.percentile = tier_data["percentile"]
-                result.normalized_score = tier_data["normalized"]
-                result.tier = tier_data["tier"]
-                result.tier_label = tier_data["tier_label"]
-                result.tier_description = tier_data["tier_description"]
-                result.tier_rank = tier_data["tier_rank"]
-
-        return results
-
     def _generate_suggestions(
-        self, query: str | list[str], results: list[SearchResult], current_scope: str = "all"
+        self, query: str | list[str], results: list[SearchResult]
     ) -> list[str]:
         """
         Generate smart next-step suggestions based on results.
@@ -378,7 +333,6 @@ class QueryOrchestrator:
         Args:
             query: Original query
             results: Search results
-            current_scope: Currently applied scope filter (all, recent, public, private)
 
         Returns:
             List of suggestion strings
@@ -409,8 +363,8 @@ class QueryOrchestrator:
                 f"search_module_usage('{common_module}') - See where this module is used"
             )
 
-        # Results have recent changes (only suggest if not already using scope='recent')
-        if current_scope != "recent" and self._has_recent_changes(results):
+        # Results have recent changes
+        if self._has_recent_changes(results):
             suggestions.append("Try scope='recent' to focus on recently changed code")
 
         # Module-level results
@@ -482,17 +436,19 @@ class QueryOrchestrator:
         query_display = query if isinstance(query, str) else ", ".join(f'"{q}"' for q in query)
         total = len(results)
         showing = min(total, max_results)
-        lines.append(
-            f"Query: {query_display} | {total} result{'s' if total != 1 else ''} (showing {showing})\n\n"
-        )
+        lines.append("# Code Search Results\n")
+        lines.append(f"**Query**: {query_display}\n")
+        lines.append(f"**Found**: {total} result{'s' if total != 1 else ''} (showing {showing})\n")
+        lines.append("\n---\n\n")
 
         # Results
         for i, result in enumerate(results[:max_results], 1):
             lines.append(self._format_result_snippet(result, i, show_snippets))
+            lines.append("\n---\n\n")
 
         # Suggestions
         if suggestions:
-            lines.append("\n## Suggested Next Steps\n\n")
+            lines.append("## 💡 Suggested Next Steps\n\n")
             for suggestion in suggestions:
                 lines.append(f"- {suggestion}\n")
 
@@ -514,125 +470,75 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Compact header: number, name, and tier on first line
-        header_parts = [f"{index}. {result.name}"]
+        # Title with type and name
+        result_type = result.type.title()
+        name = result.name
 
-        # Add tier label if available
-        if result.tier_label:
-            header_parts.append(f"[{result.tier_label}]")
+        # Match indicators (📄 = docs, 💬 = strings, 🎯 = pattern)
+        indicators = self._get_match_indicators(result)
 
-        lines.append(" | ".join(header_parts) + "\n")
+        lines.append(f"### {index}. {result_type}: `{name}` {indicators}\n\n")
 
-        # Path on second line
-        lines.append(f"{result.file}:{result.line}\n")
+        # Metadata line
+        metadata = [
+            f"**Path**: {result.file}:{result.line}",
+            f"**Score**: {result.score:.2f}",
+        ]
 
-        # Confidence on third line (if available)
-        if result.percentile is not None:
-            lines.append(f"Confidence: {result.percentile:.1f}%\n")
+        # Show visibility for functions
+        if result.is_function():
+            visibility = "Public" if result.is_public() else "Private"
+            metadata.append(f"**Visibility**: {visibility}")
 
-        # First line of documentation (wrapped nicely)
+        lines.append(" | ".join(metadata) + "\n\n")
+
+        # Documentation preview
         if result.doc:
-            doc = result.doc.strip().split("\n")[0]
-            # Wrap at ~100 characters
-            if len(doc) > 100:
-                doc = doc[:100] + "..."
-            lines.append(f"{doc}\n")
+            doc = result.doc
+            # Truncate long docs
+            if len(doc) > 150:
+                doc = doc[:147] + "..."
+            lines.append(f"**Doc**: {doc}\n\n")
 
-        # Last modified timestamp (if available)
-        if result.last_modified_at:
-            from datetime import datetime
-
-            try:
-                # Parse ISO format timestamp
-                dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
-                # Ensure timezone-aware datetime for consistent comparisons
-                from datetime import timezone
-
-                if dt.tzinfo is None:
-                    # Assume UTC if no timezone info (for backward compatibility)
-                    dt = dt.replace(tzinfo=timezone.utc)
-
-                now = datetime.now(timezone.utc)
-                delta = now - dt
-                if delta.days == 0:
-                    time_ago = "today"
-                elif delta.days == 1:
-                    time_ago = "yesterday"
-                elif delta.days < 7:
-                    time_ago = f"{delta.days} days ago"
-                elif delta.days < 30:
-                    weeks = delta.days // 7
-                    time_ago = f"{weeks} week{'s' if weeks > 1 else ''} ago"
-                elif delta.days < 365:
-                    months = delta.days // 30
-                    time_ago = f"{months} month{'s' if months > 1 else ''} ago"
-                else:
-                    years = delta.days // 365
-                    time_ago = f"{years} year{'s' if years > 1 else ''} ago"
-
-                # Include commit hash and PR if available
-                git_info = []
-                if result.last_modified_sha:
-                    git_info.append(result.last_modified_sha)
-                if result.last_modified_pr:
-                    git_info.append(f"#{result.last_modified_pr}")
-
-                if git_info:
-                    lines.append(f"Last modified: {time_ago} ({' '.join(git_info)})\n")
-                else:
-                    lines.append(f"Last modified: {time_ago}\n")
-            except (ValueError, AttributeError):
-                pass
-
-        # Matched keywords with source indicators
-        if result.matched_keywords:
-            kw_with_sources: list[str] = []
-            for kw in result.matched_keywords[:5]:
-                source = result.keyword_sources.get(kw)
-                if source == "docs":
-                    kw_with_sources.append(kw + " (in docs)")
-                elif source == "strings":
-                    kw_with_sources.append(kw + " (in strings)")
-                elif source == "both":
-                    kw_with_sources.append(kw + " (in docs+strings)")
-                else:
-                    kw_with_sources.append(kw)
-
-            matched_str = ", ".join(kw_with_sources)
-            if len(result.matched_keywords) > 5:
-                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-            lines.append(f"Matched keywords: {matched_str}\n")
+        # Signature (for functions)
+        if result.signature:
+            lines.append(f"```elixir\n{result.signature}\n```\n\n")
 
         # Code snippet preview (if enabled)
         if show_snippets:
             snippet = self._extract_code_snippet(result.file, result.line)
             if snippet:
-                lines.append(f"\n```elixir\n{snippet}\n```\n")
+                lines.append(f"📝 **Code Preview:**\n\n```elixir\n{snippet}\n```\n\n")
 
-        lines.append("\n")  # Blank line between results
+        # Matched keywords
+        if result.matched_keywords:
+            matched_str = ", ".join(result.matched_keywords[:5])
+            if len(result.matched_keywords) > 5:
+                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
+            lines.append(f"**Matched keywords**: {matched_str}\n")
 
         return "".join(lines)
 
     def _get_match_indicators(self, result: SearchResult) -> str:
         """
-        Get match indicator labels for a result.
+        Get match indicator emojis for a result.
 
         Returns:
-            String with indicators (e.g., "docs+strings" for both docs and strings, "pattern" for pattern)
+            String with indicators (e.g., "📄💬" for both docs and strings, "🎯" for pattern)
         """
         indicators = []
 
         # Check if matched via documentation
         if any(src in ["docs", "both"] for src in result.keyword_sources.values()):
-            indicators.append("docs")
+            indicators.append("📄")
 
         # Check if matched via strings
         if any(src in ["strings", "both"] for src in result.keyword_sources.values()):
-            indicators.append("strings")
+            indicators.append("💬")
 
         # Pattern match indicator
         if result.pattern_match:
-            indicators.append("pattern")
+            indicators.append("🎯")
 
         return " ".join(indicators) if indicators else ""
 
@@ -745,11 +651,24 @@ class QueryOrchestrator:
                 if func.get("string_keywords"):
                     all_keywords.update(k.lower() for k in func["string_keywords"])
 
-        # Find terms with substring similarity only (removed naive character overlap)
+        # Find terms with simple similarity (substring match or character overlap)
         for keyword in all_keywords:
-            # Only suggest if it's a meaningful substring match
-            if (query_lower in keyword or keyword in query_lower) and keyword != query_lower:
-                related.append(keyword)
+            # Substring match
+            if query_lower in keyword or keyword in query_lower:
+                if keyword != query_lower:
+                    related.append(keyword)
+            # Simple character overlap check
+            elif (
+                len(query_lower) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
+                and len(keyword) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
+            ):
+                # Check if significant overlap
+                overlap = sum(1 for c in query_lower if c in keyword)
+                if (
+                    overlap >= len(query_lower) * QueryConfig.RELATED_TERM_SIMILARITY_THRESHOLD
+                    and keyword not in related
+                ):
+                    related.append(keyword)
 
         return related[:max_terms]
 
@@ -812,7 +731,6 @@ class QueryOrchestrator:
         include_tests: bool = True,
         arity: int | None = None,
         show_snippets: bool = False,
-        min_tier_rank: int | None = None,
     ) -> str:
         """
         Execute a query and return formatted results.
@@ -827,8 +745,6 @@ class QueryOrchestrator:
             include_tests: Whether to include test files
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
-            min_tier_rank: Optional minimum tier rank (1=best, 5=worst). Only show results
-                          with tier_rank <= this value
 
         Returns:
             Markdown formatted report
@@ -847,7 +763,6 @@ class QueryOrchestrator:
             include_tests=include_tests,
             arity=arity,
             show_snippets=show_snippets,
-            min_tier_rank=min_tier_rank,
         )
 
         # Analyze query
@@ -856,25 +771,12 @@ class QueryOrchestrator:
         # Call tools
         raw_results = self._call_tools(strategy, options.filter_type, options.match_source)
 
-        # Apply non-tier filters first
+        # Apply filters
         filter_config = options.to_filter_config()
-        # Temporarily disable tier filter for first pass
-        tier_filter = filter_config.min_tier_rank
-        filter_config.min_tier_rank = None
         filtered_results = self._apply_filters(raw_results, filter_config)
 
         # Rank and deduplicate
         ranked_results = self._rank_and_dedupe(filtered_results)
-
-        # Attach tier information (z-scores, percentiles, tiers)
-        ranked_results = self._attach_tier_info(ranked_results)
-
-        # Apply tier filter if specified
-        if tier_filter is not None:
-            filter_config.min_tier_rank = tier_filter
-            ranked_results = [
-                r for r in ranked_results if r.tier_rank is not None and r.tier_rank <= tier_filter
-            ]
 
         # Check for zero results and generate appropriate suggestions
         if len(ranked_results) == 0:
@@ -888,7 +790,7 @@ class QueryOrchestrator:
             suggestions = self._generate_zero_result_suggestions(query, filters_applied)
         else:
             # Generate normal suggestions based on results
-            suggestions = self._generate_suggestions(query, ranked_results, options.scope)
+            suggestions = self._generate_suggestions(query, ranked_results)
 
         # Format report
         return self._format_report(

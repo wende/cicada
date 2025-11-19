@@ -465,7 +465,20 @@ def get_argument_parser():
     query_parser = subparsers.add_parser(
         "query",
         help="Smart code discovery - search by keywords or patterns",
-        description="Smart code discovery - intelligently search by keywords or patterns",
+        description="Smart code discovery - the 'Google for code'. Searches by keywords OR patterns automatically, provides broad overview with suggestions.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  cicada query authentication                          # Keyword search
+  cicada query jwt token verify                        # Multiple keywords
+  cicada query "MyApp.Auth.verify*"                    # Pattern search
+  cicada query authentication --scope recent           # Recent changes only
+  cicada query "create*" --filter-type functions       # Functions only
+  cicada query "SELECT" --match-source strings         # Search string literals
+  cicada query login --path-pattern "lib/auth/**"      # Specific directory
+  cicada query user --scope public --no-tests          # Public API, no tests
+  cicada query auth --max-results 10                   # Limit results
+        """,
     )
     query_parser.add_argument(
         "query",
@@ -498,7 +511,7 @@ def get_argument_parser():
     )
     query_parser.add_argument(
         "--path-pattern",
-        help="Optional glob pattern to filter by file path (e.g., 'lib/auth/**')",
+        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '**/*_controller.ex')",
     )
     query_parser.add_argument(
         "--no-tests",
@@ -1063,7 +1076,6 @@ def handle_query(args):
         path_pattern=args.path_pattern,
         include_tests=not args.no_tests,
         show_snippets=args.snippets,
-        min_tier_rank=getattr(args, "min_tier", None),
     )
 
     if args.format == "json":

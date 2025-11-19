@@ -129,7 +129,11 @@ When adding or modifying storage-related functionality:
    - Directory creation with proper permissions
    - Edge cases (non-existent paths, unicode, spaces in paths)
 
-2. **Error handling:**
+2. **Test backward compatibility:**
+   - Ensure MCP server can still load from old `.cicada/` structure
+   - Verify graceful fallback when new structure is unavailable
+
+3. **Error handling:**
    - Test permission errors, disk full scenarios
    - Verify appropriate logging for debugging
 
@@ -257,10 +261,10 @@ The `search_by_features` MCP tool now supports `match_source`:
 Results now include match source indicators:
 
 ```markdown
-Function: MyApp.User.fetch_all/2 💬
+Function: MyApp.User.fetch_all/2 [strings]
 Score: 1.25
 Path: lib/my_app/user.ex:40
-Matched: select (💬), database (💬), query (💬)
+Matched: select [strings], database [strings], query [strings]
 String literals:
   • "SELECT * FROM users WHERE active = true" (line 42)
 Doc: "Fetches all active users from the database"
@@ -268,15 +272,205 @@ Doc: "Fetches all active users from the database"
 ```
 
 **Indicators:**
-- 📄 = Matched via documentation keywords
-- 💬 = Matched via string literal keywords
-- 📄💬 = Matched via both sources
+- [docs] = Matched via documentation keywords
+- [strings] = Matched via string literal keywords
+- [docs+strings] = Matched via both sources
 
 ### Implementation Notes
 
 - **StringExtractor** (`cicada/elixir/extractors/string.py`): Tree-sitter based string extraction
 - **KeywordSearcher** (`cicada/keyword_search.py`): Supports `match_source` filtering
 - **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays match source indicators
+
+## Co-occurrence-Based Keyword Suggestions
+
+Cicada provides intelligent keyword suggestions based on co-occurrence patterns in your codebase. Instead of generic language model suggestions, co-occurrence analysis suggests keywords that actually appear together in your code.
+
+### How It Works
+
+**During Indexing:**
+
+For each function/module, Cicada tracks which keywords appear together in:
+- Function documentation (`@doc`) and function signatures (function name + parameter names)
+- Module documentation (`@moduledoc`)
+- String literal keywords from function bodies
+
+**Important:** Co-occurrence tracking uses keywords **BEFORE semantic expansion** - only the raw extracted keywords, not the semantically expanded variants. This ensures suggestions reflect what actually appears in your codebase.
+
+**Example:**
+```elixir
+@doc "Validates a provider API key by making a test request"
+def validate_provider_key(provider, api_key) do
+  # ...
+end
+```
+
+Keywords extracted: `validate`, `provider`, `key`, `api`, `test`, `request`
+
+These all get marked as co-occurring because they appear in the same function context.
+
+**During Search:**
+
+When you search with no results:
+```
+Search: "openrouter" → No results found
+
+Try these related terms from your codebase:
+   • "provider" (appears with similar keywords in 15 functions)
+   • "litellm" (appears with similar keywords in 8 functions)
+   • "api_key" (appears with similar keywords in 12 functions)
+```
+
+When you have too many results:
+```
+Search: "test" → 500 results
+
+Narrow your search by adding:
+   • "provider" (appears together in 23 results)
+   • "validate" (appears together in 18 results)
+   • "integration" (appears together in 45 results)
+```
+
+### Usage
+
+#### Automatic Co-occurrence Tracking
+
+Co-occurrence data is automatically built during indexing when keyword extraction is enabled:
+
+```python
+from cicada.indexer import ElixirIndexer
+
+indexer = ElixirIndexer(verbose=True)
+indexer.index_repository(
+    repo_path="/path/to/repo",
+    output_path=".cicada/index.json",
+    extract_keywords=True,          # Co-occurrence tracking enabled automatically
+    extract_string_keywords=True     # String keywords also tracked
+)
+```
+
+The indexer will display co-occurrence statistics:
+```
+Building keyword co-occurrence matrix...
+  ✓ Tracked 342 keywords
+  ✓ Found 1,847 co-occurrence relationships
+```
+
+#### Using the MCP Tool
+
+The `suggest_keywords` MCP tool provides keyword suggestions:
+
+```json
+{
+  "tool": "suggest_keywords",
+  "arguments": {
+    "keywords": ["provider"],
+    "mode": "expand",  // or "narrow"
+    "top_n": 5
+  }
+}
+```
+
+**Expand mode** (when you need more/broader results):
+- Suggests related keywords that frequently co-occur with your query
+- Use when: search returns 0 or very few results
+- Parameters: `min_cooccurrence` (default: 1)
+
+**Narrow mode** (when you have too many results):
+- Suggests keywords to refine and narrow your search
+- Use when: search returns too many results
+- Requires: `search_results` parameter with current results
+- Parameters: `min_result_count` (default: 2)
+
+#### Programmatic Access
+
+```python
+from cicada.keyword_search import KeywordSearcher
+
+searcher = KeywordSearcher(index)
+
+# Suggest related keywords (expand mode)
+suggestions = searcher.suggest_related_keywords(
+    ["provider"],
+    top_n=5,
+    min_cooccurrence=2
+)
+
+# Suggest narrowing keywords (narrow mode)
+search_results = searcher.search(["test"], top_n=100)
+suggestions = searcher.suggest_narrowing_keywords(
+    ["test"],
+    search_results,
+    top_n=5,
+    min_result_count=3
+)
+```
+
+### Index Schema
+
+Co-occurrence data is stored as a top-level field in the index:
+
+```json
+{
+  "modules": { ... },
+  "metadata": { ... },
+  "cooccurrences": {
+    "user": {
+      "account": 5,      // "user" and "account" co-occur 5 times
+      "authentication": 3,
+      "create": 4
+    },
+    "provider": {
+      "api": 8,
+      "validate": 6,
+      "key": 7
+    }
+  }
+}
+```
+
+Additionally, the index stores both pre-expansion and post-expansion keywords:
+
+```json
+{
+  "modules": {
+    "MyApp.User": {
+      "extracted_keywords": {           // Pre-expansion (used for co-occurrence)
+        "user": 0.9,
+        "account": 0.8
+      },
+      "keywords": {                      // Post-expansion (used for search)
+        "user": 0.9,
+        "account": 0.8,
+        "profile": 0.7                   // Added by semantic expansion
+      },
+      "functions": [
+        {
+          "name": "create_user",
+          "extracted_keywords": { ... }, // Pre-expansion
+          "keywords": { ... },           // Post-expansion
+          "extracted_string_keywords": { ... }, // String keywords pre-expansion
+          "string_keywords": { ... }     // String keywords post-expansion
+        }
+      ]
+    }
+  }
+}
+```
+
+### Key Benefits
+
+1. **Contextual Suggestions**: Suggestions based on actual codebase patterns, not generic language models
+2. **No False Positives**: Only suggests keywords that actually co-occur in your code
+3. **Bidirectional**: Works for both expanding searches (more results) and narrowing searches (fewer results)
+4. **Function-Aware**: Tracks co-occurrence at both module and function level for granular suggestions
+
+### Implementation Notes
+
+- **CooccurrenceAnalyzer** (`cicada/cooccurrence.py`): Builds and queries co-occurrence matrix
+- **Indexer** (`cicada/indexer.py`): Automatically builds co-occurrence matrix during indexing
+- **KeywordSearcher** (`cicada/keyword_search.py`): Provides suggestion methods
+- **MCP Handler** (`cicada/mcp/handlers/analysis_handlers.py`): Implements `suggest_keywords` tool
 
 ## Co-Change Analysis
 
@@ -471,7 +665,7 @@ Doc: "Validates user credentials against stored hash."
 
 ### Implementation Notes
 
-- **CoChangeAnalyzer** (`cicada/git/cochange.py`): Analyzes git history for co-change patterns
+- **CoChangeAnalyzer** (`cicada/git/cochange_analyzer.py`): Analyzes git history for co-change patterns
 - **ElixirIndexer** (`cicada/indexer.py`): Integrates co-change extraction during indexing
 - **KeywordSearcher** (`cicada/keyword_search.py`): Applies co-change boost to search scores
 - **ModuleFormatter** (`cicada/elixir/format/formatter.py`): Displays co-change information in results

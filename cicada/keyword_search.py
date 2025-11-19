@@ -37,6 +37,15 @@ class KeywordSearcher:
         self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
 
+        # Initialize co-occurrence analyzer if data is available
+        from cicada.cooccurrence import CooccurrenceAnalyzer
+
+        self.cooccurrence_analyzer: CooccurrenceAnalyzer | None = None
+        if index.get("cooccurrences"):
+            # Silently fail if co-occurrence data is invalid - analyzer stays None
+            with __import__("contextlib").suppress(Exception):
+                self.cooccurrence_analyzer = CooccurrenceAnalyzer(index)
+
     def _merge_keywords(
         self, doc_keywords: dict | list | None, string_keywords: dict | list | None
     ) -> tuple[dict[str, float], dict[str, str]]:
@@ -718,3 +727,63 @@ class KeywordSearcher:
         results.sort(key=lambda x: (-x["score"], x["name"]))
 
         return results[:top_n]
+
+    def suggest_related_keywords(
+        self,
+        query_keywords: list[str],
+        top_n: int = 5,
+        min_cooccurrence: int = 1,
+    ) -> list[dict[str, Any]]:
+        """
+        Suggest related keywords based on co-occurrence patterns.
+
+        Useful when a search returns no results or too few results.
+
+        Args:
+            query_keywords: Keywords from the original query
+            top_n: Maximum number of suggestions to return
+            min_cooccurrence: Minimum co-occurrence count to consider
+
+        Returns:
+            List of suggestion dicts with:
+            - keyword: The suggested keyword
+            - cooccurrence_count: Number of times it co-occurs with query keywords
+            - cooccurs_with: List of query keywords it co-occurs with
+        """
+        if not self.cooccurrence_analyzer:
+            return []
+
+        return self.cooccurrence_analyzer.suggest_related_keywords(
+            query_keywords, top_n=top_n, min_cooccurrence=min_cooccurrence
+        )
+
+    def suggest_narrowing_keywords(
+        self,
+        query_keywords: list[str],
+        search_results: list[dict[str, Any]],
+        top_n: int = 5,
+        min_result_count: int = 2,
+    ) -> list[dict[str, Any]]:
+        """
+        Suggest keywords to narrow down search results.
+
+        Useful when a search returns too many results.
+
+        Args:
+            query_keywords: Original query keywords
+            search_results: Current search results to analyze
+            top_n: Maximum number of suggestions to return
+            min_result_count: Minimum number of results a keyword must appear in
+
+        Returns:
+            List of suggestion dicts with:
+            - keyword: The suggested keyword
+            - result_count: Number of results containing this keyword
+            - cooccurs_with: List of query keywords it co-occurs with
+        """
+        if not self.cooccurrence_analyzer:
+            return []
+
+        return self.cooccurrence_analyzer.suggest_narrowing_keywords(
+            query_keywords, search_results, top_n=top_n, min_result_count=min_result_count
+        )

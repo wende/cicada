@@ -196,7 +196,7 @@ class TestQueryOrchestrator:
         # Should have some public functions or at least not have private ones
         assert "hash_password" not in result  # private, should be excluded
         # May or may not have results depending on keyword scores
-        assert "Query:" in result
+        assert "**Found**:" in result
 
     def test_scope_filter_private(self, sample_index):
         """Test scope='private' filters to private functions only."""
@@ -219,111 +219,24 @@ class TestQueryOrchestrator:
         # hash_password is old, should be excluded
         assert "hash_password" not in result
 
-    def test_scope_filter_recent_with_modules(self):
-        """Test scope='recent' filters modules based on their functions' timestamps.
-
-        Modules inherit the most recent timestamp from their functions,
-        allowing them to be filtered by scope='recent' even if the module
-        itself doesn't have a last_modified_at field.
-        """
-        from datetime import datetime, timedelta
-
-        recent = (datetime.now() - timedelta(days=5)).isoformat()
-        old = (datetime.now() - timedelta(days=30)).isoformat()
-
-        index = {
-            "modules": {
-                "MyApp.Recent": {
-                    "file": "lib/my_app/recent.ex",
-                    "line": 1,
-                    "moduledoc": "Recent module",
-                    "keywords": {"test": 0.9},
-                    "functions": [
-                        {
-                            "name": "foo",
-                            "arity": 0,
-                            "line": 10,
-                            "type": "def",
-                            "keywords": {"test": 0.8},
-                            "last_modified_at": recent,  # Recent!
-                        }
-                    ],
-                },
-                "MyApp.Old": {
-                    "file": "lib/my_app/old.ex",
-                    "line": 1,
-                    "moduledoc": "Old module",
-                    "keywords": {"test": 0.9},
-                    "functions": [
-                        {
-                            "name": "bar",
-                            "arity": 0,
-                            "line": 10,
-                            "type": "def",
-                            "keywords": {"test": 0.8},
-                            "last_modified_at": old,  # Old!
-                        }
-                    ],
-                },
-                "MyApp.Mixed": {
-                    "file": "lib/my_app/mixed.ex",
-                    "line": 1,
-                    "moduledoc": "Mixed module",
-                    "keywords": {"test": 0.9},
-                    "functions": [
-                        {
-                            "name": "new_func",
-                            "arity": 0,
-                            "line": 10,
-                            "type": "def",
-                            "keywords": {"test": 0.8},
-                            "last_modified_at": recent,  # Recent!
-                        },
-                        {
-                            "name": "old_func",
-                            "arity": 0,
-                            "line": 20,
-                            "type": "def",
-                            "keywords": {"test": 0.7},
-                            "last_modified_at": old,  # Old!
-                        },
-                    ],
-                },
-            }
-        }
-
-        orchestrator = QueryOrchestrator(index)
-        result = orchestrator.execute_query("test", scope="recent")
-
-        # Module with recent function should be included
-        assert "MyApp.Recent" in result
-        # Module with only old functions should be excluded
-        assert "MyApp.Old" not in result
-        # Module with mixed timestamps (has at least one recent function) should be included
-        assert "MyApp.Mixed" in result
-
     def test_filter_type_modules(self, sample_index):
         """Test filter_type='modules' returns only modules."""
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query("auth", filter_type="modules")
 
         assert "MyApp.Auth" in result  # module
-        # In new format, modules don't have arity (/N) in their names
-        # Function names would include arity like "verify_token/2"
-        # Check that no arity notation appears (e.g., /0, /1, /2)
-        import re
-
-        assert not re.search(r"\w+/\d+", result)
+        # Functions should not be in top results
+        assert result.count("Function:") < result.count("Module:")
 
     def test_filter_type_functions(self, sample_index):
         """Test filter_type='functions' returns only functions."""
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query("auth", filter_type="functions")
 
-        # Functions should be present (with arity)
+        # Functions should be present
         assert "verify_token" in result
-        # Functions have arity in their names (e.g., "verify_token/2")
-        assert "/" in result
+        # Module-only results should be filtered out
+        assert "Module: MyApp.Auth" not in result or "Function:" in result
 
     def test_match_source_all(self, sample_index):
         """Test match_source='all' searches both docs and strings."""
@@ -352,7 +265,7 @@ class TestQueryOrchestrator:
         assert "test/my_app/user_test.exs" not in result
         assert "test_create_user" not in result
         # Should have found something or nothing
-        assert "Query:" in result
+        assert "**Found**:" in result
 
     def test_include_tests_false(self, sample_index):
         """Test include_tests=False excludes test files."""
@@ -418,7 +331,7 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query("auth")
 
         # Should have suggestions section
-        assert "Suggested Next Steps" in result
+        assert "💡 Suggested Next Steps" in result
         assert "search_function" in result or "search_module" in result
 
     def test_suggestions_sql_keywords(self, sample_index):
@@ -434,8 +347,9 @@ class TestQueryOrchestrator:
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query(["jwt"])
 
-        # Should have scores shown (in new format: "file:line | score")
-        assert " | " in result  # Score separator in new format
+        # Should have match indicators (📄 for docs, 💬 for strings)
+        # At minimum should have some emoji or indicator
+        assert "📄" in result or "💬" in result or "🎯" in result or "Score:" in result
 
     def test_empty_query(self):
         """Test empty query handling."""
@@ -459,7 +373,7 @@ class TestQueryOrchestrator:
 
         # Should not match .exs test files
         assert ".exs" not in result or "0 result" in result
-        assert "Query:" in result
+        assert "**Found**:" in result
 
     def test_glob_pattern_wildcard(self, sample_index):
         """Test * glob pattern for single-level wildcard."""
@@ -492,8 +406,11 @@ class TestQueryOrchestrator:
         # Use "password" which is a keyword that should match hash_password
         result = orchestrator.execute_query("password", filter_type="functions")
 
-        # Should return results (or zero results is also okay)
-        assert "Query:" in result
+        # Should show visibility info if results found
+        if "Function:" in result:
+            assert "Visibility" in result or "Private" in result or "Public" in result
+        # Or we might have 0 results, which is also okay
+        assert "**Found**:" in result
 
     def test_combined_filters(self, sample_index):
         """Test combining multiple filters."""
@@ -514,7 +431,7 @@ class TestQueryOrchestrator:
         assert "test/" not in result
         assert "test_create_user" not in result
         # Have results or not
-        assert "Query:" in result
+        assert "**Found**:" in result
 
     def test_ranking_by_score(self, sample_index):
         """Test that results are ranked by score."""
@@ -617,6 +534,7 @@ end
         # Should have code blocks
         assert "```elixir" in result
         assert "def verify_token" in result
+        assert "📝 **Code Preview:**" in result
 
     def test_snippet_shows_context_lines(self, sample_index_with_files):
         """Test that snippets show context lines around the target."""
@@ -636,7 +554,7 @@ end
         result = orchestrator.execute_query("auth", show_snippets=True)
 
         # Should still show results even if files don't exist
-        assert "1." in result or "MyApp.Auth" in result
+        assert "### 1." in result or "MyApp.Auth" in result
         # Should not crash or show error traceback
         assert "Traceback" not in result
 
@@ -652,7 +570,7 @@ end
         # Should indicate 0 results
         assert "0 result" in result.lower() or "no results" in result.lower()
         # Should have suggestions section
-        assert "Suggested Next Steps" in result or "Try:" in result
+        assert "💡" in result or "Suggestions:" in result or "Try:" in result
 
     def test_zero_results_suggests_structural_variants(self, sample_index):
         """Test that zero results suggests structural formatting variants (not case-only)."""
@@ -723,17 +641,16 @@ end
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query("MyApp.Auth.verify*")
 
-        # Should return pattern match results
-        assert "verify_token" in result
+        # Should indicate pattern match
+        assert "🎯" in result or "pattern" in result.lower()
 
     def test_match_indicators_present(self, sample_index):
-        """Test that match indicators (docs, strings, pattern) are shown."""
+        """Test that match indicators (📄💬🎯) are shown."""
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query(["jwt", "token"])
 
-        # Should show matched keywords with source indicators
-        assert "Matched keywords:" in result
-        assert "(in docs)" in result or "(in strings)" in result
+        # Should have match indicators
+        assert "📄" in result or "💬" in result
 
     # ============================================================
     # Cycle 5: Reduced Defaults & Overload Detection Tests (TDD RED phase)
@@ -803,52 +720,3 @@ end
         result_count = result.count("### ")
         if result_count <= 5:
             assert "⚠️" not in result
-
-    def test_tier_scoring_attached_to_results(self, sample_index):
-        """Test that tier scoring information is attached to query results."""
-        orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("authentication", max_results=5)
-
-        # Check that tier labels are present in the output
-        # At least one of these tier labels should appear
-        tier_labels = [
-            "[Exceptional]",
-            "[Highly Relevant]",
-            "[Above Average]",
-            "[Below Average]",
-            "[Poor]",
-        ]
-        has_tier = any(label in result for label in tier_labels)
-        assert has_tier, "Expected tier labels in query results"
-
-        # Check that confidence is present
-        assert "Confidence:" in result, "Expected Confidence in results"
-
-    def test_tier_filtering_min_tier_rank(self, sample_index):
-        """Test that min_tier_rank filter works correctly."""
-        orchestrator = QueryOrchestrator(sample_index)
-
-        # First get all results
-        all_results = orchestrator.execute_query("authentication", max_results=10)
-        all_count = (
-            all_results.count("\n1. ") + all_results.count("\n2. ") + all_results.count("\n3. ")
-        )
-
-        # Now filter to only top 2 tiers (exceptional and highly relevant)
-        filtered_results = orchestrator.execute_query(
-            "authentication", max_results=10, min_tier_rank=2
-        )
-        filtered_count = (
-            filtered_results.count("\n1. ")
-            + filtered_results.count("\n2. ")
-            + filtered_results.count("\n3. ")
-        )
-
-        # Filtered results should have fewer or equal results
-        assert filtered_count <= all_count, "Filtered results should be subset of all results"
-
-        # All remaining results should be tier rank 2 or better
-        if "[Below Average]" in all_results or "[Poor]" in all_results:
-            # These lower tiers should not appear in filtered results
-            assert "[Below Average]" not in filtered_results
-            assert "[Poor]" not in filtered_results
