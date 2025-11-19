@@ -229,20 +229,94 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
+### 7. query
+
+**Purpose:** Smart code discovery - your starting point for exploring the codebase.
+
+**What it does:**
+- Intelligent search using keywords or patterns to find relevant code
+- Automatically detects whether you're searching by keywords or patterns
+- Returns code snippets with context and smart suggestions for next steps
+- Filters results by scope (public/private), recency, type (modules/functions), and path
+- Supports both documentation and string literal matching
+
+**Key Features:**
+- Automatic keyword vs. pattern detection
+- Multiple filtering dimensions:
+  - **Scope filtering**: public, private, or all
+  - **Recency filtering**: last 14 days or all time
+  - **Type filtering**: modules only, functions only, or both
+  - **Source filtering**: match in docs, strings, or both
+  - **Path filtering**: include/exclude specific paths with patterns
+- Smart suggestions when results are too many or too few
+- Code snippets with highlighted matches
+- Relevance scoring with confidence indicators
+
+**Parameters:**
+- `query` (required) - String or list of keywords/patterns to search for
+- `scope` (optional) - Visibility filter: "all" (default), "public", "private"
+- `recent` (optional) - Time filter: true (last 14d), false (all time, default)
+- `filter_type` (optional) - Result type: "all" (default), "modules", "functions"
+- `match_source` (optional) - Match in: "all" (default), "docs", "strings"
+- `max_results` (optional) - Maximum results to return (default: 10)
+- `path_pattern` (optional) - Filter by file path (e.g., "!**/test/**" excludes tests)
+- `show_snippets` (optional) - Include code snippets in results (default: false)
+
+**Query Format:**
+```
+# Keywords (semantic search)
+"authentication user login"
+["database", "query", "user"]
+
+# Patterns (exact/wildcard matching)
+"create_user"         # Exact match
+"create*"             # Wildcard
+"*user*"              # Contains
+"create*|update*"     # OR logic
+```
+
+**Examples:**
+- `query("authentication")` - Find all authentication-related code
+- `query(["database", "user"], filter_type="functions")` - Find user database functions
+- `query("recent", scope="public", recent=true)` - Recent public changes
+- `query("SELECT", match_source="strings")` - Find SQL queries in string literals
+- `query("api", path_pattern="!**/test/**")` - API code excluding tests
+- `query("create*", scope="public", show_snippets=true)` - Create functions with code
+
+**When to Use:**
+- **Start here** when exploring unfamiliar code
+- Finding code related to a feature or concept
+- Discovering modules/functions by purpose rather than name
+- Filtering large codebases by recency, visibility, or location
+- Searching for specific strings like error messages or SQL queries
+
+**Best for:**
+- Initial code discovery and exploration
+- Finding relevant entry points for a feature
+- Narrowing down large codebases with multiple filters
+- Discovering code patterns and usage examples
+
 ---
 
 ## Deprecated Tools
 
-The following tools have been removed or consolidated in v0.4:
+The following tools have been removed or consolidated in v0.4. All functionality is preserved through the updated tool set with cleaner, more intuitive parameters.
 
-- **search_module_usage** → Consolidated into `search_module` (use `what_calls_it=true` parameter)
-- **get_module_dependencies** → Use `search_module` with `what_it_calls=true` parameter
-- **get_function_dependencies** → Use `search_function` with `what_it_calls=true` parameter
-- **find_pr_for_line** → Use `git_history` with `start_line` parameter
-- **get_file_pr_history** → Use `git_history` with just `file_path`
-- **get_commit_history** → Use `git_history` with `function_name` or file-level
-- **get_blame** → Use `git_history` with line range parameters
-- **search_by_keywords** → Use `query` tool instead
+### Consolidated Tools
+
+**Module and Function Dependencies:**
+- **search_module_usage** → `search_module` with `what_calls_it=true`
+- **get_module_dependencies** → `search_module` with `what_it_calls=true`
+- **get_function_dependencies** → `search_function` with `what_it_calls=true`
+
+**Git History (Unified):**
+- **find_pr_for_line** → `git_history` with `start_line` parameter
+- **get_file_pr_history** → `git_history` with just `file_path`
+- **get_commit_history** → `git_history` with `function_name` or file-level
+- **get_blame** → `git_history` with line range parameters
+
+**Semantic Search:**
+- **search_by_keywords** → `query` (renamed and enhanced with orthogonal filtering)
 
 ## Output Formats
 

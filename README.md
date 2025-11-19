@@ -21,21 +21,6 @@
 
 ---
 
-## What's New in 0.4
-
-- **Consolidated API** - 7 focused tools (down from 12) with cleaner, more intuitive parameters
-- **Unified git_history** - Single tool replaces 4 legacy tools (get_blame, get_commit_history, find_pr_for_line, get_file_pr_history)
-- **Bidirectional analysis** - `what_calls_it` and `what_it_calls` parameters now available in both search_module and search_function
-- **Simplified filtering** - `recent` is now a boolean (not part of scope enum), removed redundant `include_tests`
-- **Better defaults** - `query_jq` defaults to "compact" format for token efficiency
-- **Breaking changes:**
-  - Removed: `search_module_usage`, `get_module_dependencies`, `get_function_dependencies` (consolidated into search_module/search_function)
-  - Removed: `test_files_only` parameter (use `usage_type` instead)
-  - Changed: `scope` no longer includes "recent" (use separate `recent` parameter)
-  - Changed: Use `path_pattern` to exclude tests instead of `include_tests`
-
----
-
 ## Why CICADA?
 
 Traditional AI assistants treat your repo like a pile of text. That leads to:
@@ -60,16 +45,11 @@ CICADA is an MCP server that gives assistants AST-level knowledge:
 
 ```bash
 # 1. Install uv (if needed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install CICADA
+# curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install cicada-mcp
 
-# 3. Index your Elixir project
-cd /path/to/project
+# In your repo 
 cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cicada opencode
-
-# 4. Restart your editor
 ```
 
 <div align="left">
@@ -80,7 +60,7 @@ cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cic
 uvx --from cicada-mcp cicada claude   # or cursor, vs
 ```
 
-Runs CICADA on demand (slower after the first run, but zero install).
+Runs CICADA on demand (worse indexing quality, but zero install).
 
 </details>
 </div>
@@ -131,12 +111,6 @@ cd /path/to/project
 cicada claude   # or cicada cursor / cicada vs / cicada gemini / cicada codex / cicada opencode
 ```
 
-This command:
-1. Parses every `.ex`/`.exs` file with tree-sitter.
-2. Builds the index in `~/.cicada/projects/<hash>/`.
-3. Creates the correct MCP config for your editor.
-4. Configures `.gitattributes` so git can track functions through refactors.
-
 ### Enable PR Attribution (optional)
 
 ```bash
@@ -152,7 +126,7 @@ Unlocks questions like "Which PR introduced line 42?" or "What did reviewers say
 
 Enable automatic reindexing when files change by starting the MCP server with the `--watch` flag:
 
-**For Claude Code (.mcp.json):**
+** .mcp.json**
 ```json
 {
   "mcpServers": {
@@ -166,26 +140,6 @@ Enable automatic reindexing when files change by starting the MCP server with th
   }
 }
 ```
-
-**For Cursor (.cursor/mcp.json):**
-```json
-{
-  "mcpServers": {
-    "cicada": {
-      "command": "cicada-mcp",
-      "args": ["--watch"]
-    }
-  }
-}
-```
-
-**Or use with the server subcommand:**
-```bash
-cicada server --watch
-cicada server --watch --fast    # Use fast tier for reindexing
-cicada server --watch --max     # Use max tier for reindexing
-```
-
 When watch mode is enabled:
 - A separate process monitors `.ex` and `.exs` files for changes
 - Changes are automatically reindexed (incremental, fast)
@@ -262,7 +216,7 @@ cicada index .
 4. **Restart editor completely** (not just reload window)
 
 5. **Check editor MCP logs:**
-   - Claude Code: Console output
+   - Claude Code: --debug
    - Cursor: Settings → MCP → View Logs
    - VS Code: Output panel → MCP
 
@@ -282,7 +236,7 @@ sudo apt install gh  # Ubuntu
 gh auth login
 
 # Index PRs
-cicada index-pr .
+cicada index-pr
 ```
 
 **Common issues:**
@@ -293,7 +247,7 @@ cicada index-pr .
 
 **Force rebuild:**
 ```bash
-cicada index-pr . --clean
+cicada index-pr --clean
 ```
 
 </details>
@@ -308,7 +262,7 @@ cicada index-pr . --clean
 **Solution:**
 ```bash
 # Re-index with keyword extraction
-cicada index --regular .  # or --fast or --max
+cicada index .  # or --fast or --max
 ```
 
 **Verify:**
@@ -404,33 +358,13 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ---
 
-## Learn by Doing (5–10 min each)
-
-### 1. Safe Refactor Checklist
-1. `query` → "Find authentication code"
-2. `search_function("create_user", what_calls_it=true)` → "Where is it called?"
-3. `search_module("MyApp.User", what_calls_it=true)` → "What depends on this module?"
-4. `search_function("create_user", usage_type="tests")` → "Check test coverage"
-5. `git_history("lib/my_app/user.ex")` → "Review PR history and design decisions"
-
-### 2. Untangle Legacy Intent
-1. `query` with keywords to find relevant code
-2. `search_module` to view the complete API
-3. `git_history` with `function_name` to track evolution
-4. `git_history` with line ranges to see authorship and ping the right people
-
-### 3. Cleanup Sprint
-1. `find_dead_code --min-confidence high` for candidates
-2. `search_function` with `what_calls_it=true` to double-check usage
-3. `git_history` on suspicious functions to check if they're WIP
-4. Remove or deprecate confidently
-
-For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) and [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
 
 ---
 
 ## Documentation
 
+- [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) 
+- [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
 - [CHANGELOG.md](CHANGELOG.md) – release notes.
 - [docs/01-KEYWORD_EXTRACTION_ANALYSIS.md](docs/01-KEYWORD_EXTRACTION_ANALYSIS.md) – semantic search internals.
 - [docs/09-PR_INDEXING.md](docs/09-PR_INDEXING.md) – GitHub integration details.
@@ -440,12 +374,7 @@ For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPL
 
 ## Roadmap
 
-| Available | Coming Soon |
-|-----------|-------------|
-| Elixir indexing + AST search | Python + TypeScript support |
-| Semantic keyword tiers (`--fast/regular/max`) | Shared/team indexes |
-| PR attribution + review scraping | |
-| Dead-code + dependency analysis | |
+### PYTHON AND TYPESCRIPT!!!
 
 ---
 
