@@ -137,6 +137,21 @@ class SCIPConverter:
         modules = {}
         file_path = doc.relative_path
 
+        # Extract import aliases from the source file
+        # Lazy import to avoid circular dependency
+        aliases = {}
+        try:
+            from cicada.languages.python.alias_extractor import PythonAliasExtractor
+
+            full_path = repo_path / file_path
+            alias_extractor = PythonAliasExtractor()
+            aliases = alias_extractor.extract_aliases(full_path)
+            if self.verbose and aliases:
+                print(f"Extracted {len(aliases)} aliases from {file_path}", file=sys.stderr)
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: Failed to extract aliases from {file_path}: {e}", file=sys.stderr)
+
         # Extract call sites and dependencies if enabled
         call_sites_by_function = {}
         dependencies = []
@@ -312,7 +327,7 @@ class SCIPConverter:
                 # This allows Python modules to work with existing MCP handlers
                 # that were designed for Elixir
                 module_data["imports"] = sorted(all_modules)
-                module_data["aliases"] = {}  # TODO: Extract from "import X as Y" patterns
+                module_data["aliases"] = aliases  # Extracted from "import X as Y" patterns
                 module_data["requires"] = []  # Elixir-specific, not applicable to Python
                 module_data["uses"] = []  # Elixir-specific, not applicable to Python
         else:
@@ -320,7 +335,7 @@ class SCIPConverter:
             # for consistency and MCP tool compatibility
             for module_data in modules.values():
                 module_data["imports"] = []
-                module_data["aliases"] = {}
+                module_data["aliases"] = aliases  # Still extract aliases even without call sites
                 module_data["requires"] = []
                 module_data["uses"] = []
 
