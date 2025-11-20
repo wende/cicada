@@ -351,8 +351,47 @@ class TestIncrementalUpdate:
         # Should have both newer (12, 11) and older (4, 3)
         assert len(result) == 4
 
-    def test_incremental_update_error_with_partial_progress(self, mock_indexer):
-        """Test that partial progress is saved when error occurs during incremental update."""
+    def test_incremental_update_error_during_newer_prs(self, mock_indexer):
+        """Test that error during newer PRs does NOT save partial results (prevents gaps)."""
+        existing_index = {
+            "prs": {
+                "100": {"number": 100},
+                "200": {"number": 200},
+            }
+        }
+
+        mock_indexer.api_client.get_total_pr_count.return_value = 300
+        mock_indexer.api_client.fetch_pr_list.side_effect = [
+            # 15 newer PRs to trigger 2 batches (batch_size=10)
+            [215, 214, 213, 212, 211, 210, 209, 208, 207, 206, 205, 204, 203, 202, 201],
+            [],  # No older PRs
+        ]
+
+        # Simulate error during newer PRs fetch (after first batch)
+        # Batch 1: 10 PRs, Batch 2: 5 PRs (fails)
+        mock_indexer.api_client.fetch_prs_batch_graphql.side_effect = [
+            # First batch (10 PRs) succeeds
+            [
+                {"number": 215},
+                {"number": 214},
+                {"number": 213},
+                {"number": 212},
+                {"number": 211},
+                {"number": 210},
+                {"number": 209},
+                {"number": 208},
+                {"number": 207},
+                {"number": 206},
+            ],
+            RuntimeError("HTTP 502: Bad Gateway"),  # Second batch fails
+        ]
+
+        # Should re-raise the error, NOT save partial newer PRs
+        with pytest.raises(RuntimeError, match="HTTP 502"):
+            mock_indexer.incremental_update(existing_index)
+
+    def test_incremental_update_error_during_older_prs(self, mock_indexer):
+        """Test that error during older PRs DOES save partial results (safe)."""
         existing_index = {
             "prs": {
                 "100": {"number": 100},
@@ -376,6 +415,7 @@ class TestIncrementalUpdate:
         result = mock_indexer.incremental_update(existing_index)
 
         # Should return partial results: newer (2) + partial older (2) = 4
+        # This is safe because newer PRs completed, and next run will fetch remaining older
         assert len(result) == 4
         assert result[0]["number"] == 300
         assert result[1]["number"] == 250

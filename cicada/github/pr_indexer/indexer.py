@@ -196,10 +196,17 @@ class PRIndexer:
     def _fetch_prs_in_batches(
         self, newer_pr_numbers: list[int], older_pr_numbers: list[int], min_pr: int
     ) -> list[dict[str, Any]]:
-        """Fetch PRs in batches, showing progress."""
+        """
+        Fetch PRs in batches, showing progress.
+
+        IMPORTANT: Partial results are only safe for older PRs.
+        If newer PRs fail partially, we MUST NOT save because it creates a gap
+        in the index (the max_pr would skip unfetched IDs).
+        """
         detailed_prs = []
         batch_size = 10
         total_to_fetch = len(newer_pr_numbers) + len(older_pr_numbers)
+        newer_prs_completed = False  # Track if we finished newer PRs section
 
         try:
             # Fetch newer PRs first
@@ -211,6 +218,9 @@ class PRIndexer:
                     print(f"  Batch {i//batch_size + 1}/{newer_batches} ({len(batch)} PRs)...")
                     batch_prs = self.api_client.fetch_prs_batch_graphql(batch)
                     detailed_prs.extend(batch_prs)
+
+            # Mark newer PRs as completed
+            newer_prs_completed = True
 
             # Then fetch older PRs
             if older_pr_numbers:
@@ -226,6 +236,18 @@ class PRIndexer:
                     detailed_prs.extend(batch_prs)
 
         except KeyboardInterrupt:
+            # Check if it's safe to save partial results
+            if newer_pr_numbers and not newer_prs_completed:
+                # Partial newer PRs create a gap - can't save safely
+                print(
+                    "\n\nWARNING: Interrupted during newer PRs fetch. "
+                    "Cannot save partial results (would create gaps in index)."
+                )
+                print(f"Fetched {len(detailed_prs)}/{len(newer_pr_numbers)} newer PRs.")
+                print("Run 'cicada index-pr' again to retry.\n")
+                raise  # Re-raise to prevent saving
+
+            # Safe to save: either no newer PRs, or newer completed + partial older
             print(
                 f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
                 f"{total_to_fetch} PRs."
@@ -234,7 +256,20 @@ class PRIndexer:
             return detailed_prs
 
         except (RuntimeError, Exception) as e:
-            # Save progress on any error (HTTP errors, network issues, etc.)
+            # Check if it's safe to save partial results
+            if newer_pr_numbers and not newer_prs_completed:
+                # Partial newer PRs create a gap - can't save safely
+                if detailed_prs:
+                    print(
+                        "\n\nWARNING: Error during newer PRs fetch. "
+                        "Cannot save partial results (would create gaps in index)."
+                    )
+                    print(f"Fetched {len(detailed_prs)}/{len(newer_pr_numbers)} newer PRs.")
+                    print(f"Error: {e}")
+                    print("Run 'cicada index-pr' again to retry.\n")
+                raise  # Re-raise to prevent saving
+
+            # Safe to save: either no newer PRs, or newer completed + partial older
             if detailed_prs:
                 print(
                     f"\n\nWARNING: Error occurred. Fetched {len(detailed_prs)}/"
