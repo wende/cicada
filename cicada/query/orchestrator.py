@@ -15,6 +15,7 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
+from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import matches_glob_pattern
 
 
@@ -322,6 +323,47 @@ class QueryOrchestrator:
 
         return ranked
 
+    def _attach_tier_info(self, results: list[SearchResult]) -> list[SearchResult]:
+        """
+        Calculate score distribution and attach tier information to each result.
+
+        Args:
+            results: List of search results with scores
+
+        Returns:
+            Results with tier information attached
+        """
+        if not results:
+            return results
+
+        # Extract scores from results
+        scores = [r.score for r in results]
+
+        # Calculate distribution with tiers
+        distribution = calculate_score_distribution_with_tiers(scores)
+
+        # Attach tier info to each result
+        # distribution['distribution'] is sorted by z-score (descending)
+        # but we need to match by score value
+        # Round scores to 6 decimal places to handle floating-point precision issues
+        score_precision = 6
+        score_to_tier = {
+            round(d["score"], score_precision): d for d in distribution["distribution"]
+        }
+
+        for result in results:
+            tier_data = score_to_tier.get(round(result.score, score_precision))
+            if tier_data:
+                result.z_score = tier_data["z_score"]
+                result.percentile = tier_data["percentile"]
+                result.normalized_score = tier_data["normalized"]
+                result.tier = tier_data["tier"]
+                result.tier_label = tier_data["tier_label"]
+                result.tier_description = tier_data["tier_description"]
+                result.tier_rank = tier_data["tier_rank"]
+
+        return results
+
     def _generate_suggestions(
         self, query: str | list[str], results: list[SearchResult]
     ) -> list[str]:
@@ -430,33 +472,57 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Header
+        # Header - compact format
         query_display = query if isinstance(query, str) else ", ".join(f'"{q}"' for q in query)
         total = len(results)
         showing = min(total, max_results)
-        lines.append("# Code Search Results\n")
-        lines.append(f"**Query**: {query_display}\n")
-        lines.append(f"**Found**: {total} result{'s' if total != 1 else ''} (showing {showing})\n")
-        lines.append("\n---\n\n")
+        lines.append(
+            f"Query: {query_display} | {total} result{'s' if total != 1 else ''} (showing {showing})\n\n"
+        )
 
         # Results
         for i, result in enumerate(results[:max_results], 1):
             lines.append(self._format_result_snippet(result, i, show_snippets))
-            lines.append("\n---\n\n")
 
         # Suggestions
         if suggestions:
-            lines.append("## 💡 Suggested Next Steps\n\n")
+            lines.append("\n## Suggested Next Steps\n\n")
             for suggestion in suggestions:
                 lines.append(f"- {suggestion}\n")
 
         return "".join(lines)
 
+    def _get_relative_time_string(self, delta) -> str:
+        """
+        Convert a timedelta to a human-readable relative time string.
+
+        Args:
+            delta: timedelta representing time difference from now
+
+        Returns:
+            Relative time string (e.g., "today", "2 days ago", "3 months ago")
+        """
+        if delta.days == 0:
+            return "today"
+        elif delta.days == 1:
+            return "yesterday"
+        elif delta.days < 7:
+            return f"{delta.days} days ago"
+        elif delta.days < 30:
+            weeks = delta.days // 7
+            return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+        elif delta.days < 365:
+            months = delta.days // 30
+            return f"{months} month{'s' if months > 1 else ''} ago"
+        else:
+            years = delta.days // 365
+            return f"{years} year{'s' if years > 1 else ''} ago"
+
     def _format_result_snippet(
         self, result: SearchResult, index: int, show_snippets: bool = False
     ) -> str:
         """
-        Format a single result as a snippet.
+        Format a single result as a snippet (compact format).
 
         Args:
             result: SearchResult to format
@@ -464,81 +530,88 @@ class QueryOrchestrator:
             show_snippets: Whether to show code snippet previews
 
         Returns:
-            Markdown formatted snippet
+            Compact formatted snippet
         """
         lines = []
 
-        # Title with type and name
-        result_type = result.type.title()
-        name = result.name
+        # Compact header: number, name, and tier on first line
+        header_parts = [f"{index}. {result.name}"]
 
-        # Match indicators (📄 = docs, 💬 = strings, 🎯 = pattern)
-        indicators = self._get_match_indicators(result)
+        # Add tier label if available
+        if result.tier_label:
+            header_parts.append(f"[{result.tier_label}]")
 
-        lines.append(f"### {index}. {result_type}: `{name}` {indicators}\n\n")
+        lines.append(" | ".join(header_parts) + "\n")
 
-        # Metadata line
-        metadata = [
-            f"**Path**: {result.file}:{result.line}",
-            f"**Score**: {result.score:.2f}",
-        ]
+        # Path on second line
+        lines.append(f"{result.file}:{result.line}\n")
 
-        # Show visibility for functions
-        if result.is_function():
-            visibility = "Public" if result.is_public() else "Private"
-            metadata.append(f"**Visibility**: {visibility}")
+        # Confidence on third line (if available)
+        if result.percentile is not None:
+            lines.append(f"Confidence: {result.percentile:.1f}%\n")
 
-        lines.append(" | ".join(metadata) + "\n\n")
-
-        # Documentation preview
+        # First line of documentation (wrapped nicely)
         if result.doc:
-            doc = result.doc
-            # Truncate long docs
-            if len(doc) > 150:
-                doc = doc[:147] + "..."
-            lines.append(f"**Doc**: {doc}\n\n")
+            doc = result.doc.strip().split("\n")[0]
+            # Wrap at ~100 characters
+            if len(doc) > 100:
+                doc = doc[:100] + "..."
+            lines.append(f"{doc}\n")
 
-        # Signature (for functions)
-        if result.signature:
-            lines.append(f"```elixir\n{result.signature}\n```\n\n")
+        # Last modified timestamp (if available)
+        if result.last_modified_at:
+            try:
+                # Parse ISO format timestamp
+                dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
+                # Ensure timezone-aware datetime for consistent comparisons
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+
+                now = datetime.now(timezone.utc)
+                delta = now - dt
+                time_ago = self._get_relative_time_string(delta)
+
+                # Include commit hash and PR if available
+                git_info = []
+                if result.last_modified_sha:
+                    git_info.append(result.last_modified_sha)
+                if result.last_modified_pr:
+                    git_info.append(f"#{result.last_modified_pr}")
+
+                if git_info:
+                    lines.append(f"Last modified: {time_ago} ({' '.join(git_info)})\n")
+                else:
+                    lines.append(f"Last modified: {time_ago}\n")
+            except (ValueError, AttributeError):
+                pass
+
+        # Matched keywords with source indicators
+        if result.matched_keywords:
+            kw_with_sources: list[str] = []
+            source_suffixes = {
+                "docs": " (in docs)",
+                "strings": " (in strings)",
+                "both": " (in docs+strings)",
+            }
+            for kw in result.matched_keywords[:5]:
+                source = result.keyword_sources.get(kw, "")
+                suffix = source_suffixes.get(source, "")
+                kw_with_sources.append(kw + suffix)
+
+            matched_str = ", ".join(kw_with_sources)
+            if len(result.matched_keywords) > 5:
+                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
+            lines.append(f"Matched keywords: {matched_str}\n")
 
         # Code snippet preview (if enabled)
         if show_snippets:
             snippet = self._extract_code_snippet(result.file, result.line)
             if snippet:
-                lines.append(f"📝 **Code Preview:**\n\n```elixir\n{snippet}\n```\n\n")
+                lines.append(f"\n```elixir\n{snippet}\n```\n")
 
-        # Matched keywords
-        if result.matched_keywords:
-            matched_str = ", ".join(result.matched_keywords[:5])
-            if len(result.matched_keywords) > 5:
-                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-            lines.append(f"**Matched keywords**: {matched_str}\n")
+        lines.append("\n")  # Blank line between results
 
         return "".join(lines)
-
-    def _get_match_indicators(self, result: SearchResult) -> str:
-        """
-        Get match indicator emojis for a result.
-
-        Returns:
-            String with indicators (e.g., "📄💬" for both docs and strings, "🎯" for pattern)
-        """
-        indicators = []
-
-        # Check if matched via documentation
-        if any(src in ["docs", "both"] for src in result.keyword_sources.values()):
-            indicators.append("📄")
-
-        # Check if matched via strings
-        if any(src in ["strings", "both"] for src in result.keyword_sources.values()):
-            indicators.append("💬")
-
-        # Pattern match indicator
-        if result.pattern_match:
-            indicators.append("🎯")
-
-        return " ".join(indicators) if indicators else ""
 
     def _extract_code_snippet(
         self, file_path: str, line: int, context_lines: int = QueryConfig.DEFAULT_CONTEXT_LINES
@@ -775,6 +848,9 @@ class QueryOrchestrator:
 
         # Rank and deduplicate
         ranked_results = self._rank_and_dedupe(filtered_results)
+
+        # Attach tier information based on score distribution
+        ranked_results = self._attach_tier_info(ranked_results)
 
         # Check for zero results and generate appropriate suggestions
         if len(ranked_results) == 0:

@@ -83,12 +83,15 @@ class HistoryAnalyzer:
                 traceback.print_exc()
             return None
 
-    def _parse_recent_filter(self, recent: bool | None) -> tuple[datetime | None, datetime | None]:
+    def _parse_recent_filter(
+        self, recent: bool | None, recent_days: int | None = None
+    ) -> tuple[datetime | None, datetime | None]:
         """Convert the recent flag to a (since, until) tuple."""
         if recent is None:
             return None, None
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.DEFAULT_RECENT_DAYS)
+        days = recent_days or self.DEFAULT_RECENT_DAYS
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return (cutoff, None) if recent else (None, cutoff)
 
     def _filter_by_date(
@@ -126,6 +129,7 @@ class HistoryAnalyzer:
         show_evolution: bool = False,
         max_results: int = 10,
         recent: bool | None = None,
+        recent_days: int | None = None,
         author: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -138,7 +142,8 @@ class HistoryAnalyzer:
             function_name: Optional function name for tracking
             show_evolution: Include creation/modification metadata
             max_results: Maximum commits/PRs to return
-            recent: True (last 14 days), False (older), None (all time)
+            recent: True (last N days), False (older), None (all time)
+            recent_days: Number of days for recent filter (default: 14)
             author: Filter by author name
 
         Returns:
@@ -147,7 +152,7 @@ class HistoryAnalyzer:
                 - data: Formatted result data
                 - pr_enriched: Whether PR data was included
         """
-        since_date, until_date = self._parse_recent_filter(recent)
+        since_date, until_date = self._parse_recent_filter(recent, recent_days)
 
         if start_line is not None and end_line is None:
             return self._analyze_single_line(file_path, start_line)
@@ -353,6 +358,19 @@ class HistoryAnalyzer:
             and self._author_matches(commit["author"], author)
         ]
 
+        # Build filter description if filters excluded all commits
+        filter_desc = None
+        has_filters = since_date or until_date or author
+        if has_filters and commits and not filtered_commits:
+            parts = []
+            if since_date:
+                parts.append(f"since {since_date.date()}")
+            if until_date:
+                parts.append(f"until {until_date.date()}")
+            if author:
+                parts.append(f"author: {author}")
+            filter_desc = ", ".join(parts) if parts else None
+
         evolution = (
             self.git_helper.get_function_evolution(
                 file_path,
@@ -371,6 +389,8 @@ class HistoryAnalyzer:
                 "function_name": function_name,
                 "commits": filtered_commits,
                 "evolution": evolution,
+                "filter_desc": filter_desc,
+                "total_before_filter": len(commits) if filter_desc else None,
             },
             "pr_enriched": False,  # Function tracking doesn't include PR enrichment
         }
@@ -420,11 +440,24 @@ class HistoryAnalyzer:
             else self.git_helper.get_file_history(file_path, max_results)
         )
 
+        # Build filter description for empty results
+        filter_desc = None
+        if has_filters and not commits:
+            parts = []
+            if since_date:
+                parts.append(f"since {since_date.date()}")
+            if until_date:
+                parts.append(f"until {until_date.date()}")
+            if author:
+                parts.append(f"author: {author}")
+            filter_desc = ", ".join(parts) if parts else None
+
         return {
             "type": "file",
             "data": {
                 "file_path": file_path,
                 "commits": commits,
+                "filter_desc": filter_desc,
             },
             "pr_enriched": False,
         }

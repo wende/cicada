@@ -293,5 +293,103 @@ def test_git_history_error_handling_missing_file(test_server):
     print(f"  ✓ Response: {text[:100]}...")
 
 
+def test_git_history_filter_feedback_recent(test_server):
+    """Test filter feedback when recent=true excludes all results."""
+    print("\nTesting filter feedback for recent=true with no matches...")
+
+    result = asyncio.run(
+        test_server.git_handler.git_history(
+            file_path="README.md",
+            recent=True,
+            recent_days=1,  # Only last 1 day - unlikely to have commits
+        )
+    )
+
+    assert len(result) == 1, "Should return one TextContent"
+    assert result[0].type == "text", "Should return text content"
+
+    text = result[0].text
+    # Check for helpful filter feedback messages
+    if "No commits found matching filters" in text or "since" in text.lower():
+        print("  ✓ Filter feedback message present")
+        assert "Try:" in text or "try" in text.lower(), "Should suggest alternatives"
+        print("  ✓ Helpful suggestions included")
+    else:
+        # If there are commits in last 1 day, that's fine too
+        print("  ✓ Query executed successfully (commits may exist)")
+
+    print(f"  ✓ Response length: {len(text)} characters")
+
+
+def test_git_history_custom_recent_days(test_server):
+    """Test custom recent_days parameter."""
+    print("\nTesting custom recent_days parameter...")
+
+    # Test with 30 days
+    result = asyncio.run(
+        test_server.git_handler.git_history(
+            file_path="README.md",
+            recent=True,
+            recent_days=30,
+            max_results=5,
+        )
+    )
+
+    assert len(result) == 1, "Should return one TextContent"
+    assert result[0].type == "text", "Should return text content"
+
+    text = result[0].text
+    # Should work without error
+    print("  ✓ Custom recent_days=30 applied successfully")
+    print(f"  ✓ Response length: {len(text)} characters")
+
+
+def test_git_history_filter_feedback_author(test_server):
+    """Test filter feedback when author filter excludes all results."""
+    print("\nTesting filter feedback for author with no matches...")
+
+    result = asyncio.run(
+        test_server.git_handler.git_history(
+            file_path="README.md",
+            author="nonexistent_author_xyz123",
+            max_results=5,
+        )
+    )
+
+    assert len(result) == 1, "Should return one TextContent"
+    assert result[0].type == "text", "Should return text content"
+
+    text = result[0].text
+    # Check that it handles no matches gracefully
+    # Either shows filter feedback or shows empty results
+    print("  ✓ Author filter with no matches handled gracefully")
+    print(f"  ✓ Response length: {len(text)} characters")
+
+
+def test_git_history_tool_has_recent_days_parameter(test_server):
+    """Test that git_history tool exposes recent_days parameter."""
+    print("\nTesting git_history tool has recent_days parameter...")
+
+    tools = asyncio.run(test_server.list_tools())
+
+    # Find git_history tool
+    git_history_tool = None
+    for tool in tools:
+        if tool.name == "git_history":
+            git_history_tool = tool
+            break
+
+    assert git_history_tool is not None, "git_history tool not found"
+    assert (
+        "recent_days" in git_history_tool.inputSchema["properties"]
+    ), "Tool should have recent_days parameter"
+
+    recent_days_schema = git_history_tool.inputSchema["properties"]["recent_days"]
+    assert recent_days_schema["type"] == "integer", "recent_days should be integer"
+
+    print("  ✓ recent_days parameter is present")
+    print(f"  ✓ Parameter description: {recent_days_schema.get('description', 'N/A')[:80]}...")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

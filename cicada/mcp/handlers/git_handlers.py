@@ -302,6 +302,7 @@ class GitHistoryHandler:
         show_evolution: bool = False,
         max_results: int = 10,
         recent: bool | None = None,
+        recent_days: int | None = None,
         author: str | None = None,
     ) -> list[TextContent]:
         """
@@ -314,7 +315,8 @@ class GitHistoryHandler:
             function_name: Optional function name for tracking
             show_evolution: Include evolution metadata
             max_results: Maximum results to return
-            recent: True (last 14 days), False (older), None (all time)
+            recent: True (last N days), False (older), None (all time)
+            recent_days: Number of days for recent filter (default: 14)
             author: Filter by author name
 
         Returns:
@@ -354,6 +356,7 @@ class GitHistoryHandler:
                 show_evolution=show_evolution,
                 max_results=max_results,
                 recent=recent,
+                recent_days=recent_days,
                 author=author,
             )
 
