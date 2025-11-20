@@ -89,6 +89,21 @@ class PRIndexer:
                 print("Saving partial index...")
                 return detailed_prs
 
+            except (RuntimeError, Exception) as e:
+                # Save progress on any error (HTTP errors, network issues, etc.)
+                if detailed_prs:
+                    print(
+                        f"\n\nWARNING: Error occurred. Fetched {len(detailed_prs)}/"
+                        f"{len(pr_numbers)} PRs before failure."
+                    )
+                    print(f"Error: {e}")
+                    print("Saving partial index to preserve progress...")
+                    print("Run 'cicada index-pr' again to resume from where it failed.\n")
+                    return detailed_prs
+                else:
+                    # No progress made, re-raise
+                    raise RuntimeError(f"Failed to fetch PRs: {e}") from e
+
             return detailed_prs
 
         except RuntimeError as e:
@@ -184,6 +199,7 @@ class PRIndexer:
         """Fetch PRs in batches, showing progress."""
         detailed_prs = []
         batch_size = 10
+        total_to_fetch = len(newer_pr_numbers) + len(older_pr_numbers)
 
         try:
             # Fetch newer PRs first
@@ -212,9 +228,25 @@ class PRIndexer:
         except KeyboardInterrupt:
             print(
                 f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
-                f"{len(newer_pr_numbers) + len(older_pr_numbers)} PRs."
+                f"{total_to_fetch} PRs."
             )
             print("Saving partial index...")
+            return detailed_prs
+
+        except (RuntimeError, Exception) as e:
+            # Save progress on any error (HTTP errors, network issues, etc.)
+            if detailed_prs:
+                print(
+                    f"\n\nWARNING: Error occurred. Fetched {len(detailed_prs)}/"
+                    f"{total_to_fetch} PRs before failure."
+                )
+                print(f"Error: {e}")
+                print("Saving partial index to preserve progress...")
+                print("Run 'cicada index-pr' again to resume from where it failed.\n")
+                return detailed_prs
+            else:
+                # No progress made, re-raise immediately
+                raise
 
         return detailed_prs
 
