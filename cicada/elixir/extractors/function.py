@@ -6,7 +6,7 @@ Author: Cursor(Auto)
 
 from cicada.utils import extract_text_from_node
 
-from .base import get_param_name
+from .base import extract_string_from_arguments, get_param_name
 
 
 def extract_functions(node, source_code: bytes) -> list:
@@ -138,21 +138,7 @@ def _parse_test_definition(arguments_node, source_code: bytes, line: int) -> dic
     - line: line number
     - test_description: the full description string
     """
-    test_description = None
-
-    # Look for string node in arguments
-    for arg_child in arguments_node.children:
-        if arg_child.type == "string":
-            # Extract the string content (including quotes)
-            raw_string = extract_text_from_node(arg_child, source_code)
-            # Remove surrounding quotes
-            if (raw_string.startswith('"') and raw_string.endswith('"')) or (
-                raw_string.startswith("'") and raw_string.endswith("'")
-            ):
-                test_description = raw_string[1:-1]
-            else:
-                test_description = raw_string
-            break
+    test_description = extract_string_from_arguments(arguments_node, source_code)
 
     if test_description:
         # Generate a function name from the description
