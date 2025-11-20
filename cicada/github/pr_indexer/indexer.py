@@ -47,6 +47,66 @@ class PRIndexer:
         if not is_git_repository(self.repo_path):
             raise ValueError(f"Not a git repository: {self.repo_path}")
 
+    def _handle_fetch_error(
+        self,
+        detailed_prs: list[dict[str, Any]],
+        total_to_fetch: int,
+        exception: Exception | None,
+        newer_pr_numbers: list[int] | None = None,
+        newer_prs_completed: bool = True,
+    ) -> list[dict[str, Any]]:
+        """
+        Handle errors during PR fetching with gap prevention.
+
+        Args:
+            detailed_prs: PRs fetched so far
+            total_to_fetch: Total number of PRs being fetched
+            exception: The exception that occurred (None for KeyboardInterrupt)
+            newer_pr_numbers: List of newer PRs being fetched (None if not applicable)
+            newer_prs_completed: Whether newer PRs section completed
+
+        Returns:
+            Partial results if safe to save
+
+        Raises:
+            Original exception if not safe to save
+        """
+        # Check gap prevention: can't save partial newer PRs
+        if newer_pr_numbers and not newer_prs_completed:
+            # Partial newer PRs create a gap - can't save safely
+            error_type = "Interrupted" if exception is None else "Error"
+            print(
+                f"\n\nWARNING: {error_type} during newer PRs fetch. "
+                "Cannot save partial results (would create gaps in index)."
+            )
+            print(f"Fetched {len(detailed_prs)}/{len(newer_pr_numbers)} newer PRs.")
+            if exception:
+                print(f"Error: {exception}")
+            print("Run 'cicada index-pr' again to retry.\n")
+
+            # Re-raise to prevent saving
+            if exception is None:
+                raise KeyboardInterrupt
+            else:
+                raise exception
+
+        # Safe to save
+        if detailed_prs:
+            action = "Interrupted by user" if exception is None else "Error occurred"
+            print(f"\n\nWARNING: {action}. Fetched {len(detailed_prs)}/{total_to_fetch} PRs.")
+            if exception:
+                print(f"Error: {exception}")
+            print("Saving partial index to preserve progress...")
+            if exception:
+                print("Run 'cicada index-pr' again to resume from where it failed.\n")
+            return detailed_prs
+        else:
+            # No progress made, re-raise
+            if exception is None:
+                raise KeyboardInterrupt
+            else:
+                raise RuntimeError(f"Failed to fetch PRs: {exception}") from exception
+
     def fetch_all_prs(self, state: str = "all") -> list[dict[str, Any]]:
         """
         Fetch all pull requests from GitHub using GraphQL for efficiency.
@@ -82,27 +142,10 @@ class PRIndexer:
                     detailed_prs.extend(batch_prs)
 
             except KeyboardInterrupt:
-                print(
-                    f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
-                    f"{len(pr_numbers)} PRs."
-                )
-                print("Saving partial index...")
-                return detailed_prs
+                return self._handle_fetch_error(detailed_prs, len(pr_numbers), None)
 
             except (RuntimeError, Exception) as e:
-                # Save progress on any error (HTTP errors, network issues, etc.)
-                if detailed_prs:
-                    print(
-                        f"\n\nWARNING: Error occurred. Fetched {len(detailed_prs)}/"
-                        f"{len(pr_numbers)} PRs before failure."
-                    )
-                    print(f"Error: {e}")
-                    print("Saving partial index to preserve progress...")
-                    print("Run 'cicada index-pr' again to resume from where it failed.\n")
-                    return detailed_prs
-                else:
-                    # No progress made, re-raise
-                    raise RuntimeError(f"Failed to fetch PRs: {e}") from e
+                return self._handle_fetch_error(detailed_prs, len(pr_numbers), e)
 
             return detailed_prs
 
@@ -236,52 +279,14 @@ class PRIndexer:
                     detailed_prs.extend(batch_prs)
 
         except KeyboardInterrupt:
-            # Check if it's safe to save partial results
-            if newer_pr_numbers and not newer_prs_completed:
-                # Partial newer PRs create a gap - can't save safely
-                print(
-                    "\n\nWARNING: Interrupted during newer PRs fetch. "
-                    "Cannot save partial results (would create gaps in index)."
-                )
-                print(f"Fetched {len(detailed_prs)}/{len(newer_pr_numbers)} newer PRs.")
-                print("Run 'cicada index-pr' again to retry.\n")
-                raise  # Re-raise to prevent saving
-
-            # Safe to save: either no newer PRs, or newer completed + partial older
-            print(
-                f"\n\nWARNING: Interrupted by user. Fetched {len(detailed_prs)}/"
-                f"{total_to_fetch} PRs."
+            return self._handle_fetch_error(
+                detailed_prs, total_to_fetch, None, newer_pr_numbers, newer_prs_completed
             )
-            print("Saving partial index...")
-            return detailed_prs
 
         except (RuntimeError, Exception) as e:
-            # Check if it's safe to save partial results
-            if newer_pr_numbers and not newer_prs_completed:
-                # Partial newer PRs create a gap - can't save safely
-                if detailed_prs:
-                    print(
-                        "\n\nWARNING: Error during newer PRs fetch. "
-                        "Cannot save partial results (would create gaps in index)."
-                    )
-                    print(f"Fetched {len(detailed_prs)}/{len(newer_pr_numbers)} newer PRs.")
-                    print(f"Error: {e}")
-                    print("Run 'cicada index-pr' again to retry.\n")
-                raise  # Re-raise to prevent saving
-
-            # Safe to save: either no newer PRs, or newer completed + partial older
-            if detailed_prs:
-                print(
-                    f"\n\nWARNING: Error occurred. Fetched {len(detailed_prs)}/"
-                    f"{total_to_fetch} PRs before failure."
-                )
-                print(f"Error: {e}")
-                print("Saving partial index to preserve progress...")
-                print("Run 'cicada index-pr' again to resume from where it failed.\n")
-                return detailed_prs
-            else:
-                # No progress made, re-raise immediately
-                raise
+            return self._handle_fetch_error(
+                detailed_prs, total_to_fetch, e, newer_pr_numbers, newer_prs_completed
+            )
 
         return detailed_prs
 
