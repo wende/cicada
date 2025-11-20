@@ -294,7 +294,11 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "recent": {
                         "type": ["boolean", "null"],
-                        "description": "Time filter: true = last 14 days only, false = older than 14 days, null/omitted = all time (default).",
+                        "description": "Time filter: true = last N days only (default 14), false = older than N days, null/omitted = all time (default).",
+                    },
+                    "recent_days": {
+                        "type": "integer",
+                        "description": "Number of days for 'recent' filter. Defaults to 14. Only used when recent=true or recent=false.",
                     },
                     "author": {
                         "type": "string",
