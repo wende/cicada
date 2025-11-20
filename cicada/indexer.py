@@ -534,12 +534,13 @@ class ElixirIndexer:
                         for func in functions:
                             func_name = func.get("name", "")
 
-                            # Extract and expand keywords from function docs
-                            if keyword_extractor and func.get("doc"):
+                            # Extract and expand keywords from function docs or test descriptions
+                            doc_text = func.get("doc") or func.get("test_description")
+                            if keyword_extractor and doc_text:
                                 try:
                                     # Include function name in text for keyword extraction
                                     # This ensures the function name identifier gets 10x weight
-                                    text_for_keywords = f"{func_name} {func['doc']}"
+                                    text_for_keywords = f"{func_name} {doc_text}"
                                     # Step 1: Extract keywords with scores
                                     extraction_result = keyword_extractor.extract_keywords(
                                         text_for_keywords, top_n=10
