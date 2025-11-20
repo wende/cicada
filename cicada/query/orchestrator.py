@@ -345,10 +345,14 @@ class QueryOrchestrator:
         # Attach tier info to each result
         # distribution['distribution'] is sorted by z-score (descending)
         # but we need to match by score value
-        score_to_tier = {d["score"]: d for d in distribution["distribution"]}
+        # Round scores to 6 decimal places to handle floating-point precision issues
+        score_precision = 6
+        score_to_tier = {
+            round(d["score"], score_precision): d for d in distribution["distribution"]
+        }
 
         for result in results:
-            tier_data = score_to_tier.get(result.score)
+            tier_data = score_to_tier.get(round(result.score, score_precision))
             if tier_data:
                 result.z_score = tier_data["z_score"]
                 result.percentile = tier_data["percentile"]
@@ -488,6 +492,32 @@ class QueryOrchestrator:
 
         return "".join(lines)
 
+    def _get_relative_time_string(self, delta) -> str:
+        """
+        Convert a timedelta to a human-readable relative time string.
+
+        Args:
+            delta: timedelta representing time difference from now
+
+        Returns:
+            Relative time string (e.g., "today", "2 days ago", "3 months ago")
+        """
+        if delta.days == 0:
+            return "today"
+        elif delta.days == 1:
+            return "yesterday"
+        elif delta.days < 7:
+            return f"{delta.days} days ago"
+        elif delta.days < 30:
+            weeks = delta.days // 7
+            return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+        elif delta.days < 365:
+            months = delta.days // 30
+            return f"{months} month{'s' if months > 1 else ''} ago"
+        else:
+            years = delta.days // 365
+            return f"{years} year{'s' if years > 1 else ''} ago"
+
     def _format_result_snippet(
         self, result: SearchResult, index: int, show_snippets: bool = False
     ) -> str:
@@ -539,21 +569,7 @@ class QueryOrchestrator:
 
                 now = datetime.now(timezone.utc)
                 delta = now - dt
-                if delta.days == 0:
-                    time_ago = "today"
-                elif delta.days == 1:
-                    time_ago = "yesterday"
-                elif delta.days < 7:
-                    time_ago = f"{delta.days} days ago"
-                elif delta.days < 30:
-                    weeks = delta.days // 7
-                    time_ago = f"{weeks} week{'s' if weeks > 1 else ''} ago"
-                elif delta.days < 365:
-                    months = delta.days // 30
-                    time_ago = f"{months} month{'s' if months > 1 else ''} ago"
-                else:
-                    years = delta.days // 365
-                    time_ago = f"{years} year{'s' if years > 1 else ''} ago"
+                time_ago = self._get_relative_time_string(delta)
 
                 # Include commit hash and PR if available
                 git_info = []
@@ -572,16 +588,15 @@ class QueryOrchestrator:
         # Matched keywords with source indicators
         if result.matched_keywords:
             kw_with_sources: list[str] = []
+            source_suffixes = {
+                "docs": " (in docs)",
+                "strings": " (in strings)",
+                "both": " (in docs+strings)",
+            }
             for kw in result.matched_keywords[:5]:
-                source = result.keyword_sources.get(kw)
-                if source == "docs":
-                    kw_with_sources.append(kw + " (in docs)")
-                elif source == "strings":
-                    kw_with_sources.append(kw + " (in strings)")
-                elif source == "both":
-                    kw_with_sources.append(kw + " (in docs+strings)")
-                else:
-                    kw_with_sources.append(kw)
+                source = result.keyword_sources.get(kw, "")
+                suffix = source_suffixes.get(source, "")
+                kw_with_sources.append(kw + suffix)
 
             matched_str = ", ".join(kw_with_sources)
             if len(result.matched_keywords) > 5:

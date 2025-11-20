@@ -1,5 +1,6 @@
 """Tests for QueryOrchestrator - smart code discovery."""
 
+import re
 import pytest
 from datetime import datetime, timedelta
 
@@ -686,8 +687,6 @@ end
         assert "showing" in result.lower()
         # Verify default was applied by checking we didn't get more than 10
         # Count lines that start with numbers (compact format: "1. name | [tier]")
-        import re
-
         result_count = len(re.findall(r"^\d+\. ", result, re.MULTILINE))
         assert result_count <= 10
 
@@ -740,8 +739,6 @@ end
 
         # Should not have warning indicators if naturally 0-5 results
         # Count results in compact format
-        import re
-
         result_count = len(re.findall(r"^\d+\. ", result, re.MULTILINE))
         # Check for overload warnings (emojis removed in compact format)
         if result_count <= 5:
