@@ -279,6 +279,20 @@ class GitFormatter:
             "",
         ]
 
+        # Check if filters excluded all results
+        filter_desc = data.get("filter_desc")
+        total_before = data.get("total_before_filter", 0)
+        if filter_desc and total_before:
+            lines.append(
+                f"**Found {total_before} commit(s) but none match filters:** {filter_desc}"
+            )
+            lines.append("")
+            lines.append("*Try:*")
+            lines.append("- Removing or adjusting the date filter")
+            lines.append("- Using `recent=false` to see older commits")
+            lines.append("- Omitting the `recent` parameter to see all commits")
+            return "\n".join(lines)
+
         # Add evolution metadata if available
         evolution = data.get("evolution")
         if evolution:
@@ -317,13 +331,33 @@ class GitFormatter:
         lines = [f"## History for {file_path}", ""]
 
         if not pr_enriched:
-            for commit in data.get("commits", []):
+            commits = data.get("commits", [])
+            filter_desc = data.get("filter_desc")
+
+            # Show helpful message if filters excluded all results
+            if not commits and filter_desc:
+                lines.append(f"**No commits found matching filters:** {filter_desc}")
+                lines.append("")
+                lines.append("*Try:*")
+                lines.append("- Removing or adjusting the date filter")
+                lines.append("- Using `recent=false` to see older commits")
+                lines.append("- Omitting the `recent` parameter to see all commits")
+                return "\n".join(lines)
+
+            # Show commits normally
+            for commit in commits:
                 lines.append(f"### {commit['sha']} ({commit['date'][:10]}) - {commit['author']}")
                 lines.append(f"{commit['summary']}")
                 lines.append("")
             return "\n".join(lines)
 
-        for pr in data.get("prs", []):
+        # PR-enriched results
+        prs = data.get("prs", [])
+        if not prs:
+            lines.append("**No PRs found for this file**")
+            return "\n".join(lines)
+
+        for pr in prs:
             pr_status = "merged" if pr.get("merged") else pr.get("status", "unknown")
             date = pr.get("merged_at") or pr.get("created_at", "")
             date_str = date[:10] if date else "unknown"
@@ -349,7 +383,8 @@ class GitFormatter:
                     author = comment.get("author", "unknown")
                     body = comment.get("body", "")
                     resolved = " (resolved)" if comment.get("resolved") else ""
-                    lines.append(f"> Line {line_num} ({author}{resolved}): {body[:100]}")
+                    location = f"Line {line_num}" if line_num is not None else "PR comment"
+                    lines.append(f"> {location} ({author}{resolved}): {body[:100]}")
 
             lines.append("")
             lines.append("---")

@@ -6,7 +6,7 @@ Author: Cursor(Auto)
 
 from cicada.utils import extract_text_from_node
 
-from .base import get_param_name
+from .base import extract_string_from_arguments, get_param_name
 
 
 def extract_functions(node, source_code: bytes) -> list:
@@ -72,13 +72,13 @@ def _extract_impl_from_prev_sibling(node, source_code: bytes):
 
 
 def _find_functions_recursive(node, source_code: bytes, functions: list):
-    """Recursively find def and defp declarations."""
+    """Recursively find def, defp, and test declarations."""
     # Track previous sibling to detect @impl attributes
     prev_sibling = None
 
     # Iterate through children to process siblings
     for child in node.children:
-        # Check if this child is a function call (def or defp)
+        # Check if this child is a function call (def, defp, or test)
         if child.type == "call":
             # Get the target (function name)
             target = None
@@ -90,7 +90,7 @@ def _find_functions_recursive(node, source_code: bytes, functions: list):
                 elif call_child.type == "arguments":
                     arguments = call_child
 
-            # Check if this is a def or defp call
+            # Check if this is a def, defp, or test call
             if target and arguments:
                 target_text = extract_text_from_node(target, source_code)
 
@@ -111,10 +111,54 @@ def _find_functions_recursive(node, source_code: bytes, functions: list):
                         functions.append(func_info)
                         prev_sibling = child
                         continue  # Don't recurse into function body
+                elif target_text == "test":
+                    # Handle test macro: test "description" do ... end
+                    func_info = _parse_test_definition(
+                        arguments, source_code, child.start_point[0] + 1
+                    )
+                    if func_info:
+                        functions.append(func_info)
+                        prev_sibling = child
+                        continue  # Don't recurse into test body
 
         # Recursively process this child
         _find_functions_recursive(child, source_code, functions)
         prev_sibling = child
+
+
+def _parse_test_definition(arguments_node, source_code: bytes, line: int) -> dict | None:
+    """
+    Parse a test macro definition to extract the test description.
+
+    Test syntax: test "description" do ... end
+
+    Returns a function info dict with:
+    - name: "test: <description>"
+    - arity: 0 (context is implicitly passed)
+    - line: line number
+    - test_description: the full description string
+    """
+    test_description = extract_string_from_arguments(arguments_node, source_code)
+
+    if test_description:
+        # Generate a function name from the description
+        # Use "test: " prefix to distinguish from regular functions
+        func_name = f"test: {test_description}"
+
+        return {
+            "name": func_name,
+            "arity": 0,  # Tests take context implicitly
+            "args": [],
+            "guards": [],
+            "full_name": f"{func_name}/0",
+            "line": line,
+            "signature": f'test "{test_description}"',
+            "type": "test",
+            "test_description": test_description,
+            "impl": False,
+        }
+
+    return None
 
 
 def _parse_function_definition(

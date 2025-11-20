@@ -57,7 +57,7 @@ cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cic
 <summary><strong>Try before installing permanently</strong></summary>
 
 ```bash
-uvx --from cicada-mcp cicada claude   # or cursor, vs
+uvx cicada-mcp claude   # or cursor, vs
 ```
 
 Runs CICADA on demand (worse indexing quality, but zero install).
