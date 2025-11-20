@@ -212,8 +212,8 @@ class TestCompleteWorkflows:
 
         # Step 2: Find where User module is used
         result = await e2e_server.call_tool(
-            "search_module_usage",
-            {"module_name": "SampleApp.User", "format": "markdown"},
+            "search_module",
+            {"module_name": "SampleApp.User", "format": "markdown", "what_calls_it": True},
         )
 
         assert len(result) == 1
@@ -337,24 +337,6 @@ class TestToolIntegration:
             assert "test" in text.lower()
 
     @pytest.mark.asyncio
-    async def test_search_function_backward_compat_test_files_only(self, e2e_server):
-        """Test backward compatibility with test_files_only parameter."""
-        result = await e2e_server.call_tool(
-            "search_function",
-            {
-                "function_name": "create_user",
-                "test_files_only": True,  # Old parameter
-                "format": "markdown",
-            },
-        )
-
-        assert len(result) == 1
-        text = result[0].text
-        # Should only show calls from test files
-        if "call" in text.lower():
-            assert "test" in text.lower()
-
-    @pytest.mark.asyncio
     async def test_list_all_available_tools(self, e2e_server):
         """Verify all expected tools are available."""
         tools = await e2e_server.list_tools()
@@ -364,7 +346,6 @@ class TestToolIntegration:
         # Verify core search tools
         assert "search_module" in tool_names
         assert "search_function" in tool_names
-        assert "search_module_usage" in tool_names
 
         # Verify git tools
         assert "git_history" in tool_names
@@ -452,8 +433,8 @@ class TestConcurrentRequests:
                 {"function_name": "create_user", "format": "markdown"},
             ),
             e2e_server.call_tool(
-                "search_module_usage",
-                {"module_name": "SampleApp.User", "format": "markdown"},
+                "search_module",
+                {"module_name": "SampleApp.User", "format": "markdown", "what_calls_it": True},
             ),
         ]
 
@@ -652,7 +633,7 @@ class TestOutputConsistency:
         test_calls = [
             ("search_module", {"module_name": "SampleApp.User"}),
             ("search_function", {"function_name": "create_user"}),
-            ("search_module_usage", {"module_name": "SampleApp.User"}),
+            ("search_module", {"module_name": "SampleApp.User", "what_calls_it": True}),
         ]
 
         for tool_name, args in test_calls:

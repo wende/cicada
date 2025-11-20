@@ -1,10 +1,16 @@
 # Tool Discoverability Improvements - Task List
 
+> **Note:** This document contains historical planning notes. Many of these improvements have been **implemented in v0.4** with the following changes:
+> - `search_by_keywords` → renamed to `query` (not `search_by_features` as originally planned)
+> - `get_file_pr_history`, `find_pr_for_line`, `get_commit_history`, `get_blame` → consolidated into unified `git_history` tool
+> - Tool descriptions updated with clear "WHEN TO USE" guidance
+> - API consolidated from 12 tools to 7 focused tools
+
 Based on user feedback about tool discoverability issues, this document outlines the code changes needed to improve the CICADA MCP tool experience.
 
 ## 🎯 Primary Goal
 
-Make it immediately obvious to AI assistants **which tool to use when** and encourage the use of conceptual search (`search_by_keywords`) and PR context tools (`get_file_pr_history`, `find_pr_for_line`).
+Make it immediately obvious to AI assistants **which tool to use when** and encourage the use of conceptual search (`query`) and git history tools (`git_history`).
 
 ---
 

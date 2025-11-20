@@ -439,11 +439,6 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
-    index_parser.add_argument(
-        "--extract-cochange",
-        action="store_true",
-        help="Extract co-change data from git history (files and functions that are frequently modified together)",
-    )
 
     index_pr_parser = subparsers.add_parser(
         "index-pr",
@@ -472,11 +467,11 @@ Examples:
   cicada query authentication                          # Keyword search
   cicada query jwt token verify                        # Multiple keywords
   cicada query "MyApp.Auth.verify*"                    # Pattern search
-  cicada query authentication --scope recent           # Recent changes only
+  cicada query authentication --recent                 # Recent changes only
   cicada query "create*" --filter-type functions       # Functions only
   cicada query "SELECT" --match-source strings         # Search string literals
   cicada query login --path-pattern "lib/auth/**"      # Specific directory
-  cicada query user --scope public --no-tests          # Public API, no tests
+  cicada query user --scope public --path-pattern "!**/test/**"  # Public API, no tests
   cicada query auth --max-results 10                   # Limit results
         """,
     )
@@ -487,9 +482,14 @@ Examples:
     )
     query_parser.add_argument(
         "--scope",
-        choices=["all", "recent", "public", "private"],
+        choices=["all", "public", "private"],
         default="all",
-        help="Filter scope: 'all' (default), 'recent' (last 14 days), 'public' (public only), 'private' (private only)",
+        help="Filter scope: 'all' (default), 'public' (public only), 'private' (private only)",
+    )
+    query_parser.add_argument(
+        "--recent",
+        action="store_true",
+        help="Filter to recently changed code only (last 14 days)",
     )
     query_parser.add_argument(
         "--filter-type",
@@ -511,15 +511,10 @@ Examples:
     )
     query_parser.add_argument(
         "--path-pattern",
-        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '**/*_controller.ex')",
+        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '!**/test/**')",
     )
     query_parser.add_argument(
-        "--no-tests",
-        action="store_true",
-        help="Exclude test files from results",
-    )
-    query_parser.add_argument(
-        "--snippets",
+        "--show-snippets",
         action="store_true",
         help="Show code snippet previews with context lines",
     )
@@ -882,11 +877,12 @@ def handle_index_main(args) -> None:
         sys.exit(2)
 
     # Perform indexing using unified interface
+    # If tier changed, force full reindex to ensure index consistency with new config
     indexer = LanguageRegistry.get_indexer(language)
 
     # Check if indexer supports incremental_index_repository (new unified API)
     if hasattr(indexer, "incremental_index_repository"):
-        extract_cochange = getattr(args, "extract_cochange", False)
+        extract_cochange = getattr(args, "extract_cochange", True)
         indexer.incremental_index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
@@ -1070,12 +1066,12 @@ def handle_query(args):
     result = orchestrator.execute_query(
         query=query,
         scope=args.scope,
+        recent=getattr(args, "recent", False),
         filter_type=getattr(args, "filter_type", "all"),
         match_source=getattr(args, "match_source", "all"),
         max_results=args.max_results,
         path_pattern=args.path_pattern,
-        include_tests=not args.no_tests,
-        show_snippets=args.snippets,
+        show_snippets=args.show_snippets,
     )
 
     if args.format == "json":

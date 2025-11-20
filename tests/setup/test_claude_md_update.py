@@ -89,9 +89,10 @@ def test_update_claude_md_includes_all_tools(mock_repo):
         "mcp__cicada__query",
         "mcp__cicada__search_module",
         "mcp__cicada__search_function",
-        "mcp__cicada__search_module_usage",
         "mcp__cicada__git_history",
         "mcp__cicada__find_dead_code",
+        "mcp__cicada__expand_result",
+        "mcp__cicada__query_jq",
     ]
 
     for tool in expected_tools:

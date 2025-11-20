@@ -229,21 +229,30 @@ def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
     - * for single-level wildcards
     - ** for recursive directory matching
     - {a,b,c} for brace expansion (OR patterns)
+    - ! prefix for negation (excludes matching paths)
     - Standard glob patterns
 
     Args:
         file_path: File path to check
-        pattern: Glob pattern (e.g., "lib/**/*.ex", "**/*.{ex,heex}")
+        pattern: Glob pattern (e.g., "lib/**/*.ex", "!**/test/**", "**/*.{ex,heex}")
 
     Returns:
-        True if path matches pattern
+        True if path matches pattern (or doesn't match for negated patterns)
 
     Example:
         matches_glob_pattern('lib/auth/user.ex', 'lib/**/*.ex') -> True
         matches_glob_pattern('lib/user.ex', 'lib/*') -> True
         matches_glob_pattern('test/user_test.ex', '**/*_test.ex') -> True
         matches_glob_pattern('lib/user.heex', '**/*.{ex,heex}') -> True
+        matches_glob_pattern('test/user_test.ex', '!**/test/**') -> False
+        matches_glob_pattern('lib/user.ex', '!**/test/**') -> True
     """
+    # Check for negation prefix
+    negated = pattern.startswith("!")
+    if negated:
+        # Strip the ! prefix for matching
+        pattern = pattern[1:]
+
     # Normalize both paths
     file_path_norm = normalize_file_path(file_path)
     pattern_norm = normalize_file_path(pattern)
@@ -288,9 +297,15 @@ def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:
         regex_pattern = "^" + regex_pattern + "$"
 
         if re.match(regex_pattern, file_path_norm):
-            return True
+            # Match found - return opposite of negation
+            # If negated, we want to exclude (return False)
+            # If not negated, we want to include (return True)
+            return not negated
 
-    return False
+    # No match found - return same as negation
+    # If negated, no match means include (return True)
+    # If not negated, no match means exclude (return False)
+    return negated
 
 
 def _expand_braces(pattern: str) -> list[str]:

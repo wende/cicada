@@ -10,7 +10,6 @@ from mcp.types import TextContent
 
 from cicada.mcp.handlers import (
     AnalysisHandler,
-    DependencyHandler,
     FunctionSearchHandler,
     GitHistoryHandler,
     ModuleSearchHandler,
@@ -131,7 +130,6 @@ class ToolRouter:
         function_handler: FunctionSearchHandler,
         git_handler: GitHistoryHandler,
         pr_handler: PRHistoryHandler,
-        dependency_handler: DependencyHandler,
         analysis_handler: AnalysisHandler,
     ):
         """
@@ -142,14 +140,12 @@ class ToolRouter:
             function_handler: Handler for function-related tools
             git_handler: Handler for git history tools
             pr_handler: Handler for PR history tools
-            dependency_handler: Handler for dependency analysis tools
             analysis_handler: Handler for analysis tools (query, dead code)
         """
         self.module_handler = module_handler
         self.function_handler = function_handler
         self.git_handler = git_handler
         self.pr_handler = pr_handler
-        self.dependency_handler = dependency_handler
         self.analysis_handler = analysis_handler
 
     @staticmethod
@@ -205,6 +201,8 @@ class ToolRouter:
             visibility = self._resolve_visibility_parameter(arguments)
 
             # Get dependency parameters
+            what_calls_it = arguments.get("what_calls_it", False)
+            usage_type = arguments.get("usage_type", "source")
             what_it_calls = arguments.get("what_it_calls", False)
             dependency_depth = arguments.get("dependency_depth", 1)
             show_function_usage = arguments.get("show_function_usage", False)
@@ -240,6 +238,8 @@ class ToolRouter:
                 visibility,
                 pr_info,
                 staleness_info,
+                what_calls_it,
+                usage_type,
                 what_it_calls,
                 dependency_depth,
                 show_function_usage,
@@ -252,12 +252,7 @@ class ToolRouter:
             include_usage_examples = arguments.get("include_usage_examples", False)
             max_examples = arguments.get("max_examples", 5)
 
-            # Handle backward compatibility for test_files_only (deprecated)
             usage_type = arguments.get("usage_type", "source")
-            test_files_only = arguments.get("test_files_only")
-            if test_files_only is not None:
-                # Convert old boolean parameter to new string parameter
-                usage_type = "tests" if test_files_only else "all"
 
             changed_since = arguments.get("changed_since")
             what_calls_it = arguments.get("what_calls_it", True)
@@ -285,25 +280,6 @@ class ToolRouter:
                 module_path,
                 what_it_calls,
                 include_code_context,
-            )
-
-        elif name == "search_module_usage":
-            module_name = arguments.get("module_name")
-            output_format = arguments.get("format", "markdown")
-            usage_type = arguments.get("usage_type", "source")
-
-            if not module_name:
-                error_msg = "'module_name' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Accept both old and new values for backward compatibility
-            valid_usage_types = ("all", "tests", "source", "test_only", "production_only")
-            if usage_type not in valid_usage_types:
-                error_msg = "'usage_type' must be one of: 'all', 'tests', 'source' (deprecated: 'test_only', 'production_only')"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.module_handler.search_module_usage(
-                module_name, output_format, usage_type
             )
 
         elif name == "git_history":
@@ -334,11 +310,11 @@ class ToolRouter:
         elif name == "query":
             query = arguments.get("query")
             scope = arguments.get("scope", "all")
+            recent = arguments.get("recent", False)
             filter_type = arguments.get("filter_type", "all")
             match_source = arguments.get("match_source", "all")
             max_results = arguments.get("max_results", 10)
             path_pattern = arguments.get("path_pattern")
-            include_tests = arguments.get("include_tests", True)
             show_snippets = arguments.get("show_snippets", False)
 
             # Validate required argument
@@ -356,8 +332,13 @@ class ToolRouter:
                 return [TextContent(type="text", text=error_msg)]
 
             # Validate enum parameters
-            if scope not in ("all", "recent", "public", "private"):
-                error_msg = "'scope' must be one of: 'all', 'recent', 'public', 'private'"
+            if scope not in ("all", "public", "private"):
+                error_msg = "'scope' must be one of: 'all', 'public', 'private'"
+                return [TextContent(type="text", text=error_msg)]
+
+            # Validate recent parameter
+            if not isinstance(recent, bool):
+                error_msg = "'recent' must be a boolean"
                 return [TextContent(type="text", text=error_msg)]
 
             if filter_type not in ("all", "modules", "functions"):
@@ -373,11 +354,6 @@ class ToolRouter:
                 error_msg = "'max_results' must be a positive integer"
                 return [TextContent(type="text", text=error_msg)]
 
-            # Validate include_tests
-            if not isinstance(include_tests, bool):
-                error_msg = "'include_tests' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
             # Validate show_snippets
             if not isinstance(show_snippets, bool):
                 error_msg = "'show_snippets' must be a boolean"
@@ -386,11 +362,11 @@ class ToolRouter:
             return await self.analysis_handler.query(
                 query,
                 scope,
+                recent,
                 filter_type,
                 match_source,
                 max_results,
                 path_pattern,
-                include_tests,
                 show_snippets,
             )
 
@@ -402,13 +378,17 @@ class ToolRouter:
 
         elif name == "query_jq":
             query = arguments.get("query")
-            output_format = arguments.get("format", "json")
+            output_format = arguments.get("format", "compact")
             sample = arguments.get("sample", False)
 
             if error := _validate_jq_query(query):
                 return [TextContent(type="text", text=error)]
 
-            if output_format not in ("json", "compact", "pretty"):
+            # Backward compatibility: 'json' maps to 'compact'
+            if output_format == "json":
+                output_format = "compact"
+
+            if output_format not in ("compact", "pretty"):
                 return [
                     TextContent(
                         type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
@@ -484,6 +464,11 @@ class ToolRouter:
                     visibility="all",  # Show all functions (public and private)
                     pr_info=None,
                     staleness_info=None,
+                    # Note: what_calls_it not supported in expand_result context to avoid
+                    # expanding usage info for every result in large result sets, which would
+                    # significantly increase token usage and response time.
+                    what_calls_it=False,
+                    usage_type="source",
                     what_it_calls=what_it_calls,
                     dependency_depth=dependency_depth,
                     show_function_usage=show_function_usage,

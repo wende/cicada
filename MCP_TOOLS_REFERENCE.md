@@ -4,7 +4,7 @@ Complete documentation of CICADA's Model Context Protocol tools for code intelli
 
 ## Overview
 
-CICADA provides 12 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
+CICADA provides 7 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
 
 ---
 
@@ -71,354 +71,44 @@ CICADA provides 12 specialized MCP tools for deep code analysis and search capab
 
 ---
 
-### 3. search_module_usage
+### 3. git_history
 
-**Purpose:** Find everywhere a module is used in the codebase.
-
-**What it does:**
-- Tracks all aliases and imports of a module
-- Identifies all function calls to that module
-- Shows which modules depend on the target module
-- Provides comprehensive usage map
-
-**Key Features:**
-- Alias detection and tracking
-- Import tracking
-- Function call aggregation by calling module
-- Line number references for each usage
-- Markdown and JSON output formats
-
----
-
-### 4. get_module_dependencies
-
-**Purpose:** Discover which modules a given module depends on (the reverse of search_module_usage).
+**Purpose:** Unified tool for all git history queries - replaces multiple legacy tools.
 
 **What it does:**
-- Shows all modules that a module depends on or uses
-- Tracks both direct and transitive dependencies
-- Complements `search_module_usage` by answering "what does X use?" instead of "what uses X?"
-- Supports configurable depth for transitive dependency analysis
+- Smart routing based on parameters (single line, range, function, or file)
+- Single line: Uses git blame + finds associated PR
+- Line range: Shows grouped authorship with PR enrichment
+- Function tracking: Follows function through refactors using `git log -L`
+- File-level: Shows complete PR or commit history
 
 **Key Features:**
-- Direct dependency tracking (depth=1)
-- Transitive dependency analysis (depth>1)
-- Displays the full dependency tree
-- Shows line numbers where dependencies are referenced
-- Helps understand module coupling and impact of changes
-- Markdown and JSON output formats
+- Automatic PR index integration when available
+- Time filtering with `recent` parameter (true=14d, false=>14d, null=all)
+- Author filtering for focused history
+- Evolution metadata (creation date, modification frequency)
+- Fallback to git commands when PR index unavailable
 
 **Parameters:**
-- `module_name` (required) - Name of the module to analyze
-- `depth` (optional) - How many levels of dependencies to include (default: 1)
-  - `depth=1`: Direct dependencies only
-  - `depth=2`: Dependencies and their dependencies
-  - `depth=3+`: Full transitive closure up to specified depth
+- `file_path` (required) - Path to file relative to repo root
+- `start_line` (optional) - Line number or range start
+- `end_line` (optional) - Range end (use with start_line)
+- `function_name` (optional) - Function name for precise tracking
+- `show_evolution` (optional) - Include metadata (default: false)
+- `max_results` (optional) - Maximum commits/PRs (default: 10)
+- `recent` (optional) - Time filter: true (14d), false (>14d), null (all)
+- `author` (optional) - Filter by author name
 
-**Use Cases:**
-- Understanding what external modules a module relies on
-- Analyzing the impact of removing or modifying a dependency
-- Identifying tightly coupled modules
-- Refactoring planning to reduce dependencies
-
-**Example:**
-```
-get_module_dependencies("MyApp.User", depth=2)
-```
-Shows all modules that MyApp.User depends on, plus their dependencies.
+**Examples:**
+- `git_history("lib/auth.ex", start_line=42)` - Who wrote line 42 + PR
+- `git_history("lib/auth.ex", start_line=40, end_line=60)` - Range blame
+- `git_history("lib/auth.ex", function_name="validate_user")` - Function evolution
+- `git_history("lib/auth.ex")` - Complete file history
+- `git_history("lib/auth.ex", recent=true, author="john")` - Recent changes by John
 
 ---
 
-### 5. get_function_dependencies
-
-**Purpose:** Discover which functions a given function calls (function-level dependency analysis).
-
-**What it does:**
-- Shows all functions that a specific function calls
-- Tracks both direct and transitive function calls
-- Works at the function level, complementing module-level dependency analysis
-- Supports configurable depth for transitive call analysis
-
-**Key Features:**
-- Direct function call tracking (depth=1)
-- Transitive call analysis (depth>1)
-- Displays the full call tree
-- Shows line numbers where function calls occur
-- Helps understand function coupling and complexity
-- Markdown and JSON output formats
-
-**Parameters:**
-- `function_query` (required) - Function to analyze (name, name/arity, or Module.name/arity)
-- `depth` (optional) - How many levels of calls to include (default: 1)
-  - `depth=1`: Direct calls only
-  - `depth=2`: Calls and calls from those functions
-  - `depth=3+`: Full transitive closure up to specified depth
-
-**Use Cases:**
-- Understanding the complexity and reach of a function
-- Identifying circular dependencies between functions
-- Analyzing the impact of modifying a function's behavior
-- Refactoring to reduce coupling between functions
-
-**Example:**
-```
-get_function_dependencies("create_user/2", depth=2)
-```
-Shows all functions that create_user/2 calls, plus functions those call.
-
----
-
-### 6. find_pr_for_line
-
-**Purpose:** Discover which pull request introduced a specific line of code.
-
-**What it does:**
-- Uses git blame to identify the commit that introduced a line
-- Links commits to pull request numbers
-- Shows author and date information
-- Connects code to PR context
-
-**Key Features:**
-- Line-level PR attribution
-- Commit SHA tracking
-- Author information (name and email)
-- Commit message reference
-- PR URL generation
-- Multiple output formats (text, JSON, Markdown)
-
-**Requirements:** GitHub CLI (`gh`) with PR index
-
----
-
-### 7. get_file_pr_history
-
-**Purpose:** Get all pull requests that modified a specific file with descriptions and review comments.
-
-**What it does:**
-- Lists all PRs that touched a particular file
-- Includes PR descriptions and metadata
-- Shows historical code review comments
-- Maps comments to specific line numbers
-
-**Key Features:**
-- Complete PR history for a file
-- PR status and author information
-- Description extraction
-- Review comment tracking with line references
-- Comment resolution status
-- Markdown-formatted output
-
-**Requirements:** GitHub CLI (`gh`) and PR index from `cicada index-pr`
-
----
-
-### 8. get_commit_history
-
-**Purpose:** Get commit history for a file or function with precise tracking.
-
-**What it does:**
-- Traces all commits that modified a file
-- Can track a specific function even as it moves within the file
-- Shows creation and modification history
-- Displays evolution timeline
-
-**Key Features:**
-- File-level commit history
-- Function-level tracking (tracks through refactors and moves)
-- Creation date and modification statistics
-- Commit author and message
-- Fallback to line-range based tracking
-- Configurable commit limit
-
-**Requirements:** `.gitattributes` with `*.ex diff=elixir` configuration
-
----
-
-### 9. get_blame
-
-**Purpose:** Show line-by-line authorship with grouped consecutive lines by same author.
-
-**What it does:**
-- Displays who authored each line of code
-- Groups consecutive lines by author
-- Shows commit details for each group
-- Provides context for understanding code history
-
-**Key Features:**
-- Line-by-line author attribution
-- Grouped display for readability
-- Commit SHA and timestamp
-- Author name and email
-- Code snippet display
-- Works on specified line ranges
-
----
-
-### 10. query
-
-**Purpose:** Smart code discovery - your starting point for exploring code (🚀 NEW).
-
-**What it does:**
-- Intelligently searches by keywords OR patterns automatically
-- Combines results from multiple search strategies
-- Provides broad overview with snippets
-- Suggests relevant deep-dive tools for next steps
-- The "Google for code" - simple entry point for all code exploration
-
-**Key Features:**
-- **Smart Auto-Detection**: Automatically detects keywords vs patterns
-  - Keywords: `["authentication", "login"]` → semantic search
-  - Patterns: `"MyApp.User.create*"` → pattern matching
-  - Mixed: `["oauth", "MyApp.Auth.*"]` → combines both
-- **Power Filters**:
-  - `scope`: "all" (default), "recent" (last 14 days), "public", "private"
-  - `filter_type`: "all", "modules", "functions"
-  - `match_source`: "all", "docs", "strings" (search in code strings like SQL)
-  - `path_pattern`: glob patterns ("lib/auth/**", "**/*_controller.ex")
-  - `include_tests`: true/false
-- **Rich Results**: Snippets with docs, paths, scores, and match indicators
-- **Smart Suggestions**: Context-aware next-step recommendations with actual tool calls
-- **Match Indicators**: 📄 (docs), 💬 (strings), 🎯 (pattern)
-
-**Parameters:**
-- `query` (required) - String or list of strings (keywords OR patterns)
-- `scope` (optional) - Filter scope: "all" | "recent" | "public" | "private" (default: "all")
-- `filter_type` (optional) - Result type: "all" | "modules" | "functions" (default: "all")
-- `match_source` (optional) - Search location: "all" | "docs" | "strings" (default: "all")
-- `max_results` (optional) - Maximum results to show (default: 20)
-- `path_pattern` (optional) - Glob pattern to filter by path
-- `include_tests` (optional) - Include test files (default: true)
-
-**Query Examples:**
-```python
-# Simple keyword search
-query("authentication")
-
-# Multiple keywords
-query(["jwt", "token", "verify"])
-
-# Pattern search
-query("MyApp.Auth.verify*")
-
-# Mixed keywords and patterns
-query(["authentication", "MyApp.Auth.*"])
-
-# With filters
-query("login", scope="recent", path_pattern="lib/auth/**")
-
-# Find SQL queries in code strings
-query("SELECT users", match_source="strings")
-
-# Find recent public functions
-query("create*", scope="recent", filter_type="functions")
-```
-
-**Use Cases:**
-- **Start here**: Use as entry point for ALL code exploration
-- **Broad discovery**: Find relevant code quickly without knowing exact names
-- **Guided exploration**: Follow suggestions to the right deep-dive tool
-- **Recent changes**: scope="recent" to focus on new code
-- **Public API**: scope="public" to explore exported functions
-- **SQL/strings**: match_source="strings" to find queries and literals
-
-**Example Workflow:**
-```
-1. query(["jwt", "authentication"])
-   → Finds MyApp.Auth.verify_token/2, MyApp.Auth.login/2
-
-2. Follow suggestion: search_function("verify_token", module_path="MyApp.Auth", include_usage_examples=true)
-   → See detailed usage with code examples
-
-3. Follow suggestion: search_module("MyApp.Auth")
-   → View complete API surface
-```
-
-**Output Format:**
-Returns markdown report with:
-- Query summary with result count
-- Snippet for each result (path, score, match %, doc, signature)
-- Match indicators showing how it matched (docs/strings/pattern)
-- Suggested next steps with actual tool invocations
-- Visibility info for functions (Public/Private)
-
-**Requirements:** Index built with keyword extraction for keyword search to work
-
-**CLI Usage:**
-```bash
-# Keyword search
-cicada query authentication
-
-# Multiple keywords
-cicada query jwt token verify
-
-# Pattern search
-cicada query "MyApp.Auth.verify*"
-
-# With filters
-cicada query authentication --scope recent
-cicada query "create*" --filter-type functions
-cicada query "SELECT" --match-source strings
-cicada query login --path-pattern "lib/auth/**"
-cicada query user --scope public --no-tests
-cicada query auth --max-results 10
-
-# Get help
-cicada query --help
-```
-
-**Best for:**
-- Starting point for ANY code exploration task
-- Finding code by concept when names unknown
-- Quick overviews before deep dives
-- Discovering relevant code in unfamiliar codebases
-- Filtering large codebases to specific areas
-- Command-line exploration and scripting
-
----
-
-### 11. search_by_keywords (Deprecated - use `query` instead)
-
-**Purpose:** Search for modules and functions by semantic keywords extracted from documentation (EXPERIMENTAL).
-
-**What it does:**
-- Searches code by concepts rather than exact names
-- Extracts keywords from module and function documentation
-- Supports wildcard pattern matching and OR logic
-- Performs semantic matching across codebase
-- Optionally filters results to show only modules or only functions
-
-**Key Features:**
-- Keyword-based semantic search
-- Wildcard pattern support (`*` matching)
-- OR pattern support (`|` for matching multiple alternatives)
-- Documentation-based indexing
-- Match percentage scoring
-- Concept-driven discovery
-- Result type filtering (modules, functions, or all)
-- Markdown output format
-
-**Parameters:**
-- `keywords` (required) - List of keywords to search for (supports wildcards and OR patterns)
-- `filter_type` (optional) - Filter results: `'all'` (default), `'modules'`, or `'functions'`
-
-**Pattern Examples:**
-- `["user", "authentication"]` - Match both keywords
-- `["create*"]` - Match keywords starting with "create"
-- `["create*|update*"]` - Match keywords starting with "create" OR "update"
-- `["*database*", "query"]` - Match keywords containing "database" and exact "query"
-
-**Requirements:** Index built with keyword extraction: `cicada index --force --fast`, `cicada index --force --regular`, or `cicada index --force --max`
-
-**Best for:**
-- Finding code by topic or concept
-- Discovering functions related to domain terms
-- Exploring when exact names are unknown
-- Semantic pattern matching with flexible patterns
-- Filtering search results to specific code types
-
----
-
-### 12. find_dead_code
+### 4. find_dead_code
 
 **Purpose:** Identify potentially unused public functions in your codebase.
 
@@ -442,6 +132,10 @@ cicada query --help
 - **Medium** - Zero usage, but module has behaviors or uses (possible callbacks)
 - **Low** - Zero usage, but module passed as value (possible dynamic calls)
 
+**Parameters:**
+- `min_confidence` (optional) - Minimum confidence: "high" | "medium" | "low" (default: "high")
+- `format` (optional) - Output format: "markdown" | "json" (default: "markdown")
+
 **Best for:**
 - Code cleanup and refactoring
 - Reducing maintenance burden
@@ -449,6 +143,180 @@ cicada query --help
 - Identifying API surface reduction opportunities
 
 ---
+
+### 5. expand_result
+
+**Purpose:** Drill-down convenience tool to expand query results.
+
+**What it does:**
+- Automatically detects whether expanding a module or function
+- Shows complete details for discovered code
+- Provides usage examples and relationships
+- Convenient wrapper around search_module and search_function
+
+**Key Features:**
+- Auto-detection of result type
+- Full code context display
+- Configurable depth for dependencies
+- Include/exclude code snippets
+- Bidirectional analysis (what calls it / what it calls)
+
+**Parameters:**
+- `identifier` (required) - Module name or function reference
+- `type` (optional) - "auto" | "module" | "function" (default: "auto")
+- `include_code` (optional) - Show code snippets (default: true)
+- `what_calls_it` (optional) - Show callers/usage (default: true)
+- `what_it_calls` (optional) - Show dependencies (default: false)
+- `dependency_depth` (optional) - Transitive depth (default: 1)
+- `show_function_usage` (optional) - Per-function deps (default: false)
+- `include_code_context` (optional) - Code snippets for deps (default: false)
+- `format` (optional) - "markdown" | "json" (default: "markdown")
+
+---
+
+### 6. query_jq
+
+**Purpose:** Execute jq queries directly against the Cicada index for custom analysis.
+
+**What it does:**
+- Provides direct access to raw index structure
+- Supports full jq query syntax
+- Custom analysis not covered by specialized tools
+- Schema discovery with `| schema` operator
+
+**Key Features:**
+- Complete jq syntax support (filters, maps, selects, aggregations)
+- Schema discovery mode
+- Sample mode for previewing large datasets
+- Result size warnings and truncation
+- Compact or pretty output formatting
+
+**Parameters:**
+- `query` (required) - jq expression (e.g., ".modules | keys")
+- `format` (optional) - "compact" | "pretty" (default: "compact")
+  - **compact**: Single-line JSON, saves tokens
+  - **pretty**: Pretty-printed, use only when explicitly requested
+- `sample` (optional) - Auto-limit to 5 items (default: false)
+
+**Index Structure:**
+```
+{
+  "modules": {
+    "<name>": {
+      "file": "path",
+      "line": 1,
+      "functions": [...],
+      "keywords": {...},
+      "string_keywords": {...}
+    }
+  },
+  "metadata": {...},
+  "cooccurrences": {...}
+}
+```
+
+**Quick Examples:**
+- `.modules | keys` - List all modules
+- `.modules[].functions | length` - Count functions per module
+- `.modules | to_entries | map(select(.value.file | test("test")))` - Find test files
+- `.metadata` - View index metadata
+
+**Best for:**
+- Custom analysis not covered by other tools
+- Debugging index contents
+- Exploring data structures
+- Advanced filtering and aggregation
+
+---
+
+### 7. query
+
+**Purpose:** Smart code discovery - your starting point for exploring the codebase.
+
+**What it does:**
+- Intelligent search using keywords or patterns to find relevant code
+- Automatically detects whether you're searching by keywords or patterns
+- Returns code snippets with context and smart suggestions for next steps
+- Filters results by scope (public/private), recency, type (modules/functions), and path
+- Supports both documentation and string literal matching
+
+**Key Features:**
+- Automatic keyword vs. pattern detection
+- Multiple filtering dimensions:
+  - **Scope filtering**: public, private, or all
+  - **Recency filtering**: last 14 days or all time
+  - **Type filtering**: modules only, functions only, or both
+  - **Source filtering**: match in docs, strings, or both
+  - **Path filtering**: include/exclude specific paths with patterns
+- Smart suggestions when results are too many or too few
+- Code snippets with highlighted matches
+- Relevance scoring with confidence indicators
+
+**Parameters:**
+- `query` (required) - String or list of keywords/patterns to search for
+- `scope` (optional) - Visibility filter: "all" (default), "public", "private"
+- `recent` (optional) - Time filter: true (last 14d), false (all time, default)
+- `filter_type` (optional) - Result type: "all" (default), "modules", "functions"
+- `match_source` (optional) - Match in: "all" (default), "docs", "strings"
+- `max_results` (optional) - Maximum results to return (default: 10)
+- `path_pattern` (optional) - Filter by file path (e.g., "!**/test/**" excludes tests)
+- `show_snippets` (optional) - Include code snippets in results (default: false)
+
+**Query Format:**
+```
+# Keywords (semantic search)
+"authentication user login"
+["database", "query", "user"]
+
+# Patterns (exact/wildcard matching)
+"create_user"         # Exact match
+"create*"             # Wildcard
+"*user*"              # Contains
+"create*|update*"     # OR logic
+```
+
+**Examples:**
+- `query("authentication")` - Find all authentication-related code
+- `query(["database", "user"], filter_type="functions")` - Find user database functions
+- `query("recent", scope="public", recent=true)` - Recent public changes
+- `query("SELECT", match_source="strings")` - Find SQL queries in string literals
+- `query("api", path_pattern="!**/test/**")` - API code excluding tests
+- `query("create*", scope="public", show_snippets=true)` - Create functions with code
+
+**When to Use:**
+- **Start here** when exploring unfamiliar code
+- Finding code related to a feature or concept
+- Discovering modules/functions by purpose rather than name
+- Filtering large codebases by recency, visibility, or location
+- Searching for specific strings like error messages or SQL queries
+
+**Best for:**
+- Initial code discovery and exploration
+- Finding relevant entry points for a feature
+- Narrowing down large codebases with multiple filters
+- Discovering code patterns and usage examples
+
+---
+
+## Deprecated Tools
+
+The following tools have been removed or consolidated in v0.4. All functionality is preserved through the updated tool set with cleaner, more intuitive parameters.
+
+### Consolidated Tools
+
+**Module and Function Dependencies:**
+- **search_module_usage** → `search_module` with `what_calls_it=true`
+- **get_module_dependencies** → `search_module` with `what_it_calls=true`
+- **get_function_dependencies** → `search_function` with `what_it_calls=true`
+
+**Git History (Unified):**
+- **find_pr_for_line** → `git_history` with `start_line` parameter
+- **get_file_pr_history** → `git_history` with just `file_path`
+- **get_commit_history** → `git_history` with `function_name` or file-level
+- **get_blame** → `git_history` with line range parameters
+
+**Semantic Search:**
+- **search_by_keywords** → `query` (renamed and enhanced with orthogonal filtering)
 
 ## Output Formats
 
@@ -461,15 +329,12 @@ All tools support flexible output formats:
 
 | Tool | Input | Output | Key Use Case |
 |------|-------|--------|--------------|
-| `query` 🚀 | Keywords/patterns ± filters | Snippets + suggestions | **START HERE** - Smart code discovery |
-| `search_module` | Module name/pattern/file path | Functions & signatures | Find module contents (supports `*` and `\|`) |
-| `search_function` | Function name/pattern ± arity ± module | Definition & call sites | Understand function usage (supports `*` and `\|`) |
-| `search_module_usage` | Module name | Imports & function calls | Track module dependencies |
-| `get_module_dependencies` | Module name ± depth | Dependency tree | Discover what modules a module uses |
-| `get_function_dependencies` | Function query ± depth | Call tree | Discover what functions a function calls |
-| `find_pr_for_line` | File path & line number | PR info & author | Code attribution |
-| `get_file_pr_history` | File path | PR list with reviews | File change history |
-| `get_commit_history` | File path ± function | Commits & evolution | Track modifications |
-| `get_blame` | File path & line range | Line-by-line authors | Code ownership |
-| `search_by_keywords` | Keywords ± patterns ± filter | Modules/functions | Semantic discovery (DEPRECATED - use `query`) |
-| `find_dead_code` | Index path (CLI) | Unused functions report | Code cleanup |
+| `query` 🚀 | Keywords/patterns + filters | Snippets + suggestions | **START HERE** - Smart code discovery with scope/recent/path filters |
+| `search_module` | Module name/pattern/file | Functions & signatures | View module API + dependencies (use `what_calls_it`/`what_it_calls`) |
+| `search_function` | Function name/pattern | Definition & call sites | Find function usage + dependencies (supports `*` and `\|`) |
+| `git_history` | File path + optional line/function | Git history (unified) | All git operations: blame, commits, PRs, function tracking |
+| `find_dead_code` | Confidence level | Unused functions report | Identify potentially dead code for cleanup |
+| `expand_result` | Module/function identifier | Complete details | Drill down from query results |
+| `query_jq` | jq expression | JSON data | Advanced index queries and custom analysis |
+
+**Note:** All deprecated tools (search_module_usage, get_*_dependencies, find_pr_for_line, get_file_pr_history, get_commit_history, get_blame, search_by_keywords) have been consolidated into the tools above. See the Deprecated Tools section for migration guidance.

@@ -103,7 +103,6 @@ class TestToolInputValidation:
                 "Either 'module_name' or 'file_path' must be provided",
             ),
             ("search_function", {}, "'function_name' is required"),
-            ("search_module_usage", {}, "'module_name' is required"),
         ],
     )
     async def test_tool_validation(self, tool, args, expected_error, test_server):
@@ -267,7 +266,6 @@ class TestListTools:
         expected_tools = [
             "search_module",
             "search_function",
-            "search_module_usage",
             "git_history",
         ]
 

@@ -253,24 +253,6 @@ cicada index
 
 ---
 
-## Available Tools
-
-Once installed, you can use these Cicada tools in Cursor:
-
-| Tool | Description |
-|------|-------------|
-| `search_module` | View a module's complete API with functions, docs, and typespecs. Supports wildcards (`*`) and OR patterns (`|`) |
-| `search_function` | Find function definitions and all call sites. Supports wildcards (`*`) and OR patterns (`|`) |
-| `search_module_usage` | Find all places where a module is used |
-| `find_pr_for_line` | Discover which PR introduced a specific line of code |
-| `get_commit_history` | Get commit history for files or functions |
-| `get_blame` | View git blame showing who wrote each line |
-| `get_file_pr_history` | Get all PRs that modified a file |
-| `search_by_keywords` | Semantic search for code by concept or topic |
-| `find_dead_code` | Find potentially unused public functions |
-
----
-
 ## Example Usage
 
 ### Finding a Module

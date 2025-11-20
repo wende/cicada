@@ -23,7 +23,6 @@ from cicada.git import GitHelper
 from cicada.mcp.config_manager import ConfigManager
 from cicada.mcp.handlers import (
     AnalysisHandler,
-    DependencyHandler,
     FunctionSearchHandler,
     GitHistoryHandler,
     ModuleSearchHandler,
@@ -64,14 +63,8 @@ class CicadaServer:
             print(f"Warning: Git helper not available: {e}", file=sys.stderr)
 
         # Initialize handlers
-        # Create dependency_handler first so it can be passed to other handlers
-        self.dependency_handler = DependencyHandler(self.index_manager.index, self.config)
-        self.module_handler = ModuleSearchHandler(
-            self.index_manager.index, self.config, self.dependency_handler
-        )
-        self.function_handler = FunctionSearchHandler(
-            self.index_manager.index, self.config, self.dependency_handler
-        )
+        self.module_handler = ModuleSearchHandler(self.index_manager.index, self.config)
+        self.function_handler = FunctionSearchHandler(self.index_manager.index, self.config)
         self.git_handler = GitHistoryHandler(self.git_helper, self.config)
         self.pr_handler = PRHistoryHandler(self.index_manager.pr_index, self.config)
         self.analysis_handler = AnalysisHandler(
@@ -84,7 +77,6 @@ class CicadaServer:
             function_handler=self.function_handler,
             git_handler=self.git_handler,
             pr_handler=self.pr_handler,
-            dependency_handler=self.dependency_handler,
             analysis_handler=self.analysis_handler,
         )
 

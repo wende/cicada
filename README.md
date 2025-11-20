@@ -21,17 +21,6 @@
 
 ---
 
-## What's New in 0.3
-
-- **Dependency analysis tools** - New `get_module_dependencies` and `get_function_dependencies` with transitive depth support
-- **Expanded editor support** - Added Gemini CLI, Codex, and OpenCode (now 6 editors supported)
-- **Watch mode** - Automatic reindexing with `cicada watch` or `--watch` flag
-- **Better discoverability** - Smart error suggestions, inline PR context, staleness warnings
-- **Wildcard & OR patterns** - Search with `MyApp.*`, `create*|update*` across modules and functions
-- **Breaking:** Removed `CICADA_REPO_PATH` environment variable
-
----
-
 ## Why CICADA?
 
 Traditional AI assistants treat your repo like a pile of text. That leads to:
@@ -56,16 +45,11 @@ CICADA is an MCP server that gives assistants AST-level knowledge:
 
 ```bash
 # 1. Install uv (if needed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install CICADA
+# curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install cicada-mcp
 
-# 3. Index your Elixir project
-cd /path/to/project
+# In your repo 
 cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cicada opencode
-
-# 4. Restart your editor
 ```
 
 <div align="left">
@@ -73,10 +57,10 @@ cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cic
 <summary><strong>Try before installing permanently</strong></summary>
 
 ```bash
-uvx --from cicada-mcp cicada claude   # or cursor, vs
+uvx cicada-mcp claude   # or cursor, vs
 ```
 
-Runs CICADA on demand (slower after the first run, but zero install).
+Runs CICADA on demand (worse indexing quality, but zero install).
 
 </details>
 </div>
@@ -127,12 +111,6 @@ cd /path/to/project
 cicada claude   # or cicada cursor / cicada vs / cicada gemini / cicada codex / cicada opencode
 ```
 
-This command:
-1. Parses every `.ex`/`.exs` file with tree-sitter.
-2. Builds the index in `~/.cicada/projects/<hash>/`.
-3. Creates the correct MCP config for your editor.
-4. Configures `.gitattributes` so git can track functions through refactors.
-
 ### Enable PR Attribution (optional)
 
 ```bash
@@ -148,7 +126,7 @@ Unlocks questions like "Which PR introduced line 42?" or "What did reviewers say
 
 Enable automatic reindexing when files change by starting the MCP server with the `--watch` flag:
 
-**For Claude Code (.mcp.json):**
+** .mcp.json**
 ```json
 {
   "mcpServers": {
@@ -162,26 +140,6 @@ Enable automatic reindexing when files change by starting the MCP server with th
   }
 }
 ```
-
-**For Cursor (.cursor/mcp.json):**
-```json
-{
-  "mcpServers": {
-    "cicada": {
-      "command": "cicada-mcp",
-      "args": ["--watch"]
-    }
-  }
-}
-```
-
-**Or use with the server subcommand:**
-```bash
-cicada server --watch
-cicada server --watch --fast    # Use fast tier for reindexing
-cicada server --watch --max     # Use max tier for reindexing
-```
-
 When watch mode is enabled:
 - A separate process monitors `.ex` and `.exs` files for changes
 - Changes are automatically reindexed (incremental, fast)
@@ -258,7 +216,7 @@ cicada index .
 4. **Restart editor completely** (not just reload window)
 
 5. **Check editor MCP logs:**
-   - Claude Code: Console output
+   - Claude Code: --debug
    - Cursor: Settings → MCP → View Logs
    - VS Code: Output panel → MCP
 
@@ -278,7 +236,7 @@ sudo apt install gh  # Ubuntu
 gh auth login
 
 # Index PRs
-cicada index-pr .
+cicada index-pr
 ```
 
 **Common issues:**
@@ -289,7 +247,7 @@ cicada index-pr .
 
 **Force rebuild:**
 ```bash
-cicada index-pr . --clean
+cicada index-pr --clean
 ```
 
 </details>
@@ -304,7 +262,7 @@ cicada index-pr . --clean
 **Solution:**
 ```bash
 # Re-index with keyword extraction
-cicada index --regular .  # or --fast or --max
+cicada index .  # or --fast or --max
 ```
 
 **Verify:**
@@ -321,90 +279,76 @@ More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_IN
 
 ## For AI Assistants
 
-CICADA ships eleven focused MCP tools. Use the decision table to pick the right one:
+CICADA ships 7 focused MCP tools designed for efficient code exploration.
 
 ### 🧭 Which Tool Should You Use?
 
 | Need | Tool | Notes |
 |------|------|-------|
-| List a module's API | `search_module` | Supports wildcards (`*`) and OR (`|`) patterns. Includes public/private functions, signatures, specs, docs |
-| Find where a function is defined & called | `search_function` | Supports wildcards (`*`) and OR (`|`) patterns. Resolves aliases/imports, shows code context |
-| Discover who imports/aliases a module | `search_module_usage` | Great for dependency impact analysis |
-| See what modules a module depends on | `get_module_dependencies` | Shows all modules used by a module (with transitive depth support) |
-| See what functions a function calls | `get_function_dependencies` | Shows all functions called by a function (with transitive depth support) |
-| Search by concept ("authentication", `*_user`) | `search_by_features` | Requires keyword tier index |
-| Identify unused code | `find_dead_code` | Confidence-ranked (high, medium, low) |
-| Find PR for a line | `find_pr_for_line` | Needs `cicada index-pr` + `gh` |
-| View PR history for a file | `get_file_pr_history` | Shows descriptions + review comments |
-| Track function/file evolution | `get_commit_history` | Follows refactors via `.gitattributes` |
-| Show blame with grouped authorship | `get_blame` | Useful when you need owners |
+| **Start exploring** | `query` | **🚀 START HERE** - Smart discovery with keywords/patterns + filters (scope, recent, path) |
+| View a module's complete API | `search_module` | Functions, signatures, specs, docs. Use `what_calls_it`/`what_it_calls` for bidirectional analysis |
+| Find where a function is used | `search_function` | Definition + all call sites. Supports wildcards (`*`) and OR (`\|`) patterns |
+| Track git history | `git_history` | Unified tool: blame, commits, PRs, function evolution (replaces 4 legacy tools) |
+| Find dead code | `find_dead_code` | Identify potentially unused functions with confidence levels |
+| Drill down into results | `expand_result` | Auto-expands modules or functions from query results |
+| Advanced index queries | `query_jq` | Custom jq queries for power users |
 
 **Want to see these tools in action?** Check out [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios.
 
-### Core Search Tools
+### Core Tools
 
-**`search_module`** - Find modules and view all their functions
-- Search by module name or file path with wildcards (`MyApp.*`, `*User*`) and OR patterns (`MyApp.User|MyApp.Post`)
-- View function signatures with type specs
-- Filter public/private functions
-- Output in Markdown or JSON
+**`query`** - Smart code discovery (your starting point)
+- Automatically detects keywords vs patterns
+- Filters: `scope` (public/private), `recent` (last 14 days), `filter_type` (modules/functions), `match_source` (docs/strings)
+- Returns snippets with smart next-step suggestions
+- Use `path_pattern` to filter by location
 
-**`search_function`** - Locate function definitions and track usage
-- Search by function name, arity, or module path with wildcards (`create*`, `*_user`) and OR patterns (`create*|update*`)
-- See where functions are called with line numbers
-- View actual code usage examples
-- Filter for test files only
+**`search_module`** - Deep module analysis
+- View complete API: functions, signatures, specs, docs
+- Bidirectional analysis:
+  - `what_calls_it=true` → See who uses this module (impact analysis)
+  - `what_it_calls=true` → See what this module depends on
+- Supports wildcards (`MyApp.*`) and OR patterns (`MyApp.User|MyApp.Post`)
+- Filter by visibility (public/private/all)
 
-**`search_module_usage`** - Track module dependencies
-- Find all aliases and imports
-- See all function calls to a module
-- Understand module relationships
-- Map dependencies across codebase
+**`search_function`** - Function usage tracking
+- Find definitions and all call sites
+- `what_calls_it=true` (default) → See all callers
+- `what_it_calls=true` → See all dependencies
+- Include code examples with `include_usage_examples=true`
+- Filter by `usage_type`: source, tests, or all
 
-### Git History & Attribution Tools
+### Git History (Unified Tool)
 
-**`find_pr_for_line`** - Identify which PR introduced any line of code
-- Line-level PR attribution via git blame
-- Author and commit information
-- Direct links to GitHub PRs
-- Requires: GitHub CLI + PR index
+**`git_history`** - All git operations in one tool
+- **Single line**: `git_history("file.ex", start_line=42)` → blame + PR
+- **Line range**: `git_history("file.ex", start_line=40, end_line=60)` → grouped blame
+- **Function tracking**: `git_history("file.ex", function_name="create_user")` → evolution
+- **File history**: `git_history("file.ex")` → all PRs/commits
+- Time filtering: `recent=true` (14d), `recent=false` (>14d), `recent=null` (all)
+- Author filtering: `author="john"`
+- Automatic PR index integration when available
 
-**`get_file_pr_history`** - View complete PR history for a file
-- All PRs that modified the file
-- PR descriptions and metadata
-- Code review comments with line numbers
-- Requires: GitHub CLI + PR index
+### Additional Tools
 
-**`get_commit_history`** - Track file and function evolution over time
-- Complete commit history for files
-- Function-level tracking (follows refactors)
-- Creation and modification timeline
-- Requires: `.gitattributes` configuration
+**`expand_result`** - Drill down from query results
+- Auto-detects module vs function
+- Shows complete details with usage examples
+- Configure what to include: code, dependencies, callers
+- Convenient wrapper around search_module and search_function
 
-**`get_blame`** - Show line-by-line code ownership
-- Grouped authorship display
-- Commit details for each author
-- Code snippets with context
-
-### Advanced Features
-
-**`search_by_features`** (Beta) - Search code by concepts and features
-- **🎯 Perfect for: "I don't know the exact name"** - Search by what code does, not what it's called
-- Find code related to concepts like "authentication", "api key storage", "email validation"
-- Wildcard pattern matching (`create*`, `*_user`, `validate_*`)
-- Filter results by type: modules only, functions only, or all
-- AI-powered keyword extraction from documentation
-- Relevance scoring to surface the most relevant results
-- Requires: Index built with keyword extraction (--fast, --regular, or --max)
-
-**When to use:** You know what you're looking for conceptually but not the exact module/function names. Instead of guessing names with `search_function`, describe what the code does!
-
-**`find_dead_code`** - Identify potentially unused functions
+**`find_dead_code`** - Code cleanup analysis
 - Three confidence levels (high, medium, low)
 - Smart detection of callbacks and behaviors
 - Recognition of dynamic call patterns
 - Module-level grouping with line numbers
 - Excludes test files and `@impl` functions
+
+**`query_jq`** - Advanced index queries
+- Direct jq queries against the index
+- Schema discovery with `| schema`
+- Compact (default) or pretty output
+- Sample mode for large results
 
 Detailed parameters + output formats: [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFERENCE.md).
 
@@ -414,32 +358,13 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ---
 
-## Learn by Doing (5–10 min each)
-
-### 1. Safe Refactor Checklist
-1. `search_function` → "Where is `create_user/2` called?"
-2. `search_module_usage` → "Which modules alias `MyApp.User`?"
-3. `search_function` with `test_only:true` to confirm test coverage.
-4. `get_file_pr_history` → "Show PRs that modified `lib/my_app/user.ex`."
-
-### 2. Untangle Legacy Intent
-1. `search_module` to skim the API.
-2. `get_file_pr_history` for design discussions/reviews.
-3. `get_commit_history` on the hot function.
-4. `get_blame` on confusing lines to ping the right author.
-
-### 3. Cleanup Sprint
-1. `find_dead_code --min-confidence high` for candidates.
-2. For each, `search_function` to double-check dynamic usage.
-3. `find_pr_for_line` to ensure it isn't waiting on an unfinished feature.
-4. Remove or deprecate confidently.
-
-For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) and [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
 
 ---
 
 ## Documentation
 
+- [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) 
+- [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
 - [CHANGELOG.md](CHANGELOG.md) – release notes.
 - [docs/01-KEYWORD_EXTRACTION_ANALYSIS.md](docs/01-KEYWORD_EXTRACTION_ANALYSIS.md) – semantic search internals.
 - [docs/09-PR_INDEXING.md](docs/09-PR_INDEXING.md) – GitHub integration details.
@@ -449,12 +374,7 @@ For full walkthroughs see [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPL
 
 ## Roadmap
 
-| Available | Coming Soon |
-|-----------|-------------|
-| Elixir indexing + AST search | Python + TypeScript support |
-| Semantic keyword tiers (`--fast/regular/max`) | Shared/team indexes |
-| PR attribution + review scraping | |
-| Dead-code + dependency analysis | |
+### PYTHON AND TYPESCRIPT!!!
 
 ---
 

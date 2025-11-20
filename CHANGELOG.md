@@ -5,6 +5,115 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-19
+
+### Added
+
+- **Query Tool & Orchestrator** ([#120](https://github.com/wende/cicada/pull/120), [#111](https://github.com/wende/cicada/pull/111))
+  - New `query` CLI command and MCP tool for smart code discovery (replaces `search_by_features`)
+  - Tier-based scoring and filtering for better result relevance
+  - Match detail tracking showing WHERE keywords matched (name, docs, strings)
+  - Path pattern glob matching with brace expansion (`{ex,heex}`) and negation (`!**/test/**`)
+  - Automatic timestamp tracking with PR number extraction from git history
+  - Smart result suggestions when searches return too many or too few results
+  - JSON and text output formats with configurable snippet display
+
+- **Co-occurrence Analysis** ([#112](https://github.com/wende/cicada/pull/112))
+  - Keyword suggestions based on actual codebase patterns (not generic language models)
+  - New `suggest_keywords` MCP tool with expand/narrow modes
+  - Expand mode: suggests related keywords when searches return no/few results
+  - Narrow mode: suggests filtering keywords when searches return too many results
+  - Automatic co-occurrence matrix building during indexing
+  - Tracks pre-expansion keywords to reflect actual code content
+
+- **Co-change Analysis** ([#115](https://github.com/wende/cicada/pull/115))
+  - Tracks files and functions frequently modified together in git history
+  - Co-change boost factor applied to search scores (default: 0.5)
+  - Related files/functions shown in search results with commit counts
+  - File-level and function-level co-change tracking
+  - Now enabled by default during indexing
+
+- **Unified Git History Tool** ([#120](https://github.com/wende/cicada/pull/120))
+  - Single `git_history` MCP tool with smart routing based on parameters
+  - Replaces 4 separate tools: `get_blame`, `get_commit_history`, `find_pr_for_line`, `get_file_pr_history`
+  - Single line analysis: git blame + PR lookup for specific lines
+  - Line range analysis: grouped authorship with code snippets
+  - Function tracking: precise function evolution with git log -L
+  - File-level history: PR index with fallback to git commits
+  - Time filtering with `recent` parameter (last 14 days)
+  - Author filtering for contributor-specific history
+
+- **JQ Query Support** ([#110](https://github.com/wende/cicada/pull/110))
+  - New `query_jq` MCP tool for querying index data with JQ expressions
+  - Size estimation and automatic truncation to prevent token overflow
+  - Compact (single-line) and pretty (formatted) output modes
+  - Query validation with bracket nesting and string escaping checks
+  - Direct access to index structure for advanced queries
+
+- **Dependency Tool Refactoring** ([#120](https://github.com/wende/cicada/pull/120))
+  - Clearer parameter naming for relationship directionality:
+    - `what_calls_it`: shows call sites (what calls this function/module)
+    - `what_it_calls`: shows dependencies (what this function/module calls)
+    - `show_function_usage`: granular function-level usage
+    - `include_code_context`: include code snippets at call sites
+  - Integrated into `search_module` and `search_function` tools
+  - Removed standalone `get_module_dependencies` and `get_function_dependencies`
+
+### Changed
+
+- **Co-change extraction now enabled by default** - Co-change analysis (tracking files and functions modified together) now runs automatically during indexing. This provides better search relevance but may increase initial indexing time by 10-30%.
+- **Query API simplified** - Split `scope` parameter into orthogonal filters:
+  - `scope` now only controls visibility: 'all', 'public', 'private' (removed 'recent')
+  - Added separate `recent` boolean parameter for time-based filtering
+  - Enables new combinations like `scope='public', recent=True` (recent public functions only)
+- **Test filtering improved** - Replaced `include_tests` boolean with path pattern negation:
+  - OLD: `include_tests=False`
+  - NEW: `path_pattern='!**/test/**'`
+  - More flexible - can exclude any path pattern, not just tests
+- **query_jq default format changed** - Default output format changed from 'json' to 'compact' (single-line JSON) to reduce token usage. Use `format='pretty'` for readable formatting.
+- **CLI and MCP parameter alignment** ([#122](https://github.com/wende/cicada/pull/122))
+  - CLI `--show-snippets` flag now matches MCP tool parameter naming
+  - Consistent parameter names across CLI and MCP interfaces
+- **Git timestamp computation enabled by default** ([#120](https://github.com/wende/cicada/pull/120))
+  - Timestamps automatically computed during indexing to support `recent` filtering
+  - Makes `scope='recent'` useful out of the box
+  - Batched computation for performance
+
+### Removed
+
+- **Removed CLI flags:**
+  - `--extract-cochange` flag (feature now always enabled)
+  - `--no-tests` flag (use `--path-pattern='!**/test/**'` instead)
+- **Removed MCP tools:** ([#122](https://github.com/wende/cicada/pull/122))
+  - `search_by_features` (replaced by `query` tool)
+  - `search_by_keywords` (replaced by `query` tool)
+  - `search_module_usage` (merged into `search_module` with `what_calls_it=True` parameter)
+  - `get_module_dependencies` (merged into `search_module` with `what_it_calls=True` parameter)
+  - `get_function_dependencies` (merged into `search_function` with `what_it_calls=True` parameter)
+  - `get_blame` (replaced by `git_history` with `start_line` and `end_line` parameters)
+  - `get_commit_history` (replaced by `git_history` with `function_name` parameter)
+  - `find_pr_for_line` (replaced by `git_history` with `start_line` parameter)
+  - `get_file_pr_history` (replaced by `git_history` with file path only)
+- **Removed internal handler:** `DependencyHandler` class (functionality merged into `ModuleSearchHandler` and `FunctionSearchHandler`)
+- **Removed legacy code:** ([#117](https://github.com/wende/cicada/pull/117))
+  - Legacy `.cicada/` references and backward compatibility code
+  - Cleaned up deprecated code paths
+
+### Fixed
+
+- **File watcher threading error** ([#119](https://github.com/wende/cicada/pull/119)) - Graceful handling when reindexing triggered from background thread
+- **Keyword search for undocumented code** ([#118](https://github.com/wende/cicada/pull/118)) - Fixed crashes when searching modules/functions without documentation
+- **Force flag for tier changes** ([#114](https://github.com/wende/cicada/pull/114)) - `--force` flag now allows tier changes during reindexing
+- **Version hash merge conflicts** ([#113](https://github.com/wende/cicada/pull/113)) - Excluded `_version_hash.py` from git to prevent merge conflicts
+- **Git index corruption in parallel tests** ([#120](https://github.com/wende/cicada/pull/120)) - Serialized tests using `os.chdir()` to prevent race conditions
+- **Naive datetime comparison** ([#112](https://github.com/wende/cicada/pull/112)) - Fixed timezone-aware datetime handling for consistent comparisons
+- **JSON output for module usage** ([#122](https://github.com/wende/cicada/pull/122)) - Fixed missing usage data in JSON format when `what_calls_it=True`
+- **Path pattern glob matching** ([#120](https://github.com/wende/cicada/pull/120))
+  - Fixed `**` wildcard corruption during regex conversion
+  - Added brace expansion support for patterns like `{ex,heex}`
+  - Fixed `*` wildcard to not match across directory separators
+  - Fixed `/**` pattern to match zero or more directories
+
 ## [0.3.2] - 2025-11-14
 
 ### Added
