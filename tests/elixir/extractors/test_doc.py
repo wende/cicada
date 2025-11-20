@@ -142,9 +142,9 @@ This is documentation.
         doc_without_examples, examples = _extract_examples_from_doc(doc_text)
 
         assert examples is not None
-        # Examples should be dedented by removing common indentation
-        assert "iex> my_func()" in examples
-        assert "iex> another()" in examples
+        # Verify exact dedented output with preserved structure (empty lines)
+        expected_examples = "iex> my_func()\n:ok\n\niex> another()\n:also_ok"
+        assert examples == expected_examples
 
     def test_doc_dedents_text_outside_examples(self):
         """Test doc text is dedented using textwrap.dedent."""

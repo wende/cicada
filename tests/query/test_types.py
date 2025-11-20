@@ -132,11 +132,7 @@ class TestSearchResult:
         dt = result.get_last_modified()
 
         assert dt is not None
-        assert dt.year == 2024
-        assert dt.month == 1
-        assert dt.day == 15
-        assert dt.hour == 10
-        assert dt.minute == 30
+        assert dt == datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
 
     def test_get_last_modified_parses_iso_format_with_timezone(self):
         """Test get_last_modified() parses ISO format with timezone offset."""
@@ -156,7 +152,7 @@ class TestSearchResult:
         dt = result.get_last_modified()
 
         assert dt is not None
-        assert dt.year == 2024
+        assert dt == datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
 
     def test_get_last_modified_returns_none_for_invalid_format(self):
         """Test get_last_modified() returns None for invalid timestamp."""
