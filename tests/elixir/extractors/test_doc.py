@@ -108,6 +108,23 @@ This is documentation.
         assert "This is documentation." in doc_without_examples
         assert examples is None
 
+    def test_examples_with_only_whitespace_returns_none(self):
+        """Test examples section with only whitespace returns None."""
+        doc_text = """
+This is documentation.
+
+## Examples
+
+
+
+"""
+
+        doc_without_examples, examples = _extract_examples_from_doc(doc_text)
+
+        assert "This is documentation." in doc_without_examples
+        # Examples should be None or empty after stripping
+        assert examples is None or examples.strip() == ""
+
     def test_examples_dedents_correctly(self):
         """Test examples content is dedented correctly."""
         doc_text = """

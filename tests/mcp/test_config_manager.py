@@ -54,9 +54,8 @@ class TestGetConfigPath:
 
     def test_uses_workspace_folder_paths_multiple_paths_windows(self, monkeypatch):
         """Test WORKSPACE_FOLDER_PATHS with multiple paths (Windows separator)."""
-        if os.name != "nt":
-            pytest.skip("Windows-specific test")
-
+        # Mock os.pathsep to test Windows behavior on any platform
+        monkeypatch.setattr("os.pathsep", ";")
         workspace_paths = r"C:\Users\user\project1;C:\Users\user\project2"
 
         monkeypatch.setenv("WORKSPACE_FOLDER_PATHS", workspace_paths)
@@ -64,10 +63,12 @@ class TestGetConfigPath:
 
         with patch("cicada.mcp.config_manager.get_config_path") as mock_get:
             mock_get.return_value = Path(r"C:\Users\.cicada\projects\hash\config.yaml")
-            result = ConfigManager.get_config_path()
 
-            # Should use the first path
-            mock_get.assert_called_once_with(r"C:\Users\user\project1")
+            with patch("cicada.mcp.config_manager.os.pathsep", ";"):
+                result = ConfigManager.get_config_path()
+
+                # Should use the first path
+                mock_get.assert_called_once_with(r"C:\Users\user\project1")
 
     def test_falls_back_to_cwd_when_no_env_vars(self, monkeypatch):
         """Test fallback to current working directory."""
@@ -78,13 +79,17 @@ class TestGetConfigPath:
             mock_get.return_value = Path("/current/dir/.cicada/config.yaml")
 
             with patch("pathlib.Path.cwd") as mock_cwd:
-                mock_cwd.return_value = Path("/current/dir")
+                # Mock both cwd and resolve to control the exact path
+                mock_resolved = Path("/resolved/current/dir")
+                mock_path_instance = mock_cwd.return_value
+                mock_path_instance.resolve.return_value = mock_resolved
+
                 result = ConfigManager.get_config_path()
 
-                # Should call get_config_path with resolved cwd
+                # Should call get_config_path with the resolved cwd
                 mock_get.assert_called_once()
                 call_arg = str(mock_get.call_args[0][0])
-                assert call_arg == str(Path("/current/dir").resolve())
+                assert call_arg == str(mock_resolved)
 
     def test_handles_pathsep_correctly_for_platform(self, monkeypatch):
         """Test that os.pathsep is used correctly for the current platform."""
@@ -136,6 +141,15 @@ class TestLoadConfig:
         assert "cicada cursor" in error_msg
         assert "cicada claude" in error_msg
         assert "cicada vs" in error_msg
+
+    def test_raises_yaml_error_for_malformed_yaml(self, tmp_path):
+        """Test that malformed YAML raises YAMLError."""
+        config_file = tmp_path / "malformed.yaml"
+        # Invalid YAML: unclosed bracket
+        config_file.write_text("invalid: yaml: content: [")
+
+        with pytest.raises(yaml.YAMLError):
+            ConfigManager.load_config(str(config_file))
 
     def test_returns_empty_dict_for_empty_file(self, tmp_path):
         """Test that empty YAML file returns empty dict."""
