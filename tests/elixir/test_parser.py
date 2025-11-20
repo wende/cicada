@@ -120,6 +120,49 @@ def test_guard_clause_extraction():
     assert add_numbers["guards"] == []
 
 
+def test_test_macro_extraction():
+    """Test that test macros are correctly extracted with descriptions."""
+    parser = ElixirParser()
+    result = parser.parse_file("tests/fixtures/test_with_tests.exs")
+
+    assert result is not None
+    module = result[0]
+    assert module["module"] == "SampleTest"
+
+    functions = module["functions"]
+
+    # Filter test functions
+    test_functions = [f for f in functions if f["type"] == "test"]
+    assert len(test_functions) == 4, f"Expected 4 test functions, got {len(test_functions)}"
+
+    # Check first test in describe block
+    addition_test = next(f for f in test_functions if "addition" in f["name"])
+    assert addition_test["type"] == "test"
+    assert addition_test["test_description"] == "addition works correctly"
+    assert addition_test["name"] == "test: addition works correctly"
+    assert addition_test["full_name"] == "test: addition works correctly/0"
+    assert addition_test["arity"] == 0
+    assert addition_test["line"] == 5
+
+    # Check second test in describe block
+    subtraction_test = next(f for f in test_functions if "subtraction" in f["name"])
+    assert subtraction_test["test_description"] == "subtraction works correctly"
+    assert subtraction_test["signature"] == 'test "subtraction works correctly"'
+
+    # Check test in different describe block
+    concat_test = next(f for f in test_functions if "concatenation" in f["name"])
+    assert concat_test["test_description"] == "concatenation works"
+
+    # Check standalone test (not in describe block)
+    standalone_test = next(f for f in test_functions if "standalone" in f["name"])
+    assert standalone_test["test_description"] == "standalone test without describe"
+
+    # Verify helper function is still extracted as defp
+    helper_funcs = [f for f in functions if f["type"] == "defp"]
+    assert len(helper_funcs) == 1
+    assert helper_funcs[0]["name"] == "helper_function"
+
+
 if __name__ == "__main__":
     print("Running parser tests...")
 
@@ -138,6 +181,9 @@ if __name__ == "__main__":
 
         test_guard_clause_extraction()
         print("✓ test_guard_clause_extraction passed")
+
+        test_test_macro_extraction()
+        print("✓ test_test_macro_extraction passed")
 
         print("\nAll tests passed!")
     except AssertionError as e:

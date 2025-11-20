@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-11-20
+
+### Added
+
+- **Test Macro Keyword Indexing** ([#127](https://github.com/wende/cicada/pull/127))
+  - Test descriptions (`test "description" do ... end`) now indexed and searchable by keywords
+
+- **Git History Filter Feedback** ([#125](https://github.com/wende/cicada/pull/125))
+  - Shows clear messages when date/author filters exclude all results with suggestions to adjust
+  - Configurable recent cutoff via `recent_days` parameter (default: 14)
+
+### Changed
+
+- **Compact Query Result Formatting** ([#124](https://github.com/wende/cicada/pull/124))
+  - Restored tier labels and confidence percentiles for better relevance indication
+  - Added last modified timestamp with commit hash and PR number
+  - Keyword source indicators show where matches came from: `(in docs)`, `(in strings)`, `(in docs+strings)`
+
+### Fixed
+
+- **PR Indexer Error Recovery** ([#126](https://github.com/wende/cicada/pull/126))
+  - Saves partial progress when HTTP errors occur; next run resumes automatically
+  - Prevents permanent gaps in PR index from transient failures
+
 ## [0.4.0] - 2025-11-19
 
 ### Added
