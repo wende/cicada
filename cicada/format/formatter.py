@@ -213,6 +213,26 @@ class ModuleFormatter:
                 first_para = first_para[:200] + "..."
             lines.extend(["", first_para])
 
+        # Add Classes section if present (Python modules with classes)
+        if data.get("classes"):
+            classes = data["classes"]
+            if classes:
+                lines.extend(["", "**Classes:**"])
+                for cls in classes:
+                    cls_name = cls["name"]
+                    cls_line = cls["line"]
+                    cls_public = cls.get("public_methods", 0)
+                    cls_private = cls.get("private_methods", 0)
+                    lines.append(
+                        f"  • {cls_name} (line {cls_line}) • {cls_public} public • {cls_private} private"
+                    )
+                    # Optionally show class doc as sub-bullet
+                    if cls.get("doc"):
+                        doc_preview = cls["doc"].strip().split("\n")[0][:80]
+                        if len(cls["doc"]) > 80:
+                            doc_preview += "..."
+                        lines.append(f"    {doc_preview}")
+
         private_shown = False
 
         if visibility != "private":
@@ -284,6 +304,11 @@ class ModuleFormatter:
             },
             "functions": functions,
         }
+
+        # Add classes if present (Python modules with classes)
+        if data.get("classes"):
+            result["classes"] = data["classes"]
+
         return json.dumps(result, indent=2)
 
     @staticmethod

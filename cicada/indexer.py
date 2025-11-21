@@ -1042,6 +1042,7 @@ class ElixirIndexer(BaseIndexer):
         compute_timestamps: bool = True,
         extract_cochange: bool = True,
         force_full: bool = False,
+        verbose: bool = True,
     ):
         """
         Incrementally index an Elixir repository using file hashing.
@@ -1058,10 +1059,14 @@ class ElixirIndexer(BaseIndexer):
             compute_timestamps: If True, compute git history timestamps for functions (default: True)
             extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, ignore existing hashes and do full reindex
+            verbose: If True, print detailed progress information (default: True)
 
         Returns:
             Dictionary containing the index data
         """
+        # Update verbosity setting from parameter
+        self.verbose = verbose
+
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path)
         # Use centralized storage directory for hashes

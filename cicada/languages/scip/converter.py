@@ -184,14 +184,22 @@ class SCIPConverter:
                 functions.append(symbol_info)
             # Skip parameters and other symbol types
 
+        # Track class metadata for module entries
+        class_metadata_list = []
+
         # Convert classes to modules
         for class_info in classes:
             class_name = self._extract_name(class_info.symbol)
             class_methods = methods.get(class_info.symbol, [])
+            class_line = self._get_definition_line(class_info.symbol, doc)
+
+            # Count public/private methods
+            public_count = sum(1 for m in class_methods if not self._is_private(m.symbol))
+            private_count = sum(1 for m in class_methods if self._is_private(m.symbol))
 
             module_data = {
                 "file": file_path,
-                "line": self._get_definition_line(class_info.symbol, doc),
+                "line": class_line,
                 "functions": [
                     self._convert_function(method, doc, symbol_map, call_sites_by_function)
                     for method in class_methods
@@ -201,9 +209,11 @@ class SCIPConverter:
             }
 
             # Add documentation if available
+            class_doc = None
             if class_info.documentation:
                 moduledoc = "\n".join(class_info.documentation)
                 module_data["moduledoc"] = moduledoc
+                class_doc = moduledoc
 
                 # Extract keywords from module documentation
                 if self.extract_keywords and self.keyword_extractor:
@@ -224,14 +234,28 @@ class SCIPConverter:
 
             # Add function counts
             module_data["total_functions"] = len(class_methods)
-            module_data["public_functions"] = sum(
-                1 for m in class_methods if not self._is_private(m.symbol)
-            )
-            module_data["private_functions"] = sum(
-                1 for m in class_methods if self._is_private(m.symbol)
-            )
+            module_data["public_functions"] = public_count
+            module_data["private_functions"] = private_count
+
+            # Add parent module reference (file path without .py extension, converted to module name)
+            # e.g., "cicada/git/history_analyzer.py" -> "cicada.git.history_analyzer"
+            parent_module = self._file_path_to_module_name(file_path)
+            if parent_module:
+                module_data["parent_module"] = parent_module
 
             modules[class_name] = module_data
+
+            # Collect class metadata for module entries
+            class_metadata_list.append(
+                {
+                    "name": class_name,
+                    "line": class_line,
+                    "doc": class_doc,
+                    "public_methods": public_count,
+                    "private_methods": private_count,
+                    "total_methods": len(class_methods),
+                }
+            )
 
         # Convert module symbols to module entries
         for module_info in module_symbols:
@@ -257,6 +281,7 @@ class SCIPConverter:
                 "total_functions": 0,
                 "public_functions": 0,
                 "private_functions": 0,
+                "classes": class_metadata_list,  # Classes defined in this module
             }
 
             # Add documentation if available
@@ -992,6 +1017,37 @@ class SCIPConverter:
         }
 
         return module_name in excluded
+
+    def _file_path_to_module_name(self, file_path: str) -> str | None:
+        """
+        Convert file path to Python module name.
+
+        Examples:
+            "cicada/git/history_analyzer.py" -> "cicada.git.history_analyzer"
+            "calculator.py" -> "calculator"
+            "lib/utils/__init__.py" -> "lib.utils"
+
+        Args:
+            file_path: File path relative to repository root
+
+        Returns:
+            Module name with dot-separated components, or None if invalid
+        """
+        if not file_path:
+            return None
+
+        # Remove .py extension
+        if file_path.endswith(".py"):
+            file_path = file_path[:-3]
+
+        # Remove __init__ suffix for package modules
+        if file_path.endswith("/__init__"):
+            file_path = file_path[:-9]
+
+        # Convert path separators to dots
+        module_name = file_path.replace("/", ".")
+
+        return module_name if module_name else None
 
     def _detect_language(self, scip_index: scip_pb2.Index) -> str:
         """

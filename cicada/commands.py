@@ -890,6 +890,7 @@ def handle_index_main(args) -> None:
             compute_timestamps=True,
             extract_cochange=extract_cochange,
             force_full=tier_changed,
+            verbose=True,
         )
     else:
         # Fallback to basic interface for legacy indexers

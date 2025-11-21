@@ -96,6 +96,7 @@ class PythonSCIPIndexer(BaseIndexer):
             compute_timestamps=True,  # Enabled by default for timestamp tracking
             extract_cochange=False,
             force_full=force,
+            verbose=verbose,
         )
 
     def incremental_index_repository(
@@ -107,6 +108,7 @@ class PythonSCIPIndexer(BaseIndexer):
         compute_timestamps: bool = True,
         extract_cochange: bool = False,
         force_full: bool = False,
+        verbose: bool = True,
     ) -> dict:
         """
         Index Python repository with all features.
@@ -119,10 +121,14 @@ class PythonSCIPIndexer(BaseIndexer):
             compute_timestamps: Whether to compute git timestamps for functions
             extract_cochange: Whether to analyze co-change patterns
             force_full: If True, force full reindex even if up-to-date
+            verbose: If True, print detailed progress information (default: True)
 
         Returns:
             Dict with indexing results
         """
+        # Update verbosity setting from parameter
+        self.verbose = verbose
+
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path).resolve()
 

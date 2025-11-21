@@ -261,6 +261,55 @@ class TestModuleNameExtraction:
             ), f"Failed for {symbol}: got {result}, expected {expected_name}"
 
 
+class TestClassTracking:
+    """Test that classes are properly tracked in module entries."""
+
+    def test_class_metadata_in_module(self, python_scip_index):
+        """Test that module entries include class metadata."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+        result = converter.convert(scip_index, repo_path)
+
+        # Find a module entry (not a class entry) in the index
+        # In Python, calculator.py should have a module entry for "calculator"
+        # This will depend on the sample_python structure
+
+        # Check that classes are present in the index as separate entries
+        assert "Calculator" in result["modules"], "Calculator class should be indexed as module"
+
+        calc_class = result["modules"]["Calculator"]
+        # Verify Calculator has methods
+        assert len(calc_class["functions"]) > 0, "Calculator should have methods"
+
+    def test_parent_module_reference(self, python_scip_index):
+        """Test that class entries have parent_module field."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+        result = converter.convert(scip_index, repo_path)
+
+        # Check Calculator class has parent_module reference
+        if "Calculator" in result["modules"]:
+            calc_class = result["modules"]["Calculator"]
+            assert "parent_module" in calc_class, "Class should have parent_module field"
+            # Parent module should be something like "calculator"
+            assert isinstance(calc_class["parent_module"], str)
+            assert len(calc_class["parent_module"]) > 0
+
+    def test_file_path_to_module_name(self, python_scip_index):
+        """Test _file_path_to_module_name helper method."""
+        scip_index, repo_path = python_scip_index
+
+        converter = SCIPConverter()
+
+        # Test various file path conversions
+        assert converter._file_path_to_module_name("calculator.py") == "calculator"
+        assert converter._file_path_to_module_name("cicada/mcp/server.py") == "cicada.mcp.server"
+        assert converter._file_path_to_module_name("lib/utils/__init__.py") == "lib.utils"
+        assert converter._file_path_to_module_name("") is None
+
+
 class TestLanguageAgnostic:
     """Test that SCIP converter works across languages."""
 

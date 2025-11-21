@@ -831,6 +831,46 @@ The old tools remain available but are marked as deprecated in their description
 - **Router:** `cicada/mcp/router.py` - Routes to appropriate handler
 - **Tests:** `tests/mcp/test_git_history_unified.py` - Comprehensive test suite
 
+## Python-Specific Behavior
+
+### Class Display in search_module
+
+For Python codebases, the `search_module` tool displays both module-level functions AND classes defined in the module. This improves discoverability when working with Python code.
+
+The Python indexer creates separate searchable entities:
+
+1. **Modules** (e.g., `cicada.git.history_analyzer`)
+   - Contains module-level functions
+   - Displays classes defined in the module
+   - Each class shows: name, line number, public/private method counts
+
+2. **Classes** (e.g., `HistoryAnalyzer`)
+   - Indexed separately as module entries
+   - Contains class methods
+   - Has `parent_module` field linking to the module
+
+**Example search_module output:**
+
+```
+cicada/git/history_analyzer.py:1
+cicada.git.history_analyzer • 0 public • 0 private
+
+**Classes:**
+  • HistoryAnalyzer (line 17) • 3 public • 9 private
+    Analyzes git history for files and functions.
+
+Module-level: (none)
+```
+
+Both approaches work for finding code:
+- `search_module("cicada.git.history_analyzer")` → Shows module with classes
+- `search_module("HistoryAnalyzer")` → Shows class with methods
+
+**Implementation:**
+- **Indexer:** `cicada/languages/scip/converter.py` - Tracks classes in module entries
+- **Formatter:** `cicada/format/formatter.py` - Displays classes section
+- **Tests:** `tests/format/test_class_display.py`, `tests/languages/scip/test_scip_converter.py`
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:
@@ -861,15 +901,13 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - PREFERRED for Elixir: View a module's complete API - functions with arity, signatures, docs, typespecs, and line numbers. `mcp__cicada__search_module`
-  - PREFERRED for Elixir: Find function definitions and call sites across the codebase. `mcp__cicada__search_function`
-  - PREFERRED for Elixir: Find all module usage and dependencies for impact analysis. `mcp__cicada__search_module_usage`
-  - PREFERRED for git history: Discover why code exists and who wrote it. `mcp__cicada__find_pr_for_line`
-  - PREFERRED for git history: Get commit log for files or functions. `mcp__cicada__get_commit_history`
-  - PREFERRED for authorship: Git blame showing who wrote each line. `mcp__cicada__get_blame`
-  - Get all PRs that modified a file with descriptions and review comments. `mcp__cicada__get_file_pr_history`
-  - Semantic search for code by concept/topic when exact names are unknown. `mcp__cicada__search_by_keywords`
-  - Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
+  - YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery. `mcp__cicada__query`
+  - DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query. `mcp__cicada__search_module`
+  - DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query. `mcp__cicada__search_function`
+  - UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history. `mcp__cicada__git_history`
+  - ANALYSIS TOOL: Find potentially unused public functions with confidence levels. `mcp__cicada__find_dead_code`
+  - DRILL-DOWN TOOL: Expand a query result to see complete details. `mcp__cicada__expand_result`
+  - ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration. `mcp__cicada__query_jq`
 
   ### DO NOT use Grep for:
   - ❌ Searching for module structure
@@ -881,3 +919,4 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
