@@ -169,7 +169,7 @@ def get_mcp_config_for_editor(
             "needs_dir": True,
         },
         "gemini": {
-            "config_path": repo_path / ".gemini" / "mcp.json",
+            "config_path": repo_path / ".gemini" / "settings.json",
             "config_key": "mcpServers",
             "needs_dir": True,
         },

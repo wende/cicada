@@ -57,7 +57,7 @@ EDITOR_SPECS: tuple[EditorSpec, ...] = (
         cli_help="Setup Cicada for Gemini CLI",
         cli_description="One-command setup for Gemini CLI with keyword extraction",
         prompt_label="Gemini CLI (Google Gemini command line interface)",
-        config_relpath=Path(".gemini") / "mcp.json",
+        config_relpath=Path(".gemini") / "settings.json",
         config_key="mcpServers",
         needs_dir=True,
     ),
