@@ -594,6 +594,28 @@ class ModuleFormatter:
         if func.get("examples"):
             lines.extend(["", "Examples:", "", func["examples"]])
 
+        # Display comment sources if available
+        comment_sources = result.get("comment_sources", [])
+        if comment_sources:
+            lines.extend(["", "Inline comments:"])
+            for comment_info in comment_sources[:5]:  # Limit to 5
+                comment_text = comment_info["comment"]
+                comment_line = comment_info["line"]
+                # Truncate very long comments
+                if len(comment_text) > 100:
+                    comment_text = comment_text[:97] + "..."
+                # Handle multi-line comments (from merged blocks)
+                if "\n" in comment_text:
+                    # Show first line only for multi-line comments
+                    first_line = comment_text.split("\n")[0]
+                    if len(first_line) > 100:
+                        first_line = first_line[:97] + "..."
+                    lines.append(f'   • "# {first_line}..." (:{comment_line})')
+                else:
+                    lines.append(f'   • "# {comment_text}" (:{comment_line})')
+            if len(comment_sources) > 5:
+                lines.append(f"   ... and {len(comment_sources) - 5} more comments")
+
         if func.get("guards"):
             guards_str = ", ".join(func["guards"])
             if single_result:
@@ -1136,8 +1158,14 @@ If this function was deleted:
                         kw_with_sources.append(kw + " (in docs)")
                     elif source == "strings":
                         kw_with_sources.append(kw + " (in strings)")
+                    elif source == "comments":
+                        kw_with_sources.append(kw + " (in comments)")
                     elif source == "both":
+                        # Backward compatibility for old "both" format
                         kw_with_sources.append(kw + " (in docs+strings)")
+                    elif source and "+" in source:
+                        # New combined format: docs+strings+comments
+                        kw_with_sources.append(kw + f" (in {source})")
                     else:
                         kw_with_sources.append(kw)
                 lines.append("Matched keywords: " + ", ".join(kw_with_sources))

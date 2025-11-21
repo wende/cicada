@@ -29,10 +29,16 @@ class KeywordSearcher:
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
-            match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
+            match_source: Filter by keyword source ('all', 'docs', 'strings', 'comments'). Defaults to 'all'.
             cochange_boost: Boost factor for co-change relationships (0.0 to disable). Defaults to 0.5.
         """
         self.index = index
+
+        # Validate match_source
+        valid_sources = ["all", "docs", "strings", "comments"]
+        if match_source not in valid_sources:
+            raise ValueError(f"match_source must be one of {valid_sources}, got '{match_source}'")
+
         self.match_source = match_source
         self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
@@ -47,19 +53,23 @@ class KeywordSearcher:
                 self.cooccurrence_analyzer = CooccurrenceAnalyzer(index)
 
     def _merge_keywords(
-        self, doc_keywords: dict | list | None, string_keywords: dict | list | None
+        self,
+        doc_keywords: dict | list | None,
+        string_keywords: dict | list | None,
+        comment_keywords: dict | list | None = None,
     ) -> tuple[dict[str, float], dict[str, str]]:
         """
-        Merge documentation and string keywords based on match_source filter.
+        Merge documentation, string, and comment keywords based on match_source filter.
 
         Args:
             doc_keywords: Keywords from documentation (dict or list)
             string_keywords: Keywords from string literals (dict or list)
+            comment_keywords: Keywords from inline comments (dict or list)
 
         Returns:
             Tuple of (merged_keywords_dict, keyword_sources_dict) where:
             - merged_keywords_dict: Combined keywords with scores
-            - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', or 'both')
+            - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', 'comments', or combinations)
         """
         # Normalize to dict format
         doc_kw_dict = {}
@@ -76,6 +86,13 @@ class KeywordSearcher:
             else:
                 string_kw_dict = {k.lower(): v for k, v in string_keywords.items()}
 
+        comment_kw_dict = {}
+        if comment_keywords:
+            if isinstance(comment_keywords, list):
+                comment_kw_dict = {kw.lower(): 1.0 for kw in comment_keywords}
+            else:
+                comment_kw_dict = {k.lower(): v for k, v in comment_keywords.items()}
+
         # Filter and merge based on match_source
         merged = {}
         sources = {}
@@ -86,18 +103,34 @@ class KeywordSearcher:
         elif self.match_source == "strings":
             merged = string_kw_dict
             sources = dict.fromkeys(string_kw_dict, "strings")
+        elif self.match_source == "comments":
+            merged = comment_kw_dict
+            sources = dict.fromkeys(comment_kw_dict, "comments")
         else:  # 'all'
-            # Merge both, keeping higher score for duplicates
+            # Merge all three, keeping higher score for duplicates and tracking sources
             for k, v in doc_kw_dict.items():
                 merged[k] = v
                 sources[k] = "docs"
             for k, v in string_kw_dict.items():
                 if k in merged:
                     merged[k] = max(merged[k], v)
-                    sources[k] = "both"
+                    # Update source to show it appears in multiple places
+                    if sources[k] == "docs":
+                        sources[k] = "docs+strings"
+                    else:
+                        sources[k] += "+strings"
                 else:
                     merged[k] = v
                     sources[k] = "strings"
+            for k, v in comment_kw_dict.items():
+                if k in merged:
+                    merged[k] = max(merged[k], v)
+                    # Update source to show it appears in multiple places
+                    if "comments" not in sources[k]:
+                        sources[k] += "+comments"
+                else:
+                    merged[k] = v
+                    sources[k] = "comments"
 
         return merged, sources
 
@@ -129,9 +162,11 @@ class KeywordSearcher:
         self, module_name: str, module_data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a module."""
-        # Merge doc keywords and string keywords based on match_source
+        # Merge doc keywords, string keywords, and comment keywords based on match_source
         keywords_dict, keyword_sources = self._merge_keywords(
-            module_data.get("keywords"), module_data.get("string_keywords")
+            module_data.get("keywords"),
+            module_data.get("string_keywords"),
+            module_data.get("comment_keywords"),
         )
 
         # Skip if no keywords after filtering
@@ -183,9 +218,11 @@ class KeywordSearcher:
         self, module_name: str, module_data: dict[str, Any], func: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a function."""
-        # Merge doc keywords and string keywords based on match_source
+        # Merge doc keywords, string keywords, and comment keywords based on match_source
         keywords_dict, keyword_sources = self._merge_keywords(
-            func.get("keywords"), func.get("string_keywords")
+            func.get("keywords"),
+            func.get("string_keywords"),
+            func.get("comment_keywords"),
         )
 
         # Skip if no keywords after filtering
@@ -216,6 +253,10 @@ class KeywordSearcher:
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
+
+        # Include comment sources if available and relevant
+        if func.get("comment_sources") and self.match_source in ["all", "comments"]:
+            document["comment_sources"] = func["comment_sources"]
 
         # Include timestamp fields if available
         if func.get("last_modified_at"):

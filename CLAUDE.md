@@ -141,6 +141,8 @@ When adding or modifying storage-related functionality:
 
 Cicada supports indexing string literals from function bodies in addition to documentation keywords. This allows searching for code based on actual strings used in the implementation (e.g., SQL queries, error messages, log messages, API endpoints).
 
+**Note**: Cicada also indexes inline comments (`# ...`) by default. Comment keywords receive a 1.2x boost and are searchable via `match_source="comments"`. Comments are associated with their containing or following function.
+
 ### How It Works
 
 1. **String Extraction:**
@@ -184,7 +186,7 @@ Use the `match_source` parameter to filter search results:
 ```python
 from cicada.keyword_search import KeywordSearcher
 
-# Search both docs and strings (default)
+# Search all sources (default): docs + strings + comments
 searcher = KeywordSearcher(index, match_source="all")
 
 # Search only documentation keywords
@@ -192,6 +194,9 @@ searcher = KeywordSearcher(index, match_source="docs")
 
 # Search only string literal keywords
 searcher = KeywordSearcher(index, match_source="strings")
+
+# Search only inline comments
+searcher = KeywordSearcher(index, match_source="comments")
 
 results = searcher.search(["database", "query"], top_n=10)
 ```
@@ -202,8 +207,8 @@ The `search_by_features` MCP tool now supports `match_source`:
 
 ```json
 {
-  "keywords": ["SELECT", "users", "database"],
-  "match_source": "strings",  // Search string literals only
+  "keywords": ["TODO", "validation"],
+  "match_source": "comments",  // Search inline comments only
   "filter_type": "functions"
 }
 ```
@@ -241,17 +246,18 @@ The `search_by_features` MCP tool now supports `match_source`:
 {
   "name": "fetch_all",
   "keywords": {"fetch": 0.9, "user": 0.8},  // From @doc
-  "string_keywords": {                       // NEW: From function's strings
+  "string_keywords": {                       // From function's strings (1.3x boost)
     "select": 1.17,
     "users": 1.04,
     "active": 0.91
   },
-  "string_sources": [                        // NEW: Strings in this function
-    {
-      "string": "SELECT * FROM users WHERE active = true",
-      "line": 42,
-      "function": "fetch_all"
-    }
+  "string_sources": [...],
+  "comment_keywords": {                      // From inline comments (1.2x boost)
+    "TODO": 1.08,
+    "optimize": 0.96
+  },
+  "comment_sources": [
+    {"comment": "TODO: Optimize query performance", "line": 40}
   ]
 }
 ```

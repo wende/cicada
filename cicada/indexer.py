@@ -433,6 +433,22 @@ class ElixirIndexer:
                     print("Continuing without string keyword extraction...")
                 extract_string_keywords = False
 
+        # Initialize comment extractor (enabled by default with keyword extraction)
+        comment_extractor = None
+        extract_comment_keywords = extract_keywords  # Same as keyword extraction flag
+        if extract_comment_keywords:
+            try:
+                from cicada.elixir.extractors import CommentExtractor
+
+                comment_extractor = CommentExtractor(min_length=3, merge_consecutive=True)
+                if self.verbose:
+                    print("Comment keyword extraction enabled")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not initialize comment extractor: {e}")
+                    print("Continuing without comment keyword extraction...")
+                extract_comment_keywords = False
+
         # Initialize git helper if timestamps are requested
         git_helper = None
         if compute_timestamps:
@@ -815,6 +831,123 @@ class ElixirIndexer:
                                 if self.verbose:
                                     print(
                                         f"Warning: String keyword extraction failed for module {module_name}: {e}",
+                                        file=sys.stderr,
+                                    )
+
+                        # Extract comment keywords if enabled
+                        if comment_extractor and keyword_extractor:
+                            try:
+                                # Re-parse file to extract comments (need AST access)
+                                import tree_sitter_elixir as ts_elixir
+                                from tree_sitter import Language, Parser
+
+                                with open(file_path, "rb") as f:
+                                    source_code = f.read()
+
+                                ts_parser = Parser(Language(ts_elixir.language()))
+                                tree = ts_parser.parse(source_code)
+
+                                # Find the module node
+                                from cicada.elixir.extractors import extract_modules
+
+                                parsed_modules = extract_modules(tree.root_node, source_code)
+                                if parsed_modules:
+                                    for parsed_mod in parsed_modules:
+                                        if parsed_mod["module"] == module_name:
+                                            do_block = parsed_mod.get("do_block")
+                                            if do_block:
+                                                # Extract comments from module, associating with functions
+                                                function_comments_map = (
+                                                    comment_extractor.extract_from_module(
+                                                        do_block, source_code, functions
+                                                    )
+                                                )
+
+                                                # Process each function's comments
+                                                for func in functions:
+                                                    func_name = func.get("name")
+                                                    if func_name in function_comments_map:
+                                                        func_comment_sources = (
+                                                            function_comments_map[func_name]
+                                                        )
+
+                                                        # Extract keywords from comments
+                                                        combined_text = " ".join(
+                                                            [
+                                                                c["comment"]
+                                                                for c in func_comment_sources
+                                                            ]
+                                                        )
+
+                                                        extraction_result = (
+                                                            keyword_extractor.extract_keywords(
+                                                                combined_text, top_n=10
+                                                            )
+                                                        )
+                                                        extracted_keywords = [
+                                                            kw
+                                                            for kw, _ in extraction_result[
+                                                                "top_keywords"
+                                                            ]
+                                                        ]
+                                                        keyword_scores = {
+                                                            kw.lower(): score
+                                                            * 1.2  # 1.2x boost for comments
+                                                            for kw, score in extraction_result[
+                                                                "top_keywords"
+                                                            ]
+                                                        }
+
+                                                        # Store extracted comment keywords (pre-expansion)
+                                                        func["extracted_comment_keywords"] = (
+                                                            keyword_scores
+                                                        )
+
+                                                        # Expand keywords
+                                                        if keyword_expander and extracted_keywords:
+                                                            expansion_result = keyword_expander.expand_keywords(
+                                                                extracted_keywords,
+                                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
+                                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                                                                return_scores=True,
+                                                                keyword_scores=keyword_scores,
+                                                            )
+                                                            func_comment_keywords = {}
+                                                            assert isinstance(
+                                                                expansion_result, dict
+                                                            )
+                                                            for item in expansion_result["words"]:
+                                                                word = item["word"]
+                                                                score = item["score"]
+                                                                if (
+                                                                    word
+                                                                    not in func_comment_keywords
+                                                                    or score
+                                                                    > func_comment_keywords[word]
+                                                                ):
+                                                                    func_comment_keywords[word] = (
+                                                                        score
+                                                                    )
+                                                        else:
+                                                            func_comment_keywords = keyword_scores
+
+                                                        if func_comment_keywords:
+                                                            func["comment_keywords"] = (
+                                                                func_comment_keywords
+                                                            )
+
+                                                        # Store comment sources
+                                                        func["comment_sources"] = (
+                                                            func_comment_sources
+                                                        )
+
+                                            break
+
+                            except Exception as e:
+                                keyword_extraction_failures += 1
+                                if self.verbose:
+                                    print(
+                                        f"Warning: Comment keyword extraction failed for module {module_name}: {e}",
                                         file=sys.stderr,
                                     )
 
