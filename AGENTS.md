@@ -45,7 +45,7 @@ CICADA creates the following configuration files for each editor:
 | Claude Code | `.mcp.json` | Project root |
 | Cursor | `mcp.json` | `.cursor/` directory |
 | VS Code | `settings.json` | `.vscode/` directory |
-| Gemini CLI | `mcp.json` | `.gemini/` directory |
+| Gemini CLI | `settings.json` | `.gemini/` directory |
 | Codex | `mcp.json` | `.codex/` directory |
 
 ## Release Process
