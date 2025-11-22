@@ -698,7 +698,7 @@ end
         monkeypatch.setattr(indexer.parser, "parse_file", mock_parse)
 
         output_path = tmp_path / ".cicada" / "index.json"
-        index = indexer.incremental_index_repository(str(tmp_path), str(output_path))
+        indexer.incremental_index_repository(str(tmp_path), str(output_path))
 
         # Should save partial progress
         captured = capsys.readouterr()
