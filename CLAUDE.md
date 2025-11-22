@@ -1179,7 +1179,7 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
 - Include type hints where appropriate
 - Write tests for new features
 - Keep functions focused and modular
-- Use make to run tests
+- **ALWAYS use `make test` for running tests** - Never use `pytest` or `uv run pytest` directly
 - Always use uv to run any python commands. Don't just run python without that
 - Don't use --no-verify unless explicitly asked
 - There is no such thing as unrelated tests. They need to pass before commit
