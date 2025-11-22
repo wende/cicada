@@ -748,6 +748,7 @@ class ModuleFormatter:
         staleness_info: dict | None = None,
         show_relationships: bool = True,
         language: str = "elixir",
+        private_suggestion: str | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -758,6 +759,7 @@ class ModuleFormatter:
             staleness_info: Optional staleness info (is_stale, age_str)
             show_relationships: Whether to show relationship information (what this calls / what calls this)
             language: Programming language for formatting function identifiers
+            private_suggestion: Optional suggestion for private function pattern
 
         Returns:
             Formatted Markdown string
@@ -776,8 +778,33 @@ class ModuleFormatter:
                     f"   Please ask the user to run: cicada index\n"
                 )
 
-            error_parts.append(
-                f"""Function Not Found
+            # Add private function suggestion if available
+            if private_suggestion:
+                error_parts.append(
+                    f"""Function Not Found
+
+**Query:** `{function_name}`
+
+## Did you mean private functions?
+
+  • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
+
+No public functions match this pattern, but private functions do.
+
+## Other suggestions:
+
+  • Search without arity: `{func_only}` (if you used /{'{arity}'})
+  • Search without module: `{func_only}` (searches all modules)
+  • Wildcard search: `*{func_only}*` or `{func_only}*`
+  • Semantic search: query(['{func_only.lower()}'])
+  • Check spelling (function names are case-sensitive)
+
+Tip: If you're exploring code, try query first to discover functions by what they do.
+"""
+                )
+            else:
+                error_parts.append(
+                    f"""Function Not Found
 
 **Query:** `{function_name}`
 
@@ -798,7 +825,7 @@ If this function was deleted:
   • Search git history for the function name
   • Find what replaced it: query(['<concept>'])
 """
-            )
+                )
 
             return "\n".join(error_parts)
 

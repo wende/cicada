@@ -646,6 +646,41 @@ class FunctionSearchHandler:
         # For now, we'll skip this or pass it from server
         staleness_info = None
 
+        # If no results found, check if there are private functions that match
+        private_suggestion = None
+        if not results and parsed_patterns:
+            # Try adding _ prefix to each pattern's function name
+            for pattern in parsed_patterns:
+                if pattern.name and not pattern.name.startswith("_") and "*" in pattern.name:
+                    # Try with underscore prefix
+                    private_pattern_str = f"_{pattern.name}"
+                    if pattern.module:
+                        # Reconstruct full pattern: Module._func*
+                        module_part = (
+                            pattern.module.replace("*.", "", 1)
+                            if pattern.module.startswith("*.")
+                            else pattern.module
+                        )
+                        private_pattern_str = f"{module_part}._{pattern.name}"
+                    if pattern.arity is not None:
+                        private_pattern_str += f"/{pattern.arity}"
+
+                    # Quick check: do any private functions match?
+                    private_patterns = parse_function_patterns(private_pattern_str)
+                    for mod_name, mod_data in self.index["modules"].items():
+                        for func in mod_data["functions"]:
+                            if any(
+                                p.matches(mod_name, mod_data["file"], func)
+                                for p in private_patterns
+                            ):
+                                # Found at least one match
+                                private_suggestion = private_pattern_str
+                                break
+                        if private_suggestion:
+                            break
+                if private_suggestion:
+                    break
+
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")
 
@@ -654,7 +689,7 @@ class FunctionSearchHandler:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, what_it_calls, language
+                function_name, results, staleness_info, what_it_calls, language, private_suggestion
             )
 
         return [TextContent(type="text", text=result)]
