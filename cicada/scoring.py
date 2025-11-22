@@ -270,8 +270,12 @@ def _calculate_per_score_metrics(
         z_score = (score - mean) / std_dev if std_dev > 0 else 0.0
 
         # Calculate percentile (what % of scores are below this) - O(1) lookup
-        rank = score_to_rank[score]
-        percentile = (rank / n) * 100
+        if score_range > 0:
+            rank = score_to_rank[score]
+            percentile = (rank / n) * 100
+        else:
+            # All scores identical - assign median percentile
+            percentile = 50.0
 
         # Calculate normalized score (0-1 range)
         if score_range > 0:
@@ -358,8 +362,8 @@ def grade_by_z_score(z_score: float) -> dict[str, Any]:
     Uses standard normal distribution thresholds to categorize statistical significance:
     - Exceptional: z > 2σ (above 97.7th percentile, >2 standard deviations above mean)
     - Highly Relevant: 1σ < z ≤ 2σ (between 84th-97.7th percentile, 1-2 std devs above mean)
-    - Above Average: 0 < z ≤ 1σ (between 50th-84th percentile, 0-1 std devs above mean)
-    - Below Average: -1σ < z ≤ 0 (between 16th-50th percentile, 0-1 std devs below mean)
+    - Above Average: 0 ≤ z ≤ 1σ (between 50th-84th percentile, at or above mean)
+    - Below Average: -1σ < z < 0 (between 16th-50th percentile, below mean)
     - Poor: z ≤ -1σ (below 16th percentile, >1 std dev below mean)
 
     Args:
@@ -395,11 +399,11 @@ def grade_by_z_score(z_score: float) -> dict[str, Any]:
             "description": "Top ~16% - Significantly above average",
             "rank": 2,
         }
-    elif z_score > Z_SCORE_MEAN_THRESHOLD:
+    elif z_score >= Z_SCORE_MEAN_THRESHOLD:
         return {
             "tier": "above_average",
             "label": "Above Average",
-            "description": "Top 50% - Better than average",
+            "description": "Top 50% - At or above average",
             "rank": 3,
         }
     elif z_score > Z_SCORE_POOR_THRESHOLD:
