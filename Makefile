@@ -186,8 +186,13 @@ reset: clean
 # Display all comments from PR for current branch
 pr-comments:
 	@echo "Fetching PR comments for current branch..."
-	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ]; then \
+	@set -e; \
+	if ! command -v gh >/dev/null 2>&1; then \
+		echo "Error: 'gh' (GitHub CLI) is not installed. Please install it to use this command."; \
+		exit 1; \
+	fi; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ] || [ "$$BRANCH" = "master" ]; then \
 		echo "Error: Not on a feature branch (currently on $$BRANCH)"; \
 		exit 1; \
 	fi; \
@@ -205,16 +210,19 @@ pr-comments:
 	echo "REGULAR PR COMMENTS"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh pr view $$PR_NUMBER --json comments --jq '.comments[] | select(.isMinimized == false) | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No regular comments found."; \
+	COMMENTS=$$(gh pr view $$PR_NUMBER --json comments --jq '[.comments[]? // empty | select(.isMinimized == false)] | if length > 0 then .[] | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No regular comments found.\n" end'); \
+	echo "$$COMMENTS"; \
 	echo ""; \
 	echo "================================================================================"; \
 	echo "REVIEW SUMMARIES"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[] | select(.body != "" and (.isMinimized == false or .isMinimized == null)) | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No review summaries found."; \
+	REVIEWS=$$(gh pr view $$PR_NUMBER --json reviews --jq '[.reviews[]? // empty | select(.body != "" and (.isMinimized == false or .isMinimized == null))] | if length > 0 then .[] | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No review summaries found.\n" end'); \
+	echo "$$REVIEWS"; \
 	echo ""; \
 	echo "================================================================================"; \
 	echo "REVIEW COMMENTS (Line-level code comments)"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --paginate --jq '.[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No review comments found."
+	REVIEW_COMMENTS=$$(gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --paginate --jq '[.[] | select(.outdated != true)] | if length > 0 then .[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No active review comments found (all may be outdated or resolved).\n" end'); \
+	echo "$$REVIEW_COMMENTS"
