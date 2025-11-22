@@ -36,7 +36,7 @@ def _format_error_sections(prefix: str, error: Exception, sections: dict[str, li
 class AnalysisHandler:
     """Handler for analysis-related tools (keyword search, dead code detection)."""
 
-    def __init__(self, index_manager: Any):
+    def __init__(self, index_manager: "IndexManager"):
         """
         Initialize the analysis handler.
 
