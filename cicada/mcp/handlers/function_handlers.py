@@ -538,7 +538,9 @@ class FunctionSearchHandler:
 
         return private_pattern
 
-    def _has_matching_private_function(self, private_pattern_str: str) -> bool:
+    def _has_matching_private_function(
+        self, private_pattern_str: str, cutoff_date: datetime | None
+    ) -> bool:
         """
         Check if any private functions match the given pattern.
 
@@ -552,13 +554,33 @@ class FunctionSearchHandler:
 
         for module_name, module_data in self.index["modules"].items():
             for func in module_data["functions"]:
-                if any(p.matches(module_name, module_data["file"], func) for p in private_patterns):
-                    return True
+                if not any(
+                    p.matches(module_name, module_data["file"], func)
+                    for p in private_patterns
+                ):
+                    continue
+
+                if cutoff_date:
+                    func_modified = func.get("last_modified_at")
+                    if not func_modified:
+                        continue
+
+                    func_modified_dt = datetime.fromisoformat(func_modified)
+                    if func_modified_dt.tzinfo is None:
+                        func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+
+                    if func_modified_dt < cutoff_date:
+                        continue
+
+                return True
 
         return False
 
     def _suggest_private_function(
-        self, results: list, parsed_patterns: list[FunctionPattern]
+        self,
+        results: list,
+        parsed_patterns: list[FunctionPattern],
+        cutoff_date: datetime | None,
     ) -> str | None:
         """
         Suggest a private function pattern if no public functions were found.
@@ -579,7 +601,7 @@ class FunctionSearchHandler:
 
             private_pattern = self._build_private_pattern_string(pattern)
 
-            if self._has_matching_private_function(private_pattern):
+            if self._has_matching_private_function(private_pattern, cutoff_date):
                 return private_pattern
 
         return None
@@ -723,7 +745,9 @@ class FunctionSearchHandler:
         staleness_info = None
 
         # If no results found, check if there are private functions that match
-        private_suggestion = self._suggest_private_function(results, parsed_patterns)
+        private_suggestion = self._suggest_private_function(
+            results, parsed_patterns, cutoff_date
+        )
 
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")

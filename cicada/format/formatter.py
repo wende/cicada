@@ -778,37 +778,27 @@ class ModuleFormatter:
                     f"   Please ask the user to run: cicada index\n"
                 )
 
-            # Add private function suggestion if available
-            if private_suggestion:
-                error_parts.append(
-                    f"""Function Not Found
+            error_parts.append(
+                f"""Function Not Found
 
 **Query:** `{function_name}`
+"""
+            )
 
-## Did you mean private functions?
+            if private_suggestion:
+                error_parts.append(
+                    f"""## Did you mean private functions?
 
   • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
 
 No public functions match this pattern, but private functions do.
-
-## Other suggestions:
-
-  • Search without arity: `{func_only}` (if you used /{'{arity}'})
-  • Search without module: `{func_only}` (searches all modules)
-  • Wildcard search: `*{func_only}*` or `{func_only}*`
-  • Semantic search: query(['{func_only.lower()}'])
-  • Check spelling (function names are case-sensitive)
-
-Tip: If you're exploring code, try query first to discover functions by what they do.
 """
                 )
-            else:
-                error_parts.append(
-                    f"""Function Not Found
 
-**Query:** `{function_name}`
+            suggestions_header = "## Other suggestions:" if private_suggestion else "## Try:"
 
-## Try:
+            error_parts.append(
+                f"""{suggestions_header}
 
   • Search without arity: `{func_only}` (if you used /{'{arity}'})
   • Search without module: `{func_only}` (searches all modules)
@@ -825,7 +815,7 @@ If this function was deleted:
   • Search git history for the function name
   • Find what replaced it: query(['<concept>'])
 """
-                )
+            )
 
             return "\n".join(error_parts)
 
