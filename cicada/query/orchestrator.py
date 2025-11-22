@@ -54,9 +54,44 @@ class QueryOrchestrator:
         # If no timestamp available, exclude from "recent" filter
         return False
 
+    def _tokenize_query(self, query: str) -> list[str]:
+        """
+        Tokenize a query string into individual keywords.
+
+        Supports quoted phrases for exact matching:
+        - "agent execution" → ["agent", "execution"]
+        - '"exact phrase" other' → ["exact phrase", "other"]
+        - "agent" → ["agent"]
+
+        Args:
+            query: Query string
+
+        Returns:
+            List of keywords/phrases
+        """
+        import shlex
+
+        try:
+            # Use shlex to handle quoted phrases
+            tokens = shlex.split(query)
+        except ValueError:
+            # If shlex fails (unmatched quotes), fall back to simple split
+            tokens = query.split()
+
+        return [t.strip() for t in tokens if t.strip()]
+
     def _analyze_query(self, query: str | list[str]) -> QueryStrategy:
         """
         Analyze query to determine search strategy.
+
+        String queries are tokenized by whitespace (supports quoted phrases).
+        Each token is analyzed separately as either a pattern or keyword.
+
+        Examples:
+        - "agent execution" → ["agent", "execution"] (two keywords)
+        - ["agent", "execution"] → ["agent", "execution"] (two keywords)
+        - '"agent execution"' → ["agent execution"] (one exact phrase keyword)
+        - "ThenvoiCom.Agent*" → pattern search
 
         Args:
             query: Query string or list of query strings
@@ -64,7 +99,8 @@ class QueryOrchestrator:
         Returns:
             QueryStrategy with search configuration
         """
-        queries = [query] if isinstance(query, str) else query
+        # Tokenize string queries into keywords
+        queries = self._tokenize_query(query) if isinstance(query, str) else query
 
         use_keyword_search = False
         use_pattern_search = False

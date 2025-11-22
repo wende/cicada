@@ -94,6 +94,75 @@ class TestPartialModuleMatching:
         # Should not match partial module names
         assert not pattern.matches("MyApp.UserContext", "lib/file.ex", func)
 
+    def test_prefix_matching_with_wildcard_suffix(self):
+        """Test that *.Prefix.* matches modules with Prefix as a component."""
+        from cicada.mcp.pattern_utils import matches_pattern
+
+        # Test *.ThenvoiCom.Agents matches both suffix and prefix
+        pattern = "*.ThenvoiCom.Agents"
+
+        # Should match exact
+        assert matches_pattern(pattern, "ThenvoiCom.Agents")
+
+        # Should match with prefix
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.Agents")
+
+        # Should match with suffix (prefix matching)
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.AgentExecutor")
+
+        # Should match with both prefix and suffix
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.Agents.AgentExecutor")
+
+    def test_wildcard_in_suffix_pattern(self):
+        """Test that *.Prefix* with wildcard in suffix works correctly."""
+        from cicada.mcp.pattern_utils import matches_pattern
+
+        pattern = "*.ThenvoiCom.Agent*"
+
+        # Should match modules starting with ThenvoiCom.Agent
+        assert matches_pattern(pattern, "ThenvoiCom.AgentExecutor")
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.Module")
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.AgentService")
+
+        # Should also match nested patterns
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.AgentModule")
+
+        # Should not match modules not starting with ThenvoiCom.Agent
+        assert not matches_pattern(pattern, "ThenvoiCom.Context")
+        assert not matches_pattern(pattern, "MyApp.Context")
+
+    def test_nested_wildcard_pattern_matching(self):
+        """Test complex nested wildcard patterns."""
+        from cicada.mcp.pattern_utils import matches_pattern
+
+        # Pattern with wildcard at the end
+        pattern = "*.Agents.*"
+
+        # Should match modules with Agents as a component
+        assert matches_pattern(pattern, "Agents.Something")
+        assert matches_pattern(pattern, "MyApp.Agents.AgentExecutor")
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.Module")
+
+        # Should match Agents followed by anything
+        assert matches_pattern(pattern, "Agents.Sub.Module")
+
+        # Should not match modules without Agents
+        assert not matches_pattern(pattern, "MyApp.Context")
+
+    def test_double_wildcard_pattern(self):
+        """Test patterns with wildcards in both prefix and suffix."""
+        from cicada.mcp.pattern_utils import matches_pattern
+
+        pattern = "*.Agent*.Sub*"
+
+        # Should match complex nested patterns
+        assert matches_pattern(pattern, "AgentExecutor.Subsystem")
+        assert matches_pattern(pattern, "MyApp.AgentService.Submodule")
+
+        # Should not match patterns that don't have the structure
+        assert not matches_pattern(pattern, "MyApp.Context.Other")
+        assert not matches_pattern(pattern, "Agent.Other")
+
 
 @pytest.mark.asyncio
 async def test_search_module_with_partial_name(tmp_path):
