@@ -783,11 +783,17 @@ end
         assert len(strategy.search_keywords) == 2
 
     def test_string_tokenization_mixed_patterns_and_keywords(self):
-        """Test that tokenization works with patterns and keywords mixed."""
+        """Test that mixed patterns and keywords require array syntax."""
         index = {"modules": {}}
         orchestrator = QueryOrchestrator(index)
 
+        # String with pattern syntax is NOT tokenized (to avoid breaking the pattern)
         strategy = orchestrator._analyze_query("auth verify MyApp.Auth.*")
+        assert strategy.use_pattern_search is True
+        assert "auth verify MyApp.Auth.*" in strategy.search_patterns
+
+        # To mix patterns and keywords, use array syntax
+        strategy = orchestrator._analyze_query(["auth", "verify", "MyApp.Auth.*"])
         assert strategy.use_keyword_search is True
         assert strategy.use_pattern_search is True
         assert "auth" in strategy.search_keywords
@@ -802,6 +808,65 @@ end
         # Should match items with both "auth" and "token" keywords
         # verify_token has both keywords
         assert "verify_token" in result
+
+    def test_or_pattern_not_tokenized(self):
+        """Test that OR patterns with spaces are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # OR pattern with spaces should NOT be tokenized
+        strategy = orchestrator._analyze_query("login | auth")
+        assert strategy.use_pattern_search is True
+        assert "login | auth" in strategy.search_patterns
+        # Should NOT create separate keywords
+        assert "login" not in strategy.search_keywords
+        assert "|" not in strategy.search_patterns  # Bare | would match everything
+        assert "auth" not in strategy.search_keywords
+
+    def test_or_pattern_without_spaces_not_tokenized(self):
+        """Test that OR patterns without spaces are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query("login|auth")
+        assert strategy.use_pattern_search is True
+        assert "login|auth" in strategy.search_patterns
+
+    def test_wildcard_pattern_not_tokenized(self):
+        """Test that wildcard patterns are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # Wildcards should prevent tokenization
+        strategy = orchestrator._analyze_query("create* user")
+        assert strategy.use_pattern_search is True
+        assert "create* user" in strategy.search_patterns
+        # Should NOT tokenize into separate terms
+        assert "create*" not in strategy.search_keywords
+        assert "user" not in strategy.search_keywords
+
+    def test_module_qualifier_not_tokenized(self):
+        """Test that module qualifiers prevent tokenization."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # Module qualifier should prevent tokenization
+        strategy = orchestrator._analyze_query("MyApp.User create")
+        assert strategy.use_pattern_search is True
+        assert "MyApp.User create" in strategy.search_patterns
+
+    def test_plain_keywords_still_tokenized(self):
+        """Test that plain keywords without pattern syntax are still tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # No pattern syntax, should tokenize
+        strategy = orchestrator._analyze_query("agent execution context")
+        assert strategy.use_keyword_search is True
+        assert "agent" in strategy.search_keywords
+        assert "execution" in strategy.search_keywords
+        assert "context" in strategy.search_keywords
+        assert strategy.use_pattern_search is False
 
     # ============================================================
     # Wildcard Pattern Matching Tests

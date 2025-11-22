@@ -83,14 +83,16 @@ class QueryOrchestrator:
         """
         Analyze query to determine search strategy.
 
-        String queries are tokenized by whitespace (supports quoted phrases).
-        Each token is analyzed separately as either a pattern or keyword.
+        String queries are tokenized by whitespace (supports quoted phrases),
+        UNLESS they contain pattern syntax (wildcards, OR, module qualifiers),
+        in which case they are preserved as-is to avoid breaking patterns.
 
         Examples:
         - "agent execution" → ["agent", "execution"] (two keywords)
         - ["agent", "execution"] → ["agent", "execution"] (two keywords)
         - '"agent execution"' → ["agent execution"] (one exact phrase keyword)
-        - "ThenvoiCom.Agent*" → pattern search
+        - "login | auth" → ["login | auth"] (OR pattern, not tokenized)
+        - "ThenvoiCom.Agent*" → ["ThenvoiCom.Agent*"] (wildcard pattern, not tokenized)
 
         Args:
             query: Query string or list of query strings
@@ -98,8 +100,21 @@ class QueryOrchestrator:
         Returns:
             QueryStrategy with search configuration
         """
-        # Tokenize string queries into keywords
-        queries = self._tokenize_query(query) if isinstance(query, str) else query
+        # For string queries, check if they contain pattern syntax before tokenizing
+        if isinstance(query, str):
+            # Detect pattern syntax that would break if tokenized
+            has_pattern_syntax = (
+                "|" in query  # OR patterns
+                or "*" in query  # Wildcards
+                or "/" in query  # Arity specs
+                or (":" in query and (".ex" in query or ".exs" in query))  # File paths
+                or (query and query[0].isupper() and "." in query)  # Module qualifiers
+            )
+
+            # If pattern syntax detected, don't tokenize to preserve the pattern
+            queries = [query] if has_pattern_syntax else self._tokenize_query(query)
+        else:
+            queries = query
 
         use_keyword_search = False
         use_pattern_search = False
