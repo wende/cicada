@@ -130,6 +130,8 @@ pre-commit: install
 	@echo "Running black formatter..."
 	@uv run black .
 	@git add -u
+	@echo "Generating SCIP protobuf files..."
+	@$(MAKE) generate-scip-proto
 	@echo "Running linter..."
 	@FAILED=0; \
 	echo "Running ruff linter..."; \
@@ -141,7 +143,6 @@ pre-commit: install
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \
 	exit $$FAILED
-	@$(MAKE) generate-scip-proto
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80

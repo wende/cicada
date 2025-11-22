@@ -211,10 +211,19 @@ class FunctionSearchHandler:
             # Collect all dependencies (module-level and function-level)
             all_dependencies = []
 
-            # Add module-level dependencies (for Elixir compatibility)
-            for dep in module_data.get("dependencies", []):
-                if isinstance(dep, dict):  # Skip string-only dependencies
-                    all_dependencies.append(dep)
+            # Add module-level dependencies
+            # Handle both list format (new) and dict format (old Python indexes)
+            module_deps = module_data.get("dependencies", [])
+            if isinstance(module_deps, dict):
+                # Old format: {"modules": [...], "has_dynamic_calls": bool}
+                # Convert to list of dicts for consistency
+                for mod in module_deps.get("modules", []):
+                    all_dependencies.append({"module": mod})
+            elif isinstance(module_deps, list):
+                # New format: list of dependency dicts
+                for dep in module_deps:
+                    if isinstance(dep, dict):  # Skip string-only dependencies
+                        all_dependencies.append(dep)
 
             # Add function-level dependencies (for Python/SCIP)
             for func in module_data.get("functions", []):
