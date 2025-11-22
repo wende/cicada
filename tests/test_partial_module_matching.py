@@ -95,7 +95,7 @@ class TestPartialModuleMatching:
         assert not pattern.matches("MyApp.UserContext", "lib/file.ex", func)
 
     def test_prefix_matching_with_wildcard_suffix(self):
-        """Test that *.Prefix matches modules with Prefix as a component."""
+        """Test that *.Prefix matches modules when Prefix is a path component."""
         # Test *.ThenvoiCom.Agents matches both suffix and prefix
         pattern = "*.ThenvoiCom.Agents"
 

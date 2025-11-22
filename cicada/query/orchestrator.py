@@ -14,7 +14,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cicada.keyword_search import KeywordSearcher
-from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
+from cicada.mcp.pattern_utils import (
+    has_wildcards,
+    matches_pattern,
+    parse_function_patterns,
+)
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import matches_glob_pattern
@@ -126,6 +130,12 @@ class QueryOrchestrator:
             if not q_normalized:
                 continue
 
+            # Skip standalone OR tokens that can appear when queries are pre-tokenized
+            # (e.g., ["login", "|", "auth"]). Treating these as patterns would
+            # match everything.
+            if set(q_normalized) == {"|"}:
+                continue
+
             # Detect if this is a pattern (has wildcards, module qualifiers, arity)
             if self._is_pattern_query(q_normalized):
                 use_pattern_search = True
@@ -207,29 +217,30 @@ class QueryOrchestrator:
 
                 # Check if the "function name" is actually a module suffix
                 # This handles queries like "ThenvoiCom.Context" which get parsed as module="*.ThenvoiCom", name="Context"
+                module_tail = module_name.rsplit(".", 1)[-1]
+                module_matches = matches_pattern(func_pattern.module, module_name)
                 if (
                     not is_module_search
                     and "*" not in func_pattern.name
                     and "|" not in func_pattern.name
                     and func_pattern.module
                 ):
-                    # Reconstruct full module pattern: module + name
-                    # Remove the auto-added "*." prefix to get the base
-                    module_base = func_pattern.module
-                    if module_base.startswith("*."):
-                        module_base = module_base[2:]
-                    full_module_pattern = f"{module_base}.{func_pattern.name}"
+                    module_base = (
+                        func_pattern.module[2:]
+                        if func_pattern.module.startswith("*.")
+                        else func_pattern.module
+                    )
 
-                    # Check if this pattern matches the module name
-                    from cicada.mcp.pattern_utils import matches_pattern
-
-                    if matches_pattern(f"*.{full_module_pattern}", module_name):
+                    if matches_pattern(
+                        f"*.{module_base}.{func_pattern.name}", module_name
+                    ):
                         is_module_search = True
 
                 if (
                     is_module_search
                     and filter_type in ["all", "modules"]
-                    and func_pattern.matches(module_name, file_path, {"name": "*", "arity": 0})
+                    and module_matches
+                    and (func_pattern.name == "*" or matches_pattern(func_pattern.name, module_tail))
                 ):
                     # Add module as result
                     results.append(

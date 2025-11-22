@@ -246,7 +246,7 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query(["jwt"], match_source="all")
 
         # Should match via both doc keywords and string keywords
-        assert "verify_token" in result or "jwt" in result.lower()
+        assert "verify_token" in result
 
     def test_match_source_strings(self, sample_index):
         """Test match_source='strings' searches only string literals."""
@@ -276,7 +276,7 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query("auth", path_pattern="lib/**")
 
         # Should include lib files
-        assert "MyApp.Auth" in result or "verify_token" in result or "auth" in result.lower()
+        assert "MyApp.Auth" in result
         # Path pattern filtering applied (may or may not have results from test/)
         assert "Query:" in result
 
@@ -822,6 +822,18 @@ end
         assert "login" not in strategy.search_keywords
         assert "|" not in strategy.search_patterns  # Bare | would match everything
         assert "auth" not in strategy.search_keywords
+
+    def test_pre_tokenized_or_query_skips_bare_operator(self):
+        """Standalone OR tokens should not trigger match-all pattern search."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query(["login", "|", "auth"])
+
+        assert strategy.use_keyword_search is True
+        assert strategy.use_pattern_search is False
+        assert strategy.search_keywords == ["login", "auth"]
+        assert strategy.search_patterns == []
 
     def test_or_pattern_without_spaces_not_tokenized(self):
         """Test that OR patterns without spaces are not tokenized."""
