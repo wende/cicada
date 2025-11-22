@@ -871,6 +871,260 @@ Both approaches work for finding code:
 - **Formatter:** `cicada/format/formatter.py` - Displays classes section
 - **Tests:** `tests/format/test_class_display.py`, `tests/languages/scip/test_scip_converter.py`
 
+## Search Query Syntax
+
+Cicada's search system supports both keyword-based and pattern-based queries with automatic query type detection.
+
+### Query Types
+
+#### 1. Keyword Search (Default)
+
+String queries are automatically tokenized by whitespace into individual keywords:
+
+```python
+# Single keyword
+"authentication"  # Searches for "authentication"
+
+# Multiple keywords (tokenized automatically)
+"agent execution"  # Searches for BOTH "agent" AND "execution"
+# Equivalent to: ["agent", "execution"]
+
+# Quoted phrases (exact match)
+'"agent execution" context'  # Searches for exact phrase "agent execution" AND "context"
+```
+
+**Key Features:**
+- String queries are automatically split by whitespace
+- Each word becomes a separate keyword
+- Use quotes to keep phrases together
+- Keywords match against documentation and string literals
+- Case-insensitive matching
+
+**Important:** String queries containing pattern syntax (`|`, `*`, `/`, module qualifiers) are NOT tokenized to preserve the pattern structure. To mix keywords and patterns, use array syntax.
+
+**Examples:**
+```python
+# ✓ Good: Tokenized into ["auth", "token"]
+"auth token"
+
+# ✓ Good: Exact phrase match
+'"user authentication" validate'
+
+# ✓ Good: Array syntax
+["authentication", "credentials", "verify"]
+
+# ❌ Wrong: String with pattern syntax is not tokenized
+"auth token MyApp.*"  # Treated as single pattern, not split
+
+# ✓ Correct: Use array to mix keywords and patterns
+["auth", "token", "MyApp.*"]
+```
+
+#### 2. Pattern Search (Automatic Detection)
+
+Patterns are automatically detected when queries contain:
+- Wildcards (`*`, `|`)
+- Module qualifiers (Capital.Name)
+- Arity specifications (`/N`)
+- File path prefixes (`.ex:`)
+
+```python
+# Wildcard patterns
+"create*"                    # Functions starting with "create"
+"*user*"                     # Functions containing "user"
+"create*|update*"            # Functions matching either pattern (no spaces)
+"login | auth"               # OR pattern with spaces (preserved as-is)
+
+# Module qualification
+"MyApp.User.create*"         # Functions in MyApp.User module
+"User.create*"               # Auto-expands to *.User.create*
+"ThenvoiCom.Agents.*"        # All functions in ThenvoiCom.Agents modules
+
+# Arity specification
+"create_user/1"              # create_user with arity 1
+"update*/2"                  # Functions starting with "update" and arity 2
+
+# File paths
+"lib/auth.ex:verify*"        # Functions in specific file
+```
+
+**Note on OR Patterns:** OR patterns with spaces (e.g., `"login | auth"`) are detected and preserved as-is to prevent tokenization from breaking the pattern. Both `"login|auth"` (no spaces) and `"login | auth"` (with spaces) work correctly.
+
+### Wildcard Pattern Matching
+
+The `*` wildcard supports flexible matching with special handling for module names:
+
+#### Module Pattern Matching
+
+```python
+# *.Something matches:
+"Something"                  # Exact match
+"MyApp.Something"            # Suffix match (has prefix)
+"Something.Other"            # Prefix match (has suffix)
+"MyApp.Something.Other"      # Component match (in the middle)
+
+# *.ThenvoiCom.Agents matches:
+"ThenvoiCom.Agents"                      # Exact
+"MyApp.ThenvoiCom.Agents"                # With prefix
+"ThenvoiCom.Agents.AgentExecutor"        # With suffix
+"MyApp.ThenvoiCom.Agents.AgentExecutor"  # Both prefix and suffix
+
+# *.Agent* matches (wildcard in suffix):
+"AgentExecutor"              # Direct match
+"ThenvoiCom.AgentService"    # Nested match
+"MyApp.Agents.AgentModule"   # Component match
+```
+
+**Pattern Parsing Rules:**
+
+1. **Auto-prefix for module patterns:**
+   - `User.create*` becomes `*.User` (module) + `create*` (function)
+   - Allows matching `MyApp.User.create_user`, `Context.User.create_user`, etc.
+
+2. **Dot as separator:**
+   - Patterns are split by the LAST dot to separate module from function
+   - `ThenvoiCom.Agents.*` → module: `*.ThenvoiCom.Agents`, function: `*`
+
+3. **Wildcard suffix handling:**
+   - Pattern `*.Prefix*` applies fnmatch to all possible tails
+   - `*.Agent*` checks if any tail component matches `Agent*`
+
+### Search Filters
+
+Combine queries with filters for precise results:
+
+```python
+# Filter by type
+filter_type="modules"        # Only modules
+filter_type="functions"      # Only functions
+filter_type="all"           # Both (default)
+
+# Filter by scope
+scope="public"              # Public functions only
+scope="private"             # Private functions only
+scope="all"                 # All functions (default)
+
+# Filter by source
+match_source="docs"         # Match in documentation only
+match_source="strings"      # Match in string literals only
+match_source="all"          # Match in both (default)
+
+# Filter by path
+path_pattern="lib/**"       # Only files in lib/
+path_pattern="!**/test/**"  # Exclude test files
+
+# Filter by recency
+recent=true                 # Last 14 days only
+recent=false                # Older than 14 days
+
+# Filter by arity
+arity=2                     # Functions with arity 2 only
+```
+
+### Usage Examples
+
+#### Keyword Search Examples
+
+```python
+# Bug report mentions "agent execution context"
+# ✓ Use string query (auto-tokenized)
+query="agent execution context"
+# Searches for: ["agent", "execution", "context"]
+
+# Search for exact error message
+# ✓ Use quoted phrase
+query='"invalid credentials" authentication'
+# Searches for: ["invalid credentials", "authentication"]
+
+# Alternative: Array syntax
+query=["agent", "execution", "context"]
+```
+
+#### Pattern Search Examples
+
+```python
+# Find all agent-related modules
+# ✓ Use wildcard module pattern with filter
+query="ThenvoiCom.Agent*.*"
+filter_type="modules"
+# Matches: ThenvoiCom.Agents.*, ThenvoiCom.AgentService, etc.
+
+# Find create functions in User modules
+# ✓ Use module-qualified pattern
+query="User.create*"
+# Matches: MyApp.User.create_user, Context.User.create_account, etc.
+
+# Find all test functions
+# ✓ Combine pattern with path filter
+query="test_*"
+path_pattern="**/test/**"
+filter_type="functions"
+
+# Find recent authentication changes
+# ✓ Combine keywords with recent filter
+query="authentication credentials"
+recent=true
+```
+
+#### Mixed Queries
+
+```python
+# Combine keywords and patterns
+query="authentication verify MyApp.Auth.*"
+# Keywords: ["authentication", "verify"]
+# Patterns: ["MyApp.Auth.*"]
+
+# Search with multiple filters
+query="agent execution"
+filter_type="functions"
+scope="public"
+match_source="docs"
+path_pattern="lib/**"
+```
+
+### Common Pitfalls
+
+#### ❌ Don't: Use string query for patterns
+
+```python
+# ❌ Wrong: This searches for keywords "thenvoi", "com", "agent"
+query="ThenvoiCom.Agent*"  # Auto-tokenization breaks the pattern
+
+# ✓ Correct: Use array to prevent tokenization
+query=["ThenvoiCom.Agent*"]
+```
+
+#### ❌ Don't: Mix concerns in patterns
+
+```python
+# ❌ Wrong: Unclear whether searching modules or functions
+query="Agent*"
+
+# ✓ Correct: Use filter_type to clarify
+query="Agent*.*"
+filter_type="modules"
+
+# Or for functions:
+query="*.Agent*"  # Module pattern with function wildcard
+```
+
+#### ❌ Don't: Forget the trailing wildcard for module children
+
+```python
+# ❌ Wrong: Only matches exact module "ThenvoiCom.Agents"
+query="ThenvoiCom.Agents"
+
+# ✓ Correct: Matches all modules starting with "ThenvoiCom.Agents"
+query="ThenvoiCom.Agents.*"
+```
+
+### Implementation
+
+- **Query Orchestrator:** `cicada/query/orchestrator.py` - Query analysis and routing
+- **Pattern Utilities:** `cicada/mcp/pattern_utils.py` - Pattern parsing and matching
+- **Keyword Searcher:** `cicada/keyword_search.py` - Keyword-based search
+- **Tests:** `tests/test_query_orchestrator.py`, `tests/test_partial_module_matching.py`
+
 ## Development Environment
 
 This project uses **uv** as the primary Python package manager and build tool. When working on this project:

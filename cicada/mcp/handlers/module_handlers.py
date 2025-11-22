@@ -69,7 +69,20 @@ class ModuleSearchHandler:
             if not mod_data:
                 return
 
-            deps = mod_data.get("dependencies", {}).get("modules", [])
+            # Handle both list format (new) and dict format (old)
+            dependencies = mod_data.get("dependencies", [])
+            if isinstance(dependencies, dict):
+                # Old format: {"modules": [...], "has_dynamic_calls": bool}
+                deps = dependencies.get("modules", [])
+            elif isinstance(dependencies, list):
+                # New format: [{"module": "..."}, ...] - extract module names
+                deps = [
+                    dep["module"]
+                    for dep in dependencies
+                    if isinstance(dep, dict) and "module" in dep
+                ]
+            else:
+                deps = []
             for dep in deps:
                 is_direct = dep in direct_dependencies
                 is_self = dep == module_name
@@ -145,8 +158,20 @@ class ModuleSearchHandler:
         Returns:
             Dictionary with dependency information
         """
-        dependencies_data = module_data.get("dependencies", {})
-        dependent_modules = dependencies_data.get("modules", [])
+        # Handle both list format (new) and dict format (old)
+        dependencies_data = module_data.get("dependencies", [])
+        if isinstance(dependencies_data, dict):
+            # Old format: {"modules": [...], "has_dynamic_calls": bool}
+            dependent_modules = dependencies_data.get("modules", [])
+        elif isinstance(dependencies_data, list):
+            # New format: [{"module": "..."}, ...] - extract module names
+            dependent_modules = [
+                dep["module"]
+                for dep in dependencies_data
+                if isinstance(dep, dict) and "module" in dep
+            ]
+        else:
+            dependent_modules = []
 
         if not dependent_modules:
             return None
