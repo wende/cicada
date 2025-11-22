@@ -246,7 +246,7 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query(["jwt"], match_source="all")
 
         # Should match via both doc keywords and string keywords
-        assert "verify_token" in result or "jwt" in result.lower()
+        assert "verify_token" in result
 
     def test_match_source_strings(self, sample_index):
         """Test match_source='strings' searches only string literals."""
@@ -276,7 +276,7 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query("auth", path_pattern="lib/**")
 
         # Should include lib files
-        assert "MyApp.Auth" in result or "verify_token" in result or "auth" in result.lower()
+        assert "MyApp.Auth" in result
         # Path pattern filtering applied (may or may not have results from test/)
         assert "Query:" in result
 
@@ -744,3 +744,234 @@ end
         if result_count <= 5:
             # No overload warning expected for small result sets
             assert "Try refining" not in result or result_count == 0
+
+    # ============================================================
+    # String Tokenization Tests
+    # ============================================================
+
+    def test_string_tokenization_multiple_words(self):
+        """Test that string queries are tokenized by whitespace."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query("agent execution")
+        assert strategy.use_keyword_search is True
+        assert "agent" in strategy.search_keywords
+        assert "execution" in strategy.search_keywords
+        # Should NOT have the full phrase as a single keyword
+        assert "agent execution" not in strategy.search_keywords
+
+    def test_string_tokenization_single_word(self):
+        """Test that single-word strings still work."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query("authentication")
+        assert strategy.use_keyword_search is True
+        assert "authentication" in strategy.search_keywords
+        assert len(strategy.search_keywords) == 1
+
+    def test_string_tokenization_quoted_phrase(self):
+        """Test that quoted phrases are kept as single keywords."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query('"agent execution" context')
+        assert strategy.use_keyword_search is True
+        assert "agent execution" in strategy.search_keywords  # Kept together
+        assert "context" in strategy.search_keywords
+        assert len(strategy.search_keywords) == 2
+
+    def test_string_tokenization_mixed_patterns_and_keywords(self):
+        """Test that mixed patterns and keywords require array syntax."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # String with pattern syntax is NOT tokenized (to avoid breaking the pattern)
+        strategy = orchestrator._analyze_query("auth verify MyApp.Auth.*")
+        assert strategy.use_pattern_search is True
+        assert "auth verify MyApp.Auth.*" in strategy.search_patterns
+
+        # To mix patterns and keywords, use array syntax
+        strategy = orchestrator._analyze_query(["auth", "verify", "MyApp.Auth.*"])
+        assert strategy.use_keyword_search is True
+        assert strategy.use_pattern_search is True
+        assert "auth" in strategy.search_keywords
+        assert "verify" in strategy.search_keywords
+        assert "MyApp.Auth.*" in strategy.search_patterns
+
+    def test_string_tokenization_integration(self, sample_index):
+        """Integration test: string queries should match multiple keywords."""
+        orchestrator = QueryOrchestrator(sample_index)
+        result = orchestrator.execute_query("auth token")
+
+        # Should match items with both "auth" and "token" keywords
+        # verify_token has both keywords
+        assert "verify_token" in result
+
+    def test_or_pattern_not_tokenized(self):
+        """Test that OR patterns with spaces are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # OR pattern with spaces should NOT be tokenized
+        strategy = orchestrator._analyze_query("login | auth")
+        assert strategy.use_pattern_search is True
+        assert "login | auth" in strategy.search_patterns
+        # Should NOT create separate keywords
+        assert "login" not in strategy.search_keywords
+        assert "|" not in strategy.search_patterns  # Bare | would match everything
+        assert "auth" not in strategy.search_keywords
+
+    def test_pre_tokenized_or_query_skips_bare_operator(self):
+        """Standalone OR tokens should not trigger match-all pattern search."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query(["login", "|", "auth"])
+
+        assert strategy.use_keyword_search is True
+        assert strategy.use_pattern_search is False
+        assert strategy.search_keywords == ["login", "auth"]
+        assert strategy.search_patterns == []
+
+    def test_or_pattern_without_spaces_not_tokenized(self):
+        """Test that OR patterns without spaces are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        strategy = orchestrator._analyze_query("login|auth")
+        assert strategy.use_pattern_search is True
+        assert "login|auth" in strategy.search_patterns
+
+    def test_wildcard_pattern_not_tokenized(self):
+        """Test that wildcard patterns are not tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # Wildcards should prevent tokenization
+        strategy = orchestrator._analyze_query("create* user")
+        assert strategy.use_pattern_search is True
+        assert "create* user" in strategy.search_patterns
+        # Should NOT tokenize into separate terms
+        assert "create*" not in strategy.search_keywords
+        assert "user" not in strategy.search_keywords
+
+    def test_module_qualifier_not_tokenized(self):
+        """Test that module qualifiers prevent tokenization."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # Module qualifier should prevent tokenization
+        strategy = orchestrator._analyze_query("MyApp.User create")
+        assert strategy.use_pattern_search is True
+        assert "MyApp.User create" in strategy.search_patterns
+
+    def test_plain_keywords_still_tokenized(self):
+        """Test that plain keywords without pattern syntax are still tokenized."""
+        index = {"modules": {}}
+        orchestrator = QueryOrchestrator(index)
+
+        # No pattern syntax, should tokenize
+        strategy = orchestrator._analyze_query("agent execution context")
+        assert strategy.use_keyword_search is True
+        assert "agent" in strategy.search_keywords
+        assert "execution" in strategy.search_keywords
+        assert "context" in strategy.search_keywords
+        assert strategy.use_pattern_search is False
+
+    # ============================================================
+    # Wildcard Pattern Matching Tests
+    # ============================================================
+
+    @pytest.fixture
+    def pattern_index(self):
+        """Create an index for testing wildcard patterns."""
+        return {
+            "modules": {
+                "ThenvoiCom.Agents.AgentExecutor": {
+                    "file": "lib/thenvoi_com/agents/agent_executor.ex",
+                    "line": 1,
+                    "moduledoc": "Agent execution module",
+                    "keywords": {"agent": 0.9, "executor": 0.8},
+                    "functions": [
+                        {
+                            "name": "execute",
+                            "arity": 2,
+                            "line": 10,
+                            "type": "def",
+                            "doc": "Executes an agent",
+                            "signature": "def execute(agent, context)",
+                            "keywords": {"execute": 0.9, "agent": 0.8},
+                        }
+                    ],
+                },
+                "ThenvoiCom.Agents.AgentModule": {
+                    "file": "lib/thenvoi_com/agents/agent_module.ex",
+                    "line": 1,
+                    "moduledoc": "Agent module definition",
+                    "keywords": {"agent": 0.9, "module": 0.8},
+                    "functions": [],
+                },
+                "ThenvoiCom.Context": {
+                    "file": "lib/thenvoi_com/context.ex",
+                    "line": 1,
+                    "moduledoc": "Context module",
+                    "keywords": {"context": 0.9},
+                    "functions": [],
+                },
+                "MyApp.AgentService": {
+                    "file": "lib/my_app/agent_service.ex",
+                    "line": 1,
+                    "moduledoc": "Agent service",
+                    "keywords": {"agent": 0.9, "service": 0.8},
+                    "functions": [],
+                },
+            }
+        }
+
+    def test_wildcard_pattern_prefix_match(self, pattern_index):
+        """Test that *.Agents.* matches modules starting with Agents."""
+        orchestrator = QueryOrchestrator(pattern_index)
+        result = orchestrator.execute_query("ThenvoiCom.Agents.*")
+
+        # Should match both Agents.AgentExecutor and Agents.AgentModule
+        assert "ThenvoiCom.Agents.AgentExecutor" in result
+        assert "ThenvoiCom.Agents.AgentModule" in result
+        # Should NOT match Context
+        assert "ThenvoiCom.Context" not in result
+
+    def test_wildcard_pattern_suffix_with_wildcard(self, pattern_index):
+        """Test that *.Agent* matches modules with Agent in the name."""
+        orchestrator = QueryOrchestrator(pattern_index)
+        # Use filter_type="modules" to search module names with wildcards
+        result = orchestrator.execute_query("*Agent*.*", filter_type="modules")
+
+        # Should match all modules with "Agent" in the name
+        assert "AgentExecutor" in result
+        assert "AgentModule" in result
+        assert "AgentService" in result
+
+    def test_wildcard_pattern_qualified_with_wildcard(self, pattern_index):
+        """Test that ThenvoiCom.Agent* matches ThenvoiCom.Agents.* modules."""
+        orchestrator = QueryOrchestrator(pattern_index)
+        # Use the correct pattern for module matching
+        result = orchestrator.execute_query("ThenvoiCom.Agent*.*", filter_type="modules")
+
+        # Should match modules that start with ThenvoiCom.Agent
+        assert "AgentExecutor" in result
+        assert "AgentModule" in result
+
+    def test_exact_module_qualification(self, pattern_index):
+        """Test exact module qualification without wildcards."""
+        orchestrator = QueryOrchestrator(pattern_index)
+        result = orchestrator.execute_query("ThenvoiCom.Context")
+
+        # Should match exactly ThenvoiCom.Context
+        assert "ThenvoiCom.Context" in result
+        # Should not match other modules
+        assert result.count("ThenvoiCom") == result.count("ThenvoiCom.Context")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
