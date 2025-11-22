@@ -860,6 +860,8 @@ String queries are automatically tokenized by whitespace into individual keyword
 - Keywords match against documentation and string literals
 - Case-insensitive matching
 
+**Important:** String queries containing pattern syntax (`|`, `*`, `/`, module qualifiers) are NOT tokenized to preserve the pattern structure. To mix keywords and patterns, use array syntax.
+
 **Examples:**
 ```python
 # ✓ Good: Tokenized into ["auth", "token"]
@@ -870,6 +872,12 @@ String queries are automatically tokenized by whitespace into individual keyword
 
 # ✓ Good: Array syntax
 ["authentication", "credentials", "verify"]
+
+# ❌ Wrong: String with pattern syntax is not tokenized
+"auth token MyApp.*"  # Treated as single pattern, not split
+
+# ✓ Correct: Use array to mix keywords and patterns
+["auth", "token", "MyApp.*"]
 ```
 
 #### 2. Pattern Search (Automatic Detection)
@@ -884,7 +892,8 @@ Patterns are automatically detected when queries contain:
 # Wildcard patterns
 "create*"                    # Functions starting with "create"
 "*user*"                     # Functions containing "user"
-"create*|update*"            # Functions matching either pattern
+"create*|update*"            # Functions matching either pattern (no spaces)
+"login | auth"               # OR pattern with spaces (preserved as-is)
 
 # Module qualification
 "MyApp.User.create*"         # Functions in MyApp.User module
@@ -898,6 +907,8 @@ Patterns are automatically detected when queries contain:
 # File paths
 "lib/auth.ex:verify*"        # Functions in specific file
 ```
+
+**Note on OR Patterns:** OR patterns with spaces (e.g., `"login | auth"`) are detected and preserved as-is to prevent tokenization from breaking the pattern. Both `"login|auth"` (no spaces) and `"login | auth"` (with spaces) work correctly.
 
 ### Wildcard Pattern Matching
 
