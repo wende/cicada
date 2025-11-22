@@ -56,6 +56,13 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
 - **Index Storage Location:** `~/.cicada/projects/<repo_hash>/`
   - All generated files (index.json, config.yaml, hashes.json, pr_index.json) are stored here
   - Repository hash is generated from the resolved absolute path using SHA-256 (truncated to 16 hex chars)
+  - **Discovering the storage directory:** Use `cicada dir` in your repository to display the hash and full path to the storage directory
+    ```bash
+    cd /path/to/your/repo
+    cicada dir
+    # Output: Repository hash: a1b2c3d4e5f6g7h8
+    #         Storage dir: /Users/username/.cicada/projects/a1b2c3d4e5f6g7h8/
+    ```
 
 - **Repository Config:** Only one MCP config file is added to the user's repository:
   - `.mcp.json` (Claude Code)
