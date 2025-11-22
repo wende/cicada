@@ -59,6 +59,9 @@ class TestTypeScriptKeywordSearch:
 
         # Should find functions that deal with arithmetic
         assert len(result) > 0
+        # Verify at least one of the keywords appears in results
+        result_lower = str(result).lower()
+        assert "add" in result_lower or "multiply" in result_lower
 
     def test_quoted_phrases(self, typescript_index):
         """Test searching with quoted phrases."""
@@ -77,6 +80,8 @@ class TestTypeScriptKeywordSearch:
 
         # Should find divide method in Calculator class
         assert len(result) > 0
+        # Verify "divide" appears in the results
+        assert "divide" in str(result).lower()
 
     def test_interface_search(self, typescript_index):
         """Test finding interface declarations."""

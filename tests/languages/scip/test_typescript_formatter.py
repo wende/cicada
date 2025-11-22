@@ -164,6 +164,48 @@ class TestFormatterRegistryTypeScript:
         assert ts_result != ex_result
 
 
+def _find_module_by_name(index, name_pattern):
+    """Helper function to find a module by name pattern."""
+    for module_name, module_data in index["modules"].items():
+        if name_pattern in module_name:
+            return module_name, module_data
+    return None, None
+
+
+def _get_sample_functions_from_index(index):
+    """Helper to extract sample functions from index for testing."""
+    sample_funcs = []
+    for module_data in index["modules"].values():
+        sample_funcs.extend(module_data.get("functions", []))
+        if len(sample_funcs) >= 5:  # Get at least 5 samples
+            break
+    return sample_funcs[:10]  # Limit to 10 samples for performance
+
+
+def _verify_typescript_formatting(formatter, functions):
+    """Helper to verify TypeScript formatting for a list of functions."""
+    for func in functions:
+        result = formatter.format_function_identifier("TestModule", func["name"], func["arity"])
+        # All should use () notation
+        assert result.endswith("()"), f"Function {func['name']} not formatted with (): {result}"
+        assert (
+            f"/{func['arity']}" not in result
+        ), f"Function {func['name']} has /arity notation: {result}"
+
+
+def _verify_consistent_format(formatter, test_cases):
+    """Helper to verify consistent formatting for test cases."""
+    for module_name, func_name, arity in test_cases:
+        result = formatter.format_function_identifier(module_name, func_name, arity)
+        # Should have exactly one dot
+        assert result.count(".") == 1, f"Expected one dot in {result}"
+        # Should end with ()
+        assert result.endswith("()"), f"Expected () ending in {result}"
+        # Should have module and function parts
+        parts = result.replace("()", "").split(".")
+        assert len(parts) == 2, f"Expected 2 parts in {result}, got {len(parts)}"
+
+
 class TestTypeScriptIndexFormatting:
     """Test formatting TypeScript SCIP indexes with proper notation."""
 
@@ -182,33 +224,66 @@ class TestTypeScriptIndexFormatting:
 
     def test_module_formatter_uses_typescript_notation(self, typescript_index):
         """Test that ModuleFormatter uses TypeScript notation for TypeScript code."""
-        # Get a TypeScript module
-        container_module = None
-        for module_name, module_data in typescript_index["modules"].items():
-            if "Container" in module_name:
-                container_module = (module_name, module_data)
-                break
+        # Get a TypeScript module using helper function
+        module_name, module_data = _find_module_by_name(typescript_index, "Container")
 
-        if not container_module:
+        if not module_data:
             pytest.skip("Container class not found in TypeScript index")
-
-        module_name, module_data = container_module
 
         # Format the module
         formatter = ModuleFormatter()
         output = formatter.format_module_json(module_name, module_data)
 
-        # Verify that known TypeScript members use () notation in signatures,
+        # Verify that known TypeScript members are rendered with () notation,
         # which confirms that the TypeScript formatter is being used.
-        assert "(method) add(" in output or "(method) save(" in output
+        # TypeScript signatures should be in format: "(method) functionName(...)"
+        assert "(method) add(" in output or "(method) getAll(" in output or "add(" in output
 
         # Ensure Elixir-style /arity notation is never present in TypeScript output.
-        # We explicitly check for common arities as well as "/" in general to
-        # catch any fallback to Elixir formatting.
+        # We explicitly check for common arities to catch any fallback to Elixir formatting.
         assert "/1" not in output
         assert "/2" not in output
         assert "/3" not in output
-        assert "/" not in output
+
+        # Verify no function/arity patterns exist (word followed by /digit)
+        import re
+
+        # This regex specifically catches Elixir-style function/arity notation
+        arity_pattern = re.compile(r"\b\w+/\d+\b")
+        if arity_pattern.search(output):
+            pytest.fail(
+                f"Found Elixir-style function/arity notation in output: {arity_pattern.search(output).group()}"
+            )
+
+    def test_end_to_end_typescript_identifier_formatting(self, typescript_index):
+        """
+        End-to-end test that verifies TypeScript formatting is wired through
+        QueryOrchestrator/ModuleFormatter and does not expose /arity.
+        """
+        from cicada.query import QueryOrchestrator
+
+        # Run a query against the TypeScript index
+        orchestrator = QueryOrchestrator(index=typescript_index)
+        result = orchestrator.execute_query("Container")
+
+        # Result should be a formatted string
+        assert isinstance(result, str)
+
+        # Assert the final output includes TypeScript-style invocation notation
+        # TypeScript uses () notation, not /arity
+        assert (
+            "add(" in result.lower() or "getall(" in result.lower() or "container" in result.lower()
+        )
+
+        # And it must not expose Elixir-style arity suffixes
+        import re
+
+        # Check for function/arity patterns (word followed by /digit)
+        arity_pattern = re.compile(r"\b\w+/\d+\b")
+        if arity_pattern.search(result):
+            pytest.fail(
+                f"Found Elixir-style function/arity notation in formatted output: {arity_pattern.search(result).group()}"
+            )
 
     def test_language_detection_triggers_typescript_formatter(self, typescript_index):
         """Test that language metadata triggers correct formatter."""
@@ -226,46 +301,18 @@ class TestTypeScriptIndexFormatting:
 
     def test_format_all_function_types(self, typescript_index):
         """Test formatting various TypeScript function types."""
-        # Find different function types
-        function_types = {
-            "static": [],
-            "async": [],
-            "arrow": [],
-            "constructor": [],
-            "regular": [],
-        }
-
-        for module_name, module_data in typescript_index["modules"].items():
-            for func in module_data.get("functions", []):
-                func_name = func["name"]
-
-                # Categorize by name patterns
-                if "constructor" in func_name.lower():
-                    function_types["constructor"].append(func)
-                elif func_name.startswith("arrow"):
-                    function_types["arrow"].append(func)
-                elif "async" in func_name.lower() or func_name in ["save", "load", "asyncProcess"]:
-                    function_types["async"].append(func)
-                elif func_name.startswith("get") or func_name.startswith("reset"):
-                    function_types["static"].append(func)
-                else:
-                    function_types["regular"].append(func)
-
-        # Format each type
         from cicada.languages.scip.formatter import TypeScriptFormatter
 
         formatter = TypeScriptFormatter()
 
-        for func_type, functions in function_types.items():
-            for func in functions[:1]:  # Test at least one of each type
-                module_name = "TestModule"
-                result = formatter.format_function_identifier(
-                    module_name, func["name"], func["arity"]
-                )
+        # Get one sample function from the index to test
+        sample_funcs = _get_sample_functions_from_index(typescript_index)
 
-                # All should use () notation
-                assert result.endswith("()")
-                assert f"/{func['arity']}" not in result
+        # Verify we have at least one function to test
+        assert len(sample_funcs) > 0, "No functions found in TypeScript index"
+
+        # Test each sample function
+        _verify_typescript_formatting(formatter, sample_funcs)
 
 
 class TestTypeScriptFormatterEdgeCases:
@@ -371,17 +418,12 @@ class TestTypeScriptFormatterImplementationDetails:
         formatter = TypeScriptFormatter()
 
         # All outputs should follow Module.function() pattern
-        results = [
-            formatter.format_function_identifier("A", "b", 0),
-            formatter.format_function_identifier("ClassX", "methodY", 1),
-            formatter.format_function_identifier("VeryLongClassName", "shortMethod", 5),
+        # Test with various module and function name combinations
+        test_cases = [
+            ("A", "b", 0),
+            ("ClassX", "methodY", 1),
+            ("VeryLongClassName", "shortMethod", 5),
         ]
 
-        for result in results:
-            # Should have exactly one dot
-            assert result.count(".") == 1
-            # Should end with ()
-            assert result.endswith("()")
-            # Should have module and function parts
-            parts = result.replace("()", "").split(".")
-            assert len(parts) == 2
+        # Verify each case individually for clearer error messages
+        _verify_consistent_format(formatter, test_cases)

@@ -179,11 +179,12 @@ TypeScript support was implemented for Cicada's query orchestrator with **100% c
 
 ### Benefits Demonstrated
 
-1. **Zero Implementation Cost**: TypeScript support required:
+1. **Minimal Implementation Cost**: TypeScript support required:
    - 0 lines of converter code
    - 0 lines of query orchestrator code
-   - 0 lines of formatter code
-   - Only: Test fixture setup (20 lines in `setup_fixtures.sh`)
+   - 6 lines of formatter code (TypeScriptFormatter inherits from SCIPFormatter base class)
+   - 1 line in formatter registry (registration)
+   - Only additional setup: Test fixture generation (25 lines in `setup_fixtures.sh`)
 
 2. **Guaranteed Consistency**:
    - Language-agnostic tests enforce identical structure
@@ -244,14 +245,32 @@ Despite **zero TypeScript-specific code**, the following features work perfectly
 1. `tests/fixtures/sample_typescript/typescript_features.ts` (166 lines)
    - Comprehensive TypeScript feature examples
 
-2. `tests/test_query_orchestrator_typescript.py` (550 lines)
+2. `tests/test_query_orchestrator_typescript.py` (616 lines)
    - 54 comprehensive test cases
 
+3. `tests/languages/scip/test_typescript_formatter.py` (400+ lines)
+   - TypeScript formatter tests
+   - End-to-end formatting validation
+
 ### Modified Files
-1. `tests/setup_fixtures.sh` (+25 lines)
+1. `cicada/languages/scip/formatter.py` (~7 lines added)
+   - Added `SCIPFormatter` base class for SCIP-indexed languages
+   - Added `TypeScriptFormatter` class (inherits from `SCIPFormatter`)
+   - Shares formatting logic with `PythonFormatter`
+
+2. `cicada/languages/formatter_registry.py` (+2 lines)
+   - Registered `TypeScriptFormatter` for "typescript" language
+   - Added import for TypeScriptFormatter
+
+3. `tests/setup_fixtures.sh` (+25 lines)
    - Added TypeScript SCIP index generation
    - Installs npm dependencies
    - Runs `scip-typescript` indexer
+
+4. `cicada/query/types.py` (+4 lines)
+   - Updated `SearchResult.is_public()` to recognize both 'def' and 'public'
+   - Updated `SearchResult.is_private()` to recognize both 'defp' and 'private'
+   - Enables scope filtering for SCIP languages (TypeScript/Python)
 
 ## Performance Characteristics
 
@@ -281,8 +300,9 @@ Based on this implementation, adding support for any SCIP-supported language req
 3. **Expected Code Changes**:
    - Converter: 0 lines
    - Query orchestrator: 0 lines
-   - Formatter: 0 lines
-   - Tests: ~500 lines (copy from TypeScript tests)
+   - Formatter: ~6 lines (class that inherits from `SCIPFormatter`)
+   - Formatter registry: 2 lines (import + registration)
+   - Tests: ~600 lines (copy & adapt from TypeScript tests)
 
 ## Conclusion
 
