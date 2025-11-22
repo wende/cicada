@@ -206,7 +206,7 @@ class QueryOrchestrator:
         # Examples: "*Analyzer", "User|Post", "*Service*"
         # These should match module names directly, not be parsed as function patterns
         has_no_dots = "." not in pattern
-        has_pattern_chars = "*" in pattern or "|" in pattern
+        has_pattern_chars = has_wildcards(pattern)
 
         if has_no_dots and has_pattern_chars and filter_type in ["all", "modules"]:
             # This is a pure module name pattern - match against module names directly
