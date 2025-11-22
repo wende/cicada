@@ -578,3 +578,154 @@ def test_candidate_structure(sample_index):
             assert "line" in candidate
             assert "file" in candidate
             assert "reason" in candidate
+
+
+def test_scip_dependencies_dict_format():
+    """Test that analyzer handles new SCIP dependencies dict format.
+
+    SCIP converter outputs dependencies as:
+    {"modules": ["module1", "module2"], "has_dynamic_calls": False}
+
+    This test ensures the analyzer doesn't crash and can still find usages
+    via function-level dependencies.
+    """
+    index = {
+        "modules": {
+            "cicada.utils.storage": {
+                "file": "cicada/utils/storage.py",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "get_repo_hash",
+                        "arity": 1,
+                        "type": "public",
+                        "line": 10,
+                        "signature": "def get_repo_hash(repo_path: str) -> str",
+                        "impl": False,
+                    }
+                ],
+                # New SCIP format: dict with modules list
+                "dependencies": {"modules": ["pathlib", "hashlib"], "has_dynamic_calls": False},
+                "aliases": {},
+                "calls": [],
+                "uses": [],
+                "behaviours": [],
+                "value_mentions": [],
+            },
+            "cicada.indexer": {
+                "file": "cicada/indexer.py",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "index_repository",
+                        "arity": 2,
+                        "type": "public",
+                        "line": 50,
+                        "signature": "def index_repository(repo_path: str, output: str) -> None",
+                        "impl": False,
+                        # Function-level dependencies (still list of dicts)
+                        "dependencies": [
+                            {
+                                "module": "`cicada.utils.storage`",
+                                "function": "get_repo_hash",
+                                "arity": 1,
+                                "line": 55,
+                            }
+                        ],
+                    }
+                ],
+                # New SCIP format: dict with modules list
+                "dependencies": {
+                    "modules": ["cicada.utils.storage", "pathlib"],
+                    "has_dynamic_calls": False,
+                },
+                "aliases": {},
+                "calls": [],
+                "uses": [],
+                "behaviours": [],
+                "value_mentions": [],
+            },
+        }
+    }
+
+    analyzer = DeadCodeAnalyzer(index)
+
+    # Should not crash when processing new dict format
+    results = analyzer.analyze()
+
+    # get_repo_hash should NOT be a dead code candidate because it's used in index_repository
+    all_candidates = (
+        results["candidates"]["high"]
+        + results["candidates"]["medium"]
+        + results["candidates"]["low"]
+    )
+    candidate_functions = [(c["module"], c["function"]) for c in all_candidates]
+
+    assert ("cicada.utils.storage", "get_repo_hash") not in candidate_functions
+
+
+def test_old_elixir_dependencies_list_format():
+    """Test that analyzer still handles old Elixir dependencies list format.
+
+    Old Elixir format:
+    dependencies: [{"module": "Ecto", "function": "put_change", "arity": 3, "line": 42}]
+
+    This ensures backward compatibility with existing Elixir indexes.
+    """
+    index = {
+        "modules": {
+            "MyApp.UserService": {
+                "file": "lib/my_app/user_service.ex",
+                "functions": [
+                    {
+                        "name": "create_user",
+                        "arity": 1,
+                        "type": "def",
+                        "line": 10,
+                        "impl": False,
+                    }
+                ],
+                # Old Elixir format: list of dependency dicts
+                "dependencies": [
+                    {"module": "Ecto.Changeset", "function": "cast", "arity": 3, "line": 12},
+                    {"module": "MyApp.Auth", "function": "hash_password", "arity": 1, "line": 13},
+                ],
+                "aliases": {},
+                "calls": [],
+                "uses": [],
+                "behaviours": [],
+                "value_mentions": [],
+            },
+            "MyApp.Auth": {
+                "file": "lib/my_app/auth.ex",
+                "functions": [
+                    {
+                        "name": "hash_password",
+                        "arity": 1,
+                        "type": "def",
+                        "line": 5,
+                        "impl": False,
+                    }
+                ],
+                "dependencies": [],
+                "aliases": {},
+                "calls": [],
+                "uses": [],
+                "behaviours": [],
+                "value_mentions": [],
+            },
+        }
+    }
+
+    analyzer = DeadCodeAnalyzer(index)
+    results = analyzer.analyze()
+
+    # hash_password should NOT be a dead code candidate because it's in dependencies
+    all_candidates = (
+        results["candidates"]["high"]
+        + results["candidates"]["medium"]
+        + results["candidates"]["low"]
+    )
+    candidate_functions = [(c["module"], c["function"]) for c in all_candidates]
+
+    assert ("MyApp.Auth", "hash_password") not in candidate_functions
