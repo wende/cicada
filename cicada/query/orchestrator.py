@@ -16,8 +16,10 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import (
     has_wildcards,
+    match_any_pattern,
     matches_pattern,
     parse_function_patterns,
+    split_or_patterns,
 )
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
@@ -198,10 +200,39 @@ class QueryOrchestrator:
         Returns:
             List of matching SearchResult objects
         """
-        # Parse the pattern
-        patterns = parse_function_patterns(pattern)
-
         results: list[SearchResult] = []
+
+        # Check if this is a pure module pattern (no dots, just wildcards/OR on module names)
+        # Examples: "*Analyzer", "User|Post", "*Service*"
+        # These should match module names directly, not be parsed as function patterns
+        has_no_dots = "." not in pattern
+        has_pattern_chars = "*" in pattern or "|" in pattern
+
+        if has_no_dots and has_pattern_chars and filter_type in ["all", "modules"]:
+            # This is a pure module name pattern - match against module names directly
+            # Split by OR if present
+            module_patterns = split_or_patterns(pattern)
+
+            for module_name, module_data in self.index.get("modules", {}).items():
+                if match_any_pattern(module_patterns, module_name):
+                    results.append(
+                        SearchResult(
+                            type="module",
+                            name=module_name,
+                            module=module_name,
+                            file=module_data.get("file", ""),
+                            line=module_data.get("line", 1),
+                            doc=module_data.get("moduledoc"),
+                            score=1.0,  # Pattern match = full score
+                            confidence=100.0,
+                            matched_keywords=[],
+                            pattern_match=True,
+                        )
+                    )
+            return results
+
+        # Parse the pattern for function/qualified module searches
+        patterns = parse_function_patterns(pattern)
 
         # Search through all modules
         for module_name, module_data in self.index.get("modules", {}).items():

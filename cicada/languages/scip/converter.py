@@ -345,9 +345,12 @@ class SCIPConverter:
             all_modules = import_modules | call_modules
 
             # Update all modules with standardized dependency format
-            # Match Elixir indexer's format: list of {"module": "..."} dictionaries
+            # Match Elixir indexer's format: {"modules": [...], "has_dynamic_calls": bool}
             for module_data in modules.values():
-                module_data["dependencies"] = [{"module": mod} for mod in sorted(all_modules)]
+                module_data["dependencies"] = {
+                    "modules": sorted(all_modules),
+                    "has_dynamic_calls": False,
+                }
 
                 # Add Elixir-compatible import/alias fields for MCP tool compatibility
                 # This allows Python modules to work with existing MCP handlers
@@ -360,6 +363,10 @@ class SCIPConverter:
             # Even when not extracting references, add empty Elixir-compatible fields
             # for consistency and MCP tool compatibility
             for module_data in modules.values():
+                module_data["dependencies"] = {
+                    "modules": [],
+                    "has_dynamic_calls": False,
+                }
                 module_data["imports"] = []
                 module_data["aliases"] = aliases  # Still extract aliases even without call sites
                 module_data["requires"] = []
