@@ -508,6 +508,104 @@ class FunctionSearchHandler:
 
         raise ValueError(f"Invalid changed_since format: {changed_since}")
 
+    def _build_private_pattern_string(self, pattern: FunctionPattern) -> str:
+        """
+        Build a private function pattern string from a public pattern.
+
+        Args:
+            pattern: The original function pattern
+
+        Returns:
+            Pattern string with underscore prefix, preserving file scope if present
+            (e.g., "lib/foo.ex:Module._func*" or "lib/foo.ex:_func*/2")
+        """
+        private_pattern = f"_{pattern.name}"
+
+        if pattern.module:
+            module_part = (
+                pattern.module.replace("*.", "", 1)
+                if pattern.module.startswith("*.")
+                else pattern.module
+            )
+            private_pattern = f"{module_part}.{private_pattern}"
+
+        if pattern.arity is not None:
+            private_pattern += f"/{pattern.arity}"
+
+        # Preserve file constraint if present
+        if pattern.file:
+            private_pattern = f"{pattern.file}:{private_pattern}"
+
+        return private_pattern
+
+    def _has_matching_private_function(
+        self, private_pattern_str: str, cutoff_date: datetime | None
+    ) -> bool:
+        """
+        Check if any private functions match the given pattern.
+
+        Args:
+            private_pattern_str: The private function pattern to match
+
+        Returns:
+            True if at least one matching private function exists
+        """
+        private_patterns = parse_function_patterns(private_pattern_str)
+
+        for module_name, module_data in self.index["modules"].items():
+            for func in module_data["functions"]:
+                if not any(
+                    p.matches(module_name, module_data["file"], func)
+                    for p in private_patterns
+                ):
+                    continue
+
+                if cutoff_date:
+                    func_modified = func.get("last_modified_at")
+                    if not func_modified:
+                        continue
+
+                    func_modified_dt = datetime.fromisoformat(func_modified)
+                    if func_modified_dt.tzinfo is None:
+                        func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+
+                    if func_modified_dt < cutoff_date:
+                        continue
+
+                return True
+
+        return False
+
+    def _suggest_private_function(
+        self,
+        results: list,
+        parsed_patterns: list[FunctionPattern],
+        cutoff_date: datetime | None,
+    ) -> str | None:
+        """
+        Suggest a private function pattern if no public functions were found.
+
+        Args:
+            results: The search results (empty if no matches)
+            parsed_patterns: List of parsed function patterns from the search query
+
+        Returns:
+            Private function pattern string if matches found, None otherwise
+        """
+        if results or not parsed_patterns:
+            return None
+
+        for pattern in parsed_patterns:
+            if not (pattern.name and not pattern.name.startswith("_") and "*" in pattern.name):
+                continue
+
+            private_pattern = self._build_private_pattern_string(pattern)
+
+            if self._has_matching_private_function(private_pattern, cutoff_date):
+                return private_pattern
+
+        return None
+
     async def search_function(
         self,
         function_name: str,
@@ -646,6 +744,11 @@ class FunctionSearchHandler:
         # For now, we'll skip this or pass it from server
         staleness_info = None
 
+        # If no results found, check if there are private functions that match
+        private_suggestion = self._suggest_private_function(
+            results, parsed_patterns, cutoff_date
+        )
+
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")
 
@@ -654,7 +757,7 @@ class FunctionSearchHandler:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, what_it_calls, language
+                function_name, results, staleness_info, what_it_calls, language, private_suggestion
             )
 
         return [TextContent(type="text", text=result)]
