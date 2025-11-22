@@ -121,15 +121,10 @@ class TestScoreDistribution:
         assert result["max_score"] == 3.0
 
         # All z-scores should be 0 (no variance)
+        # For identical scores, z-score is 0, percentile is 50, and normalized is 0.5
         for dist in result["distribution"]:
             assert dist["z_score"] == 0.0
-
-        # All percentiles should be 50.0 (median, no distribution)
-        for dist in result["distribution"]:
             assert dist["percentile"] == 50.0
-
-        # All normalized scores should be 0.5 (no range)
-        for dist in result["distribution"]:
             assert dist["normalized"] == 0.5
 
     def test_empty_list(self):
