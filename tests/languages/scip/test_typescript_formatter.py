@@ -198,12 +198,17 @@ class TestTypeScriptIndexFormatting:
         formatter = ModuleFormatter()
         output = formatter.format_module_json(module_name, module_data)
 
-        # Should contain TypeScript () notation, not Elixir /arity
-        assert "add()" in output or "Container" in output
+        # Verify that known TypeScript members are rendered with () notation,
+        # which confirms that the TypeScript formatter is being used.
+        assert "Container.add()" in output or "AsyncHandler.save()" in output
 
-        # Should NOT contain Elixir /arity notation for TypeScript code
-        # (we expect functions like add/1, but formatted as add())
-        # This is a weak test - the real test is that it uses the right formatter
+        # Ensure Elixir-style /arity notation is never present in TypeScript output.
+        # We explicitly check for common arities as well as "/" in general to
+        # catch any fallback to Elixir formatting.
+        assert "/1" not in output
+        assert "/2" not in output
+        assert "/3" not in output
+        assert "/" not in output
 
     def test_language_detection_triggers_typescript_formatter(self, typescript_index):
         """Test that language metadata triggers correct formatter."""

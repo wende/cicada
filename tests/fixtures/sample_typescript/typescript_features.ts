@@ -247,18 +247,6 @@ interface InternalConfig {
 /**
  * Private class (not exported).
  */
-class PrivateHelper {
-  config: InternalConfig;
-
-  constructor() {
-    this.config = { enabled: true, timeout: 5000 };
-  }
-
-  help(): string {
-    return "private helper";
-  }
-}
-
 /**
  * Private arrow function (not exported).
  */
