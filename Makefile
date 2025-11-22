@@ -205,16 +205,16 @@ pr-comments:
 	echo "REGULAR PR COMMENTS"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh pr view $$PR_NUMBER --json comments --jq '.comments[] | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'; \
+	gh pr view $$PR_NUMBER --json comments --jq '.comments[] | select(.isMinimized == false) | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No regular comments found."; \
 	echo ""; \
 	echo "================================================================================"; \
 	echo "REVIEW SUMMARIES"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[] | select(.body != "") | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'; \
+	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[] | select(.body != "" and (.isMinimized == false or .isMinimized == null)) | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No review summaries found."; \
 	echo ""; \
 	echo "================================================================================"; \
 	echo "REVIEW COMMENTS (Line-level code comments)"; \
 	echo "================================================================================"; \
 	echo ""; \
-	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --jq '.[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'
+	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --paginate --jq '.[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n"' || echo "No review comments found."
