@@ -1173,6 +1173,58 @@ This project uses **uv** as the primary Python package manager and build tool. W
 
 The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
 
+## Reviewing Pull Request Comments
+
+When asked to review, address, or analyze PR comments, **ALWAYS use the `make pr-comments` command first** to get a comprehensive view of all discussion.
+
+### Usage
+
+```bash
+make pr-comments
+```
+
+This command automatically:
+1. Detects the current branch and finds its associated PR
+2. Fetches and displays all PR discussion in organized sections:
+   - **Regular PR Comments**: Top-level discussion comments
+   - **Review Summaries**: Overall review bodies with approval/rejection status
+   - **Review Comments**: Line-level code review comments with file paths and diff context
+3. Filters out hidden/minimized comments (spam, resolved, etc.)
+4. Paginates through all comments (not just the first page)
+
+### When to Use
+
+Use `make pr-comments` proactively when:
+- User asks "what are the PR comments?" or "what did reviewers say?"
+- User asks to "address PR feedback" or "fix review comments"
+- User asks to "review the PR discussion"
+- Starting work on addressing review feedback
+- You need context about what changes reviewers are requesting
+
+### Example Workflow
+
+```bash
+# User: "Can you address the PR comments?"
+
+# 1. First, fetch all comments
+make pr-comments
+
+# 2. Read the output to understand reviewer feedback
+
+# 3. Address each piece of feedback systematically
+
+# 4. Commit changes addressing the feedback
+```
+
+### Error Handling
+
+The command validates:
+- You're on a feature branch (not `main` or `HEAD`)
+- A PR exists for the current branch
+- GitHub CLI (`gh`) is installed
+
+If any validation fails, you'll get a clear error message explaining the issue.
+
 ## Code Style
 
 - Use `black` for Python code formatting
