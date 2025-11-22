@@ -871,6 +871,40 @@ Both approaches work for finding code:
 - **Formatter:** `cicada/format/formatter.py` - Displays classes section
 - **Tests:** `tests/format/test_class_display.py`, `tests/languages/scip/test_scip_converter.py`
 
+### Configurable Import Detection
+
+The SCIP converter has a configurable `import_search_lines` parameter that controls how many lines from the top of the file are scanned for import statements. This addresses the common issue where files with large docstrings, copyright headers, or extensive module documentation push imports beyond the initial lines.
+
+**Default Behavior:**
+- Scans first **50 lines** for imports (increased from 15 in initial implementation)
+- Configurable via `import_search_lines` parameter
+- Prevents false positives by ignoring function calls deeper in the file
+
+**Usage:**
+
+```python
+from cicada.languages.scip.converter import SCIPConverter
+
+# Use default (50 lines)
+converter = SCIPConverter()
+
+# Increase for files with very large headers
+converter = SCIPConverter(import_search_lines=100)
+
+# Decrease for faster processing if all imports are early
+converter = SCIPConverter(import_search_lines=25)
+```
+
+**Why This Matters:**
+- Python files often have large module docstrings (10-30 lines)
+- Copyright headers and license text can push imports down
+- Without this limit, regular function calls would be misidentified as imports
+- The configurable limit balances accuracy and flexibility
+
+**Implementation:**
+- **Location:** `cicada/languages/scip/converter.py:19-42` (constructor), `764` (usage)
+- **Tests:** `tests/languages/scip/test_import_search_lines.py`
+
 ## Search Query Syntax
 
 Cicada's search system supports both keyword-based and pattern-based queries with automatic query type detection.

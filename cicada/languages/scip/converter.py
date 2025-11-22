@@ -22,6 +22,7 @@ class SCIPConverter:
         keyword_extractor=None,
         extract_references: bool = True,
         verbose: bool = False,
+        import_search_lines: int = 50,
     ):
         """
         Initialize SCIP converter.
@@ -31,11 +32,14 @@ class SCIPConverter:
             keyword_extractor: Keyword extractor instance (LightweightKeywordExtractor or KeyBERTExtractor)
             extract_references: If True, extract call sites and references from SCIP occurrences (default: True)
             verbose: If True, print progress messages
+            import_search_lines: Number of lines to search for imports (default: 50).
+                                 Increased from 15 to handle files with large docstrings/headers.
         """
         self.extract_keywords = extract_keywords
         self.keyword_extractor = keyword_extractor
         self.extract_references = extract_references
         self.verbose = verbose
+        self.import_search_lines = import_search_lines
 
     def convert(self, scip_index: scip_pb2.Index, repo_path: Path) -> dict:
         """
@@ -756,8 +760,8 @@ class SCIPConverter:
 
             # Focus on early lines where imports typically occur
             # This helps distinguish imports from regular function calls
-            # Most Python files have imports in the first 10-15 lines
-            if line > 15:
+            # Configurable limit (default 50) to handle files with large headers/docstrings
+            if line > self.import_search_lines:
                 break  # SCIP occurrences are sorted by line number
 
             symbol = occurrence.symbol
