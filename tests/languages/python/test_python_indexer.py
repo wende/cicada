@@ -584,7 +584,22 @@ class TestPythonIndexerHelperMethods:
         with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
             mock_git_helper = MagicMock()
             mock_git_helper.get_functions_evolution_batch.return_value = {
-                "test_func": {"created": "2024-01-01", "modified": "2024-01-10"}
+                "test_func": {
+                    "created_at": {
+                        "date": "2024-01-01T00:00:00+00:00",
+                        "sha": "abc123",
+                        "author": "Test Author",
+                        "message": "Initial commit",
+                    },
+                    "last_modified": {
+                        "date": "2024-01-10T00:00:00+00:00",
+                        "sha": "def456",
+                        "author": "Test Author",
+                        "message": "Update function",
+                    },
+                    "total_modifications": 5,
+                    "modification_frequency": 0.5,
+                }
             }
             mock_git_helper_class.return_value = mock_git_helper
 
@@ -594,8 +609,17 @@ class TestPythonIndexerHelperMethods:
             assert "Computing git timestamps" in captured.out
 
             func = index["modules"]["TestModule"]["functions"][0]
-            assert "timestamps" in func
-            assert func["timestamps"]["created"] == "2024-01-01"
+            # Now individual fields are extracted instead of timestamps dict
+            assert "created_at" in func
+            assert func["created_at"] == "2024-01-01T00:00:00+00:00"
+            assert "last_modified_at" in func
+            assert func["last_modified_at"] == "2024-01-10T00:00:00+00:00"
+            assert "last_modified_sha" in func
+            assert func["last_modified_sha"] == "def456"
+            assert "modification_count" in func
+            assert func["modification_count"] == 5
+            assert "modification_frequency" in func
+            assert func["modification_frequency"] == 0.5
 
     def test_compute_timestamps_git_helper_failure(self, verbose_indexer, tmp_path, capsys):
         """Should handle git helper initialization failure."""
