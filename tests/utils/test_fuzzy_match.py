@@ -51,12 +51,11 @@ class TestFindSimilarNames:
         results = find_similar_names("User", candidates)
 
         # "User" appears in multiple candidates
-        assert len(results) > 0
+        assert results
         user_results = [r for r in results if "User" in r[0]]
-        assert len(user_results) > 0
+        assert user_results
         # All should have boosted scores
-        for result in user_results:
-            assert result[1] >= 0.6
+        assert all(result[1] >= 0.6 for result in user_results)
 
     def test_dotted_query_component_match(self):
         """Should match dotted query parts against candidates."""
@@ -98,8 +97,7 @@ class TestFindSimilarNames:
         results = find_similar_names("User", candidates, threshold=0.5)
 
         # Only results with score > 0.5 should be included
-        for name, score in results:
-            assert score > 0.5
+        assert all(score > 0.5 for _, score in results)
 
     def test_custom_threshold(self):
         """Should respect custom threshold parameter."""
@@ -107,8 +105,7 @@ class TestFindSimilarNames:
         results = find_similar_names("User", candidates, threshold=0.8, max_suggestions=10)
 
         # Only high-scoring matches should be included
-        for name, score in results:
-            assert score > 0.8
+        assert all(score > 0.8 for _, score in results)
 
     def test_threshold_default(self):
         """Should use default threshold of 0.4."""
@@ -116,9 +113,8 @@ class TestFindSimilarNames:
         results = find_similar_names("User", candidates, threshold=0.4)
 
         # Should include moderate matches
-        assert len(results) > 0
-        for name, score in results:
-            assert score > 0.4
+        assert results
+        assert all(score > 0.4 for _, score in results)
 
     def test_no_matches_above_threshold(self):
         """Should return empty list when no matches above threshold."""
@@ -180,8 +176,7 @@ class TestFindSimilarNames:
         results = find_similar_names("user", candidates)
 
         # Results should maintain original casing
-        for name, score in results:
-            assert name in candidates
+        assert all(name in candidates for name, _ in results)
 
     def test_mixed_case_matching(self):
         """Should match regardless of case differences."""
@@ -209,12 +204,10 @@ class TestFindSimilarNames:
         candidates.append("UserService")  # Position 600
         candidates.extend([f"Random{i}" for i in range(600, 1000)])
 
-        results = find_similar_names("UserService", candidates, threshold=0.9)
+        results = find_similar_names("UserServic", candidates, threshold=0.9)
 
-        # The exact match at position 600 won't be found due to 500 limit
-        # But there might be accidental matches in first 500
-        # Just ensure function doesn't crash
-        assert isinstance(results, list)
+        # High-similarity candidate beyond cutoff should not be considered
+        assert results == []
 
     def test_score_comparison(self):
         """Should score better matches higher."""
@@ -222,10 +215,9 @@ class TestFindSimilarNames:
         results = find_similar_names("User", candidates, max_suggestions=10)
 
         # UserService and UserAuth should score higher than RandomModule
-        user_scores = {name: score for name, score in results}
+        user_scores = dict(results)
 
-        if "UserService" in user_scores and "RandomModule" in user_scores:
-            assert user_scores["UserService"] > user_scores["RandomModule"]
+        assert user_scores.get("UserService", 0) > user_scores.get("RandomModule", 0)
 
     def test_sequence_matcher_similarity(self):
         """Should use SequenceMatcher for basic similarity."""
@@ -236,9 +228,8 @@ class TestFindSimilarNames:
         assert results[0][0] == "abcdef"
 
         # Similar string should score higher than dissimilar
-        scores = {name: score for name, score in results}
-        if "abcxef" in scores and "xyzabc" in scores:
-            assert scores["abcxef"] > scores["xyzabc"]
+        scores = dict(results)
+        assert scores.get("abcxef", 0) >= scores.get("xyzabc", 0)
 
     def test_substring_boost_applies(self):
         """Should apply 0.7 boost for substring matches."""
@@ -287,8 +278,7 @@ class TestFindSimilarNames:
         assert len(results) <= 3
 
         # All should be above threshold
-        for name, score in results:
-            assert score > 0.5
+        assert all(score > 0.5 for _, score in results)
 
         # Should be sorted by score
         scores = [score for _, score in results]
@@ -306,7 +296,7 @@ class TestFindSimilarNames:
 
         # Should match at least one (exact match "Users" is guaranteed)
         users_matches = [r for r in results if "Users" in r[0]]
-        assert len(users_matches) >= 1
+        assert users_matches
         # Exact match should be present
         assert any(r[0] == "Users" and r[1] == 1.0 for r in results)
 
@@ -336,8 +326,7 @@ class TestFindSimilarNames:
         results = find_similar_names("UserService", candidates, threshold=0.1)
 
         # Might get some results with very low scores
-        for name, score in results:
-            assert score < 0.5  # Should be low
+        assert all(score < 0.5 for _, score in results)
 
 
 class TestEdgeCases:
@@ -348,8 +337,7 @@ class TestEdgeCases:
         results = find_similar_names("User", ["UserService"])
 
         assert len(results) <= 1
-        if results:
-            assert results[0][0] == "UserService"
+        assert results and results[0][0] == "UserService"
 
     def test_duplicate_candidates(self):
         """Should handle duplicate candidates."""

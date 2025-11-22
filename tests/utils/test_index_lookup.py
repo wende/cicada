@@ -135,6 +135,10 @@ class TestLookupModule:
 class TestLookupFunction:
     """Tests for lookup_function function."""
 
+    @staticmethod
+    def _result_for_module(results, module_name):
+        return next((r for r in results if r["module_name"] == module_name), None)
+
     def test_lookup_function_single_match(self, sample_index):
         """Should find function with unique name."""
         results = lookup_function(sample_index, "uppercase")
@@ -152,13 +156,13 @@ class TestLookupFunction:
         assert len(results) == 2
 
         # Find Calculator.add
-        calc_add = next((r for r in results if r["module_name"] == "Calculator"), None)
+        calc_add = self._result_for_module(results, "Calculator")
         assert calc_add is not None
         assert calc_add["doc"] == "Add two numbers"
         assert calc_add["line"] == 7
 
         # Find StringUtils.add
-        string_add = next((r for r in results if r["module_name"] == "StringUtils"), None)
+        string_add = self._result_for_module(results, "StringUtils")
         assert string_add is not None
         assert string_add["doc"] == "Concatenate two strings"
         assert string_add["line"] == 12
@@ -346,6 +350,18 @@ class TestGetFunctionDocumentation:
         assert calc_doc == "Add two numbers"
         assert string_doc == "Concatenate two strings"
 
+    def test_get_documentation_missing_modules_key(self):
+        """Should return None when index has no 'modules' key."""
+        doc = get_function_documentation({}, "M", "f")
+
+        assert doc is None
+
+    def test_get_documentation_empty_modules(self):
+        """Should return None when 'modules' is present but empty."""
+        doc = get_function_documentation({"modules": {}}, "M", "f")
+
+        assert doc is None
+
 
 class TestGetFunctionSignature:
     """Tests for get_function_signature function."""
@@ -395,6 +411,18 @@ class TestGetFunctionSignature:
 
         assert calc_sig == "def add(x: int, y: int) -> int:"
         assert string_sig == "def add(s1: str, s2: str) -> str:"
+
+    def test_get_signature_missing_modules_key(self):
+        """Should return None when index has no 'modules' key."""
+        sig = get_function_signature({}, "M", "f")
+
+        assert sig is None
+
+    def test_get_signature_empty_modules(self):
+        """Should return None when 'modules' is present but empty."""
+        sig = get_function_signature({"modules": {}}, "M", "f")
+
+        assert sig is None
 
 
 class TestEdgeCases:

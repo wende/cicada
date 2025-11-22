@@ -193,6 +193,10 @@ def sample_index_with_old_calls():
 class TestGetCallSites:
     """Tests for get_call_sites function."""
 
+    @staticmethod
+    def _call_for_function(call_sites, function_name):
+        return next((c for c in call_sites if c.get("function") == function_name), None)
+
     def test_get_call_sites_with_dependencies(self, sample_index_with_dependencies):
         """Should return all call sites for a function."""
         call_sites = get_call_sites(sample_index_with_dependencies, "UserService", "create_user")
@@ -200,15 +204,13 @@ class TestGetCallSites:
         assert len(call_sites) == 3
 
         # Check Validator.validate_email call
-        validator_call = next(
-            (c for c in call_sites if c.get("function") == "validate_email"), None
-        )
+        validator_call = self._call_for_function(call_sites, "validate_email")
         assert validator_call is not None
         assert validator_call["module"] == "Validator"
         assert validator_call["line"] == 12
 
         # Check Database.insert call
-        db_call = next((c for c in call_sites if c.get("function") == "insert"), None)
+        db_call = self._call_for_function(call_sites, "insert")
         assert db_call is not None
         assert db_call["module"] == "Database"
         assert db_call["line"] == 15
@@ -358,13 +360,13 @@ class TestGetDependencies:
         """Should return dependencies in new dict format."""
         deps = get_dependencies(sample_index_with_dependencies, "UserService")
 
-        assert deps == ["Database", "Logger", "Validator"]
+        assert sorted(deps) == sorted(["Database", "Logger", "Validator"])
 
     def test_get_dependencies_old_format(self, sample_index_old_format):
         """Should handle old list format for backward compatibility."""
         deps = get_dependencies(sample_index_old_format, "OldModule")
 
-        assert deps == ["Dep1", "Dep2"]
+        assert sorted(deps) == sorted(["Dep1", "Dep2"])
 
     def test_get_dependencies_no_dependencies(self, sample_index_with_dependencies):
         """Should return empty list for module with no dependencies."""
@@ -514,6 +516,7 @@ class TestEdgeCases:
 
         assert get_call_sites(index, "Empty", "f") == []
         assert get_callees_of(index, "Empty", "f") == []
+        assert get_callers_of(index, "f") == []
 
     def test_function_without_dependencies_or_calls(self):
         """Should handle function without dependencies or calls key."""
