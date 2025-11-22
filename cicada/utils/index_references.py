@@ -36,7 +36,10 @@ def get_call_sites(
 
     for func in module.get("functions", []):
         if func.get("name") == function_name:
-            return func.get("calls", [])
+            # Return dependencies instead of calls (SCIP format)
+            # Dependencies have {module, function, arity, line}
+            # Calls have {callee, file, line} (raw SCIP symbols)
+            return func.get("dependencies", func.get("calls", []))
 
     return []
 
@@ -68,7 +71,10 @@ def get_callers_of(
     # Search all functions for calls to target
     for module_name, module_data in index["modules"].items():
         for func in module_data.get("functions", []):
-            calls = func.get("calls", [])
+            # Use dependencies instead of calls (SCIP format)
+            # Dependencies have {module, function, arity, line}
+            # Calls have {callee, file, line} (raw SCIP symbols)
+            calls = func.get("dependencies", func.get("calls", []))
 
             for call in calls:
                 callee = call.get("callee", call.get("function", call.get("symbol")))

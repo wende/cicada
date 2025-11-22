@@ -54,20 +54,30 @@ class DeadCodeAnalyzer:
 
         # Analyze each module
         for module_name, module_data in self.modules.items():
-            # Skip test files and .exs files entirely
-            if is_test_file(module_data["file"]):
-                skipped_files += sum(1 for f in module_data["functions"] if f["type"] == "def")
-                continue
+            # Check if this is a test file
+            is_test = is_test_file(module_data["file"])
 
             # Analyze each function in the module
             for function in module_data["functions"]:
+                # Skip test file functions - don't analyze them as dead code candidates
+                # But we still need to search their dependencies later!
+                if is_test:
+                    func_type = function.get("type")
+                    if func_type in ("def", "public"):
+                        skipped_files += 1
+                    continue
+
                 # Only analyze public functions
-                if function["type"] != "def":
+                # Elixir: type == "def" (vs "defp" for private)
+                # Python: type == "public" (vs "private")
+                func_type = function.get("type")
+                if func_type not in ("def", "public"):
                     continue
 
                 total_public += 1
 
                 # Skip functions with @impl (they're called by behaviors)
+                # Note: This is Elixir-specific, Python doesn't use @impl
                 if function.get("impl"):
                     skipped_impl += 1
                     continue
@@ -145,7 +155,9 @@ class DeadCodeAnalyzer:
 
         # Get the function definition line to filter out @spec/@doc
         function_def_line = None
+        target_file = None
         if target_module in self.modules:
+            target_file = self.modules[target_module].get("file")
             for func in self.modules[target_module]["functions"]:
                 if func["name"] == target_function and func["arity"] == target_arity:
                     function_def_line = func["line"]
@@ -153,18 +165,39 @@ class DeadCodeAnalyzer:
 
         # Search through all modules for calls
         for caller_module, module_data in self.modules.items():
-            # Get aliases for resolving calls
+            # Get aliases for resolving calls (Elixir-specific)
             aliases = module_data.get("aliases", {})
 
-            # Check all calls in this module
+            # Collect all dependencies (module-level and function-level)
+            # This handles both Elixir (module-level) and Python (function-level)
+            all_dependencies = []
+
+            # Add module-level dependencies (for Elixir compatibility)
+            for dep in module_data.get("dependencies", []):
+                if isinstance(dep, dict):  # Skip string-only dependencies
+                    all_dependencies.append(dep)
+
+            # Add function-level dependencies (for Python/SCIP)
+            for func in module_data.get("functions", []):
+                for dep in func.get("dependencies", []):
+                    if isinstance(dep, dict):
+                        all_dependencies.append(dep)
+
+            # BACKWARD COMPATIBILITY: Also check old 'calls' format (Elixir module-level)
+            # This is for older indexes or test fixtures that haven't been updated
             for call in module_data.get("calls", []):
-                if call["function"] != target_function:
+                if isinstance(call, dict) and call.get("function"):
+                    all_dependencies.append(call)
+
+            # Check all dependencies in this module
+            for call in all_dependencies:
+                if call.get("function") != target_function:
                     continue
 
-                if call["arity"] != target_arity:
+                if call.get("arity") != target_arity:
                     continue
 
-                # Resolve the call's module name using aliases
+                # Module matching logic
                 call_module = call.get("module")
 
                 if call_module is None:
@@ -175,8 +208,8 @@ class DeadCodeAnalyzer:
                         # Only filter if call is before def and within 5 lines
                         if (
                             function_def_line
-                            and call["line"] < function_def_line
-                            and (function_def_line - call["line"]) <= 5
+                            and call.get("line", 0) < function_def_line
+                            and (function_def_line - call.get("line", 0)) <= 5
                         ):
                             continue
                         call_count += 1
@@ -187,6 +220,18 @@ class DeadCodeAnalyzer:
                     # Check if this resolves to our target module
                     if resolved_module == target_module:
                         call_count += 1
+                    # Python fallback: Check if module paths match (handles backtick-wrapped paths)
+                    elif target_file:
+                        # Convert file path to module path
+                        # cicada/languages/__init__.py -> cicada.languages
+                        # cicada/indexer.py -> cicada.indexer
+                        module_path = target_file.replace("/", ".").replace(".py", "")
+                        if module_path.endswith(".__init__"):
+                            module_path = module_path[: -len(".__init__")]
+
+                        # Check if the call module matches (with or without backticks)
+                        if call_module.strip("`") == module_path:
+                            call_count += 1
 
         return call_count
 

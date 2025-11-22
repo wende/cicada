@@ -199,62 +199,102 @@ class FunctionSearchHandler:
                     function_def_line = func["line"]
                     break
 
+        # Get the target module's file path for cross-referencing
+        target_file = None
+        if target_module in self.index["modules"]:
+            target_file = self.index["modules"][target_module].get("file")
+
         for caller_module, module_data in self.index["modules"].items():
             # Get aliases for this module to resolve calls
             aliases = module_data.get("aliases", {})
 
-            # Check all calls in this module
+            # Collect all dependencies (module-level and function-level)
+            all_dependencies = []
+
+            # Add module-level dependencies (for Elixir compatibility)
+            for dep in module_data.get("dependencies", []):
+                if isinstance(dep, dict):  # Skip string-only dependencies
+                    all_dependencies.append(dep)
+
+            # Add function-level dependencies (for Python/SCIP)
+            for func in module_data.get("functions", []):
+                for dep in func.get("dependencies", []):
+                    if isinstance(dep, dict):  # Skip string-only dependencies
+                        all_dependencies.append(dep)
+
+            # BACKWARD COMPATIBILITY: Also check old 'calls' format (Elixir module-level)
+            # This is for older indexes or test fixtures that haven't been updated
             for call in module_data.get("calls", []):
-                if call["function"] != target_function:
+                if isinstance(call, dict) and call.get("function"):
+                    all_dependencies.append(call)
+
+            # Check all dependencies in this module
+            for call in all_dependencies:
+                if call.get("function") != target_function:
                     continue
 
-                if call["arity"] != target_arity:
+                if call.get("arity") != target_arity:
                     continue
 
                 # Resolve the call's module name using aliases
                 call_module = call.get("module")
 
+                is_match = False
+                call_type = "unknown"
+                alias_used = None
+
                 if call_module is None:
                     # Local call - check if it's in the same module
                     if caller_module == target_module:
-                        # Filter out calls that are part of the function definition
-                        # (@spec, @doc appear 1-5 lines before the def)
-                        if function_def_line and abs(call["line"] - function_def_line) <= 5:
-                            continue
-
-                        # Find the calling function
-                        calling_function = self._find_function_at_line(caller_module, call["line"])
-
-                        call_sites.append(
-                            {
-                                "calling_module": caller_module,
-                                "calling_function": calling_function,
-                                "file": module_data["file"],
-                                "line": call["line"],
-                                "call_type": "local",
-                            }
-                        )
+                        is_match = True
+                        call_type = "local"
                 else:
                     # Qualified call - resolve the module name
                     resolved_module = aliases.get(call_module, call_module)
 
-                    # Check if this resolves to our target module
+                    # Check if this resolves to our target module (name match)
                     if resolved_module == target_module:
-                        # Find the calling function
-                        calling_function = self._find_function_at_line(caller_module, call["line"])
+                        is_match = True
+                        call_type = "qualified"
+                        alias_used = call_module if call_module != resolved_module else None
+                    # For Python/SCIP: also check if the call's module corresponds to the target file
+                    # This handles cases where dependencies store Python module paths with backticks
+                    # (e.g., `cicada.parsing.base_indexer`) but the target is a class (e.g., `BaseIndexer`)
+                    elif target_file and call_module:
+                        # Look up the dependency's module in the index
+                        dep_module_data = self.index["modules"].get(call_module.strip("`"))
+                        if dep_module_data and dep_module_data.get("file") == target_file:
+                            # The dependency references a module in the same file as our target
+                            is_match = True
+                            call_type = "qualified"
 
-                        call_sites.append(
-                            {
-                                "calling_module": caller_module,
-                                "calling_function": calling_function,
-                                "file": module_data["file"],
-                                "line": call["line"],
-                                "call_type": "qualified",
-                                "alias_used": (
-                                    call_module if call_module != resolved_module else None
-                                ),
-                            }
-                        )
+                if not is_match:
+                    continue
+
+                # Filter out calls that are part of the function definition
+                # (@spec, @doc appear 1-5 lines before the def)
+                # Only filter for local calls (same module)
+                call_line = call.get("line", 0)
+                if (
+                    call_type == "local"
+                    and function_def_line
+                    and abs(call_line - function_def_line) <= 5
+                ):
+                    continue
+
+                # Find the calling function
+                calling_function = self._find_function_at_line(caller_module, call_line)
+
+                call_sites.append(
+                    {
+                        "calling_module": caller_module,
+                        "calling_function": calling_function,
+                        "file": module_data["file"],
+                        "line": call_line,
+                        "call_type": call_type,
+                        "alias_used": alias_used,
+                    }
+                )
 
         return call_sites
 
