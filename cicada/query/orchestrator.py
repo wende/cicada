@@ -8,12 +8,17 @@ Author: Cicada Team
 """
 
 import re
+import shlex
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cicada.keyword_search import KeywordSearcher
-from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
+from cicada.mcp.pattern_utils import (
+    has_wildcards,
+    matches_pattern,
+    parse_function_patterns,
+)
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import matches_glob_pattern
@@ -54,9 +59,44 @@ class QueryOrchestrator:
         # If no timestamp available, exclude from "recent" filter
         return False
 
+    def _tokenize_query(self, query: str) -> list[str]:
+        """
+        Tokenize a query string into individual keywords.
+
+        Supports quoted phrases for exact matching:
+        - "agent execution" → ["agent", "execution"]
+        - '"exact phrase" other' → ["exact phrase", "other"]
+        - "agent" → ["agent"]
+
+        Args:
+            query: Query string
+
+        Returns:
+            List of keywords/phrases
+        """
+        try:
+            # Use shlex to handle quoted phrases
+            tokens = shlex.split(query)
+        except ValueError:
+            # If shlex fails (unmatched quotes), fall back to simple split
+            tokens = query.split()
+
+        return [t.strip() for t in tokens if t.strip()]
+
     def _analyze_query(self, query: str | list[str]) -> QueryStrategy:
         """
         Analyze query to determine search strategy.
+
+        String queries are tokenized by whitespace (supports quoted phrases),
+        UNLESS they contain pattern syntax (wildcards, OR, module qualifiers),
+        in which case they are preserved as-is to avoid breaking patterns.
+
+        Examples:
+        - "agent execution" → ["agent", "execution"] (two keywords)
+        - ["agent", "execution"] → ["agent", "execution"] (two keywords)
+        - '"agent execution"' → ["agent execution"] (one exact phrase keyword)
+        - "login | auth" → ["login | auth"] (OR pattern, not tokenized)
+        - "ThenvoiCom.Agent*" → ["ThenvoiCom.Agent*"] (wildcard pattern, not tokenized)
 
         Args:
             query: Query string or list of query strings
@@ -64,7 +104,21 @@ class QueryOrchestrator:
         Returns:
             QueryStrategy with search configuration
         """
-        queries = [query] if isinstance(query, str) else query
+        # For string queries, check if they contain pattern syntax before tokenizing
+        if isinstance(query, str):
+            # Detect pattern syntax that would break if tokenized
+            has_pattern_syntax = (
+                "|" in query  # OR patterns
+                or "*" in query  # Wildcards
+                or "/" in query  # Arity specs
+                or (":" in query and (".ex" in query or ".exs" in query))  # File paths
+                or (query and query[0].isupper() and "." in query)  # Module qualifiers
+            )
+
+            # If pattern syntax detected, don't tokenize to preserve the pattern
+            queries = [query] if has_pattern_syntax else self._tokenize_query(query)
+        else:
+            queries = query
 
         use_keyword_search = False
         use_pattern_search = False
@@ -74,6 +128,12 @@ class QueryOrchestrator:
         for q in queries:
             q_normalized = q.strip()
             if not q_normalized:
+                continue
+
+            # Skip standalone OR tokens that can appear when queries are pre-tokenized
+            # (e.g., ["login", "|", "auth"]). Treating these as patterns would
+            # match everything.
+            if set(q_normalized) == {"|"}:
                 continue
 
             # Detect if this is a pattern (has wildcards, module qualifiers, arity)
@@ -149,11 +209,38 @@ class QueryOrchestrator:
 
             # For each pattern alternative (OR patterns)
             for func_pattern in patterns:
-                # Check if this is a module-level search (function name is "*")
+                # Check if this is a module-level search
+                # Two cases:
+                # 1. Function name is "*" (e.g., "MyApp.User.*")
+                # 2. Function name has no wildcards and could be the module suffix (e.g., "ThenvoiCom.Context")
+                is_module_search = func_pattern.name == "*"
+
+                # Check if the "function name" is actually a module suffix
+                # This handles queries like "ThenvoiCom.Context" which get parsed as module="*.ThenvoiCom", name="Context"
+                module_tail = module_name.rsplit(".", 1)[-1]
+                module_matches = matches_pattern(func_pattern.module, module_name)
                 if (
-                    func_pattern.name == "*"
+                    not is_module_search
+                    and "*" not in func_pattern.name
+                    and "|" not in func_pattern.name
+                    and func_pattern.module
+                ):
+                    module_base = (
+                        func_pattern.module[2:]
+                        if func_pattern.module.startswith("*.")
+                        else func_pattern.module
+                    )
+
+                    if matches_pattern(f"*.{module_base}.{func_pattern.name}", module_name):
+                        is_module_search = True
+
+                if (
+                    is_module_search
                     and filter_type in ["all", "modules"]
-                    and func_pattern.matches(module_name, file_path, {"name": "*", "arity": 0})
+                    and module_matches
+                    and (
+                        func_pattern.name == "*" or matches_pattern(func_pattern.name, module_tail)
+                    )
                 ):
                     # Add module as result
                     results.append(

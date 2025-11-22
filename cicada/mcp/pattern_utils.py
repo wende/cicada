@@ -38,17 +38,59 @@ def match_wildcard(pattern: str, text: str) -> bool:
 
 
 def matches_pattern(pattern: str | None, text: str) -> bool:
-    """Evaluate whether text satisfies a (possibly wildcard) pattern."""
+    """
+    Evaluate whether text satisfies a (possibly wildcard) pattern.
+
+    Special handling for *.Prefix patterns:
+    - *.Something matches: Something, X.Something, X.Y.Something
+    - *.Something.* matches: Something.Z, X.Something.Z
+    - *.Something* matches: SomethingElse, X.SomethingElse
+    """
     if not pattern or pattern == "*":
         return True
     if "*" in pattern:
         # Special case: *.Something should match both "X.Something" AND "Something"
         if pattern.startswith("*."):
             suffix = pattern[2:]  # Remove "*."
-            if text.lower() == suffix.lower():
-                return True  # Exact match without prefix
-            # Match with any prefix
-            return text.lower().endswith("." + suffix.lower())
+
+            # Check if suffix has wildcards
+            if "*" in suffix:
+                # Suffix has wildcards - need to use fnmatch
+                # Match both "Something*" and "X.Something*" patterns
+                if match_wildcard(suffix, text):
+                    return True  # Direct match without prefix
+
+                # Try matching with any prefix: split text by dots and check if suffix matches tail
+                # e.g., "ThenvoiCom.AgentModule" split by "." → check if "Agent*" matches "AgentModule"
+                text_parts = text.lower().split(".")
+                # Try matching suffix against progressively shorter tails without
+                # repeatedly joining the full tail string on each iteration.
+                tail = ""
+                for part in reversed(text_parts):
+                    tail = f"{part}.{tail}" if tail else part
+                    if match_wildcard(suffix, tail):
+                        return True
+                return False
+            else:
+                # Suffix has no wildcards - use exact matching
+                text_lower = text.lower()
+                suffix_lower = suffix.lower()
+
+                # 1. Exact match: "Something"
+                if text_lower == suffix_lower:
+                    return True
+
+                # 2. Suffix match: "X.Something"
+                if text_lower.endswith("." + suffix_lower):
+                    return True
+
+                # 3. Prefix match: "Something.X" (for patterns like ThenvoiCom.Agents.*)
+                if text_lower.startswith(suffix_lower + "."):
+                    return True
+
+                # 4. Contains match: "X.Something.Y" (component match)
+                # Check if suffix appears as a complete component path
+                return ("." + suffix_lower + ".") in ("." + text_lower + ".")
         return match_wildcard(pattern, text)
     return pattern.lower() == text.lower()
 

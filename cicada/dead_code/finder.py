@@ -10,21 +10,105 @@ Author: Cursor(Auto)
 import argparse
 import json
 import sys
+from collections.abc import Callable
 
 from cicada.utils import get_index_path, load_index
 
 from .analyzer import DeadCodeAnalyzer
 
+# Default maximum number of results to show per confidence tier in markdown format.
+# Total output can be up to 3x this value (one for each tier: high/medium/low).
+# Use --format json for complete results or filter by --min-confidence.
+DEFAULT_MAX_RESULTS_PER_TIER = 50
 
-def format_markdown(results: dict) -> str:
+
+def _format_tier(
+    tier_name: str,
+    tier_label: str,
+    description: str,
+    candidates_list: list,
+    max_results: int,
+    format_module_details: Callable[[list[str], list], None] | None = None,
+) -> list[str]:
+    """
+    Format a confidence tier section with candidates.
+
+    Args:
+        tier_name: Name of the tier (e.g., "high", "medium", "low")
+        tier_label: Display label for the tier header
+        description: Description of what this tier means
+        candidates_list: List of candidate functions for this tier
+        max_results: Maximum number of results to show
+        format_module_details: Optional callback to format tier-specific module details.
+                              Called with (lines, funcs) and should append to lines.
+
+    Returns:
+        List of formatted lines for this tier
+    """
+    if not candidates_list:
+        return []
+
+    lines = []
+    count = len(candidates_list)
+
+    # Header
+    label = f" {tier_label} ({count} function{'s' if count != 1 else ''}) "
+    bar_length = 80
+    padding = (bar_length - len(label)) // 2
+    lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
+    lines.append(f"{description}\n")
+
+    # Truncate if needed
+    candidates_to_show = candidates_list[:max_results]
+    truncated = len(candidates_list) > max_results
+
+    # Group by module using setdefault
+    by_module: dict[str, list] = {}
+    for candidate in candidates_to_show:
+        by_module.setdefault(candidate["module"], []).append(candidate)
+
+    # Format each module
+    for module, funcs in sorted(by_module.items()):
+        lines.append(f"### {module}")
+        lines.append(f"{funcs[0]['file']}")
+
+        # Call tier-specific formatting callback if provided
+        if format_module_details:
+            format_module_details(lines, funcs)
+
+        lines.append("")
+
+        # List functions
+        for func in funcs:
+            lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
+        lines.append("")
+
+    # Truncation message
+    if truncated:
+        remaining = len(candidates_list) - max_results
+        candidate_word = "candidate" if remaining == 1 else "candidates"
+        lines.append(
+            f"*... and {remaining} more {tier_name} confidence {candidate_word} (truncated for readability)*\n"
+        )
+        lines.append("*Tip: Use JSON format or filter results for complete output*\n")
+
+    return lines
+
+
+def format_markdown(results: dict, max_results_per_tier: int = DEFAULT_MAX_RESULTS_PER_TIER) -> str:
     """
     Format analysis results as markdown.
 
     Args:
         results: Analysis results from DeadCodeAnalyzer
+        max_results_per_tier: Maximum number of results to show per confidence tier.
+                              Defaults to DEFAULT_MAX_RESULTS_PER_TIER (50).
+                              Note: Total output can show up to 3x this value
+                              (50 high + 50 medium + 50 low = 150 total).
+                              Use JSON format for complete untruncated results.
 
     Returns:
-        Formatted markdown string
+        Formatted markdown string with truncation applied if needed
     """
     lines = ["# Dead Code Analysis\n"]
 
@@ -38,97 +122,56 @@ def format_markdown(results: dict) -> str:
 
     candidates = results["candidates"]
 
-    # High confidence
-    if candidates["high"]:
-        count = len(candidates["high"])
-        label = f" HIGH CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
-        bar_length = 80
-        padding = (bar_length - len(label)) // 2
-        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
-        lines.append("Functions with zero usage in codebase\n")
+    # Define tier-specific detail formatters
+    def format_medium_details(lines: list[str], funcs: list) -> None:
+        """Format behaviors/uses for medium confidence tier."""
+        behaviours = funcs[0].get("behaviours", [])
+        uses = funcs[0].get("uses", [])
+        if behaviours:
+            lines.append(f"**Behaviours:** {', '.join(behaviours)}")
+        if uses:
+            lines.append(f"**Uses:** {', '.join(uses)}")
 
-        # Group by module
-        by_module = {}
-        for c in candidates["high"]:
-            if c["module"] not in by_module:
-                by_module[c["module"]] = []
-            by_module[c["module"]].append(c)
+    def format_low_details(lines: list[str], funcs: list) -> None:
+        """Format mentioned_in for low confidence tier."""
+        mentioned_in = funcs[0].get("mentioned_in", [])
+        if mentioned_in:
+            lines.append("**Module mentioned as value in:**")
+            for mention in mentioned_in:
+                lines.append(f"- {mention['module']} ({mention['file']})")
 
-        for module, funcs in sorted(by_module.items()):
-            lines.append(f"### {module}")
-            lines.append(f"{funcs[0]['file']}\n")
-            for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
-            lines.append("")
-
-    # Medium confidence
-    if candidates["medium"]:
-        count = len(candidates["medium"])
-        label = f" MEDIUM CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
-        bar_length = 80
-        padding = (bar_length - len(label)) // 2
-        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
-        lines.append(
-            "Functions with zero usage, but module has behaviors/uses (possible callbacks)\n"
+    # Format each tier
+    lines.extend(
+        _format_tier(
+            tier_name="high",
+            tier_label="HIGH CONFIDENCE",
+            description="Functions with zero usage in codebase",
+            candidates_list=candidates["high"],
+            max_results=max_results_per_tier,
         )
+    )
 
-        # Group by module
-        by_module = {}
-        for c in candidates["medium"]:
-            if c["module"] not in by_module:
-                by_module[c["module"]] = []
-            by_module[c["module"]].append(c)
-
-        for module, funcs in sorted(by_module.items()):
-            lines.append(f"### {module}")
-            lines.append(f"{funcs[0]['file']}")
-
-            # Show behaviors/uses
-            behaviours = funcs[0].get("behaviours", [])
-            uses = funcs[0].get("uses", [])
-            if behaviours:
-                lines.append(f"**Behaviours:** {', '.join(behaviours)}")
-            if uses:
-                lines.append(f"**Uses:** {', '.join(uses)}")
-            lines.append("")
-
-            for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
-            lines.append("")
-
-    # Low confidence
-    if candidates["low"]:
-        count = len(candidates["low"])
-        label = f" LOW CONFIDENCE ({count} function{'s' if count != 1 else ''}) "
-        bar_length = 80
-        padding = (bar_length - len(label)) // 2
-        lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
-        lines.append(
-            "Functions with zero usage, but module passed as value (possible dynamic calls)\n"
+    lines.extend(
+        _format_tier(
+            tier_name="medium",
+            tier_label="MEDIUM CONFIDENCE",
+            description="Functions with zero usage, but module has behaviors/uses (possible callbacks)",
+            candidates_list=candidates["medium"],
+            max_results=max_results_per_tier,
+            format_module_details=format_medium_details,
         )
+    )
 
-        # Group by module
-        by_module = {}
-        for c in candidates["low"]:
-            if c["module"] not in by_module:
-                by_module[c["module"]] = []
-            by_module[c["module"]].append(c)
-
-        for module, funcs in sorted(by_module.items()):
-            lines.append(f"### {module}")
-            lines.append(f"{funcs[0]['file']}")
-
-            # Show where module is mentioned as value
-            mentioned_in = funcs[0].get("mentioned_in", [])
-            if mentioned_in:
-                lines.append("**Module mentioned as value in:**")
-                for mention in mentioned_in:
-                    lines.append(f"- {mention['module']} ({mention['file']})")
-            lines.append("")
-
-            for func in funcs:
-                lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
-            lines.append("")
+    lines.extend(
+        _format_tier(
+            tier_name="low",
+            tier_label="LOW CONFIDENCE",
+            description="Functions with zero usage, but module passed as value (possible dynamic calls)",
+            candidates_list=candidates["low"],
+            max_results=max_results_per_tier,
+            format_module_details=format_low_details,
+        )
+    )
 
     if summary["total_candidates"] == 0:
         lines.append("\n*No dead code candidates found!*\n")
