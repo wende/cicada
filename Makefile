@@ -6,7 +6,7 @@ help:
 	@echo "  make install          - Full install (deps + cicada tool to ~/.local/bin)"
 	@echo "  make install-deps     - Install dependencies only (no tool installation)"
 	@echo "  make uninstall        - Uninstall cicada tool"
-	@echo "  make generate-scip-proto - Generate SCIP protobuf files (auto-called by test targets)"
+	@echo "  make generate-scip-proto - Generate SCIP protobuf files for local development (auto-generated during package build)"
 	@echo "  make setup-fixtures   - Setup test fixtures"
 	@echo "  make test             - Run all tests (auto-installs dependencies)"
 	@echo "  make test-verbose     - Run tests with verbose output (auto-installs dependencies)"
