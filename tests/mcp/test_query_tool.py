@@ -59,69 +59,27 @@ def test_server(tmp_path, test_index):
 class TestQueryToolValidation:
     """Input validation tests for the query tool."""
 
+    @pytest.mark.parametrize(
+        "params, expected_error_part",
+        [
+            ({}, "'query' is required"),
+            ({"query": 123}, "'query' must be a string or list of strings"),
+            ({"query": ["ok", 5]}, "list must contain only strings"),
+            ({"query": "auth", "scope": "internal"}, "'scope' must be one of"),
+            ({"query": "auth", "recent": "yes"}, "'recent' must be a boolean"),
+            ({"query": "auth", "filter_type": "classes"}, "'filter_type' must be one of"),
+            ({"query": "auth", "match_source": "code"}, "'match_source' must be one of"),
+            ({"query": "auth", "max_results": 0}, "'max_results' must be a positive integer"),
+            ({"query": "auth", "show_snippets": "true"}, "'show_snippets' must be a boolean"),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_missing_query_parameter(self, test_server):
-        result = await test_server.call_tool("query", {})
+    async def test_invalid_parameters(self, test_server, params, expected_error_part):
+        result = await test_server.call_tool("query", params)
 
         assert len(result) == 1
         assert isinstance(result[0], TextContent)
-        assert "'query' is required" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_query_type(self, test_server):
-        result = await test_server.call_tool("query", {"query": 123})
-
-        assert len(result) == 1
-        assert "'query' must be a string or list of strings" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_query_list_contents(self, test_server):
-        result = await test_server.call_tool("query", {"query": ["ok", 5]})
-
-        assert len(result) == 1
-        assert "list must contain only strings" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_scope_value(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "scope": "internal"})
-
-        assert len(result) == 1
-        assert "'scope' must be one of" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_recent_type(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "recent": "yes"})
-
-        assert len(result) == 1
-        assert "'recent' must be a boolean" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_filter_type(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "filter_type": "classes"})
-
-        assert len(result) == 1
-        assert "'filter_type' must be one of" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_match_source(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "match_source": "code"})
-
-        assert len(result) == 1
-        assert "'match_source' must be one of" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_max_results(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "max_results": 0})
-
-        assert len(result) == 1
-        assert "'max_results' must be a positive integer" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_invalid_show_snippets_type(self, test_server):
-        result = await test_server.call_tool("query", {"query": "auth", "show_snippets": "true"})
-
-        assert len(result) == 1
-        assert "'show_snippets' must be a boolean" in result[0].text
+        assert expected_error_part in result[0].text
 
 
 class TestQueryToolExecution:
@@ -138,7 +96,9 @@ class TestQueryToolExecution:
                 FakeOrchestrator.last_index = index
 
             def execute_query(self, **kwargs):
-                call_args.update(kwargs)
+                nonlocal call_args
+
+                call_args |= kwargs
                 return "query result"
 
         with patch("cicada.query.QueryOrchestrator", FakeOrchestrator):
@@ -156,7 +116,10 @@ class TestQueryToolExecution:
                 },
             )
 
-        assert result[0].text == "query result"
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert isinstance(result[0], TextContent)
+            assert result[0].text == "query result"
         assert call_args == {
             "query": ["auth"],
             "scope": "public",
