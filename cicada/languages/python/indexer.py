@@ -477,7 +477,7 @@ class PythonSCIPIndexer(BaseIndexer):
                             func_ref["last_modified_sha"] = last_modified.get("sha")
                         if "total_modifications" in evolution:
                             func_ref["modification_count"] = evolution["total_modifications"]
-                        if evolution.get("modification_frequency"):
+                        if "modification_frequency" in evolution:
                             func_ref["modification_frequency"] = evolution["modification_frequency"]
 
         except Exception as e:
