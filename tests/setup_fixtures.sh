@@ -31,6 +31,33 @@ else
 fi
 echo "✓ Test fixtures generated successfully"
 
+# Generate TypeScript SCIP index if sample_typescript exists
+if [ -d "tests/fixtures/sample_typescript" ]; then
+    echo "Generating TypeScript SCIP index..."
+    pushd tests/fixtures/sample_typescript > /dev/null
+
+    # Install npm dependencies if needed
+    if [ ! -d "node_modules" ]; then
+        echo "Installing npm dependencies..."
+        npm install
+    fi
+
+    # Generate SCIP index
+    echo "Running scip-typescript indexer..."
+    npx @sourcegraph/scip-typescript index
+
+    # Verify index was created
+    if [ -f "index.scip" ]; then
+        echo "✓ TypeScript SCIP index generated successfully"
+    else
+        echo "✗ Failed to generate TypeScript SCIP index"
+        popd > /dev/null
+        exit 1
+    fi
+
+    popd > /dev/null
+fi
+
 # Create config.yaml for acceptance tests (now uses centralized storage)
 echo "Creating config for test fixtures..."
 # Get storage directory hash

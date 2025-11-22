@@ -172,10 +172,22 @@ class DeadCodeAnalyzer:
             # This handles both Elixir (module-level) and Python (function-level)
             all_dependencies = []
 
-            # Add module-level dependencies (for Elixir compatibility)
-            for dep in module_data.get("dependencies", []):
-                if isinstance(dep, dict):  # Skip string-only dependencies
-                    all_dependencies.append(dep)
+            # Add module-level dependencies
+            # Handle both old list format and new dict format from SCIP converter
+            deps = module_data.get("dependencies", [])
+            if isinstance(deps, dict):
+                # New SCIP format: {"modules": [...], "has_dynamic_calls": bool}
+                # Module names are strings, not dicts, so we need to convert them
+                # to the old format for compatibility with the rest of the code
+                # Note: For now, we skip module-level dependencies from SCIP indexes
+                # because they don't include function/arity information.
+                # Function-level dependencies (below) will handle actual calls.
+                pass
+            elif isinstance(deps, list):
+                # Old Elixir format: list of dicts with {module, function, arity, line}
+                for dep in deps:
+                    if isinstance(dep, dict):  # Skip string-only dependencies
+                        all_dependencies.append(dep)
 
             # Add function-level dependencies (for Python/SCIP)
             for func in module_data.get("functions", []):
