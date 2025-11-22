@@ -1,4 +1,4 @@
-.PHONY: help install install-deps generate-scip-proto setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
+.PHONY: help install install-deps generate-scip-proto setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
 
 # Default target
 help:
@@ -17,6 +17,7 @@ help:
 	@echo "  make lint-fix         - Auto-fix issues with ruff"
 	@echo "  make pre-commit       - Run all pre-commit checks (auto-installs dependencies)"
 	@echo "  make ci-test          - Run tests in CI environment (auto-installs dependencies)"
+	@echo "  make pr-comments      - Display all comments from PR for current branch"
 	@echo "  make clean            - Remove generated files"
 	@echo "  make reset            - Full reset (cache, models, .cicada dirs)"
 	@echo "  make dev              - Clean rebuild and install (avoids cache issues)"
@@ -181,3 +182,39 @@ reset: clean
 	@echo ""
 	@echo "To reinstall cicada:"
 	@echo "  uv tool install --editable . --force"
+
+# Display all comments from PR for current branch
+pr-comments:
+	@echo "Fetching PR comments for current branch..."
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ]; then \
+		echo "Error: Not on a feature branch (currently on $$BRANCH)"; \
+		exit 1; \
+	fi; \
+	echo "Current branch: $$BRANCH"; \
+	echo ""; \
+	PR_NUMBER=$$(gh pr list --head "$$BRANCH" --json number --jq '.[0].number'); \
+	if [ -z "$$PR_NUMBER" ]; then \
+		echo "Error: No PR found for branch $$BRANCH"; \
+		exit 1; \
+	fi; \
+	REPO=$$(gh repo view --json nameWithOwner --jq '.nameWithOwner'); \
+	echo "PR #$$PR_NUMBER"; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REGULAR PR COMMENTS"; \
+	echo "================================================================================"; \
+	echo ""; \
+	gh pr view $$PR_NUMBER --json comments --jq '.comments[] | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REVIEW SUMMARIES"; \
+	echo "================================================================================"; \
+	echo ""; \
+	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[] | select(.body != "") | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REVIEW COMMENTS (Line-level code comments)"; \
+	echo "================================================================================"; \
+	echo ""; \
+	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --jq '.[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n"'
