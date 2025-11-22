@@ -176,7 +176,7 @@ def find_mcp_files(repo_path: Path) -> dict:
             "editor": "VS Code",
         },
         {
-            "path": repo_path / ".gemini" / "mcp.json",
+            "path": repo_path / ".gemini" / "settings.json",
             "description": "Gemini CLI config",
             "editor": "Gemini CLI",
         },

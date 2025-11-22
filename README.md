@@ -96,7 +96,7 @@ Ask your assistant:
   ├─ hashes.json     # incremental indexing cache
   └─ pr_index.json   # optional PR metadata + reviews
   ```
-  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/mcp.json`, `.codex/mcp.json`, or `.opencode.json`).
+  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/settings.json`, `.codex/mcp.json`, or `.opencode.json`).
 
 ---
 

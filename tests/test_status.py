@@ -412,7 +412,7 @@ class TestFindMcpFiles:
         gemini_dir = repo_path / ".gemini"
         gemini_dir.mkdir()
 
-        mcp_file = gemini_dir / "mcp.json"
+        mcp_file = gemini_dir / "settings.json"
         mcp_data = {"mcpServers": {"Cicada": {}}}
         with open(mcp_file, "w") as f:
             json.dump(mcp_data, f)

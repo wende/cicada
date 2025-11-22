@@ -61,7 +61,7 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
   - `.mcp.json` (Claude Code)
   - `.cursor/mcp.json` (Cursor)
   - `.vscode/settings.json` (VS Code)
-  - `.gemini/mcp.json` (Gemini CLI)
+  - `.gemini/settings.json` (Gemini CLI)
   - `.codex/mcp.json` (Codex)
   - `.opencode.json` (OpenCode)
 
@@ -80,7 +80,7 @@ The MCP server uses environment variables to locate configuration files:
 
 - **CICADA_CONFIG_DIR** (Required by MCP config files)
   - Points directly to the storage directory: `~/.cicada/projects/<hash>/`
-  - Set in `.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/mcp.json`, `.codex/mcp.json`, and `.opencode.json`
+  - Set in `.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/settings.json`, `.codex/mcp.json`, and `.opencode.json`
   - Primary mechanism for config file resolution
   - Example: `/Users/username/.cicada/projects/a1b2c3d4e5f6g7h8/`
 
