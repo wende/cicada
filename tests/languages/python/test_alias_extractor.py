@@ -1,6 +1,5 @@
 """Tests for Python alias extraction."""
 
-import pytest
 from cicada.languages.python.alias_extractor import PythonAliasExtractor
 
 

@@ -162,7 +162,7 @@ def test_index_repository_keyword_extractor_init_failure(temp_repo, capsys):
             side_effect=ImportError("No keybert"),
         ):
             # Should fall back to not extracting keywords
-            result = indexer._index_repository_full(
+            indexer._index_repository_full(
                 str(temp_repo),
                 str(temp_repo / "index.json"),
                 extract_keywords=True,
@@ -180,7 +180,7 @@ def test_index_repository_string_extractor_init_failure(temp_repo, capsys):
         "cicada.languages.elixir.extractors.StringExtractor",
         side_effect=ImportError("No string extractor"),
     ):
-        result = indexer._index_repository_full(
+        indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
             extract_string_keywords=True,
@@ -195,7 +195,7 @@ def test_index_repository_git_helper_init_failure(temp_repo, capsys):
     indexer = ElixirIndexer(verbose=True)
 
     with patch("cicada.indexer.GitHelper", side_effect=RuntimeError("No git")):
-        result = indexer._index_repository_full(
+        indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
             compute_timestamps=True,
@@ -250,7 +250,7 @@ end
 """
         )
 
-    result = indexer._index_repository_full(
+    indexer._index_repository_full(
         str(temp_repo), str(temp_repo / "index.json"), extract_keywords=False
     )
 
@@ -283,7 +283,7 @@ end
     mock_git_helper.get_functions_evolution_batch.return_value = {}
 
     with patch("cicada.indexer.GitHelper", return_value=mock_git_helper):
-        result = indexer._index_repository_full(
+        indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
             compute_timestamps=True,

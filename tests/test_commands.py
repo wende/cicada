@@ -6,10 +6,9 @@ Target: >80% coverage on critical paths
 """
 
 import pytest
-import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from cicada.commands import (
     get_argument_parser,
     handle_command,
