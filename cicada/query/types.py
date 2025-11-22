@@ -56,11 +56,13 @@ class SearchResult:
         # Only functions have visibility; modules are always considered "public" for filtering
         if self.is_module():
             return True
-        return self.visibility == "def"
+        # Support both Elixir ('def') and SCIP ('public') visibility strings
+        return self.visibility in ("def", "public")
 
     def is_private(self) -> bool:
         """Check if this is a private function."""
-        return self.visibility == "defp"
+        # Support both Elixir ('defp') and SCIP ('private') visibility strings
+        return self.visibility in ("defp", "private")
 
     def get_last_modified(self) -> datetime | None:
         """Get the last modified timestamp if available."""

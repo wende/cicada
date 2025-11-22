@@ -198,9 +198,9 @@ class TestTypeScriptIndexFormatting:
         formatter = ModuleFormatter()
         output = formatter.format_module_json(module_name, module_data)
 
-        # Verify that known TypeScript members are rendered with () notation,
+        # Verify that known TypeScript members use () notation in signatures,
         # which confirms that the TypeScript formatter is being used.
-        assert "Container.add()" in output or "AsyncHandler.save()" in output
+        assert "(method) add(" in output or "(method) save(" in output
 
         # Ensure Elixir-style /arity notation is never present in TypeScript output.
         # We explicitly check for common arities as well as "/" in general to
