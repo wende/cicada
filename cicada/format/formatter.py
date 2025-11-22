@@ -234,12 +234,13 @@ class ModuleFormatter:
                         doc_text = None
                         for line in doc_lines:
                             stripped = line.strip()
-                            # Skip code fences and class/def signatures
+                            # Skip code fences and class/def/async def signatures
                             if (
                                 stripped
                                 and not stripped.startswith("```")
                                 and not stripped.startswith("class ")
                                 and not stripped.startswith("def ")
+                                and not stripped.startswith("async def ")
                             ):
                                 doc_text = stripped
                                 break
