@@ -516,7 +516,8 @@ class FunctionSearchHandler:
             pattern: The original function pattern
 
         Returns:
-            Pattern string with underscore prefix (e.g., "Module._func*" or "_func*/2")
+            Pattern string with underscore prefix, preserving file scope if present
+            (e.g., "lib/foo.ex:Module._func*" or "lib/foo.ex:_func*/2")
         """
         private_pattern = f"_{pattern.name}"
 
@@ -530,6 +531,10 @@ class FunctionSearchHandler:
 
         if pattern.arity is not None:
             private_pattern += f"/{pattern.arity}"
+
+        # Preserve file constraint if present
+        if pattern.file:
+            private_pattern = f"{pattern.file}:{private_pattern}"
 
         return private_pattern
 

@@ -202,3 +202,91 @@ async def test_private_function_suggestion_comprehensive():
     # Non-wildcard patterns don't trigger suggestion logic (no * in pattern)
     # So no private suggestion should appear
     assert "Did you mean private functions?" not in text
+
+
+@pytest.mark.asyncio
+async def test_private_function_suggestion_respects_file_scope():
+    """
+    Test that private function suggestions respect file-scoped patterns.
+
+    Bug: Searching lib/foo.ex:create* suggests _create* even when private
+    functions only exist in other files like lib/bar.ex.
+
+    Expected: Suggestions should only appear when private functions exist
+    within the same file scope.
+    """
+    index = {
+        "metadata": {
+            "language": "elixir",
+            "repo_path": "/tmp/test",
+        },
+        "modules": {
+            "MyApp.Foo": {
+                "name": "MyApp.Foo",
+                "file": "lib/foo.ex",
+                "line": 1,
+                "moduledoc": "Foo module",
+                "aliases": {},
+                "functions": [
+                    # No private create* functions in this file
+                    {
+                        "name": "update_foo",
+                        "arity": 1,
+                        "line": 10,
+                        "type": "def",
+                        "doc": "Update foo",
+                        "dependencies": [],
+                    },
+                ],
+            },
+            "MyApp.Bar": {
+                "name": "MyApp.Bar",
+                "file": "lib/bar.ex",
+                "line": 1,
+                "moduledoc": "Bar module",
+                "aliases": {},
+                "functions": [
+                    # Private create* function in a DIFFERENT file
+                    {
+                        "name": "_create_bar",
+                        "arity": 1,
+                        "line": 5,
+                        "type": "defp",
+                        "doc": "Internal bar creation",
+                        "dependencies": [],
+                    },
+                ],
+            },
+        },
+    }
+
+    config = {"repository": {"path": "/tmp/test"}}
+    handler = FunctionSearchHandler(index, config)
+
+    # Search for create* functions in lib/foo.ex specifically
+    result = await handler.search_function(
+        function_name="lib/foo.ex:create*",
+        output_format="markdown",
+        what_calls_it=False,
+    )
+
+    text = result[0].text
+
+    # Should NOT suggest private functions because:
+    # - No _create* functions exist in lib/foo.ex
+    # - The _create_bar function is in lib/bar.ex (different file)
+    assert "Did you mean private functions?" not in text
+    assert "_create*" not in text
+
+    # Now test the opposite: file with private functions
+    result = await handler.search_function(
+        function_name="lib/bar.ex:create*",
+        output_format="markdown",
+        what_calls_it=False,
+    )
+
+    text = result[0].text
+
+    # SHOULD suggest private functions because _create_bar exists in lib/bar.ex
+    assert "Did you mean private functions?" in text
+    assert "lib/bar.ex:_create*" in text  # Suggestion should preserve file scope
