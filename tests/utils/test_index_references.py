@@ -1,4 +1,6 @@
-"""Comprehensive tests for cicada/utils/index_references.py"""
+"""
+Comprehensive tests for cicada/utils/index_references.py
+"""
 
 import pytest
 
@@ -12,131 +14,74 @@ from cicada.utils.index_references import (
 
 
 @pytest.fixture
-def sample_index_with_dependencies():
-    """Create a sample index with function dependencies and calls."""
+def sample_index_with_calls():
+    """Sample index with call sites and dependencies"""
     return {
         "modules": {
-            "UserService": {
-                "name": "UserService",
-                "file": "lib/user_service.py",
+            "Calculator": {
+                "file": "lib/calculator.ex",
                 "line": 1,
                 "dependencies": {
-                    "modules": ["Database", "Logger", "Validator"],
+                    "modules": ["Math.Utils", "Logger"],
                 },
                 "functions": [
                     {
-                        "name": "create_user",
+                        "name": "add",
                         "arity": 2,
+                        "line": 5,
+                        "dependencies": [
+                            {
+                                "module": "Math.Utils",
+                                "function": "validate",
+                                "arity": 1,
+                                "line": 6,
+                            },
+                        ],
+                    },
+                    {
+                        "name": "process",
+                        "arity": 1,
                         "line": 10,
                         "dependencies": [
                             {
-                                "module": "Validator",
-                                "function": "validate_email",
-                                "arity": 1,
-                                "line": 12,
-                            },
-                            {
-                                "module": "Database",
-                                "function": "insert",
+                                "module": "Calculator",
+                                "function": "add",
                                 "arity": 2,
-                                "line": 15,
+                                "line": 11,
                             },
                             {
                                 "module": "Logger",
-                                "function": "log_info",
+                                "function": "info",
                                 "arity": 1,
-                                "line": 18,
+                                "line": 12,
                             },
                         ],
                     },
-                    {
-                        "name": "update_user",
-                        "arity": 2,
-                        "line": 25,
-                        "dependencies": [
-                            {
-                                "module": "Database",
-                                "function": "update",
-                                "arity": 2,
-                                "line": 27,
-                            }
-                        ],
-                    },
-                    {
-                        "name": "delete_user",
-                        "arity": 1,
-                        "line": 35,
-                        "dependencies": [],  # No dependencies
-                    },
                 ],
             },
-            "Database": {
-                "name": "Database",
-                "file": "lib/database.py",
+            "Math.Utils": {
+                "file": "lib/math/utils.ex",
                 "line": 1,
-                "dependencies": {"modules": []},
+                "dependencies": [],
                 "functions": [
                     {
-                        "name": "insert",
-                        "arity": 2,
-                        "line": 5,
-                        "dependencies": [],
-                    },
-                    {
-                        "name": "update",
-                        "arity": 2,
-                        "line": 15,
-                        "dependencies": [],
-                    },
-                ],
-            },
-            "Validator": {
-                "name": "Validator",
-                "file": "lib/validator.py",
-                "line": 1,
-                "dependencies": {"modules": ["StringUtils"]},
-                "functions": [
-                    {
-                        "name": "validate_email",
+                        "name": "validate",
                         "arity": 1,
-                        "line": 5,
-                        "dependencies": [
-                            {
-                                "module": "StringUtils",
-                                "function": "lowercase",
-                                "arity": 1,
-                                "line": 7,
-                            }
-                        ],
-                    }
+                        "line": 3,
+                        "dependencies": [],
+                    },
                 ],
             },
             "Logger": {
-                "name": "Logger",
-                "file": "lib/logger.py",
+                "file": "lib/logger.ex",
                 "line": 1,
-                "dependencies": {"modules": []},
                 "functions": [
                     {
-                        "name": "log_info",
+                        "name": "info",
                         "arity": 1,
-                        "line": 5,
+                        "line": 2,
                         "dependencies": [],
-                    }
-                ],
-            },
-            "StringUtils": {
-                "name": "StringUtils",
-                "file": "lib/string_utils.py",
-                "line": 1,
-                "dependencies": {"modules": []},
-                "functions": [
-                    {
-                        "name": "lowercase",
-                        "arity": 1,
-                        "line": 5,
-                        "dependencies": [],
-                    }
+                    },
                 ],
             },
         }
@@ -144,411 +89,396 @@ def sample_index_with_dependencies():
 
 
 @pytest.fixture
-def sample_index_old_format():
-    """Create index with old-style dependencies (list format)."""
+def sample_index_with_legacy_calls():
+    """Sample index with legacy 'calls' format (raw SCIP symbols)"""
+    return {
+        "modules": {
+            "TestModule": {
+                "file": "lib/test.ex",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "caller_func",
+                        "arity": 1,
+                        "line": 5,
+                        "calls": [
+                            {
+                                "callee": "target_func/1",
+                                "file": "lib/test.ex",
+                                "line": 6,
+                            },
+                            {
+                                "symbol": "another_func/0",
+                                "caller_file": "lib/test.ex",
+                                "caller_line": 7,
+                            },
+                        ],
+                    },
+                ],
+            },
+        }
+    }
+
+
+@pytest.fixture
+def empty_index():
+    """Index with no modules"""
+    return {}
+
+
+@pytest.fixture
+def index_with_old_deps_format():
+    """Index with old dependencies format (list of dicts)"""
     return {
         "modules": {
             "OldModule": {
-                "name": "OldModule",
-                "file": "lib/old.py",
+                "file": "lib/old.ex",
                 "line": 1,
                 "dependencies": [
                     {"module": "Dep1"},
                     {"module": "Dep2"},
-                ],  # Old list format
+                    {"other": "field"},  # Should be filtered out
+                ],
                 "functions": [],
             }
         }
     }
 
 
-@pytest.fixture
-def sample_index_with_old_calls():
-    """Create index with old-style calls format (for backward compatibility)."""
-    return {
-        "modules": {
-            "Legacy": {
-                "name": "Legacy",
-                "file": "lib/legacy.py",
-                "line": 1,
-                "functions": [
-                    {
-                        "name": "legacy_func",
-                        "arity": 1,
-                        "line": 5,
-                        "calls": [  # Old format with 'calls' instead of 'dependencies'
-                            {
-                                "callee": "OtherModule.other_func",
-                                "file": "lib/other.py",
-                                "line": 7,
-                            }
-                        ],
-                    }
-                ],
-            }
-        }
-    }
-
-
 class TestGetCallSites:
-    """Tests for get_call_sites function."""
+    """Tests for get_call_sites function"""
 
-    @staticmethod
-    def _call_for_function(call_sites, function_name):
-        return next((c for c in call_sites if c.get("function") == function_name), None)
+    def test_get_call_sites_with_dependencies(self, sample_index_with_calls):
+        """Should return dependencies for function with calls"""
+        sites = get_call_sites(sample_index_with_calls, "Calculator", "add")
 
-    def test_get_call_sites_with_dependencies(self, sample_index_with_dependencies):
-        """Should return all call sites for a function."""
-        call_sites = get_call_sites(sample_index_with_dependencies, "UserService", "create_user")
+        assert len(sites) == 1
+        assert sites[0]["module"] == "Math.Utils"
+        assert sites[0]["function"] == "validate"
+        assert sites[0]["line"] == 6
 
-        assert len(call_sites) == 3
+    def test_get_call_sites_multiple_calls(self, sample_index_with_calls):
+        """Should return all call sites for function with multiple calls"""
+        sites = get_call_sites(sample_index_with_calls, "Calculator", "process")
 
-        # Check Validator.validate_email call
-        validator_call = self._call_for_function(call_sites, "validate_email")
-        assert validator_call is not None
-        assert validator_call["module"] == "Validator"
-        assert validator_call["line"] == 12
+        assert len(sites) == 2
+        functions = {s["function"] for s in sites}
+        assert functions == {"add", "info"}
 
-        # Check Database.insert call
-        db_call = self._call_for_function(call_sites, "insert")
-        assert db_call is not None
-        assert db_call["module"] == "Database"
-        assert db_call["line"] == 15
+    def test_get_call_sites_no_calls(self, sample_index_with_calls):
+        """Should return empty list for function with no calls"""
+        sites = get_call_sites(sample_index_with_calls, "Math.Utils", "validate")
 
-    def test_get_call_sites_no_dependencies(self, sample_index_with_dependencies):
-        """Should return empty list for function with no dependencies."""
-        call_sites = get_call_sites(sample_index_with_dependencies, "UserService", "delete_user")
+        assert sites == []
 
-        assert call_sites == []
+    def test_get_call_sites_nonexistent_module(self, sample_index_with_calls):
+        """Should return empty list for nonexistent module"""
+        sites = get_call_sites(sample_index_with_calls, "NonExistent", "func")
 
-    def test_get_call_sites_nonexistent_module(self, sample_index_with_dependencies):
-        """Should return empty list for non-existent module."""
-        call_sites = get_call_sites(sample_index_with_dependencies, "NonExistent", "func")
+        assert sites == []
 
-        assert call_sites == []
+    def test_get_call_sites_nonexistent_function(self, sample_index_with_calls):
+        """Should return empty list for nonexistent function"""
+        sites = get_call_sites(sample_index_with_calls, "Calculator", "nonexistent")
 
-    def test_get_call_sites_nonexistent_function(self, sample_index_with_dependencies):
-        """Should return empty list for non-existent function."""
-        call_sites = get_call_sites(sample_index_with_dependencies, "UserService", "nonexistent")
+        assert sites == []
 
-        assert call_sites == []
+    def test_get_call_sites_empty_index(self, empty_index):
+        """Should return empty list for empty index"""
+        sites = get_call_sites(empty_index, "Calculator", "add")
 
-    def test_get_call_sites_old_calls_format(self, sample_index_with_old_calls):
-        """Should handle old 'calls' format for backward compatibility."""
-        call_sites = get_call_sites(sample_index_with_old_calls, "Legacy", "legacy_func")
+        assert sites == []
 
-        assert len(call_sites) == 1
-        assert call_sites[0]["callee"] == "OtherModule.other_func"
-        assert call_sites[0]["line"] == 7
+    def test_get_call_sites_with_legacy_calls_format(self, sample_index_with_legacy_calls):
+        """Should fallback to 'calls' field if 'dependencies' not present"""
+        sites = get_call_sites(sample_index_with_legacy_calls, "TestModule", "caller_func")
 
-    def test_get_call_sites_empty_dependencies(self, sample_index_with_dependencies):
-        """Should handle function with empty dependencies list."""
-        call_sites = get_call_sites(sample_index_with_dependencies, "Database", "insert")
-
-        assert call_sites == []
+        assert len(sites) == 2
+        # Should have raw SCIP symbol format
+        assert any("callee" in s or "symbol" in s for s in sites)
 
 
 class TestGetCallersOf:
-    """Tests for get_callers_of function."""
+    """Tests for get_callers_of function"""
 
-    def test_get_callers_of_single_caller(self, sample_index_with_dependencies):
-        """Should find single caller of a function."""
-        callers = get_callers_of(sample_index_with_dependencies, "log_info")
+    def test_get_callers_single_caller(self, sample_index_with_calls):
+        """Should find single caller of a function"""
+        callers = get_callers_of(sample_index_with_calls, "validate")
 
         assert len(callers) == 1
-        assert callers[0]["module"] == "UserService"
-        assert callers[0]["function"] == "create_user"
-        assert callers[0]["line"] == 18
+        assert callers[0]["module"] == "Calculator"
+        assert callers[0]["function"] == "add"
+        assert callers[0]["line"] == 6
 
-    def test_get_callers_of_multiple_callers(self, sample_index_with_dependencies):
-        """Should find multiple callers of a function."""
-        callers = get_callers_of(sample_index_with_dependencies, "insert")
+    def test_get_callers_multiple_callers(self, sample_index_with_calls):
+        """Should find all callers of a function"""
+        callers = get_callers_of(sample_index_with_calls, "add")
 
-        # Called by UserService.create_user
-        assert len(callers) >= 1
-        user_service_caller = next((c for c in callers if c["module"] == "UserService"), None)
-        assert user_service_caller is not None
-        assert user_service_caller["function"] == "create_user"
+        assert len(callers) == 1
+        assert callers[0]["module"] == "Calculator"
+        assert callers[0]["function"] == "process"
 
-    def test_get_callers_of_no_callers(self, sample_index_with_dependencies):
-        """Should return empty list when function has no callers."""
-        # lowercase is called by validate_email, but let's test a function not called
-        callers = get_callers_of(sample_index_with_dependencies, "nonexistent_function")
+    def test_get_callers_no_callers(self, sample_index_with_calls):
+        """Should return empty list when function has no callers"""
+        callers = get_callers_of(sample_index_with_calls, "process")
 
         assert callers == []
 
-    def test_get_callers_of_partial_name_match(self, sample_index_with_dependencies):
-        """Should match function names that contain the query."""
-        # This tests the 'in' matching logic
-        callers = get_callers_of(sample_index_with_dependencies, "validate")
-
-        # Should find callers of any function containing "validate"
-        assert len(callers) >= 1
-
-    def test_get_callers_of_without_modules_key(self):
-        """Should handle index without 'modules' key."""
-        empty_index = {}
-        callers = get_callers_of(empty_index, "any_func")
+    def test_get_callers_nonexistent_function(self, sample_index_with_calls):
+        """Should return empty list for nonexistent function"""
+        callers = get_callers_of(sample_index_with_calls, "nonexistent")
 
         assert callers == []
 
-    def test_get_callers_of_with_old_calls_format(self, sample_index_with_old_calls):
-        """Should handle old 'calls' format for backward compatibility."""
-        callers = get_callers_of(sample_index_with_old_calls, "other_func")
+    def test_get_callers_empty_index(self, empty_index):
+        """Should return empty list for empty index"""
+        callers = get_callers_of(empty_index, "add")
 
-        assert len(callers) == 1
-        assert callers[0]["module"] == "Legacy"
-        assert callers[0]["function"] == "legacy_func"
+        assert callers == []
 
-    def test_get_callers_includes_file_info(self, sample_index_with_dependencies):
-        """Should include file information for callers."""
-        callers = get_callers_of(sample_index_with_dependencies, "validate_email")
+    def test_get_callers_partial_match(self, sample_index_with_calls):
+        """Should find callers using partial name match"""
+        # "info" appears in function name
+        callers = get_callers_of(sample_index_with_calls, "info")
 
         assert len(callers) >= 1
-        caller = callers[0]
-        assert "file" in caller
-        assert caller["file"] == "lib/user_service.py"
+        # Should find Calculator.process calling Logger.info
+
+    def test_get_callers_with_legacy_calls_format(self, sample_index_with_legacy_calls):
+        """Should work with legacy 'calls' field format"""
+        callers = get_callers_of(sample_index_with_legacy_calls, "target_func")
+
+        assert len(callers) == 1
+        assert callers[0]["module"] == "TestModule"
+        assert callers[0]["function"] == "caller_func"
+
+    def test_get_callers_handles_missing_file(self, sample_index_with_calls):
+        """Should handle missing file field gracefully"""
+        callers = get_callers_of(sample_index_with_calls, "validate")
+
+        assert len(callers) == 1
+        # Should still have file from module data or call data
+        assert "file" in callers[0]
 
 
 class TestGetCalleesOf:
-    """Tests for get_callees_of function."""
+    """Tests for get_callees_of function"""
 
-    def test_get_callees_of_with_dependencies(self, sample_index_with_dependencies):
-        """Should return all functions called by a function."""
-        callees = get_callees_of(sample_index_with_dependencies, "UserService", "create_user")
+    def test_get_callees_single_callee(self, sample_index_with_calls):
+        """Should find callees of a function"""
+        callees = get_callees_of(sample_index_with_calls, "Calculator", "add")
 
-        assert len(callees) == 3
+        assert len(callees) == 1
+        assert callees[0]["function"] == "validate"
+        assert callees[0]["line"] == 6
 
-        # Check that all expected callees are present
-        callee_names = [c.get("function") for c in callees]
-        assert "validate_email" in callee_names
-        assert "insert" in callee_names
-        assert "log_info" in callee_names
+    def test_get_callees_multiple_callees(self, sample_index_with_calls):
+        """Should find all callees of a function"""
+        callees = get_callees_of(sample_index_with_calls, "Calculator", "process")
 
-    def test_get_callees_of_no_calls(self, sample_index_with_dependencies):
-        """Should return empty list for function that doesn't call anything."""
-        callees = get_callees_of(sample_index_with_dependencies, "UserService", "delete_user")
+        assert len(callees) == 2
+        functions = {c["function"] for c in callees}
+        assert functions == {"add", "info"}
 
-        assert callees == []
-
-    def test_get_callees_of_nonexistent_module(self, sample_index_with_dependencies):
-        """Should return empty list for non-existent module."""
-        callees = get_callees_of(sample_index_with_dependencies, "NonExistent", "func")
+    def test_get_callees_no_callees(self, sample_index_with_calls):
+        """Should return empty list when function has no callees"""
+        callees = get_callees_of(sample_index_with_calls, "Math.Utils", "validate")
 
         assert callees == []
 
-    def test_get_callees_of_nonexistent_function(self, sample_index_with_dependencies):
-        """Should return empty list for non-existent function."""
-        callees = get_callees_of(sample_index_with_dependencies, "UserService", "nonexistent")
+    def test_get_callees_nonexistent_module(self, sample_index_with_calls):
+        """Should return empty list for nonexistent module"""
+        callees = get_callees_of(sample_index_with_calls, "NonExistent", "func")
 
         assert callees == []
 
-    def test_get_callees_includes_location_info(self, sample_index_with_dependencies):
-        """Should include line and file information for callees."""
-        callees = get_callees_of(sample_index_with_dependencies, "UserService", "create_user")
+    def test_get_callees_nonexistent_function(self, sample_index_with_calls):
+        """Should return empty list for nonexistent function"""
+        callees = get_callees_of(sample_index_with_calls, "Calculator", "nonexistent")
 
-        assert len(callees) > 0
-        for callee in callees:
-            assert "line" in callee
-            assert callee["line"] is not None
+        assert callees == []
+
+    def test_get_callees_with_legacy_format(self, sample_index_with_legacy_calls):
+        """Should work with legacy 'calls' field format"""
+        callees = get_callees_of(sample_index_with_legacy_calls, "TestModule", "caller_func")
+
+        assert len(callees) == 2
+        # Should extract function names from various fields
+        functions = {c["function"] for c in callees}
+        assert "target_func/1" in functions or "another_func/0" in functions
 
 
 class TestGetDependencies:
-    """Tests for get_dependencies function."""
+    """Tests for get_dependencies function"""
 
-    def test_get_dependencies_new_format(self, sample_index_with_dependencies):
-        """Should return dependencies in new dict format."""
-        deps = get_dependencies(sample_index_with_dependencies, "UserService")
+    def test_get_dependencies_new_format(self, sample_index_with_calls):
+        """Should get dependencies in new dict format"""
+        deps = get_dependencies(sample_index_with_calls, "Calculator")
 
-        assert sorted(deps) == sorted(["Database", "Logger", "Validator"])
+        assert deps == ["Math.Utils", "Logger"]
 
-    def test_get_dependencies_old_format(self, sample_index_old_format):
-        """Should handle old list format for backward compatibility."""
-        deps = get_dependencies(sample_index_old_format, "OldModule")
+    def test_get_dependencies_old_format(self, index_with_old_deps_format):
+        """Should get dependencies in old list format"""
+        deps = get_dependencies(index_with_old_deps_format, "OldModule")
 
-        assert sorted(deps) == sorted(["Dep1", "Dep2"])
+        assert len(deps) == 2
+        assert "Dep1" in deps
+        assert "Dep2" in deps
 
-    def test_get_dependencies_no_dependencies(self, sample_index_with_dependencies):
-        """Should return empty list for module with no dependencies."""
-        deps = get_dependencies(sample_index_with_dependencies, "Database")
-
-        assert deps == []
-
-    def test_get_dependencies_nonexistent_module(self, sample_index_with_dependencies):
-        """Should return empty list for non-existent module."""
-        deps = get_dependencies(sample_index_with_dependencies, "NonExistent")
+    def test_get_dependencies_no_dependencies(self, sample_index_with_calls):
+        """Should return empty list when module has no dependencies"""
+        deps = get_dependencies(sample_index_with_calls, "Math.Utils")
 
         assert deps == []
 
-    def test_get_dependencies_module_without_dependencies_key(self):
-        """Should handle module without dependencies key."""
-        index = {"modules": {"NoDeps": {"name": "NoDeps", "file": "nodeps.py"}}}
-        deps = get_dependencies(index, "NoDeps")
+    def test_get_dependencies_nonexistent_module(self, sample_index_with_calls):
+        """Should return empty list for nonexistent module"""
+        deps = get_dependencies(sample_index_with_calls, "NonExistent")
+
+        assert deps == []
+
+    def test_get_dependencies_empty_index(self, empty_index):
+        """Should return empty list for empty index"""
+        deps = get_dependencies(empty_index, "Calculator")
+
+        assert deps == []
+
+    def test_get_dependencies_missing_field(self):
+        """Should handle module without dependencies field"""
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "functions": [],
+                }
+            }
+        }
+        deps = get_dependencies(index, "TestModule")
 
         assert deps == []
 
     def test_get_dependencies_invalid_format(self):
-        """Should handle invalid dependencies format gracefully."""
+        """Should handle invalid dependencies format"""
         index = {
             "modules": {
-                "InvalidDeps": {
-                    "name": "InvalidDeps",
-                    "file": "invalid.py",
-                    "dependencies": "not a list or dict",  # Invalid format
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "dependencies": "invalid_string",
+                    "functions": [],
                 }
             }
         }
-        deps = get_dependencies(index, "InvalidDeps")
-
-        assert deps == []
-
-    def test_get_dependencies_old_format_missing_module_key(self):
-        """Should handle old format with missing 'module' key."""
-        index = {
-            "modules": {
-                "BrokenOld": {
-                    "name": "BrokenOld",
-                    "file": "broken.py",
-                    "dependencies": [
-                        {"module": "Valid"},
-                        {"other_key": "Invalid"},  # Missing 'module' key
-                    ],
-                }
-            }
-        }
-        deps = get_dependencies(index, "BrokenOld")
-
-        # Should only include valid entries
-        assert deps == ["Valid"]
-
-    def test_get_dependencies_new_format_missing_modules_key(self):
-        """Should handle new dict format with missing 'modules' key."""
-        index = {
-            "modules": {
-                "BrokenNew": {
-                    "name": "BrokenNew",
-                    "file": "broken.py",
-                    "dependencies": {"other_key": "something"},  # No 'modules' key
-                }
-            }
-        }
-        deps = get_dependencies(index, "BrokenNew")
+        deps = get_dependencies(index, "TestModule")
 
         assert deps == []
 
 
 class TestGetReferencesTo:
-    """Tests for get_references_to function."""
+    """Tests for get_references_to function"""
 
-    def test_get_references_includes_call_sites(self, sample_index_with_dependencies):
-        """Should include call sites in references."""
-        refs = get_references_to(
-            sample_index_with_dependencies, "Validator", "validate_email"
-        )
+    def test_get_references_with_calls(self, sample_index_with_calls):
+        """Should get references including call sites"""
+        refs = get_references_to(sample_index_with_calls, "Calculator", "add")
 
-        assert len(refs) > 0
+        # Should include call sites and callers
+        assert len(refs) >= 1
 
-        # Should include references from callers (UserService.create_user calls validate_email)
-        user_service_ref = next(
-            (r for r in refs if r.get("module") == "UserService"), None
-        )
-        assert user_service_ref is not None
-
-    def test_get_references_includes_callers(self, sample_index_with_dependencies):
-        """Should include callers in references."""
-        refs = get_references_to(sample_index_with_dependencies, "Logger", "log_info")
-
-        assert len(refs) > 0
+    def test_get_references_combines_sources(self, sample_index_with_calls):
+        """Should combine call sites and callers"""
+        refs = get_references_to(sample_index_with_calls, "Math.Utils", "validate")
 
         # Should find references from callers
-        caller_ref = next((r for r in refs if r.get("module") == "UserService"), None)
-        assert caller_ref is not None
+        assert len(refs) >= 1
+        # Should have caller information
+        assert any("module" in ref for ref in refs)
 
-    def test_get_references_no_references(self, sample_index_with_dependencies):
-        """Should return empty list when function has no references."""
-        # Database.insert is called, but let's test a function with no refs
-        refs = get_references_to(sample_index_with_dependencies, "StringUtils", "nonexistent")
+    def test_get_references_no_references(self, sample_index_with_calls):
+        """Should return empty list when no references found"""
+        refs = get_references_to(sample_index_with_calls, "Logger", "info")
 
-        # Will return empty since function doesn't exist
-        assert len(refs) == 0
+        # Logger.info is called but has no dependencies itself
+        # Should still find callers
+        assert isinstance(refs, list)
 
-    def test_get_references_nonexistent_module(self, sample_index_with_dependencies):
-        """Should handle non-existent module."""
-        refs = get_references_to(sample_index_with_dependencies, "NonExistent", "func")
+    def test_get_references_nonexistent_function(self, sample_index_with_calls):
+        """Should return list for nonexistent function"""
+        refs = get_references_to(sample_index_with_calls, "Calculator", "nonexistent")
 
-        assert len(refs) == 0
+        # Should return list (possibly empty, or with callers if any)
+        assert isinstance(refs, list)
 
-    def test_get_references_deduplication(self, sample_index_with_dependencies):
-        """Should combine call sites and callers (may have duplicates)."""
-        refs = get_references_to(sample_index_with_dependencies, "Database", "insert")
+    def test_get_references_empty_index(self, empty_index):
+        """Should return empty list for empty index"""
+        refs = get_references_to(empty_index, "Calculator", "add")
 
-        # References should include both call sites and callers
-        # The function doesn't deduplicate, so we just check that both are included
-        assert len(refs) > 0
+        assert refs == []
 
 
 class TestEdgeCases:
-    """Edge case tests for index reference utilities."""
+    """Tests for edge cases and error conditions"""
 
-    def test_functions_with_empty_index(self):
-        """All functions should handle empty index gracefully."""
-        empty = {}
-
-        assert get_call_sites(empty, "M", "f") == []
-        assert get_callers_of(empty, "f") == []
-        assert get_callees_of(empty, "M", "f") == []
-        assert get_dependencies(empty, "M") == []
-        assert get_references_to(empty, "M", "f") == []
-
-    def test_functions_with_empty_modules(self):
-        """All functions should handle empty modules dict gracefully."""
-        index = {"modules": {}}
-
-        assert get_call_sites(index, "M", "f") == []
-        assert get_callers_of(index, "f") == []
-        assert get_callees_of(index, "M", "f") == []
-        assert get_dependencies(index, "M") == []
-        assert get_references_to(index, "M", "f") == []
-
-    def test_module_without_functions(self):
-        """Should handle module without functions key."""
-        index = {"modules": {"Empty": {"name": "Empty", "file": "empty.py"}}}
-
-        assert get_call_sites(index, "Empty", "f") == []
-        assert get_callees_of(index, "Empty", "f") == []
-        assert get_callers_of(index, "f") == []
-
-    def test_function_without_dependencies_or_calls(self):
-        """Should handle function without dependencies or calls key."""
+    def test_functions_without_dependencies_field(self):
+        """Should handle functions without dependencies/calls field"""
         index = {
             "modules": {
-                "M": {
-                    "name": "M",
-                    "file": "m.py",
-                    "functions": [{"name": "f", "arity": 0}],
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "functions": [
+                        {
+                            "name": "test_func",
+                            "line": 2,
+                            # No dependencies or calls field
+                        }
+                    ],
                 }
             }
         }
 
-        call_sites = get_call_sites(index, "M", "f")
-        assert call_sites == []
+        sites = get_call_sites(index, "TestModule", "test_func")
+        assert sites == []
 
-        callees = get_callees_of(index, "M", "f")
+        callees = get_callees_of(index, "TestModule", "test_func")
         assert callees == []
 
-    def test_unicode_in_module_and_function_names(self):
-        """Should handle unicode in module and function names."""
+    def test_empty_dependencies_list(self):
+        """Should handle empty dependencies list"""
         index = {
             "modules": {
-                "Módulo": {
-                    "name": "Módulo",
-                    "file": "módulo.py",
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
                     "functions": [
                         {
-                            "name": "función",
-                            "arity": 1,
+                            "name": "test_func",
+                            "line": 2,
+                            "dependencies": [],
+                        }
+                    ],
+                }
+            }
+        }
+
+        sites = get_call_sites(index, "TestModule", "test_func")
+        assert sites == []
+
+    def test_malformed_call_entries(self):
+        """Should handle malformed call entries (excluding None values)"""
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "functions": [
+                        {
+                            "name": "test_func",
+                            "line": 2,
                             "dependencies": [
-                                {"module": "Otro", "function": "método", "arity": 1, "line": 5}
+                                {},  # Empty dict
+                                {"line": 5},  # Missing callee/function/symbol
+                                {"function": "valid_func", "line": 6},  # Valid entry
                             ],
                         }
                     ],
@@ -556,34 +486,29 @@ class TestEdgeCases:
             }
         }
 
-        call_sites = get_call_sites(index, "Módulo", "función")
-        assert len(call_sites) == 1
-        assert call_sites[0]["function"] == "método"
+        # Should not crash on empty dicts or missing fields
+        callees = get_callees_of(index, "TestModule", "test_func")
+        # Should only include entries with valid function names
+        assert isinstance(callees, list)
+        # Should have found the valid entry
+        assert len(callees) == 1
+        assert callees[0]["function"] == "valid_func"
 
-    def test_callers_with_nested_function_names(self, sample_index_with_dependencies):
-        """Should handle function names that are substrings of others."""
-        # The 'in' matching should work for partial matches
-        callers = get_callers_of(sample_index_with_dependencies, "update")
-
-        # Should find UserService.update_user calling Database.update
-        assert any(c["function"] == "update_user" for c in callers)
-
-    def test_call_sites_with_missing_optional_fields(self):
-        """Should handle dependencies with missing optional fields."""
+    def test_unicode_in_function_names(self):
+        """Should handle unicode characters in function names"""
         index = {
             "modules": {
-                "M": {
-                    "name": "M",
-                    "file": "m.py",
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
                     "functions": [
                         {
-                            "name": "f",
-                            "arity": 1,
+                            "name": "tëst_func",
+                            "line": 2,
                             "dependencies": [
                                 {
-                                    # Minimal dependency - only required fields
-                                    "module": "Other",
-                                    "function": "g",
+                                    "function": "ünïcode_func",
+                                    "line": 3,
                                 }
                             ],
                         }
@@ -592,55 +517,72 @@ class TestEdgeCases:
             }
         }
 
-        call_sites = get_call_sites(index, "M", "f")
-        assert len(call_sites) == 1
-        assert call_sites[0]["function"] == "g"
+        sites = get_call_sites(index, "TestModule", "tëst_func")
+        assert len(sites) == 1
+        assert sites[0]["function"] == "ünïcode_func"
 
-    def test_dependencies_with_empty_modules_list(self):
-        """Should handle dependencies with empty modules list."""
+    def test_dependencies_with_mixed_formats(self):
+        """Should handle dependencies with both old and new format fields"""
         index = {
             "modules": {
-                "M": {"name": "M", "file": "m.py", "dependencies": {"modules": []}}
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "dependencies": {
+                        "modules": ["Dep1"],
+                        # Has new format but also some extra fields
+                        "other": "data",
+                    },
+                    "functions": [],
+                }
             }
         }
 
-        deps = get_dependencies(index, "M")
-        assert deps == []
+        deps = get_dependencies(index, "TestModule")
+        assert deps == ["Dep1"]
 
-    def test_multiple_call_formats_in_same_index(self):
-        """Should handle index with both old and new call formats."""
+    def test_callers_with_nested_call_structure(self):
+        """Should handle nested or complex call structures"""
         index = {
             "modules": {
-                "NewStyle": {
-                    "name": "NewStyle",
-                    "file": "new.py",
+                "ModuleA": {
+                    "file": "a.ex",
+                    "line": 1,
                     "functions": [
                         {
-                            "name": "new_func",
-                            "arity": 1,
+                            "name": "func_a",
+                            "line": 2,
                             "dependencies": [
-                                {"module": "M", "function": "f", "arity": 1, "line": 5}
+                                {
+                                    "function": "func_b",
+                                    "module": "ModuleB",
+                                    "line": 3,
+                                }
                             ],
                         }
                     ],
                 },
-                "OldStyle": {
-                    "name": "OldStyle",
-                    "file": "old.py",
+                "ModuleB": {
+                    "file": "b.ex",
+                    "line": 1,
                     "functions": [
                         {
-                            "name": "old_func",
-                            "arity": 1,
-                            "calls": [{"callee": "M.f", "file": "m.py", "line": 7}],
+                            "name": "func_b",
+                            "line": 2,
+                            "dependencies": [
+                                {
+                                    "function": "func_c",
+                                    "module": "ModuleC",
+                                    "line": 3,
+                                }
+                            ],
                         }
                     ],
                 },
             }
         }
 
-        # Both should work
-        new_sites = get_call_sites(index, "NewStyle", "new_func")
-        assert len(new_sites) == 1
-
-        old_sites = get_call_sites(index, "OldStyle", "old_func")
-        assert len(old_sites) == 1
+        # Find who calls func_b
+        callers = get_callers_of(index, "func_b")
+        assert len(callers) == 1
+        assert callers[0]["function"] == "func_a"

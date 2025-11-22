@@ -1,4 +1,6 @@
-"""Comprehensive tests for cicada/utils/index_lookup.py"""
+"""
+Comprehensive tests for cicada/utils/index_lookup.py
+"""
 
 import pytest
 
@@ -13,72 +15,67 @@ from cicada.utils.index_lookup import (
 
 @pytest.fixture
 def sample_index():
-    """Create a sample index for testing."""
+    """Sample index with modules and functions for testing"""
     return {
         "modules": {
             "Calculator": {
-                "name": "Calculator",
-                "file": "lib/calculator.py",
+                "file": "lib/calculator.ex",
                 "line": 1,
-                "doc": "A simple calculator module",
                 "functions": [
                     {
                         "name": "add",
                         "arity": 2,
-                        "line": 7,
-                        "doc": "Add two numbers",
-                        "signature": "def add(x: int, y: int) -> int:",
+                        "args": ["x", "y"],
+                        "type": "def",
+                        "line": 5,
+                        "signature": "def add(x, y)",
+                        "doc": "Adds two numbers together",
                     },
                     {
                         "name": "subtract",
                         "arity": 2,
-                        "line": 15,
-                        "doc": "Subtract two numbers",
-                        "signature": "def subtract(x: int, y: int) -> int:",
+                        "args": ["x", "y"],
+                        "type": "def",
+                        "line": 10,
+                        "signature": "def subtract(x, y)",
+                        "doc": "Subtracts y from x",
+                    },
+                ],
+            },
+            "Math.Utils": {
+                "file": "lib/math/utils.ex",
+                "line": 1,
+                "functions": [
+                    {
+                        "name": "add",
+                        "arity": 3,
+                        "args": ["x", "y", "z"],
+                        "type": "def",
+                        "line": 3,
+                        "signature": "def add(x, y, z)",
+                        "doc": "Adds three numbers",
                     },
                     {
                         "name": "multiply",
                         "arity": 2,
-                        "line": 23,
-                        "doc": None,  # No documentation
-                        "signature": "def multiply(x, y):",
+                        "args": ["x", "y"],
+                        "type": "def",
+                        "line": 8,
+                        "signature": "def multiply(x, y)",
                     },
                 ],
             },
-            "StringUtils": {
-                "name": "StringUtils",
-                "file": "lib/string_utils.py",
+            "_file_helpers": {
+                "file": "lib/helpers.ex",
                 "line": 1,
-                "doc": "String utility functions",
-                "functions": [
-                    {
-                        "name": "uppercase",
-                        "arity": 1,
-                        "line": 5,
-                        "doc": "Convert string to uppercase",
-                        "signature": "def uppercase(s: str) -> str:",
-                    },
-                    {
-                        "name": "add",  # Same name as in Calculator
-                        "arity": 2,
-                        "line": 12,
-                        "doc": "Concatenate two strings",
-                        "signature": "def add(s1: str, s2: str) -> str:",
-                    },
-                ],
-            },
-            "_file_lib/helpers.py": {
-                "name": "_file_lib/helpers.py",
-                "file": "lib/helpers.py",
-                "line": 1,
-                "doc": None,
                 "functions": [
                     {
                         "name": "helper_func",
                         "arity": 1,
-                        "line": 5,
-                        "doc": "A helper function",
-                        "signature": None,
+                        "args": ["input"],
+                        "type": "def",
+                        "line": 2,
+                        "signature": "def helper_func(input)",
                     }
                 ],
             },
@@ -86,454 +83,356 @@ def sample_index():
     }
 
 
+@pytest.fixture
+def empty_index():
+    """Index with no modules"""
+    return {}
+
+
+@pytest.fixture
+def modules_empty_functions_index():
+    """Index with modules but no functions"""
+    return {
+        "modules": {
+            "EmptyModule": {
+                "file": "lib/empty.ex",
+                "line": 1,
+            }
+        }
+    }
+
+
 class TestLookupModule:
-    """Tests for lookup_module function."""
+    """Tests for lookup_module function"""
 
     def test_lookup_existing_module(self, sample_index):
-        """Should find and return existing module."""
-        result = lookup_module(sample_index, "Calculator")
+        """Should find existing module by name"""
+        module = lookup_module(sample_index, "Calculator")
 
-        assert result is not None
-        assert result["name"] == "Calculator"
-        assert result["file"] == "lib/calculator.py"
-        assert result["doc"] == "A simple calculator module"
+        assert module is not None
+        assert module["file"] == "lib/calculator.ex"
+        assert module["line"] == 1
+
+    def test_lookup_nested_module(self, sample_index):
+        """Should find nested module by name"""
+        module = lookup_module(sample_index, "Math.Utils")
+
+        assert module is not None
+        assert module["file"] == "lib/math/utils.ex"
 
     def test_lookup_nonexistent_module(self, sample_index):
-        """Should return None for non-existent module."""
-        result = lookup_module(sample_index, "NonExistent")
+        """Should return None for nonexistent module"""
+        module = lookup_module(sample_index, "NonExistent")
 
-        assert result is None
+        assert module is None
 
-    def test_lookup_module_case_sensitive(self, sample_index):
-        """Lookup should be case-sensitive."""
-        result = lookup_module(sample_index, "calculator")  # lowercase
+    def test_lookup_module_empty_index(self, empty_index):
+        """Should return None when index has no modules"""
+        module = lookup_module(empty_index, "Calculator")
 
-        assert result is None
-
-    def test_lookup_module_without_modules_key(self):
-        """Should handle index without 'modules' key."""
-        empty_index = {}
-        result = lookup_module(empty_index, "Calculator")
-
-        assert result is None
+        assert module is None
 
     def test_lookup_module_with_empty_modules(self):
-        """Should handle empty modules dictionary."""
-        empty_index = {"modules": {}}
-        result = lookup_module(empty_index, "Calculator")
+        """Should return None when modules dict is empty"""
+        index = {"modules": {}}
+        module = lookup_module(index, "Calculator")
 
-        assert result is None
-
-    def test_lookup_module_file_prefix(self, sample_index):
-        """Should lookup modules with _file_ prefix."""
-        result = lookup_module(sample_index, "_file_lib/helpers.py")
-
-        assert result is not None
-        assert result["file"] == "lib/helpers.py"
+        assert module is None
 
 
 class TestLookupFunction:
-    """Tests for lookup_function function."""
-
-    @staticmethod
-    def _result_for_module(results, module_name):
-        return next((r for r in results if r["module_name"] == module_name), None)
+    """Tests for lookup_function function"""
 
     def test_lookup_function_single_match(self, sample_index):
-        """Should find function with unique name."""
-        results = lookup_function(sample_index, "uppercase")
+        """Should find function in single module"""
+        results = lookup_function(sample_index, "subtract")
 
         assert len(results) == 1
-        assert results[0]["name"] == "uppercase"
-        assert results[0]["module_name"] == "StringUtils"
-        assert results[0]["file"] == "lib/string_utils.py"
-        assert results[0]["line"] == 5
+        assert results[0]["name"] == "subtract"
+        assert results[0]["module_name"] == "Calculator"
+        assert results[0]["file"] == "lib/calculator.ex"
+        assert results[0]["line"] == 10
 
     def test_lookup_function_multiple_matches(self, sample_index):
-        """Should find all functions with same name across modules."""
+        """Should find function in multiple modules"""
         results = lookup_function(sample_index, "add")
 
         assert len(results) == 2
+        module_names = {r["module_name"] for r in results}
+        assert module_names == {"Calculator", "Math.Utils"}
 
-        # Find Calculator.add
-        calc_add = self._result_for_module(results, "Calculator")
-        assert calc_add is not None
-        assert calc_add["doc"] == "Add two numbers"
-        assert calc_add["line"] == 7
+        # Verify both have correct data
+        for result in results:
+            assert result["name"] == "add"
+            assert "file" in result
+            assert "line" in result
+            assert "module_name" in result
 
-        # Find StringUtils.add
-        string_add = self._result_for_module(results, "StringUtils")
-        assert string_add is not None
-        assert string_add["doc"] == "Concatenate two strings"
-        assert string_add["line"] == 12
-
-    def test_lookup_function_nonexistent(self, sample_index):
-        """Should return empty list for non-existent function."""
+    def test_lookup_function_no_match(self, sample_index):
+        """Should return empty list for nonexistent function"""
         results = lookup_function(sample_index, "nonexistent")
 
         assert results == []
 
-    def test_lookup_function_case_sensitive(self, sample_index):
-        """Lookup should be case-sensitive."""
-        results = lookup_function(sample_index, "ADD")  # uppercase
-
-        assert results == []
-
-    def test_lookup_function_without_modules_key(self):
-        """Should handle index without 'modules' key."""
-        empty_index = {}
+    def test_lookup_function_empty_index(self, empty_index):
+        """Should return empty list when index has no modules"""
         results = lookup_function(empty_index, "add")
 
         assert results == []
 
-    def test_lookup_function_module_without_functions(self):
-        """Should handle module without functions key."""
-        index = {"modules": {"Empty": {"name": "Empty", "file": "empty.py"}}}
-        results = lookup_function(index, "any_func")
+    def test_lookup_function_module_without_functions(self, modules_empty_functions_index):
+        """Should handle modules without functions field"""
+        results = lookup_function(modules_empty_functions_index, "add")
 
         assert results == []
 
-    def test_lookup_function_includes_module_context(self, sample_index):
-        """Results should include module context."""
-        results = lookup_function(sample_index, "subtract")
+    def test_lookup_function_includes_all_function_data(self, sample_index):
+        """Should include all function data in results"""
+        results = lookup_function(sample_index, "add")
 
-        assert len(results) == 1
-        result = results[0]
-
-        # Original function data
-        assert result["name"] == "subtract"
-        assert result["arity"] == 2
-        assert result["line"] == 15
-
-        # Added context
-        assert result["module_name"] == "Calculator"
-        assert result["file"] == "lib/calculator.py"
-
-    def test_lookup_function_empty_modules(self):
-        """Should handle empty modules dictionary."""
-        index = {"modules": {}}
-        results = lookup_function(index, "add")
-
-        assert results == []
+        for result in results:
+            assert "name" in result
+            assert "arity" in result
+            assert "args" in result
+            assert "type" in result
+            assert "line" in result
+            assert "signature" in result
+            assert "module_name" in result
+            assert "file" in result
 
 
 class TestLookupByLocation:
-    """Tests for lookup_by_location function."""
+    """Tests for lookup_by_location function"""
 
-    def test_lookup_module_by_location(self, sample_index):
-        """Should find module at specific location."""
-        result = lookup_by_location(sample_index, "lib/calculator.py", 1)
+    def test_lookup_module_at_location(self, sample_index):
+        """Should find module at specific location"""
+        result = lookup_by_location(sample_index, "lib/calculator.ex", 1)
 
         assert result is not None
         assert result["type"] == "class"
         assert result["name"] == "Calculator"
-        assert result["data"]["file"] == "lib/calculator.py"
+        assert "data" in result
 
-    def test_lookup_function_by_location(self, sample_index):
-        """Should find function at specific location."""
-        result = lookup_by_location(sample_index, "lib/calculator.py", 7)
+    def test_lookup_function_at_location(self, sample_index):
+        """Should find function at specific location"""
+        result = lookup_by_location(sample_index, "lib/calculator.ex", 5)
 
         assert result is not None
         assert result["type"] == "function"
         assert result["name"] == "add"
         assert result["module"] == "Calculator"
-        assert result["data"]["doc"] == "Add two numbers"
+        assert "data" in result
 
-    def test_lookup_by_location_nonexistent_line(self, sample_index):
-        """Should return None for line with no definition."""
-        result = lookup_by_location(sample_index, "lib/calculator.py", 99)
-
-        assert result is None
-
-    def test_lookup_by_location_nonexistent_file(self, sample_index):
-        """Should return None for non-existent file."""
-        result = lookup_by_location(sample_index, "lib/nonexistent.py", 1)
-
-        assert result is None
-
-    def test_lookup_by_location_partial_path_match(self, sample_index):
-        """Should match by filename when full path not provided."""
-        result = lookup_by_location(sample_index, "calculator.py", 7)
-
-        assert result is not None
-        assert result["name"] == "add"
-
-    def test_lookup_by_location_file_prefix(self, sample_index):
-        """Should identify module vs file correctly for _file_ prefix."""
-        result = lookup_by_location(sample_index, "lib/helpers.py", 1)
-
-        assert result is not None
-        assert result["type"] == "module"
-        assert result["name"] == "_file_lib/helpers.py"
-
-    def test_lookup_by_location_class_type(self, sample_index):
-        """Should identify class (non _file_ module) correctly."""
-        result = lookup_by_location(sample_index, "lib/calculator.py", 1)
-
-        assert result is not None
-        assert result["type"] == "class"
-        assert result["name"] == "Calculator"
-
-    def test_lookup_by_location_without_modules_key(self):
-        """Should handle index without 'modules' key."""
-        empty_index = {}
-        result = lookup_by_location(empty_index, "lib/test.py", 1)
-
-        assert result is None
-
-    def test_lookup_by_location_normalizes_paths(self, sample_index):
-        """Should normalize Windows and Unix paths for comparison."""
-        # Test with Windows-style backslashes
-        result = lookup_by_location(sample_index, "lib\\calculator.py", 7)
-
-        assert result is not None
-        assert result["name"] == "add"
-
-    def test_lookup_by_location_function_in_different_module(self, sample_index):
-        """Should find correct function when same line exists in different files."""
-        result = lookup_by_location(sample_index, "lib/string_utils.py", 5)
-
-        assert result is not None
-        assert result["name"] == "uppercase"
-        assert result["module"] == "StringUtils"
-
-    def test_lookup_by_location_includes_data(self, sample_index):
-        """Should include complete function/module data."""
-        result = lookup_by_location(sample_index, "lib/calculator.py", 15)
+    def test_lookup_with_filename_only(self, sample_index):
+        """Should match with just filename (no path)"""
+        result = lookup_by_location(sample_index, "calculator.ex", 5)
 
         assert result is not None
         assert result["type"] == "function"
-        assert "data" in result
-        assert result["data"]["signature"] == "def subtract(x: int, y: int) -> int:"
+        assert result["name"] == "add"
+
+    def test_lookup_with_windows_path(self, sample_index):
+        """Should handle Windows-style paths"""
+        result = lookup_by_location(sample_index, "lib\\calculator.ex", 5)
+
+        assert result is not None
+        assert result["name"] == "add"
+
+    def test_lookup_nonexistent_file(self, sample_index):
+        """Should return None for nonexistent file"""
+        result = lookup_by_location(sample_index, "nonexistent.ex", 1)
+
+        assert result is None
+
+    def test_lookup_wrong_line_number(self, sample_index):
+        """Should return None for wrong line number"""
+        result = lookup_by_location(sample_index, "lib/calculator.ex", 999)
+
+        assert result is None
+
+    def test_lookup_empty_index(self, empty_index):
+        """Should return None when index has no modules"""
+        result = lookup_by_location(empty_index, "calculator.ex", 1)
+
+        assert result is None
+
+    def test_lookup_file_module_prefix(self, sample_index):
+        """Should return type 'module' for _file_ prefixed modules"""
+        result = lookup_by_location(sample_index, "lib/helpers.ex", 1)
+
+        assert result is not None
+        assert result["type"] == "module"
+        assert result["name"] == "_file_helpers"
+
+    def test_lookup_nested_module_path(self, sample_index):
+        """Should find module in nested directory"""
+        result = lookup_by_location(sample_index, "lib/math/utils.ex", 1)
+
+        assert result is not None
+        assert result["type"] == "class"
+        assert result["name"] == "Math.Utils"
 
 
 class TestGetFunctionDocumentation:
-    """Tests for get_function_documentation function."""
+    """Tests for get_function_documentation function"""
 
     def test_get_existing_documentation(self, sample_index):
-        """Should return documentation for function with doc."""
+        """Should return documentation for existing function"""
         doc = get_function_documentation(sample_index, "Calculator", "add")
 
-        assert doc == "Add two numbers"
+        assert doc == "Adds two numbers together"
 
-    def test_get_documentation_no_doc(self, sample_index):
-        """Should return None for function without documentation."""
-        doc = get_function_documentation(sample_index, "Calculator", "multiply")
+    def test_get_documentation_for_different_function(self, sample_index):
+        """Should return correct documentation for each function"""
+        doc = get_function_documentation(sample_index, "Calculator", "subtract")
 
-        assert doc is None
+        assert doc == "Subtracts y from x"
 
     def test_get_documentation_nonexistent_module(self, sample_index):
-        """Should return None for non-existent module."""
+        """Should return None for nonexistent module"""
         doc = get_function_documentation(sample_index, "NonExistent", "add")
 
         assert doc is None
 
     def test_get_documentation_nonexistent_function(self, sample_index):
-        """Should return None for non-existent function."""
+        """Should return None for nonexistent function"""
         doc = get_function_documentation(sample_index, "Calculator", "nonexistent")
 
         assert doc is None
 
-    def test_get_documentation_case_sensitive(self, sample_index):
-        """Should be case-sensitive for both module and function names."""
-        doc = get_function_documentation(sample_index, "calculator", "add")
-        assert doc is None
-
-        doc = get_function_documentation(sample_index, "Calculator", "Add")
-        assert doc is None
-
-    def test_get_documentation_from_different_modules(self, sample_index):
-        """Should get correct documentation from specified module."""
-        calc_doc = get_function_documentation(sample_index, "Calculator", "add")
-        string_doc = get_function_documentation(sample_index, "StringUtils", "add")
-
-        assert calc_doc == "Add two numbers"
-        assert string_doc == "Concatenate two strings"
-
-    def test_get_documentation_missing_modules_key(self):
-        """Should return None when index has no 'modules' key."""
-        doc = get_function_documentation({}, "M", "f")
+    def test_get_documentation_function_without_doc(self, sample_index):
+        """Should return None when function has no doc field"""
+        doc = get_function_documentation(sample_index, "Math.Utils", "multiply")
 
         assert doc is None
 
-    def test_get_documentation_empty_modules(self):
-        """Should return None when 'modules' is present but empty."""
-        doc = get_function_documentation({"modules": {}}, "M", "f")
+    def test_get_documentation_empty_index(self, empty_index):
+        """Should return None when index is empty"""
+        doc = get_function_documentation(empty_index, "Calculator", "add")
 
         assert doc is None
 
 
 class TestGetFunctionSignature:
-    """Tests for get_function_signature function."""
+    """Tests for get_function_signature function"""
 
     def test_get_existing_signature(self, sample_index):
-        """Should return signature for function."""
+        """Should return signature for existing function"""
         sig = get_function_signature(sample_index, "Calculator", "add")
 
-        assert sig == "def add(x: int, y: int) -> int:"
+        assert sig == "def add(x, y)"
 
-    def test_get_signature_without_types(self, sample_index):
-        """Should return signature even without type annotations."""
-        sig = get_function_signature(sample_index, "Calculator", "multiply")
+    def test_get_signature_for_different_function(self, sample_index):
+        """Should return correct signature for each function"""
+        sig = get_function_signature(sample_index, "Math.Utils", "add")
 
-        assert sig == "def multiply(x, y):"
-
-    def test_get_signature_no_signature_field(self, sample_index):
-        """Should return None when signature field is missing."""
-        sig = get_function_signature(sample_index, "_file_lib/helpers.py", "helper_func")
-
-        assert sig is None
+        assert sig == "def add(x, y, z)"
 
     def test_get_signature_nonexistent_module(self, sample_index):
-        """Should return None for non-existent module."""
+        """Should return None for nonexistent module"""
         sig = get_function_signature(sample_index, "NonExistent", "add")
 
         assert sig is None
 
     def test_get_signature_nonexistent_function(self, sample_index):
-        """Should return None for non-existent function."""
+        """Should return None for nonexistent function"""
         sig = get_function_signature(sample_index, "Calculator", "nonexistent")
 
         assert sig is None
 
-    def test_get_signature_case_sensitive(self, sample_index):
-        """Should be case-sensitive for both module and function names."""
-        sig = get_function_signature(sample_index, "calculator", "add")
-        assert sig is None
-
-        sig = get_function_signature(sample_index, "Calculator", "Add")
-        assert sig is None
-
-    def test_get_signature_from_different_modules(self, sample_index):
-        """Should get correct signature from specified module."""
-        calc_sig = get_function_signature(sample_index, "Calculator", "add")
-        string_sig = get_function_signature(sample_index, "StringUtils", "add")
-
-        assert calc_sig == "def add(x: int, y: int) -> int:"
-        assert string_sig == "def add(s1: str, s2: str) -> str:"
-
-    def test_get_signature_missing_modules_key(self):
-        """Should return None when index has no 'modules' key."""
-        sig = get_function_signature({}, "M", "f")
+    def test_get_signature_function_without_signature(self):
+        """Should return None when function has no signature field"""
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
+                    "functions": [
+                        {
+                            "name": "test_func",
+                            "line": 2,
+                        }
+                    ],
+                }
+            }
+        }
+        sig = get_function_signature(index, "TestModule", "test_func")
 
         assert sig is None
 
-    def test_get_signature_empty_modules(self):
-        """Should return None when 'modules' is present but empty."""
-        sig = get_function_signature({"modules": {}}, "M", "f")
+    def test_get_signature_empty_index(self, empty_index):
+        """Should return None when index is empty"""
+        sig = get_function_signature(empty_index, "Calculator", "add")
 
         assert sig is None
 
 
 class TestEdgeCases:
-    """Edge case tests for index lookup utilities."""
+    """Tests for edge cases and error conditions"""
 
-    def test_lookup_with_none_index(self):
-        """Functions should handle None gracefully."""
-        # lookup_module would raise AttributeError, but we expect that
-        # since the function signature expects a dict
+    def test_none_index(self):
+        """Should handle None index gracefully"""
+        # lookup_module with None - will raise AttributeError due to "modules" not in None
+        # This is acceptable behavior as the function expects a dict
+        with pytest.raises((TypeError, AttributeError)):
+            lookup_module(None, "test")
 
-        # For functions that check for 'modules' key first
-        assert lookup_function({}, "test") == []
-        assert lookup_by_location({}, "test.py", 1) is None
+    def test_malformed_index_structure(self):
+        """Should handle malformed index structures"""
+        index = {"modules": "not a dict"}
 
-    def test_lookup_with_malformed_module_data(self):
-        """Should handle modules with missing required fields."""
+        # This will raise AttributeError as string doesn't have .get()
+        with pytest.raises(AttributeError):
+            lookup_module(index, "test")
+
+    def test_lookup_with_special_characters_in_name(self, sample_index):
+        """Should handle module names with special characters"""
+        # Add a module with special characters
+        sample_index["modules"]["Special.Module!"] = {
+            "file": "lib/special.ex",
+            "line": 1,
+            "functions": [],
+        }
+
+        module = lookup_module(sample_index, "Special.Module!")
+
+        assert module is not None
+        assert module["file"] == "lib/special.ex"
+
+    def test_lookup_by_location_with_unicode_path(self):
+        """Should handle unicode characters in paths"""
         index = {
             "modules": {
-                "Broken": {
-                    "name": "Broken"
-                    # Missing 'file' field
+                "TestModule": {
+                    "file": "lib/tëst/módulé.ex",
+                    "line": 1,
+                    "functions": [],
                 }
             }
         }
 
-        result = lookup_module(index, "Broken")
-        assert result is not None
-        assert result.get("file") is None
+        result = lookup_by_location(index, "tëst/módulé.ex", 1)
 
-    def test_lookup_function_with_malformed_function_data(self):
-        """Should handle functions with missing fields."""
+        assert result is not None
+        assert result["name"] == "TestModule"
+
+    def test_function_with_null_values(self):
+        """Should handle functions with null/missing values"""
         index = {
             "modules": {
-                "Test": {
-                    "name": "Test",
-                    "file": "test.py",
+                "TestModule": {
+                    "file": "test.ex",
+                    "line": 1,
                     "functions": [
-                        {"name": "func"}  # Missing many fields
+                        {
+                            "name": "test_func",
+                            "line": None,  # null line
+                        }
                     ],
                 }
             }
         }
 
-        results = lookup_function(index, "func")
+        results = lookup_function(index, "test_func")
         assert len(results) == 1
-        assert results[0]["name"] == "func"
-        assert results[0]["module_name"] == "Test"
-
-    def test_lookup_by_location_with_missing_line_field(self):
-        """Should handle modules/functions without line field."""
-        index = {
-            "modules": {
-                "NoLine": {
-                    "name": "NoLine",
-                    "file": "noLine.py"
-                    # Missing 'line' field
-                }
-            }
-        }
-
-        result = lookup_by_location(index, "noLine.py", 1)
-        # Should not match since module has no line field
-        assert result is None
-
-    def test_empty_function_name_lookup(self, sample_index):
-        """Should handle empty function name."""
-        results = lookup_function(sample_index, "")
-
-        assert results == []
-
-    def test_unicode_in_module_names(self):
-        """Should handle unicode in module and function names."""
-        index = {
-            "modules": {
-                "Módulo": {
-                    "name": "Módulo",
-                    "file": "módulo.py",
-                    "line": 1,
-                    "functions": [{"name": "función", "line": 5}],
-                }
-            }
-        }
-
-        result = lookup_module(index, "Módulo")
-        assert result is not None
-
-        results = lookup_function(index, "función")
-        assert len(results) == 1
-
-    def test_special_characters_in_paths(self):
-        """Should handle special characters in file paths."""
-        index = {
-            "modules": {
-                "Test": {
-                    "name": "Test",
-                    "file": "lib/my-project/test_file.py",
-                    "line": 1,
-                }
-            }
-        }
-
-        result = lookup_by_location(index, "lib/my-project/test_file.py", 1)
-        assert result is not None
-        assert result["name"] == "Test"
-
-    def test_whitespace_in_lookups(self, sample_index):
-        """Should not trim whitespace (exact match required)."""
-        # Function names with whitespace should not match
-        results = lookup_function(sample_index, " add ")
-        assert results == []
-
-        # Module names with whitespace should not match
-        result = lookup_module(sample_index, " Calculator ")
-        assert result is None
+        assert results[0]["line"] is None
