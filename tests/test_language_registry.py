@@ -7,7 +7,6 @@ Target: >80% coverage
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from cicada.languages import (
     LanguageRegistry,
     LanguageNotSupportedError,

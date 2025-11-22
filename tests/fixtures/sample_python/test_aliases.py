@@ -23,6 +23,6 @@ def test_alias_usage():
     result4 = avg([10, 20, 30])
 
     # Using class with alias
-    calc = Calc(100)
+    Calc(100)
 
     return result1 + result2 + result3 + result4

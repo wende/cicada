@@ -177,7 +177,7 @@ class TestModuleNameExtraction:
 
     def test_extract_simple_module_name(self, python_scip_index):
         """Test extracting module name from simple __init__: symbol."""
-        scip_index, repo_path = python_scip_index
+        _, _ = python_scip_index
 
         converter = SCIPConverter()
 
@@ -196,7 +196,7 @@ class TestModuleNameExtraction:
 
     def test_extract_nested_module_name(self, python_scip_index):
         """Test extracting module name from nested package symbols."""
-        scip_index, repo_path = python_scip_index
+        _, _ = python_scip_index
 
         converter = SCIPConverter()
 
@@ -215,7 +215,7 @@ class TestModuleNameExtraction:
 
     def test_extract_module_name_without_init(self, python_scip_index):
         """Test extracting module name from file-based module symbols."""
-        scip_index, repo_path = python_scip_index
+        _, _ = python_scip_index
 
         converter = SCIPConverter()
 
@@ -232,7 +232,7 @@ class TestModuleNameExtraction:
 
     def test_extract_module_name_with_backticks(self, python_scip_index):
         """Test extracting module name from SCIP symbols with backticks."""
-        scip_index, repo_path = python_scip_index
+        _, _ = python_scip_index
 
         converter = SCIPConverter()
 
@@ -299,7 +299,7 @@ class TestClassTracking:
 
     def test_file_path_to_module_name(self, python_scip_index):
         """Test _file_path_to_module_name helper method."""
-        scip_index, repo_path = python_scip_index
+        _, _ = python_scip_index
 
         converter = SCIPConverter()
 

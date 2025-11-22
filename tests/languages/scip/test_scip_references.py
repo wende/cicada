@@ -243,11 +243,9 @@ class TestDependencyExtraction:
         assert calc is not None
 
         # Check that functions have dependencies with line numbers
-        found_dependency = False
         for func in calc.get("functions", []):
             func_deps = func.get("dependencies", [])
             if func_deps:
-                found_dependency = True
                 # Check that dependencies have line numbers
                 for dep in func_deps:
                     assert "line" in dep, "Dependency should include line number"

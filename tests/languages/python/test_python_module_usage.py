@@ -175,7 +175,6 @@ def use_target3():
 
                 if "user1" in file_path:
                     # user1 imports target directly (no alias)
-                    aliases = module_data.get("aliases", {})
                     # Should have "target" tracked as an import
                     imports = module_data.get("imports", [])
                     print(f"user1 imports: {imports}")

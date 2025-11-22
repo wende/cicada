@@ -2,12 +2,8 @@
 Comprehensive tests for cicada/utils/keyword_utils.py
 """
 
-import sys
-from io import StringIO
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import yaml
 
 from cicada.utils.keyword_utils import (
@@ -538,7 +534,7 @@ class TestGetKeywordExtractorFromConfig:
             with open(config_path, "w") as f:
                 yaml.dump(config, f)
 
-            extract_keywords, extractor = get_keyword_extractor_from_config(repo_path, verbose=True)
+            get_keyword_extractor_from_config(repo_path, verbose=True)
 
             captured = capsys.readouterr()
             assert "extractor" in captured.err.lower()
