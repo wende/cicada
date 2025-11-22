@@ -185,9 +185,35 @@ class QueryOrchestrator:
 
             # For each pattern alternative (OR patterns)
             for func_pattern in patterns:
-                # Check if this is a module-level search (function name is "*")
+                # Check if this is a module-level search
+                # Two cases:
+                # 1. Function name is "*" (e.g., "MyApp.User.*")
+                # 2. Function name has no wildcards and could be the module suffix (e.g., "ThenvoiCom.Context")
+                is_module_search = func_pattern.name == "*"
+
+                # Check if the "function name" is actually a module suffix
+                # This handles queries like "ThenvoiCom.Context" which get parsed as module="*.ThenvoiCom", name="Context"
                 if (
-                    func_pattern.name == "*"
+                    not is_module_search
+                    and "*" not in func_pattern.name
+                    and "|" not in func_pattern.name
+                    and func_pattern.module
+                ):
+                    # Reconstruct full module pattern: module + name
+                    # Remove the auto-added "*." prefix to get the base
+                    module_base = func_pattern.module
+                    if module_base.startswith("*."):
+                        module_base = module_base[2:]
+                    full_module_pattern = f"{module_base}.{func_pattern.name}"
+
+                    # Check if this pattern matches the module name
+                    from cicada.mcp.pattern_utils import matches_pattern
+
+                    if matches_pattern(f"*.{full_module_pattern}", module_name):
+                        is_module_search = True
+
+                if (
+                    is_module_search
                     and filter_type in ["all", "modules"]
                     and func_pattern.matches(module_name, file_path, {"name": "*", "arity": 0})
                 ):
