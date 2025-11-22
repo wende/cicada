@@ -202,33 +202,63 @@ class QueryOrchestrator:
         """
         results: list[SearchResult] = []
 
-        # Check if this is a pure module pattern (no dots, just wildcards/OR on module names)
-        # Examples: "*Analyzer", "User|Post", "*Service*"
-        # These should match module names directly, not be parsed as function patterns
+        # Check if this is a pure name pattern (no dots, just wildcards/OR)
+        # Examples: "*Analyzer", "User|Post", "*Service*", "execute*", "foo|bar"
+        # These can match both module names and function names (depending on filter_type)
         has_no_dots = "." not in pattern
         has_pattern_chars = has_wildcards(pattern)
 
-        if has_no_dots and has_pattern_chars and filter_type in ["all", "modules"]:
-            # This is a pure module name pattern - match against module names directly
+        if has_no_dots and has_pattern_chars:
+            # This is a pure name pattern - match against module/function names directly
             # Split by OR if present
-            module_patterns = split_or_patterns(pattern)
+            name_patterns = split_or_patterns(pattern)
 
-            for module_name, module_data in self.index.get("modules", {}).items():
-                if match_any_pattern(module_patterns, module_name):
-                    results.append(
-                        SearchResult(
-                            type="module",
-                            name=module_name,
-                            module=module_name,
-                            file=module_data.get("file", ""),
-                            line=module_data.get("line", 1),
-                            doc=module_data.get("moduledoc"),
-                            score=1.0,  # Pattern match = full score
-                            confidence=100.0,
-                            matched_keywords=[],
-                            pattern_match=True,
+            # Match modules if requested
+            if filter_type in ["all", "modules"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    if match_any_pattern(name_patterns, module_name):
+                        results.append(
+                            SearchResult(
+                                type="module",
+                                name=module_name,
+                                module=module_name,
+                                file=module_data.get("file", ""),
+                                line=module_data.get("line", 1),
+                                doc=module_data.get("moduledoc"),
+                                score=1.0,  # Pattern match = full score
+                                confidence=100.0,
+                                matched_keywords=[],
+                                pattern_match=True,
+                            )
                         )
-                    )
+
+            # Match functions if requested
+            if filter_type in ["all", "functions"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    file_path = module_data.get("file", "")
+                    for func in module_data.get("functions", []):
+                        if match_any_pattern(name_patterns, func["name"]):
+                            full_name = f"{module_name}.{func['name']}/{func['arity']}"
+                            results.append(
+                                SearchResult(
+                                    type="function",
+                                    name=full_name,
+                                    module=module_name,
+                                    function=func["name"],
+                                    arity=func["arity"],
+                                    file=file_path,
+                                    line=func.get("line", 1),
+                                    doc=func.get("doc"),
+                                    signature=func.get("signature"),
+                                    visibility=func.get("type", "def"),
+                                    score=1.0,
+                                    confidence=100.0,
+                                    matched_keywords=[],
+                                    pattern_match=True,
+                                    last_modified_at=func.get("last_modified_at"),
+                                )
+                            )
+
             return results
 
         # Parse the pattern for function/qualified module searches

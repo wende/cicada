@@ -201,6 +201,13 @@ class TestDependencyExtraction:
         assert "modules" in deps, "Dependencies should have 'modules' key"
         assert "has_dynamic_calls" in deps, "Dependencies should have 'has_dynamic_calls' key"
 
+        # This fixture uses only static calls; ensure dynamic calls are correctly
+        # detected and encoded as `False` in the dependency format to guard
+        # against regressions in dynamic call detection.
+        has_dynamic_calls = deps["has_dynamic_calls"]
+        assert isinstance(has_dynamic_calls, bool), "has_dynamic_calls should be a boolean flag"
+        assert has_dynamic_calls is False, "Calculator fixture should not have dynamic calls"
+
         # Get the modules list
         module_list = deps["modules"]
         assert isinstance(module_list, list), "modules should be a list of strings"
