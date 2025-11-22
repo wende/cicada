@@ -60,8 +60,8 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
     ```bash
     cd /path/to/your/repo
     cicada dir
-    # Output: Repository hash: a1b2c3d4e5f6g7h8
-    #         Storage dir: /Users/username/.cicada/projects/a1b2c3d4e5f6g7h8/
+    # Output: Repository hash: a1b2c3d4e5f6a7b8
+    #         Storage dir: /Users/username/.cicada/projects/a1b2c3d4e5f6a7b8/
     ```
 
 - **Repository Config:** Only one MCP config file is added to the user's repository:
