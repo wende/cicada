@@ -224,6 +224,41 @@ class ModuleFormatter:
         if visibility == "private" and not private_shown:
             lines.extend(["", "*No private functions found*"])
 
+        # Add detailed dependencies if provided
+        if detailed_dependencies:
+            lines.extend(["", "---", ""])
+
+            # Direct dependencies
+            if detailed_dependencies.get("direct"):
+                lines.append(f"## Dependencies ({len(detailed_dependencies['direct'])})")
+                lines.append("")
+                for dep in detailed_dependencies["direct"]:
+                    lines.append(f"  • {dep}")
+                lines.append("")
+
+            # Transitive dependencies
+            if detailed_dependencies.get("transitive"):
+                trans = detailed_dependencies["transitive"]
+                total_transitive = len(trans)
+                lines.append(f"## Transitive Dependencies ({total_transitive})")
+                lines.append("")
+                for dep, required_by in sorted(trans.items()):
+                    via = ", ".join(required_by)
+                    lines.append(f"  • {dep} (via {via})")
+                lines.append("")
+
+            # Granular function usage
+            if detailed_dependencies.get("granular"):
+                gran = detailed_dependencies["granular"]
+                lines.append("## Function Usage")
+                lines.append("")
+                for dep_module, func_sigs in sorted(gran.items()):
+                    lines.append(f"### {dep_module}")
+                    lines.append(f"Used by {len(func_sigs)} function(s):")
+                    for sig in func_sigs:
+                        lines.append(f"  • {sig}")
+                    lines.append("")
+
         return "\n".join(lines)
 
     @staticmethod
@@ -275,6 +310,11 @@ class ModuleFormatter:
             },
             "functions": functions,
         }
+
+        # Include detailed dependencies if provided
+        if detailed_dependencies:
+            result["dependencies"] = detailed_dependencies
+
         return json.dumps(result, indent=2)
 
     @staticmethod

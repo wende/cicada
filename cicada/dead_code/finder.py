@@ -16,12 +16,13 @@ from cicada.utils import get_index_path, load_index
 from .analyzer import DeadCodeAnalyzer
 
 
-def format_markdown(results: dict) -> str:
+def format_markdown(results: dict, max_results_per_tier: int = 50) -> str:
     """
     Format analysis results as markdown.
 
     Args:
         results: Analysis results from DeadCodeAnalyzer
+        max_results_per_tier: Maximum number of results to show per confidence tier (default: 50)
 
     Returns:
         Formatted markdown string
@@ -47,9 +48,13 @@ def format_markdown(results: dict) -> str:
         lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
         lines.append("Functions with zero usage in codebase\n")
 
+        # Truncate if too many results
+        candidates_to_show = candidates["high"][:max_results_per_tier]
+        truncated = len(candidates["high"]) > max_results_per_tier
+
         # Group by module
         by_module = {}
-        for c in candidates["high"]:
+        for c in candidates_to_show:
             if c["module"] not in by_module:
                 by_module[c["module"]] = []
             by_module[c["module"]].append(c)
@@ -60,6 +65,13 @@ def format_markdown(results: dict) -> str:
             for func in funcs:
                 lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
+
+        if truncated:
+            remaining = len(candidates["high"]) - max_results_per_tier
+            lines.append(
+                f"*... and {remaining} more high confidence candidates (truncated for readability)*\n"
+            )
+            lines.append("*Tip: Use JSON format or filter results for complete output*\n")
 
     # Medium confidence
     if candidates["medium"]:
@@ -72,9 +84,13 @@ def format_markdown(results: dict) -> str:
             "Functions with zero usage, but module has behaviors/uses (possible callbacks)\n"
         )
 
+        # Truncate if too many results
+        candidates_to_show = candidates["medium"][:max_results_per_tier]
+        truncated = len(candidates["medium"]) > max_results_per_tier
+
         # Group by module
         by_module = {}
-        for c in candidates["medium"]:
+        for c in candidates_to_show:
             if c["module"] not in by_module:
                 by_module[c["module"]] = []
             by_module[c["module"]].append(c)
@@ -96,6 +112,13 @@ def format_markdown(results: dict) -> str:
                 lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
 
+        if truncated:
+            remaining = len(candidates["medium"]) - max_results_per_tier
+            lines.append(
+                f"*... and {remaining} more medium confidence candidates (truncated for readability)*\n"
+            )
+            lines.append("*Tip: Use JSON format or filter results for complete output*\n")
+
     # Low confidence
     if candidates["low"]:
         count = len(candidates["low"])
@@ -107,9 +130,13 @@ def format_markdown(results: dict) -> str:
             "Functions with zero usage, but module passed as value (possible dynamic calls)\n"
         )
 
+        # Truncate if too many results
+        candidates_to_show = candidates["low"][:max_results_per_tier]
+        truncated = len(candidates["low"]) > max_results_per_tier
+
         # Group by module
         by_module = {}
-        for c in candidates["low"]:
+        for c in candidates_to_show:
             if c["module"] not in by_module:
                 by_module[c["module"]] = []
             by_module[c["module"]].append(c)
@@ -129,6 +156,13 @@ def format_markdown(results: dict) -> str:
             for func in funcs:
                 lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
             lines.append("")
+
+        if truncated:
+            remaining = len(candidates["low"]) - max_results_per_tier
+            lines.append(
+                f"*... and {remaining} more low confidence candidates (truncated for readability)*\n"
+            )
+            lines.append("*Tip: Use JSON format or filter results for complete output*\n")
 
     if summary["total_candidates"] == 0:
         lines.append("\n*No dead code candidates found!*\n")
