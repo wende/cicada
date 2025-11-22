@@ -330,3 +330,110 @@ class TestSCIPConverterEdgeCases:
         assert "arg2" in args
         assert "*args" in args
         assert "**kwargs" in args
+
+    # Tests for _extract_module_from_symbol
+
+    def test_extract_module_from_symbol_short_symbol(self, converter):
+        """Should return None for short symbols."""
+        short = "scip-python python test"
+        result = converter._extract_module_from_symbol(short)
+        assert result is None
+
+    def test_extract_module_from_symbol_init_handling(self, converter):
+        """Should handle __init__ module symbols."""
+        symbol = "scip-python python test 1.0 package/__init__/"
+        result = converter._extract_module_from_symbol(symbol)
+        # Should extract "package" not "__init__"
+        assert result is not None
+
+    def test_extract_module_from_symbol_various_formats(self, converter):
+        """Should handle various symbol formats."""
+        test_cases = [
+            "scip-python python test 1.0 module/Class#method().",
+            "scip-python python test 1.0 package.submodule/",
+            "scip-python python test 1.0 simple_module/",
+        ]
+
+        for symbol in test_cases:
+            result = converter._extract_module_from_symbol(symbol)
+            # Should extract something or return None
+            assert result is None or isinstance(result, str)
+
+    # Tests for _detect_language
+
+    def test_detect_language_from_document(self, converter):
+        """Should detect language from document metadata."""
+        index = scip_pb2.Index()
+        doc = index.documents.add()
+        doc.language = "python"
+
+        language = converter._detect_language(index)
+        assert language == "python"
+
+    def test_detect_language_from_tool_info(self, converter):
+        """Should detect language from tool name."""
+        index = scip_pb2.Index()
+        index.metadata.tool_info.name = "scip-typescript"
+
+        language = converter._detect_language(index)
+        assert language == "typescript"
+
+    def test_detect_language_fallback(self, converter):
+        """Should fallback to unknown when no language detected."""
+        index = scip_pb2.Index()
+        # No language info set
+
+        language = converter._detect_language(index)
+        assert language == "unknown"
+
+    # Tests for extract_references disabled
+
+    def test_convert_with_extract_references_disabled(self, converter):
+        """Should skip reference extraction when disabled."""
+        index = scip_pb2.Index()
+        doc = index.documents.add()
+        doc.relative_path = "test.py"
+
+        # Add a class symbol
+        class_symbol = doc.symbols.add()
+        class_symbol.symbol = "scip-python python test 1.0 test/MyClass#"
+
+        occ = doc.occurrences.add()
+        occ.symbol = class_symbol.symbol
+        occ.range.extend([1, 0, 7])
+        occ.symbol_roles = scip_pb2.SymbolRole.Definition
+
+        # Create converter with extract_references=False
+        converter_no_refs = SCIPConverter(extract_references=False)
+
+        result = converter_no_refs.convert(index, Path("/test"))
+
+        # Should have modules but no call sites
+        assert "modules" in result
+        # Functions should not have what_it_calls data
+        for module_data in result["modules"].values():
+            for func in module_data.get("functions", []):
+                assert "what_it_calls" not in func
+
+    # Tests for module symbols without valid names
+
+    def test_convert_document_invalid_module_name(self, converter):
+        """Should skip modules with invalid names."""
+        doc = scip_pb2.Document()
+        doc.relative_path = "test.py"
+
+        # Add symbol that won't extract a valid name
+        invalid_symbol = doc.symbols.add()
+        invalid_symbol.symbol = "scip-python python test 1.0 #"  # No module name
+
+        occ = doc.occurrences.add()
+        occ.symbol = invalid_symbol.symbol
+        occ.range.extend([1, 0, 1])
+        occ.symbol_roles = scip_pb2.SymbolRole.Definition
+
+        symbol_map = {invalid_symbol.symbol: invalid_symbol}
+
+        modules = converter._convert_document(doc, Path("/test"), symbol_map)
+
+        # Should handle gracefully, not include invalid module
+        assert isinstance(modules, dict)

@@ -355,3 +355,618 @@ class TestPythonSCIPIndexer:
                 finally:
                     if scip_file.exists():
                         scip_file.unlink()
+
+
+class TestPythonIndexerHelperMethods:
+    """Test Python indexer helper methods."""
+
+    @pytest.fixture
+    def indexer(self):
+        """Create a PythonSCIPIndexer instance."""
+        return PythonSCIPIndexer(verbose=False)
+
+    @pytest.fixture
+    def verbose_indexer(self):
+        """Create a verbose indexer."""
+        return PythonSCIPIndexer(verbose=True)
+
+    # Tests for _find_python_files
+
+    def test_find_python_files_basic(self, indexer, tmp_path):
+        """Should find Python files in repository."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        (repo / "file1.py").touch()
+        (repo / "file2.py").touch()
+        subdir = repo / "subdir"
+        subdir.mkdir()
+        (subdir / "file3.py").touch()
+
+        files = list(indexer._find_python_files(repo))
+        assert len(files) == 3
+
+    def test_find_python_files_excludes_pycache(self, indexer, tmp_path):
+        """Should exclude __pycache__ directories."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        (repo / "main.py").touch()
+        pycache = repo / "__pycache__"
+        pycache.mkdir()
+        (pycache / "cached.py").touch()
+
+        files = list(indexer._find_python_files(repo))
+        assert len(files) == 1
+        assert files[0].name == "main.py"
+
+    def test_find_python_files_excludes_venv(self, indexer, tmp_path):
+        """Should exclude .venv and venv directories."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        (repo / "main.py").touch()
+        venv1 = repo / ".venv"
+        venv1.mkdir()
+        (venv1 / "lib.py").touch()
+        venv2 = repo / "venv"
+        venv2.mkdir()
+        (venv2 / "lib.py").touch()
+
+        files = list(indexer._find_python_files(repo))
+        assert len(files) == 1
+        assert files[0].name == "main.py"
+
+    def test_find_python_files_nested_structure(self, indexer, tmp_path):
+        """Should handle deeply nested directory structures."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        (repo / "root.py").touch()
+        deep = repo / "a" / "b" / "c" / "d"
+        deep.mkdir(parents=True)
+        (deep / "deep.py").touch()
+
+        files = list(indexer._find_python_files(repo))
+        assert len(files) == 2
+        file_names = [f.name for f in files]
+        assert "root.py" in file_names
+        assert "deep.py" in file_names
+
+    def test_find_python_files_empty_directory(self, indexer, tmp_path):
+        """Should return empty list for empty directory."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        files = list(indexer._find_python_files(repo))
+        assert files == []
+
+    # Tests for _extract_string_keywords
+
+    def test_extract_string_keywords_success(self, verbose_indexer, tmp_path, capsys):
+        """Should extract string keywords from Python files."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        py_file = repo / "test.py"
+        py_file.write_text('x = "SELECT * FROM users"')
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [],
+                }
+            }
+        }
+
+        keyword_extractor = MagicMock()
+        keyword_extractor.extract_keywords.return_value = {
+            "top_keywords": [("select", 0.9), ("users", 0.8)]
+        }
+
+        keyword_expander = MagicMock()
+        keyword_expander.expand_keywords.return_value = {"database": 0.7}
+
+        verbose_indexer._extract_string_keywords(index, repo, keyword_extractor, keyword_expander)
+
+        captured = capsys.readouterr()
+        assert "Extracting string keywords" in captured.out
+
+        module = index["modules"]["TestModule"]
+        assert "string_sources" in module
+        assert "string_keywords" in module
+        # Check boost is applied (1.3x)
+        assert module["string_keywords"]["select"] == pytest.approx(0.9 * 1.3)
+        assert module["string_keywords"]["users"] == pytest.approx(0.8 * 1.3)
+
+    def test_extract_string_keywords_file_not_found(self, indexer, tmp_path):
+        """Should handle missing files gracefully."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "nonexistent.py",
+                    "functions": [],
+                }
+            }
+        }
+
+        keyword_extractor = MagicMock()
+        keyword_expander = MagicMock()
+
+        # Should not raise an error
+        indexer._extract_string_keywords(index, repo, keyword_extractor, keyword_expander)
+
+        # String keywords should not be added
+        module = index["modules"]["TestModule"]
+        assert "string_keywords" not in module
+
+    def test_extract_string_keywords_empty_results(self, indexer, tmp_path):
+        """Should handle files with no extractable strings."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        py_file = repo / "test.py"
+        py_file.write_text("x = 42")  # No strings
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [],
+                }
+            }
+        }
+
+        keyword_extractor = MagicMock()
+        keyword_expander = MagicMock()
+
+        indexer._extract_string_keywords(index, repo, keyword_extractor, keyword_expander)
+
+        module = index["modules"]["TestModule"]
+        assert "string_keywords" not in module
+
+    def test_extract_string_keywords_parse_error(self, verbose_indexer, tmp_path, capsys):
+        """Should handle syntax errors in Python files."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        py_file = repo / "test.py"
+        py_file.write_text("def broken(")  # Syntax error
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [],
+                }
+            }
+        }
+
+        keyword_extractor = MagicMock()
+        keyword_expander = MagicMock()
+
+        verbose_indexer._extract_string_keywords(index, repo, keyword_extractor, keyword_expander)
+
+        # Should have warning in output
+        captured = capsys.readouterr()
+        # String extraction returns empty list for syntax errors, so no warning expected
+        # but no string_keywords should be added
+        module = index["modules"]["TestModule"]
+        assert "string_keywords" not in module
+
+    # Tests for _compute_timestamps
+
+    def test_compute_timestamps_success(self, verbose_indexer, tmp_path, capsys):
+        """Should compute timestamps for functions."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [{"name": "test_func", "line": 5}],
+                }
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+            mock_git_helper = MagicMock()
+            mock_git_helper.get_functions_evolution_batch.return_value = {
+                "test_func": {"created": "2024-01-01", "modified": "2024-01-10"}
+            }
+            mock_git_helper_class.return_value = mock_git_helper
+
+            verbose_indexer._compute_timestamps(index, repo)
+
+            captured = capsys.readouterr()
+            assert "Computing git timestamps" in captured.out
+
+            func = index["modules"]["TestModule"]["functions"][0]
+            assert "timestamps" in func
+            assert func["timestamps"]["created"] == "2024-01-01"
+
+    def test_compute_timestamps_git_helper_failure(self, verbose_indexer, tmp_path, capsys):
+        """Should handle git helper initialization failure."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [{"name": "test_func", "line": 5}],
+                }
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+            mock_git_helper_class.side_effect = Exception("Not a git repo")
+
+            verbose_indexer._compute_timestamps(index, repo)
+
+            captured = capsys.readouterr()
+            assert "Could not initialize git helper" in captured.out
+
+            # Functions should not have timestamps
+            func = index["modules"]["TestModule"]["functions"][0]
+            assert "timestamps" not in func
+
+    def test_compute_timestamps_no_functions(self, indexer, tmp_path):
+        """Should handle index with no functions."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "TestModule": {
+                    "file": "test.py",
+                    "functions": [],
+                }
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+            mock_git_helper = MagicMock()
+            mock_git_helper_class.return_value = mock_git_helper
+
+            indexer._compute_timestamps(index, repo)
+
+            # Should return early, git helper should not be called
+            mock_git_helper.get_functions_evolution_batch.assert_not_called()
+
+    def test_compute_timestamps_batch_processing(self, indexer, tmp_path):
+        """Should batch process functions by file."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "Module1": {
+                    "file": "file1.py",
+                    "functions": [
+                        {"name": "func1", "line": 5},
+                        {"name": "func2", "line": 10},
+                    ],
+                },
+                "Module2": {
+                    "file": "file2.py",
+                    "functions": [
+                        {"name": "func3", "line": 3},
+                    ],
+                },
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+            mock_git_helper = MagicMock()
+            mock_git_helper.get_functions_evolution_batch.return_value = {}
+            mock_git_helper_class.return_value = mock_git_helper
+
+            indexer._compute_timestamps(index, repo)
+
+            # Should be called once per file
+            assert mock_git_helper.get_functions_evolution_batch.call_count == 2
+
+    # Tests for _extract_cochange
+
+    def test_extract_cochange_success(self, verbose_indexer, tmp_path, capsys):
+        """Should extract co-change relationships."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "ModuleA": {"file": "a.py", "functions": []},
+                "ModuleB": {"file": "b.py", "functions": []},
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+            mock_analyzer = MagicMock()
+            mock_analyzer.analyze_repository.return_value = {
+                "metadata": {"file_pairs": 1, "function_pairs": 0, "commit_count": 10},
+                "file_pairs": {},
+            }
+            mock_analyzer_class.return_value = mock_analyzer
+            mock_analyzer_class.find_cochange_pairs = MagicMock(return_value=[])
+
+            verbose_indexer._extract_cochange(index, repo)
+
+            captured = capsys.readouterr()
+            assert "Analyzing co-change patterns" in captured.out
+            assert "cochange_metadata" in index
+
+    def test_extract_cochange_analyzer_failure(self, verbose_indexer, tmp_path, capsys):
+        """Should handle analyzer failures gracefully."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {"modules": {}}
+
+        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+            mock_analyzer_class.side_effect = Exception("Git error")
+
+            verbose_indexer._extract_cochange(index, repo)
+
+            captured = capsys.readouterr()
+            assert "Failed to analyze co-changes" in captured.out
+            assert "cochange_metadata" not in index
+
+    def test_extract_cochange_file_mapping(self, indexer, tmp_path):
+        """Should correctly map files to modules."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "ModuleA": {"file": "a.py", "functions": []},
+                "ModuleB": {"file": "b.py", "functions": []},
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+            mock_analyzer = MagicMock()
+            mock_analyzer.analyze_repository.return_value = {
+                "metadata": {"file_pairs": 1, "function_pairs": 0, "commit_count": 5},
+                "file_pairs": {},
+            }
+            mock_analyzer_class.return_value = mock_analyzer
+
+            # Mock find_cochange_pairs to return related files
+            def find_cochange_pairs_side_effect(file, _):
+                if file == "a.py":
+                    return [("b.py", 5)]
+                return []
+
+            mock_analyzer_class.find_cochange_pairs = MagicMock(
+                side_effect=find_cochange_pairs_side_effect
+            )
+
+            indexer._extract_cochange(index, repo)
+
+            # ModuleA should have cochange_files pointing to b.py
+            assert "cochange_files" in index["modules"]["ModuleA"]
+            cochange = index["modules"]["ModuleA"]["cochange_files"][0]
+            assert cochange["file"] == "b.py"
+            assert cochange["module"] == "ModuleB"
+            assert cochange["count"] == 5
+
+    def test_extract_cochange_limits_top_10(self, indexer, tmp_path):
+        """Should limit co-change results to top 10."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        index = {
+            "modules": {
+                "ModuleA": {"file": "a.py", "functions": []},
+            }
+        }
+
+        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+            mock_analyzer = MagicMock()
+            mock_analyzer.analyze_repository.return_value = {
+                "metadata": {"file_pairs": 15, "function_pairs": 0, "commit_count": 10},
+                "file_pairs": {},
+            }
+            mock_analyzer_class.return_value = mock_analyzer
+
+            # Return 15 co-change pairs
+            pairs = [(f"file{i}.py", 100 - i) for i in range(15)]
+            mock_analyzer_class.find_cochange_pairs = MagicMock(return_value=pairs)
+
+            indexer._extract_cochange(index, repo)
+
+            # Should limit to 10
+            assert len(index["modules"]["ModuleA"]["cochange_files"]) == 10
+
+    # Tests for incremental indexing
+
+    def test_incremental_index_detects_new_files(self, indexer, tmp_path):
+        """Should detect new files and trigger reindexing."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / "new.py").touch()
+
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "new.py"
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                try:
+                    result = indexer.incremental_index_repository(
+                        repo_path=str(repo),
+                        output_path=str(output),
+                        force_full=False,
+                        verbose=False,
+                    )
+
+                    assert result["success"] is True
+                    assert "skipped" not in result
+                finally:
+                    if scip_file.exists():
+                        scip_file.unlink()
+
+    def test_incremental_index_skips_when_up_to_date(self, verbose_indexer, tmp_path, capsys):
+        """Should skip reindexing when no changes detected."""
+        from cicada.utils.storage import get_hashes_path
+        from cicada.utils.hash_utils import save_file_hashes
+        from pathlib import Path
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        # Create test file
+        py_file = repo / "test.py"
+        py_file.write_text("x = 42")
+
+        output = tmp_path / "index.json"
+
+        # Create initial index
+        initial_index = {
+            "modules": {"test": {"file": "test.py"}},
+            "metadata": {"total_functions": 0},
+        }
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(initial_index, f)
+
+        # Mock the file finding and hash comparison to simulate no changes
+        with patch.object(verbose_indexer, "_find_python_files", return_value=[py_file]):
+            with patch(
+                "cicada.languages.python.indexer.detect_file_changes", return_value=([], [], [])
+            ):
+                result = verbose_indexer.incremental_index_repository(
+                    repo_path=str(repo),
+                    output_path=str(output),
+                    force_full=False,
+                    verbose=True,
+                )
+
+                captured = capsys.readouterr()
+                assert "No changes detected" in captured.out
+                assert result["skipped"] is True
+                assert result["success"] is True
+
+    def test_incremental_index_force_full_reindex(self, indexer, tmp_path):
+        """Should force full reindex when force_full=True."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / "test.py").touch()
+
+        output = tmp_path / "index.json"
+
+        # Create existing index
+        initial_index = {"modules": {}, "metadata": {}}
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(initial_index, f)
+
+        scip_index = scip_pb2.Index()
+        scip_index.documents.add()
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                try:
+                    result = indexer.incremental_index_repository(
+                        repo_path=str(repo),
+                        output_path=str(output),
+                        force_full=True,  # Force reindex
+                        verbose=False,
+                    )
+
+                    # Should reindex even if no changes
+                    assert result["success"] is True
+                    assert "skipped" not in result
+                    mock_run.assert_called_once()
+                finally:
+                    if scip_file.exists():
+                        scip_file.unlink()
+
+
+class TestPythonIndexerIntegration:
+    """Integration tests for Python indexer with all features."""
+
+    @pytest.fixture
+    def indexer(self):
+        """Create a PythonSCIPIndexer instance."""
+        return PythonSCIPIndexer(verbose=False)
+
+    def test_index_with_all_features_enabled(self, indexer, tmp_path):
+        """Should index with all features enabled."""
+        from unittest.mock import MagicMock
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        py_file = repo / "test.py"
+        py_file.write_text('def test():\n    return "SELECT * FROM users"')
+
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "test.py"
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                # Mock all feature extractors
+                with patch.object(indexer, "_extract_string_keywords") as mock_strings:
+                    with patch.object(indexer, "_compute_timestamps") as mock_timestamps:
+                        with patch.object(indexer, "_extract_cochange") as mock_cochange:
+                            try:
+                                result = indexer.incremental_index_repository(
+                                    repo_path=str(repo),
+                                    output_path=str(output),
+                                    extract_keywords=True,
+                                    extract_string_keywords=True,
+                                    compute_timestamps=True,
+                                    extract_cochange=True,
+                                    verbose=False,
+                                )
+
+                                assert result["success"] is True
+                                mock_strings.assert_called_once()
+                                mock_timestamps.assert_called_once()
+                                mock_cochange.assert_called_once()
+                            finally:
+                                if scip_file.exists():
+                                    scip_file.unlink()

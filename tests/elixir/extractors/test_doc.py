@@ -1,8 +1,8 @@
-"""Tests for cicada/elixir/extractors/doc.py"""
+"""Tests for cicada/languages/elixir/extractors/doc.py"""
 
 import pytest
 
-from cicada.elixir.extractors.doc import (
+from cicada.languages.elixir.extractors.doc import (
     _extract_examples_from_doc,
     match_docs_to_functions,
 )
