@@ -16,8 +16,10 @@ from typing import Any
 from cicada.keyword_search import KeywordSearcher
 from cicada.mcp.pattern_utils import (
     has_wildcards,
+    match_any_pattern,
     matches_pattern,
     parse_function_patterns,
+    split_or_patterns,
 )
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
@@ -198,10 +200,69 @@ class QueryOrchestrator:
         Returns:
             List of matching SearchResult objects
         """
-        # Parse the pattern
-        patterns = parse_function_patterns(pattern)
-
         results: list[SearchResult] = []
+
+        # Check if this is a pure name pattern (no dots, just wildcards/OR)
+        # Examples: "*Analyzer", "User|Post", "*Service*", "execute*", "foo|bar"
+        # These can match both module names and function names (depending on filter_type)
+        has_no_dots = "." not in pattern
+        has_pattern_chars = has_wildcards(pattern)
+
+        if has_no_dots and has_pattern_chars:
+            # This is a pure name pattern - match against module/function names directly
+            # Split by OR if present
+            name_patterns = split_or_patterns(pattern)
+
+            # Match modules if requested
+            if filter_type in ["all", "modules"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    if match_any_pattern(name_patterns, module_name):
+                        results.append(
+                            SearchResult(
+                                type="module",
+                                name=module_name,
+                                module=module_name,
+                                file=module_data.get("file", ""),
+                                line=module_data.get("line", 1),
+                                doc=module_data.get("moduledoc"),
+                                score=1.0,  # Pattern match = full score
+                                confidence=100.0,
+                                matched_keywords=[],
+                                pattern_match=True,
+                            )
+                        )
+
+            # Match functions if requested
+            if filter_type in ["all", "functions"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    file_path = module_data.get("file", "")
+                    for func in module_data.get("functions", []):
+                        if match_any_pattern(name_patterns, func["name"]):
+                            full_name = f"{module_name}.{func['name']}/{func['arity']}"
+                            results.append(
+                                SearchResult(
+                                    type="function",
+                                    name=full_name,
+                                    module=module_name,
+                                    function=func["name"],
+                                    arity=func["arity"],
+                                    file=file_path,
+                                    line=func.get("line", 1),
+                                    doc=func.get("doc"),
+                                    signature=func.get("signature"),
+                                    visibility=func.get("type", "def"),
+                                    score=1.0,
+                                    confidence=100.0,
+                                    matched_keywords=[],
+                                    pattern_match=True,
+                                    last_modified_at=func.get("last_modified_at"),
+                                )
+                            )
+
+            return results
+
+        # Parse the pattern for function/qualified module searches
+        patterns = parse_function_patterns(pattern)
 
         # Search through all modules
         for module_name, module_data in self.index.get("modules", {}).items():

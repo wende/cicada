@@ -334,6 +334,59 @@ class TestQueryOrchestrator:
         # Should match create_user, update_user, etc.
         assert "user" in result.lower()
 
+    def test_wildcard_pattern_matches_both_modules_and_functions(self):
+        """
+        Test that wildcard patterns without dots match both modules AND functions
+        when filter_type='all'.
+
+        Regression test for bug where patterns like 'execute*' or 'foo|bar' would
+        only match modules and return early, never reaching the function-matching loop.
+        """
+        # Create test index with module and functions that match pattern
+        index = {
+            "modules": {
+                "ExecuteHelper": {
+                    "file": "lib/execute_helper.ex",
+                    "line": 1,
+                    "moduledoc": "Execute helper module",
+                    "functions": [
+                        {"name": "run", "arity": 1, "line": 10, "type": "def"},
+                        {"name": "execute", "arity": 2, "line": 20, "type": "def"},
+                    ],
+                },
+                "MyApp.UserService": {
+                    "file": "lib/user_service.ex",
+                    "line": 1,
+                    "moduledoc": "User service module",
+                    "functions": [
+                        {"name": "execute", "arity": 1, "line": 10, "type": "def"},
+                        {"name": "execute_query", "arity": 2, "line": 20, "type": "def"},
+                        {"name": "run", "arity": 1, "line": 30, "type": "def"},
+                    ],
+                },
+            }
+        }
+
+        orchestrator = QueryOrchestrator(index)
+
+        # Test wildcard pattern with filter_type='all' (default)
+        result = orchestrator.execute_query("execute*", filter_type="all")
+
+        # Should match module ExecuteHelper
+        assert "ExecuteHelper" in result, "Should match ExecuteHelper module"
+
+        # Should also match functions execute/1, execute/2, execute_query/2
+        assert "execute/1" in result, "Should match execute/1 function"
+        assert "execute/2" in result, "Should match execute/2 function"
+        assert "execute_query/2" in result, "Should match execute_query/2 function"
+
+        # Test OR pattern with filter_type='all'
+        result_or = orchestrator.execute_query("execute|run", filter_type="all")
+
+        # Should match functions with both names
+        assert "execute/1" in result_or or "execute/2" in result_or
+        assert "run/1" in result_or
+
     def test_deduplication(self, sample_index):
         """Test that duplicate results are removed."""
         orchestrator = QueryOrchestrator(sample_index)

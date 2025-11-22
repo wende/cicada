@@ -194,20 +194,31 @@ class TestDependencyExtraction:
         calc = python_index["modules"].get("Calculator")
         assert calc is not None, "Calculator module not found"
 
-        # Check that dependencies field exists and is a list (standardized format)
+        # Check that dependencies field exists and matches Elixir format
         assert "dependencies" in calc, "No dependencies field in Calculator module"
         deps = calc["dependencies"]
-        assert isinstance(deps, list), "Dependencies should be a list of dicts"
+        assert isinstance(deps, dict), "Dependencies should be a dict (Elixir format)"
+        assert "modules" in deps, "Dependencies should have 'modules' key"
+        assert "has_dynamic_calls" in deps, "Dependencies should have 'has_dynamic_calls' key"
+
+        # This fixture uses only static calls; ensure dynamic calls are correctly
+        # detected and encoded as `False` in the dependency format to guard
+        # against regressions in dynamic call detection.
+        has_dynamic_calls = deps["has_dynamic_calls"]
+        assert isinstance(has_dynamic_calls, bool), "has_dynamic_calls should be a boolean flag"
+        assert has_dynamic_calls is False, "Calculator fixture should not have dynamic calls"
+
+        # Get the modules list
+        module_list = deps["modules"]
+        assert isinstance(module_list, list), "modules should be a list of strings"
 
         # Should have at least 2 dependencies (operations, utils)
         # typing might be excluded as stdlib
-        assert len(deps) > 0, "Should have at least one dependency"
+        assert len(module_list) > 0, "Should have at least one dependency"
 
-        # Check that each dependency has the correct format: {"module": "..."}
-        for dep in deps:
-            assert isinstance(dep, dict), "Each dependency should be a dict"
-            assert "module" in dep, "Each dependency should have 'module' key"
-            assert isinstance(dep["module"], str), "Module name should be a string"
+        # Check that each module name is a string
+        for module_name in module_list:
+            assert isinstance(module_name, str), "Module name should be a string"
 
     def test_dependency_includes_imported_symbols(self, python_index):
         """Test that we track what symbols were imported."""
@@ -215,8 +226,8 @@ class TestDependencyExtraction:
         calc = python_index["modules"].get("Calculator")
         assert calc is not None
 
-        deps = calc.get("dependencies", [])
-        module_names = [dep["module"] for dep in deps]
+        deps = calc.get("dependencies", {})
+        module_names = deps.get("modules", [])
 
         # Check that utils module is tracked as a dependency
         assert "utils" in module_names, "Should track utils as a dependency"
@@ -227,8 +238,8 @@ class TestDependencyExtraction:
         calc = python_index["modules"].get("Calculator")
         assert calc is not None
 
-        deps = calc.get("dependencies", [])
-        module_names = [dep["module"] for dep in deps]
+        deps = calc.get("dependencies", {})
+        module_names = deps.get("modules", [])
 
         # Should track operations as a dependency
         assert "operations" in module_names, "Should track operations module import"
