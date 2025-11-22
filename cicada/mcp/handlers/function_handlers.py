@@ -508,6 +508,77 @@ class FunctionSearchHandler:
 
         raise ValueError(f"Invalid changed_since format: {changed_since}")
 
+    def _build_private_pattern_string(self, pattern: FunctionPattern) -> str:
+        """
+        Build a private function pattern string from a public pattern.
+
+        Args:
+            pattern: The original function pattern
+
+        Returns:
+            Pattern string with underscore prefix (e.g., "Module._func*" or "_func*/2")
+        """
+        private_pattern = f"_{pattern.name}"
+
+        if pattern.module:
+            module_part = (
+                pattern.module.replace("*.", "", 1)
+                if pattern.module.startswith("*.")
+                else pattern.module
+            )
+            private_pattern = f"{module_part}.{private_pattern}"
+
+        if pattern.arity is not None:
+            private_pattern += f"/{pattern.arity}"
+
+        return private_pattern
+
+    def _has_matching_private_function(self, private_pattern_str: str) -> bool:
+        """
+        Check if any private functions match the given pattern.
+
+        Args:
+            private_pattern_str: The private function pattern to match
+
+        Returns:
+            True if at least one matching private function exists
+        """
+        private_patterns = parse_function_patterns(private_pattern_str)
+
+        for module_name, module_data in self.index["modules"].items():
+            for func in module_data["functions"]:
+                if any(p.matches(module_name, module_data["file"], func) for p in private_patterns):
+                    return True
+
+        return False
+
+    def _suggest_private_function(
+        self, results: list, parsed_patterns: list[FunctionPattern]
+    ) -> str | None:
+        """
+        Suggest a private function pattern if no public functions were found.
+
+        Args:
+            results: The search results (empty if no matches)
+            parsed_patterns: List of parsed function patterns from the search query
+
+        Returns:
+            Private function pattern string if matches found, None otherwise
+        """
+        if results or not parsed_patterns:
+            return None
+
+        for pattern in parsed_patterns:
+            if not (pattern.name and not pattern.name.startswith("_") and "*" in pattern.name):
+                continue
+
+            private_pattern = self._build_private_pattern_string(pattern)
+
+            if self._has_matching_private_function(private_pattern):
+                return private_pattern
+
+        return None
+
     async def search_function(
         self,
         function_name: str,
@@ -647,39 +718,7 @@ class FunctionSearchHandler:
         staleness_info = None
 
         # If no results found, check if there are private functions that match
-        private_suggestion = None
-        if not results and parsed_patterns:
-            # Try adding _ prefix to each pattern's function name
-            for pattern in parsed_patterns:
-                if pattern.name and not pattern.name.startswith("_") and "*" in pattern.name:
-                    # Try with underscore prefix
-                    private_pattern_str = f"_{pattern.name}"
-                    if pattern.module:
-                        # Reconstruct full pattern: Module._func*
-                        module_part = (
-                            pattern.module.replace("*.", "", 1)
-                            if pattern.module.startswith("*.")
-                            else pattern.module
-                        )
-                        private_pattern_str = f"{module_part}._{pattern.name}"
-                    if pattern.arity is not None:
-                        private_pattern_str += f"/{pattern.arity}"
-
-                    # Quick check: do any private functions match?
-                    private_patterns = parse_function_patterns(private_pattern_str)
-                    for mod_name, mod_data in self.index["modules"].items():
-                        for func in mod_data["functions"]:
-                            if any(
-                                p.matches(mod_name, mod_data["file"], func)
-                                for p in private_patterns
-                            ):
-                                # Found at least one match
-                                private_suggestion = private_pattern_str
-                                break
-                        if private_suggestion:
-                            break
-                if private_suggestion:
-                    break
+        private_suggestion = self._suggest_private_function(results, parsed_patterns)
 
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")
