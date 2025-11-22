@@ -64,6 +64,9 @@ def matches_pattern(pattern: str | None, text: str) -> bool:
                 # e.g., "ThenvoiCom.AgentModule" split by "." → check if "Agent*" matches "AgentModule"
                 text_parts = text.split(".")
                 # Try matching suffix against progressively shorter tails
+                # Note: This involves O(n) string joins where n is module depth. For typical
+                # Elixir modules (3-5 levels), the performance impact is negligible and the
+                # readability benefit of using fnmatch outweighs optimization concerns.
                 for i in range(len(text_parts)):
                     tail = ".".join(text_parts[i:])
                     if match_wildcard(suffix, tail):

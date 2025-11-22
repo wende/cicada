@@ -7,7 +7,7 @@ that "SomeModule.func" matches functions in "MyProject.SomeModule".
 """
 import pytest
 
-from cicada.mcp.pattern_utils import FunctionPattern, match_any_pattern
+from cicada.mcp.pattern_utils import FunctionPattern, match_any_pattern, matches_pattern
 
 
 class TestPartialModuleMatching:
@@ -95,9 +95,7 @@ class TestPartialModuleMatching:
         assert not pattern.matches("MyApp.UserContext", "lib/file.ex", func)
 
     def test_prefix_matching_with_wildcard_suffix(self):
-        """Test that *.Prefix.* matches modules with Prefix as a component."""
-        from cicada.mcp.pattern_utils import matches_pattern
-
+        """Test that *.Prefix matches modules with Prefix as a component."""
         # Test *.ThenvoiCom.Agents matches both suffix and prefix
         pattern = "*.ThenvoiCom.Agents"
 
@@ -115,8 +113,6 @@ class TestPartialModuleMatching:
 
     def test_wildcard_in_suffix_pattern(self):
         """Test that *.Prefix* with wildcard in suffix works correctly."""
-        from cicada.mcp.pattern_utils import matches_pattern
-
         pattern = "*.ThenvoiCom.Agent*"
 
         # Should match modules starting with ThenvoiCom.Agent
@@ -133,8 +129,6 @@ class TestPartialModuleMatching:
 
     def test_nested_wildcard_pattern_matching(self):
         """Test complex nested wildcard patterns."""
-        from cicada.mcp.pattern_utils import matches_pattern
-
         # Pattern with wildcard at the end
         pattern = "*.Agents.*"
 
@@ -151,8 +145,6 @@ class TestPartialModuleMatching:
 
     def test_double_wildcard_pattern(self):
         """Test patterns with wildcards in both prefix and suffix."""
-        from cicada.mcp.pattern_utils import matches_pattern
-
         pattern = "*.Agent*.Sub*"
 
         # Should match complex nested patterns

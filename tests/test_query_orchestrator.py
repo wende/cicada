@@ -801,7 +801,7 @@ end
 
         # Should match items with both "auth" and "token" keywords
         # verify_token has both keywords
-        assert "verify_token" in result or "auth" in result.lower()
+        assert "verify_token" in result
 
     # ============================================================
     # Wildcard Pattern Matching Tests
@@ -871,9 +871,9 @@ end
         result = orchestrator.execute_query("*Agent*.*", filter_type="modules")
 
         # Should match all modules with "Agent" in the name
-        assert "AgentExecutor" in result or "Agent" in result
-        assert "AgentModule" in result or "Agent" in result
-        assert "AgentService" in result or "Agent" in result
+        assert "AgentExecutor" in result
+        assert "AgentModule" in result
+        assert "AgentService" in result
 
     def test_wildcard_pattern_qualified_with_wildcard(self, pattern_index):
         """Test that ThenvoiCom.Agent* matches ThenvoiCom.Agents.* modules."""
@@ -882,8 +882,8 @@ end
         result = orchestrator.execute_query("ThenvoiCom.Agent*.*", filter_type="modules")
 
         # Should match modules that start with ThenvoiCom.Agent
-        assert "ThenvoiCom.Agents.AgentExecutor" in result or "AgentExecutor" in result
-        assert "ThenvoiCom.Agents.AgentModule" in result or "AgentModule" in result
+        assert "AgentExecutor" in result
+        assert "AgentModule" in result
 
     def test_exact_module_qualification(self, pattern_index):
         """Test exact module qualification without wildcards."""

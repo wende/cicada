@@ -8,6 +8,7 @@ Author: Cicada Team
 """
 
 import re
+import shlex
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -69,8 +70,6 @@ class QueryOrchestrator:
         Returns:
             List of keywords/phrases
         """
-        import shlex
-
         try:
             # Use shlex to handle quoted phrases
             tokens = shlex.split(query)
