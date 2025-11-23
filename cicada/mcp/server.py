@@ -146,12 +146,17 @@ class CicadaServer:
 
 async def async_main():
     """Async main entry point."""
+    import asyncio
+    from contextlib import suppress
+
+    # Create a shutdown event for clean async cancellation
+    shutdown_event = asyncio.Event()
 
     # Set up signal handlers for clean shutdown
     def signal_handler(signum, _frame):
-        """Handle signals by exiting cleanly."""
-        print(f"Received signal {signum}, shutting down...", file=sys.stderr)
-        sys.exit(0)
+        """Handle signals by triggering async shutdown."""
+        # Set the shutdown event to cancel running tasks cleanly
+        shutdown_event.set()
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
@@ -167,10 +172,31 @@ async def async_main():
             sys.stdout = original_stdout
 
         server = CicadaServer()
-        await server.run()
+
+        # Run server with shutdown event monitoring
+        server_task = asyncio.create_task(server.run())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Wait for either server completion or shutdown signal
+        done, pending = await asyncio.wait(
+            [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # If shutdown was triggered, cancel the server task
+        if shutdown_event.is_set():
+            server_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await server_task
+
+        # Cancel any remaining tasks
+        for task in pending:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
     except KeyboardInterrupt:
-        print("Server interrupted, shutting down...", file=sys.stderr)
-        sys.exit(0)
+        # Suppress the traceback, just exit cleanly
+        pass
     except Exception as e:
         print(f"Error starting server: {e}", file=sys.stderr)
         sys.exit(1)
@@ -265,7 +291,11 @@ def main():
         os.environ["CICADA_CONFIG_DIR"] = str(storage_dir)
         os.environ["_CICADA_REPO_PATH_ARG"] = str(abs_path)
 
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        # Suppress traceback on Ctrl+C, exit cleanly
+        sys.exit(0)
 
 
 if __name__ == "__main__":
