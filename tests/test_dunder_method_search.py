@@ -105,6 +105,23 @@ def test_module_name_not_confused_with_function_name():
     assert result["score"] == 0.0, "Should not match module name"
 
 
+def _assert_function_search(searcher, query_keyword, expected_function, expected_score=None):
+    """
+    Helper to search for a function and assert expected results.
+
+    Args:
+        searcher: KeywordSearcher instance
+        query_keyword: Keyword to search for
+        expected_function: Expected function name in results
+        expected_score: Optional expected score (if None, score check is skipped)
+    """
+    results = searcher.search([query_keyword], top_n=10, filter_type="functions")
+    assert len(results) == 1, f"Should find {expected_function} method"
+    assert results[0]["function"] == expected_function, f"Should match {expected_function}"
+    if expected_score is not None:
+        assert results[0]["score"] == expected_score, f"Should have score {expected_score}"
+
+
 def test_keyword_search_with_dunder_methods():
     """Integration test with KeywordSearcher."""
     # Create a simple index with dunder methods

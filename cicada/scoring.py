@@ -28,6 +28,37 @@ Z_SCORE_POOR_THRESHOLD = -1.0  # 16th percentile (>1σ below mean)
 # Module match boost value
 MODULE_MATCH_BOOST = 2.0
 
+# Exact name match score (for function/module name matches)
+# This is a high score awarded when a query keyword exactly matches the function/module name
+# (e.g., searching for "__init__" matches the __init__ function)
+EXACT_NAME_MATCH_SCORE = 3.0
+
+
+def _extract_simple_name(doc_name: str | None) -> str | None:
+    """
+    Extract the simple function/module name from a qualified name.
+
+    Handles qualified names with optional arity suffix:
+    - "MyApp.User.create_user/2" -> "create_user"
+    - "MyApp.User.__init__/1" -> "__init__"
+    - "create_user/2" -> "create_user"
+    - "MyApp.User" -> "user"
+
+    Note: The result is lowercased for case-insensitive matching.
+
+    Args:
+        doc_name: Qualified name, optionally with /N arity suffix
+
+    Returns:
+        Lowercased simple name (last part after dots), or None if doc_name is None
+    """
+    if not doc_name:
+        return None
+    # Remove arity suffix first (/N)
+    name_without_arity = doc_name.split("/")[0]
+    # Then get the last part after dots
+    return name_without_arity.split(".")[-1].lower()
+
 
 def _build_score_result(
     total_score: float,
@@ -103,14 +134,8 @@ def calculate_score(
     # Track how many times each query keyword has matched (for diminishing returns)
     keyword_match_counts: defaultdict[str, int] = defaultdict(int)
 
-    # Extract the simple name (last part after dots and slashes) for matching
-    # e.g., "MyApp.User.create_user/2" -> "create_user"
-    simple_name = None
-    if doc_name:
-        # Remove arity suffix first (/N)
-        name_without_arity = doc_name.split("/")[0]
-        # Then get the last part after dots
-        simple_name = name_without_arity.split(".")[-1].lower()
+    # Extract the simple name for exact name matching
+    simple_name = _extract_simple_name(doc_name)
 
     for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
         # Check if keyword is in doc keywords
@@ -131,7 +156,6 @@ def calculate_score(
         elif simple_name and query_kw == simple_name:
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
-
             # Apply diminishing returns to exact name matches too
             match_count = keyword_match_counts[query_kw]
             diminishing_factor = 0.5**match_count
@@ -193,11 +217,8 @@ def calculate_wildcard_score(
     # Track how many times each query keyword has matched (for diminishing returns)
     keyword_match_counts: defaultdict[str, int] = defaultdict(int)
 
-    # Extract the simple name (last part after dots and slashes) for matching
-    simple_name = None
-    if doc_name:
-        name_without_arity = doc_name.split("/")[0]
-        simple_name = name_without_arity.split(".")[-1].lower()
+    # Extract the simple name for wildcard name matching
+    simple_name = _extract_simple_name(doc_name)
 
     for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
         matched = False
@@ -225,7 +246,6 @@ def calculate_wildcard_score(
         if not matched and simple_name and match_wildcard_fn(query_kw, simple_name):
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
-
             # Apply diminishing returns to exact name matches
             match_count = keyword_match_counts[query_kw]
             diminishing_factor = 0.5**match_count

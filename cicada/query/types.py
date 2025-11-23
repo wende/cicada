@@ -6,7 +6,17 @@ Type-safe representations of queries, results, and configurations.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal, TypedDict
+
+
+class StringSource(TypedDict, total=False):
+    """Structure for string literal matches."""
+
+    string: str
+    line: int
+    function: str
+    module: str
+    file: str
 
 
 @dataclass
@@ -24,6 +34,7 @@ class SearchResult:
     pattern_match: bool
     doc: str | None = None
     keyword_sources: dict[str, str] = field(default_factory=dict)
+    string_sources: list[StringSource] = field(default_factory=list)
 
     # Function-specific fields
     function: str | None = None
@@ -71,9 +82,9 @@ class SearchResult:
         except (ValueError, AttributeError):
             return None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary format for backward compatibility."""
-        result = {
+        result: dict[str, Any] = {
             "type": self.type,
             "name": self.name,
             "module": self.module,
@@ -88,6 +99,9 @@ class SearchResult:
 
         if self.doc is not None:
             result["doc"] = self.doc
+
+        if self.string_sources:
+            result["string_sources"] = self.string_sources
 
         # Function-specific fields
         if self.is_function():

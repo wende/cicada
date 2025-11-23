@@ -1,7 +1,6 @@
 """Manage scip-python installation.
 
-Provides utilities to check for and install scip-python,
-which is distributed via npm.
+Provides utilities to check for scip-python availability.
 """
 
 import shutil
@@ -9,7 +8,7 @@ import subprocess
 
 
 class SCIPPythonInstaller:
-    """Manage scip-python installation and availability checks."""
+    """Manage scip-python availability checks."""
 
     @staticmethod
     def is_npm_available() -> bool:
@@ -30,40 +29,6 @@ class SCIPPythonInstaller:
             True if scip-python is found, False otherwise
         """
         return shutil.which("scip-python") is not None
-
-    @staticmethod
-    def install_scip_python(verbose: bool = False) -> bool:
-        """
-        Install scip-python via npm globally.
-
-        Args:
-            verbose: If True, print installation progress
-
-        Returns:
-            True if installation succeeded, False otherwise
-
-        Raises:
-            RuntimeError: If npm is not available
-        """
-        if not SCIPPythonInstaller.is_npm_available():
-            raise RuntimeError(
-                "npm is required to install scip-python. "
-                "Install Node.js from https://nodejs.org/"
-            )
-
-        cmd = ["npm", "install", "-g", "@sourcegraph/scip-python"]
-
-        if verbose:
-            print(f"Running: {' '.join(cmd)}")
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            if verbose:
-                print(f"Error installing scip-python: {result.stderr}")
-            return False
-
-        return True
 
     @staticmethod
     def get_scip_python_version() -> str | None:
