@@ -6,7 +6,17 @@ Type-safe representations of queries, results, and configurations.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
+
+
+class StringSource(TypedDict, total=False):
+    """Structure for string literal matches."""
+
+    string: str
+    line: int
+    function: str
+    module: str
+    file: str
 
 
 @dataclass
@@ -24,7 +34,7 @@ class SearchResult:
     pattern_match: bool
     doc: str | None = None
     keyword_sources: dict[str, str] = field(default_factory=dict)
-    string_sources: list[dict[str, Any]] = field(default_factory=list)
+    string_sources: list[StringSource] = field(default_factory=list)
 
     # Function-specific fields
     function: str | None = None

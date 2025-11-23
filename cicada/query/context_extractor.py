@@ -9,14 +9,15 @@ This module provides functions to:
 """
 
 import re
+from cicada.query.types import StringSource
 
 
 def extract_paragraph(text: str, keyword: str) -> str | None:
     """
     Extract the paragraph containing the given keyword.
 
-    A paragraph is defined as text between double newlines or the entire text
-    if no paragraph breaks exist.
+    A paragraph is defined as text between single or double newlines or the
+    entire text if no paragraph breaks exist.
 
     Args:
         text: The full text to search
@@ -35,20 +36,16 @@ def extract_paragraph(text: str, keyword: str) -> str | None:
     if keyword_lower not in text_lower:
         return None
 
-    # Split text into paragraphs (double newline or single newline in markdown)
-    # We treat both single and double newlines as paragraph breaks for flexibility
-    paragraphs = re.split(r"\n\n+", text)
+    paragraphs = re.split(r"\n\n+|\n", text)
 
     # If no paragraph breaks, treat entire text as one paragraph
     if len(paragraphs) == 1:
         return text.strip()
 
-    # Find the paragraph containing the keyword
-    for para in paragraphs:
-        if keyword_lower in para.lower():
-            return para.strip()
-
-    return None
+    return next(
+        (para.strip() for para in paragraphs if keyword_lower in para.lower()),
+        None,
+    )
 
 
 def extract_multiple_keywords(text: str, keywords: list[str]) -> str | None:
@@ -66,8 +63,7 @@ def extract_multiple_keywords(text: str, keywords: list[str]) -> str | None:
     if not text or not keywords:
         return None
 
-    # Split into paragraphs
-    paragraphs = re.split(r"\n\n+", text)
+    paragraphs = re.split(r"\n\n+|\n", text)
     if len(paragraphs) == 1:
         # Single paragraph - return if it contains any keyword
         text_lower = text.lower()
@@ -81,7 +77,7 @@ def extract_multiple_keywords(text: str, keywords: list[str]) -> str | None:
 
     for para in paragraphs:
         para_lower = para.lower()
-        score = sum(1 for kw in keywords if kw.lower() in para_lower)
+        score = sum(bool(kw.lower() in para_lower) for kw in keywords)
 
         if score > best_score:
             best_score = score
@@ -105,76 +101,60 @@ def highlight_keywords(text: str, keywords: list[str], use_ansi: bool = True) ->
     if not text or not keywords:
         return text
 
-    # Sort keywords by length (longest first) to avoid partial matches
     sorted_keywords = sorted(keywords, key=len, reverse=True)
 
-    # Choose the delimiter based on output format
-    if use_ansi:
-        start_mark = "\033[1;33m"
-        end_mark = "\033[0m"
-    else:
-        start_mark = "**"
-        end_mark = "**"
+    start_mark = "\033[1;33m" if use_ansi else "**"
+    end_mark = "\033[0m" if use_ansi else "**"
 
     result = text
     for keyword in sorted_keywords:
-        # Case-insensitive pattern that avoids matching text already inside markers
-        # Use negative lookbehind to avoid matching inside already-highlighted text
-        escaped_keyword = re.escape(keyword)
+        pattern = re.compile(re.escape(keyword), re.IGNORECASE)
 
-        # Build a pattern that won't match if the keyword is already highlighted
-        # For markdown: avoid matching between ** markers
-        # For ANSI: avoid matching between escape codes
-        if use_ansi:
-            # Don't match if preceded by ANSI start code
-            pattern = re.compile(rf"(?<!\033\[1;33m)({escaped_keyword})(?!\033\[0m)", re.IGNORECASE)
-        else:
-            # Don't match if already between ** markers
-            # This is a simplified approach - we just avoid double-wrapping
-            pattern = re.compile(escaped_keyword, re.IGNORECASE)
+        matches = []
+        for match in pattern.finditer(result):
+            start = match.start()
+            before_text = result[:start]
 
-        replacement = f"{start_mark}\\g<0>{end_mark}"
+            if use_ansi:
+                start_count = before_text.count(start_mark)
+                end_count = before_text.count(end_mark)
+                if start_count > end_count:
+                    continue
+            else:
+                if before_text.count(start_mark) % 2 == 1:
+                    continue
 
-        # For non-ANSI, we need to be more careful about not double-highlighting
-        if not use_ansi:
-            # Find all positions where this keyword appears (not already highlighted)
-            matches = []
-            for match in pattern.finditer(result):
-                # Check if this match is inside ** markers
-                start = match.start()
-                # Look for ** before this position
-                before_text = result[:start]
-                # Count ** markers before this position
-                marker_count = before_text.count("**")
-                # If odd number of **, we're inside a highlight
-                if marker_count % 2 == 0:
-                    matches.append(match)
+            matches.append(match)
 
-            # Replace in reverse order to preserve positions
-            for match in reversed(matches):
-                result = (
-                    result[: match.start()]
-                    + f"{start_mark}{match.group()}{end_mark}"
-                    + result[match.end() :]
-                )
-        else:
-            result = pattern.sub(replacement, result)
+        for match in reversed(matches):
+            result = (
+                result[: match.start()]
+                + f"{start_mark}{match.group()}{end_mark}"
+                + result[match.end() :]
+            )
 
     return result
 
 
-def smart_truncate_string(text: str, max_length: int = 150, line_number: int | None = None) -> str:
+def smart_truncate_string(
+    text: str,
+    max_length: int = 150,
+    line_number: int | None = None,
+    keywords: list[str] | None = None,
+) -> str:
     """
     Smart truncation of string literals with ellipsis.
 
     - If text is <= max_length, return as-is
-    - If longer, truncate at word boundary and add ellipsis
+    - If longer, center the snippet around the first matching keyword when
+      available to preserve relevant context
     - Always include line number if provided
 
     Args:
         text: The string to potentially truncate
         max_length: Maximum length before truncation (default: 150)
         line_number: Optional line number to append
+        keywords: Optional list of keywords to keep in view when truncating
 
     Returns:
         Truncated string with optional line number
@@ -182,31 +162,48 @@ def smart_truncate_string(text: str, max_length: int = 150, line_number: int | N
     if not text:
         return '""'
 
+    keywords = keywords or []
+    text_lower = text.lower()
+
     # If text is short enough, return as-is (maybe with line number)
     if len(text) <= max_length:
         if line_number is not None:
             return f'"{text}" (line {line_number})'
         return f'"{text}"'
 
-    # Truncate at word boundary
-    truncated = text[:max_length]
+    def find_focus_index() -> int | None:
+        positions = [text_lower.find(kw.lower()) for kw in keywords if kw]
+        positions = [pos for pos in positions if pos != -1]
+        return min(positions) if positions else None
 
-    # Find last space to avoid cutting mid-word
-    last_space = truncated.rfind(" ")
-    if last_space > max_length * 0.7:  # Only use space if it's not too far back
-        truncated = truncated[:last_space]
+    focus_index = find_focus_index()
 
-    # Add ellipsis and line number
+    if focus_index is None or focus_index <= max_length:
+        start = 0
+    else:
+        start = max(focus_index - max_length // 2, 0)
+
+    end = start + max_length
+    if end > len(text):
+        end = len(text)
+        start = max(0, end - max_length)
+
+    snippet = text[start:end]
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(text) else ""
+    quoted = f'"{prefix}{snippet}{suffix}"'
+
     if line_number is not None:
-        return f'"{truncated}..." (line {line_number})'
-    return f'"{truncated}..."'
+        quoted = f"{quoted} (line {line_number})"
+
+    return quoted
 
 
 def format_matched_context(
     matched_keywords: list[str],
     keyword_sources: dict[str, str],
     doc_text: str | None,
-    string_sources: list[dict] | None,
+    string_sources: list[StringSource] | None,
     use_ansi: bool = True,
 ) -> str:
     """
@@ -235,30 +232,35 @@ def format_matched_context(
 
     # Format documentation matches
     if doc_keywords and doc_text:
-        para = extract_multiple_keywords(doc_text, doc_keywords)
-        if para:
+        if para := extract_multiple_keywords(doc_text, doc_keywords):
             highlighted = highlight_keywords(para, doc_keywords, use_ansi)
             sections.append(f"Matched in documentation:\n> {highlighted}")
 
     # Format string literal matches
     if string_keywords and string_sources:
-        # Filter string sources that contain any of our keywords
         relevant_strings = []
         for source in string_sources:
-            string_text = source.get("string", "")
+            string_text = source.get("string")
+            if not isinstance(string_text, str):
+                continue
             if any(kw.lower() in string_text.lower() for kw in string_keywords):
                 relevant_strings.append(source)
 
         if relevant_strings:
             string_lines = []
             for source in relevant_strings[:3]:  # Limit to 3 string matches
-                string_text = source.get("string", "")
+                string_text = source.get("string")
+                if not isinstance(string_text, str):
+                    continue
                 line_num = source.get("line")
 
-                # Highlight keywords in the string
-                highlighted = highlight_keywords(string_text, string_keywords, use_ansi)
-                truncated = smart_truncate_string(highlighted, line_number=line_num)
-                string_lines.append(f"> {truncated}")
+                truncated = smart_truncate_string(
+                    string_text,
+                    line_number=line_num,
+                    keywords=string_keywords,
+                )
+                highlighted = highlight_keywords(truncated, string_keywords, use_ansi)
+                string_lines.append(f"> {highlighted}")
 
             if string_lines:
                 sections.append("Matched in strings:\n" + "\n".join(string_lines))

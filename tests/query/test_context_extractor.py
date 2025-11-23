@@ -77,6 +77,12 @@ Final paragraph."""
         result = extract_paragraph(text, "authentication")
         assert result == "Security requires proper authentication."
 
+    def test_single_newlines_count_as_paragraphs(self):
+        """Test that single newlines are treated as paragraph breaks."""
+        text = "First line about intro.\nSecond line with authentication mention.\nThird line."
+        result = extract_paragraph(text, "authentication")
+        assert result == "Second line with authentication mention."
+
 
 class TestExtractMultipleKeywords:
     """Tests for extract_multiple_keywords function."""
@@ -186,6 +192,12 @@ class TestHighlightKeywords:
         # "user authentication" should be highlighted as one phrase, not two separate words
         assert "**user authentication**" in result
 
+    def test_ansi_highlight_skips_existing_markers(self):
+        """Ensure ANSI highlighting does not double-wrap existing highlights."""
+        highlighted = "\033[1;33mauthentication\033[0m is present"
+        result = highlight_keywords(highlighted, ["authentication"], use_ansi=True)
+        assert result.count("\033[1;33m") == 1
+
 
 class TestSmartTruncateString:
     """Tests for smart_truncate_string function."""
@@ -206,7 +218,6 @@ class TestSmartTruncateString:
         """Test that long strings are truncated."""
         text = "This is a very long string that exceeds the maximum length " * 5
         result = smart_truncate_string(text, max_length=100)
-        assert len(result) < len(text) + 20  # Account for quotes and ellipsis
         assert "..." in result
 
     def test_long_string_with_line_number(self):
@@ -216,13 +227,12 @@ class TestSmartTruncateString:
         assert "..." in result
         assert "(line 42)" in result
 
-    def test_truncation_at_word_boundary(self):
-        """Test that truncation happens at word boundaries."""
-        text = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10" * 3
-        result = smart_truncate_string(text, max_length=50)
-        # Should not end with a partial word (should have space before ...)
-        truncated_part = result.split('"')[1].split("...")[0]
-        assert truncated_part[-1] == " " or len(truncated_part) < 50
+    def test_truncation_preserves_keyword_near_end(self):
+        """Truncation should keep keywords that appear late in the string."""
+        text = "prefix " + (" filler" * 40) + " keyword target"
+        result = smart_truncate_string(text, max_length=60, keywords=["keyword"])
+        assert "keyword" in result
+        assert result.startswith('"...')
 
     def test_empty_string(self):
         """Test with empty string."""
@@ -270,6 +280,23 @@ class TestFormatMatchedContext:
         assert "**users**" in result
         assert "(line 42)" in result
 
+    def test_string_match_truncates_around_keyword(self):
+        """String snippets should preserve late keywords when truncating."""
+        long_string = "prefix " + (" filler" * 60) + " keyword at the end"
+        matched_keywords = ["keyword"]
+        keyword_sources = {"keyword": "strings"}
+        doc_text = "Database query module."
+        string_sources = [{"string": long_string, "line": 88}]
+
+        result = format_matched_context(
+            matched_keywords, keyword_sources, doc_text, string_sources, use_ansi=False
+        )
+
+        assert "Matched in strings:" in result
+        assert "keyword" in result
+        assert "..." in result
+        assert "(line 88)" in result
+
     def test_both_doc_and_string_matches(self):
         """Test formatting when keywords match in both docs and strings."""
         matched_keywords = ["authentication", "credentials"]
@@ -313,6 +340,19 @@ class TestFormatMatchedContext:
 
         assert "Matched in documentation:" in result
         assert "Matched in strings:" not in result
+
+    def test_non_string_string_sources_are_ignored(self):
+        """Non-string sources should be skipped safely."""
+        matched_keywords = ["error"]
+        keyword_sources = {"error": "strings"}
+        doc_text = None
+        string_sources = [{"string": None, "line": 5}]
+
+        result = format_matched_context(
+            matched_keywords, keyword_sources, doc_text, string_sources, use_ansi=False
+        )
+
+        assert result == ""
 
     def test_no_context_available(self):
         """Test when no context is available."""

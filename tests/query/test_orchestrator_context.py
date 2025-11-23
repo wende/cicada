@@ -5,6 +5,7 @@ Tests that the query orchestrator properly formats results with contextual
 information from matched keywords.
 """
 
+import copy
 import json
 import tempfile
 from pathlib import Path
@@ -120,10 +121,25 @@ class TestOrchestratorContextExtraction:
         # Query for a keyword that exists but has no doc/string context
         # This is a bit tricky with our test data since we have contexts
         # Let's verify that the fallback format still works
-        formatted = orchestrator_with_index.execute_query(["validate"])
+        index_copy = copy.deepcopy(orchestrator_with_index.index)
+        auth_module = index_copy["modules"]["TestModule.Auth"]
+        auth_module["moduledoc"] = None
+        auth_module["string_sources"] = []
+        auth_module["functions"][0]["doc"] = None
+        auth_module["functions"][0]["string_sources"] = []
+
+        orchestrator = QueryOrchestrator(index_copy)
+        formatted = orchestrator.execute_query(["validate"])
 
         # Should have some output for the function
         assert "validate_user" in formatted
+
+        # Should use the legacy-style fallback format when no contextual matches are found
+        assert "Matched keywords:" in formatted
+
+        # And it should not include contextual sections when using the fallback path
+        assert "Matched in documentation:" not in formatted
+        assert "Matched in strings:" not in formatted
 
     def test_long_string_truncation_in_output(self, orchestrator_with_index):
         """Test that very long strings are truncated in the output."""
@@ -193,8 +209,7 @@ class TestOrchestratorContextWithFiltering:
         formatted = orchestrator_with_index.execute_query(["authentication"], match_source="docs")
 
         # Should only show doc matches
-        if "Matched in strings:" in formatted:
-            pytest.fail("Should not have string matches with match_source='docs'")
+        assert "Matched in strings:" not in formatted
 
     def test_context_with_match_source_strings(self, orchestrator_with_index):
         """Test context extraction when filtering to strings only."""
