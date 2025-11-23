@@ -99,7 +99,17 @@ class LanguageConfig:
         return LanguageConfig(
             language="typescript",
             file_extensions=[".ts", ".tsx"],
-            excluded_dirs=["node_modules", ".git", "dist", "build", "coverage"],
+            excluded_dirs=[
+                "node_modules",
+                ".git",
+                "dist",
+                "build",
+                "coverage",
+                ".next",
+                ".nuxt",
+                "out",
+                ".cache",
+            ],
             tree_sitter_grammar="tree-sitter-typescript",
             comment_syntax={
                 "line": "//",

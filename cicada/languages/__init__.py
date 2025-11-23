@@ -195,6 +195,14 @@ LanguageRegistry.register_language(
     config=LanguageConfig.default_python(),
 )
 
+# Register TypeScript (SCIP-based)
+LanguageRegistry.register_language(
+    language="typescript",
+    parser_class=None,  # No parser needed for SCIP-based indexing
+    indexer_class="cicada.languages.typescript.indexer.TypeScriptSCIPIndexer",
+    config=LanguageConfig.default_typescript(),
+)
+
 
 # Global registry singleton
 def get_language_registry() -> type[LanguageRegistry]:
