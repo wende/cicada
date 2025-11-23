@@ -7,7 +7,6 @@ using SCIP (Source Code Intelligence Protocol). Language-specific indexers
 
 import json
 import subprocess
-import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -333,21 +332,6 @@ class GenericSCIPIndexer(BaseIndexer, ABC):
         if self.verbose:
             print("  Computing git timestamps...")
 
-        files = index.get("files", {})
-        has_functions = any(file_data.get("functions") for file_data in files.values())
-
-        if not has_functions:
-            if self.verbose:
-                print("  No functions found; skipping git timestamp computation.")
-            return
-
-        try:
-            git_helper = GitHelper(str(repo_path))
-        except Exception as e:
-            if self.verbose:
-                print(f"    Warning: Could not initialize git helper: {e}")
-            return
-
         # Collect all functions
         functions_by_file: dict[str, list[dict]] = {}
         for _module_name, module_data in index.get("modules", {}).items():
@@ -364,6 +348,18 @@ class GenericSCIPIndexer(BaseIndexer, ABC):
                     functions_by_file[file_path].append(
                         {"name": func_name, "line": line, "func_ref": func}
                     )
+
+        if not functions_by_file:
+            if self.verbose:
+                print("  No functions found; skipping git timestamp computation.")
+            return
+
+        try:
+            git_helper = GitHelper(str(repo_path))
+        except Exception as e:
+            if self.verbose:
+                print(f"    Warning: Could not initialize git helper: {e}")
+            return
 
         # Query git for function evolution
         try:

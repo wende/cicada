@@ -146,7 +146,9 @@ class TestPythonSCIPIndexer:
                 with pytest.raises(RuntimeError) as exc_info:
                     indexer._run_scip_python(tmp_path)
 
-                assert "scip-python indexing failed" in str(exc_info.value)
+                error = str(exc_info.value).lower()
+                assert "scip indexing failed" in error
+                assert "failed to index" in error
                 assert "failed to index" in str(exc_info.value)
 
     def test_run_scip_python_file_not_generated(self, indexer, tmp_path):
@@ -182,7 +184,7 @@ class TestPythonSCIPIndexer:
                     indexer._run_scip_python(tmp_path)
 
                 assert "timed out" in str(exc_info.value)
-                assert "10 minutes" in str(exc_info.value)
+                assert "600 seconds" in str(exc_info.value)
 
     def test_run_scip_python_exception_cleanup(self, indexer, tmp_path):
         """Should cleanup temp file on exception."""
@@ -349,9 +351,7 @@ class TestPythonSCIPIndexer:
 
                     captured = capsys.readouterr()
                     # Make assertion robust to language name changes
-                    expected_msg = (
-                        f"indexing {verbose_indexer.get_language_name()} repository"
-                    )
+                    expected_msg = f"indexing {verbose_indexer.get_language_name()} repository"
                     assert expected_msg in captured.out.lower()
                     assert "SCIP index" in captured.out
                     assert "Index saved to" in captured.out

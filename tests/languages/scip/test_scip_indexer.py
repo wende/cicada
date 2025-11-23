@@ -272,9 +272,7 @@ class TestGenericSCIPIndexer:
         captured = capsys.readouterr()
         assert "Running: scip" in captured.out
 
-    def test_run_scip_command_non_zero_exit_raises_runtime_error(
-        self, tmp_path, monkeypatch
-    ):
+    def test_run_scip_command_non_zero_exit_raises_runtime_error(self, tmp_path, monkeypatch):
         """_run_scip_command should raise when subprocess fails."""
 
         class TestIndexer(GenericSCIPIndexer):
@@ -334,9 +332,7 @@ class TestGenericSCIPIndexer:
 
         indexer = TestIndexer(verbose=False)
         with pytest.raises(RuntimeError) as exc_info:
-            indexer._run_scip_command(
-                repo_path=tmp_path, command=["scip"], output_path=output_path
-            )
+            indexer._run_scip_command(repo_path=tmp_path, command=["scip"], output_path=output_path)
 
         assert "scip indexing timed out" in str(exc_info.value).lower()
         assert not output_path.exists()
