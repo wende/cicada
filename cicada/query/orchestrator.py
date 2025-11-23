@@ -86,7 +86,7 @@ class QueryOrchestrator:
 
         return [t.strip() for t in tokens if t.strip()]
 
-    def _analyze_query(self, query: str | list[str]) -> QueryStrategy:
+    def _analyze_query(self, query: str | list[str | list[str]]) -> QueryStrategy:
         """
         Analyze query to determine search strategy.
 
@@ -100,9 +100,10 @@ class QueryOrchestrator:
         - '"agent execution"' → ["agent execution"] (one exact phrase keyword)
         - "login | auth" → ["login | auth"] (OR pattern, not tokenized)
         - "ThenvoiCom.Agent*" → ["ThenvoiCom.Agent*"] (wildcard pattern, not tokenized)
+        - ["user", ["auth", "login"]] → "user" (keyword), "auth"/"login" (synonym group)
 
         Args:
-            query: Query string or list of query strings
+            query: Query string, list of strings, or mixed list with nested synonym lists
 
         Returns:
             QueryStrategy with search configuration
@@ -125,10 +126,20 @@ class QueryOrchestrator:
 
         use_keyword_search = False
         use_pattern_search = False
-        search_keywords: list[str] = []
+        search_keywords: list[str | list[str]] = []
         search_patterns: list[str] = []
 
         for q in queries:
+            if isinstance(q, list):
+                # Nested list is treated as a group of synonym keywords
+                # Always use keyword search for nested lists (even if they contain pattern-like strings)
+                use_keyword_search = True
+                # Filter empty strings from nested list
+                cleaned_group = [k.strip() for k in q if isinstance(k, str) and k.strip()]
+                if cleaned_group:
+                    search_keywords.append(cleaned_group)
+                continue
+
             q_normalized = q.strip()
             if not q_normalized:
                 continue
@@ -515,7 +526,7 @@ class QueryOrchestrator:
         return results
 
     def _generate_suggestions(
-        self, query: str | list[str], results: list[SearchResult]
+        self, query: str | list[str | list[str]], results: list[SearchResult]
     ) -> list[str]:
         """
         Generate smart next-step suggestions based on results.
@@ -563,10 +574,16 @@ class QueryOrchestrator:
 
         return suggestions[: QueryConfig.MAX_SUGGESTIONS]
 
-    def _normalize_query_text(self, query: str | list[str]) -> str:
+    def _normalize_query_text(self, query: str | list[str | list[str]]) -> str:
         """Convert query to normalized lowercase text."""
         queries = [query] if isinstance(query, str) else query
-        return " ".join(str(q).lower() for q in queries)
+        parts: list[str] = []
+        for q in queries:
+            if isinstance(q, list):
+                parts.append(" ".join(str(k).lower() for k in q))
+            else:
+                parts.append(str(q).lower())
+        return " ".join(parts)
 
     def _is_sql_related_query(self, query_text: str) -> bool:
         """Check if query contains SQL-related keywords."""
@@ -604,7 +621,7 @@ class QueryOrchestrator:
         results: list[SearchResult],
         suggestions: list[str],
         max_results: int,
-        query: str | list[str],
+        query: str | list[str | list[str]],
         show_snippets: bool = False,
     ) -> str:
         """
@@ -623,7 +640,17 @@ class QueryOrchestrator:
         lines = []
 
         # Header - compact format
-        query_display = query if isinstance(query, str) else ", ".join(f'"{q}"' for q in query)
+        if isinstance(query, str):
+            query_display = query
+        else:
+            parts: list[str] = []
+            for q in query:
+                if isinstance(q, list):
+                    quoted = ', '.join(f'"{k}"' for k in q)
+                    parts.append(f"[{quoted}]")
+                else:
+                    parts.append(f'"{q}"')
+            query_display = ", ".join(parts)
         total = len(results)
         showing = min(total, max_results)
         lines.append(
@@ -906,7 +933,7 @@ class QueryOrchestrator:
         return related[:max_terms]
 
     def _generate_zero_result_suggestions(
-        self, query: str | list[str], filters_applied: dict[str, Any]
+        self, query: str | list[str | list[str]], filters_applied: dict[str, Any]
     ) -> list[str]:
         """
         Generate helpful suggestions when query returns zero results.
@@ -921,7 +948,17 @@ class QueryOrchestrator:
         suggestions = []
 
         # Convert query to string for analysis
-        query_str = query if isinstance(query, str) else " ".join(query)
+        if isinstance(query, str):
+            query_str = query
+        else:
+            # Handle mixed list
+            parts: list[str] = []
+            for q in query:
+                if isinstance(q, list):
+                    parts.append(f"[{' '.join(str(k) for k in q)}]")
+                else:
+                    parts.append(str(q))
+            query_str = " ".join(parts)
 
         # 1. Suggest case/formatting variants
         variants = self._generate_query_variants(query_str)
@@ -955,7 +992,7 @@ class QueryOrchestrator:
 
     def execute_query(
         self,
-        query: str | list[str],
+        query: str | list[str | list[str]],
         scope: str = "all",
         recent: bool = False,
         filter_type: str = "all",

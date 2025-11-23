@@ -55,9 +55,17 @@ def get_tool_definitions() -> list[Tool]:
                     "query": {
                         "anyOf": [
                             {"type": "string"},
-                            {"type": "array", "items": {"type": "string"}},
+                            {
+                                "type": "array",
+                                "items": {
+                                    "anyOf": [
+                                        {"type": "string"},
+                                        {"type": "array", "items": {"type": "string"}},
+                                    ]
+                                },
+                            },
                         ],
-                        "description": "Keywords (e.g., ['authentication', 'login']) OR patterns (e.g., 'MyApp.User.create*') OR mixed.",
+                        "description": "Keywords (e.g., ['authentication', 'login']) OR patterns (e.g., 'MyApp.User.create*'). Supports nested lists for synonyms (e.g., ['user', ['auth', 'login']]).",
                     },
                     "scope": {
                         "type": "string",
