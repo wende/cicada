@@ -6,10 +6,13 @@ Handles keyword/feature search and dead code detection tools.
 
 import asyncio
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jq  # type: ignore[import-untyped]
 from mcp.types import TextContent
+
+if TYPE_CHECKING:
+    from cicada.mcp.handlers.index_manager import IndexManager
 
 # Maximum result size for jq queries before truncation.
 # Set to 1MB to balance between useful results and preventing memory issues

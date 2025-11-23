@@ -530,9 +530,7 @@ class TestFunctionPatternMatches:
 
     def test_matches_all_criteria(self, sample_function):
         """Should match only when all criteria match"""
-        pattern = FunctionPattern(
-            file="lib/user.ex", module="*.User", name="create_user", arity=2
-        )
+        pattern = FunctionPattern(file="lib/user.ex", module="*.User", name="create_user", arity=2)
         # All match
         assert pattern.matches("MyApp.User", "lib/user.ex", sample_function)
 

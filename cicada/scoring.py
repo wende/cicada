@@ -63,6 +63,7 @@ def calculate_score(
     keyword_groups: list[int],
     total_terms: int,
     doc_keywords: dict[str, float],
+    doc_name: str | None = None,
 ) -> dict[str, Any]:
     """
     Calculate the search score by summing weights of matched keywords.
@@ -72,6 +73,7 @@ def calculate_score(
         keyword_groups: Group indexes mapping each keyword to original position
         total_terms: Total number of original query terms (before OR expansion)
         doc_keywords: Document keywords with their scores
+        doc_name: Optional document/function name for exact name matching
 
     Returns:
         Dictionary with:
@@ -83,11 +85,29 @@ def calculate_score(
     matched_groups: set[int] = set()
     total_score = 0.0
 
+    # Extract the simple name (last part after dots and slashes) for matching
+    # e.g., "MyApp.User.create_user/2" -> "create_user"
+    simple_name = None
+    if doc_name:
+        # Remove arity suffix first (/N)
+        name_without_arity = doc_name.split("/")[0]
+        # Then get the last part after dots
+        simple_name = name_without_arity.split(".")[-1].lower()
+
     for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
+        # Check if keyword is in doc keywords
         if query_kw in doc_keywords:
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
             total_score += doc_keywords[query_kw]
+
+        # Also check for exact function/module name match
+        # This allows searching for function names like "__init__", "__str__", etc.
+        elif simple_name and query_kw == simple_name:
+            matched_keywords.append(query_kw)
+            matched_groups.add(group_idx)
+            # Use a high score for exact name matches (equivalent to top keyword weight)
+            total_score += 3.0
 
     return _build_score_result(
         total_score, matched_keywords, matched_groups, total_terms, query_keywords
@@ -100,6 +120,7 @@ def calculate_wildcard_score(
     total_terms: int,
     doc_keywords: dict[str, float],
     match_wildcard_fn: Callable[[str, str], bool],
+    doc_name: str | None = None,
 ) -> dict[str, Any]:
     """
     Calculate the search score using wildcard pattern matching.
@@ -110,6 +131,7 @@ def calculate_wildcard_score(
         total_terms: Total number of original query terms (before OR expansion)
         doc_keywords: Document keywords with their scores
         match_wildcard_fn: Function to match wildcard patterns (pattern, text) -> bool
+        doc_name: Optional document/function name for exact name matching
 
     Returns:
         Dictionary with:
@@ -121,7 +143,15 @@ def calculate_wildcard_score(
     matched_groups: set[int] = set()
     total_score = 0.0
 
+    # Extract the simple name (last part after dots and slashes) for matching
+    simple_name = None
+    if doc_name:
+        name_without_arity = doc_name.split("/")[0]
+        simple_name = name_without_arity.split(".")[-1].lower()
+
     for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
+        matched = False
+
         # Find all doc keywords matching this pattern
         for doc_kw, weight in doc_keywords.items():
             if match_wildcard_fn(query_kw, doc_kw):
@@ -131,7 +161,14 @@ def calculate_wildcard_score(
                     matched_groups.add(group_idx)
                 # Add the weight only once per query keyword
                 total_score += weight
+                matched = True
                 break
+
+        # Also check for wildcard name match
+        if not matched and simple_name and match_wildcard_fn(query_kw, simple_name):
+            matched_keywords.append(query_kw)
+            matched_groups.add(group_idx)
+            total_score += 3.0
 
     return _build_score_result(
         total_score, matched_keywords, matched_groups, total_terms, query_keywords

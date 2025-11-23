@@ -142,7 +142,9 @@ class TestLookupByLocation:
         """Test looking up a module definition by location."""
         result = lookup_by_location(sample_index, "lib/test_app/calculator.ex", 1)
         assert result is not None
-        assert result["type"] == "class"  # The code returns "class" for modules not starting with _file_
+        assert (
+            result["type"] == "class"
+        )  # The code returns "class" for modules not starting with _file_
         assert result["name"] == "TestApp.Calculator"
 
     def test_lookup_function_definition(self, sample_index):
