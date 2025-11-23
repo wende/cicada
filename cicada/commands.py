@@ -10,6 +10,9 @@ import argparse
 import sys
 from pathlib import Path
 
+# Import logging utilities
+from cicada.logging_utils import get_verbose_flag
+
 # Import tier resolution functions from centralized module
 from cicada.tier import (
     determine_tier,
@@ -53,7 +56,6 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     Raises:
         SystemExit: If configuration is invalid or watcher fails to start
     """
-    from cicada.logging_utils import get_verbose_flag
     from cicada.utils.storage import get_config_path
     from cicada.watcher import FileWatcher
 
@@ -904,8 +906,6 @@ def handle_index_main(args) -> None:
 
     # Perform indexing using unified interface
     # If tier changed, force full reindex to ensure index consistency with new config
-    from cicada.logging_utils import get_verbose_flag
-
     indexer = LanguageRegistry.get_indexer(language)
     verbose = get_verbose_flag(args)
 

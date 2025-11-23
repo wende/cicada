@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from argparse import Namespace
 
 
 def configure_logging(verbose: bool = False) -> None:
@@ -20,7 +21,7 @@ def configure_logging(verbose: bool = False) -> None:
     )
 
 
-def get_verbose_flag(args) -> bool:
+def get_verbose_flag(args: Namespace) -> bool:
     """Extract verbose flag from parsed arguments.
 
     Args:

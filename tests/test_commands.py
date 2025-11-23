@@ -488,15 +488,13 @@ class TestVerboseFlag:
         assert hasattr(args, "verbose")
         assert args.verbose is False
 
-    def test_verbose_flag_on_all_commands(self):
+    @pytest.mark.parametrize("command", ["index", "watch", "query authentication"])
+    def test_verbose_flag_on_all_commands(self, command):
         """Test that verbose flag works with all commands."""
         parser = get_argument_parser()
-        commands_to_test = ["index", "watch", "query authentication"]
-
-        for cmd in commands_to_test:
-            cmd_parts = cmd.split()
-            args = parser.parse_args(cmd_parts + ["--verbose"])
-            assert args.verbose is True, f"verbose flag failed for command: {cmd}"
+        cmd_parts = command.split()
+        args = parser.parse_args(cmd_parts + ["--verbose"])
+        assert args.verbose is True
 
     def test_get_verbose_flag_utility(self):
         """Test get_verbose_flag utility function."""
@@ -561,15 +559,19 @@ class TestVerboseFlag:
 
         with TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
+            storage_dir = tmpdir_path / ".cicada"
+            storage_dir.mkdir(parents=True, exist_ok=True)
             (tmpdir_path / "mix.exs").touch()  # Make it an Elixir project
 
             args.repo = str(tmpdir_path)
+            config_path = storage_dir / "config.yaml"
+            index_path = storage_dir / "index.json"
 
             from cicada.commands import handle_index_main
 
-            with patch("cicada.utils.storage.create_storage_dir"):
-                with patch("cicada.utils.storage.get_config_path"):
-                    with patch("cicada.utils.storage.get_index_path"):
+            with patch("cicada.utils.storage.get_storage_dir", return_value=storage_dir):
+                with patch("cicada.utils.storage.get_config_path", return_value=config_path):
+                    with patch("cicada.utils.storage.get_index_path", return_value=index_path):
                         with patch("cicada.setup.detect_project_language", return_value="elixir"):
                             try:
                                 handle_index_main(args)
@@ -578,7 +580,7 @@ class TestVerboseFlag:
                                 pass
 
             # Verify that incremental_index_repository was called with verbose=True
-            if mock_indexer.incremental_index_repository.called:
-                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
-                assert "verbose" in call_kwargs
-                assert call_kwargs["verbose"] is True
+            mock_indexer.incremental_index_repository.assert_called_once()
+            call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
+            assert "verbose" in call_kwargs
+            assert call_kwargs["verbose"] is True
