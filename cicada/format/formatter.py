@@ -228,10 +228,28 @@ class ModuleFormatter:
                     )
                     # Optionally show class doc as sub-bullet
                     if cls.get("doc"):
-                        doc_preview = cls["doc"].strip().split("\n")[0][:80]
-                        if len(cls["doc"]) > 80:
-                            doc_preview += "..."
-                        lines.append(f"    {doc_preview}")
+                        # Skip code fence and class signature to get actual docstring
+                        doc_lines = cls["doc"].strip().split("\n")
+                        # Find first non-fence, non-signature line
+                        doc_text = None
+                        for line in doc_lines:
+                            stripped = line.strip()
+                            # Skip code fences and class/def/async def signatures
+                            if (
+                                stripped
+                                and not stripped.startswith("```")
+                                and not stripped.startswith("class ")
+                                and not stripped.startswith("def ")
+                                and not stripped.startswith("async def ")
+                            ):
+                                doc_text = stripped
+                                break
+
+                        if doc_text:
+                            doc_preview = doc_text[:80]
+                            if len(doc_text) > 80:
+                                doc_preview += "..."
+                            lines.append(f"    {doc_preview}")
 
         private_shown = False
 

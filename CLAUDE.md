@@ -1207,5 +1207,3 @@ The project includes `uv.lock` for reproducible builds and `pyproject.toml` for 
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
-
-
