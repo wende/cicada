@@ -8,6 +8,7 @@ Author: Cicada Team
 """
 
 import math
+from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
@@ -66,7 +67,21 @@ def calculate_score(
     doc_name: str | None = None,
 ) -> dict[str, Any]:
     """
-    Calculate the search score by summing weights of matched keywords.
+    Calculate search score with hybrid scoring (diminishing returns + coverage bonus).
+
+    Scoring formula:
+    1. Diminishing returns: Each repeated keyword match gets exponentially reduced weight
+       - 1st match: full weight (1.0x)
+       - 2nd match: 0.5x weight
+       - 3rd match: 0.25x weight
+       - Pattern: weight × 0.5^(match_count - 1)
+
+    2. Coverage bonus: Rewards matching diverse keywords
+       - coverage_ratio = unique_matched_keywords / total_query_keywords
+       - coverage_multiplier = 0.8 + (coverage_ratio × 0.8)
+       - Scales from 0.8x (0% coverage) to 1.6x (100% coverage)
+
+    3. Final score = base_score × coverage_multiplier
 
     Args:
         query_keywords: Query keywords (normalized to lowercase)
@@ -77,13 +92,16 @@ def calculate_score(
 
     Returns:
         Dictionary with:
-        - score: Sum of matched keyword weights
+        - score: Hybrid score with diminishing returns and coverage bonus
         - matched_keywords: List of matched keywords
         - confidence: Percentage of query keywords that matched
     """
     matched_keywords = []
     matched_groups: set[int] = set()
-    total_score = 0.0
+    base_score = 0.0
+
+    # Track how many times each query keyword has matched (for diminishing returns)
+    keyword_match_counts: defaultdict[str, int] = defaultdict(int)
 
     # Extract the simple name (last part after dots and slashes) for matching
     # e.g., "MyApp.User.create_user/2" -> "create_user"
@@ -99,18 +117,43 @@ def calculate_score(
         if query_kw in doc_keywords:
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
-            total_score += doc_keywords[query_kw]
+
+            # Apply diminishing returns: weight × 0.5^(match_count - 1)
+            match_count = keyword_match_counts[query_kw]
+            diminishing_factor = 0.5**match_count
+            base_score += doc_keywords[query_kw] * diminishing_factor
+
+            # Increment match count for this keyword
+            keyword_match_counts[query_kw] += 1
 
         # Also check for exact function/module name match
         # This allows searching for function names like "__init__", "__str__", etc.
         elif simple_name and query_kw == simple_name:
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
-            # Use a high score for exact name matches (equivalent to top keyword weight)
-            total_score += 3.0
+
+            # Apply diminishing returns to exact name matches too
+            match_count = keyword_match_counts[query_kw]
+            diminishing_factor = 0.5**match_count
+            base_score += 3.0 * diminishing_factor
+
+            # Increment match count
+            keyword_match_counts[query_kw] += 1
+
+    # Calculate coverage bonus
+    # Coverage ratio = unique matched keywords / total query keywords
+    unique_matched = len(set(matched_keywords))
+    total_query_keywords = len(set(query_keywords))
+    coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
+
+    # Coverage multiplier scales from 0.8x to 1.6x
+    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+
+    # Apply coverage bonus to get final score
+    final_score = base_score * coverage_multiplier
 
     return _build_score_result(
-        total_score, matched_keywords, matched_groups, total_terms, query_keywords
+        final_score, matched_keywords, matched_groups, total_terms, query_keywords
     )
 
 
@@ -123,7 +166,11 @@ def calculate_wildcard_score(
     doc_name: str | None = None,
 ) -> dict[str, Any]:
     """
-    Calculate the search score using wildcard pattern matching.
+    Calculate search score using wildcard pattern matching with hybrid scoring.
+
+    Applies the same hybrid scoring formula as calculate_score():
+    1. Diminishing returns for repeated keyword matches
+    2. Coverage bonus for matching diverse keywords
 
     Args:
         query_keywords: Query keywords with potential wildcards (normalized to lowercase)
@@ -135,13 +182,16 @@ def calculate_wildcard_score(
 
     Returns:
         Dictionary with:
-        - score: Sum of matched keyword weights
+        - score: Hybrid score with diminishing returns and coverage bonus
         - matched_keywords: List of matched query patterns
         - confidence: Percentage of query keywords that matched
     """
     matched_keywords = []
     matched_groups: set[int] = set()
-    total_score = 0.0
+    base_score = 0.0
+
+    # Track how many times each query keyword has matched (for diminishing returns)
+    keyword_match_counts: defaultdict[str, int] = defaultdict(int)
 
     # Extract the simple name (last part after dots and slashes) for matching
     simple_name = None
@@ -159,8 +209,15 @@ def calculate_wildcard_score(
                 if query_kw not in matched_keywords:
                     matched_keywords.append(query_kw)
                     matched_groups.add(group_idx)
-                # Add the weight only once per query keyword
-                total_score += weight
+
+                # Apply diminishing returns: weight × 0.5^(match_count)
+                match_count = keyword_match_counts[query_kw]
+                diminishing_factor = 0.5**match_count
+                base_score += weight * diminishing_factor
+
+                # Increment match count
+                keyword_match_counts[query_kw] += 1
+
                 matched = True
                 break
 
@@ -168,10 +225,29 @@ def calculate_wildcard_score(
         if not matched and simple_name and match_wildcard_fn(query_kw, simple_name):
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
-            total_score += 3.0
+
+            # Apply diminishing returns to exact name matches
+            match_count = keyword_match_counts[query_kw]
+            diminishing_factor = 0.5**match_count
+            base_score += 3.0 * diminishing_factor
+
+            # Increment match count
+            keyword_match_counts[query_kw] += 1
+
+    # Calculate coverage bonus
+    # Coverage ratio = unique matched keywords / total query keywords
+    unique_matched = len(set(matched_keywords))
+    total_query_keywords = len(set(query_keywords))
+    coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
+
+    # Coverage multiplier scales from 0.8x to 1.6x
+    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+
+    # Apply coverage bonus to get final score
+    final_score = base_score * coverage_multiplier
 
     return _build_score_result(
-        total_score, matched_keywords, matched_groups, total_terms, query_keywords
+        final_score, matched_keywords, matched_groups, total_terms, query_keywords
     )
 
 

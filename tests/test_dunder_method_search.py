@@ -5,6 +5,7 @@ Ensures that searching for dunder methods like __init__, __str__, etc.
 works correctly by matching against function names.
 """
 
+import pytest
 from cicada.keyword_search import KeywordSearcher
 from cicada.scoring import calculate_score, calculate_wildcard_score
 
@@ -22,7 +23,8 @@ def test_dunder_method_exact_match():
         query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
     )
 
-    assert result["score"] == 3.0, "Should match function name with score 3.0"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 3.0 × 1.6 = 4.8
+    assert result["score"] == pytest.approx(4.8), "Should match function name with hybrid score"
     assert "__init__" in result["matched_keywords"], "Should match __init__"
     assert result["confidence"] == 100.0, "Should be 100% confident"
 
@@ -39,7 +41,8 @@ def test_dunder_str_exact_match():
         query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
     )
 
-    assert result["score"] == 3.0, "Should match function name"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 4.8
+    assert result["score"] == pytest.approx(4.8), "Should match function name with hybrid score"
     assert "__str__" in result["matched_keywords"], "Should match __str__"
 
 
@@ -65,7 +68,8 @@ def test_dunder_method_wildcard_match():
         doc_name=doc_name,
     )
 
-    assert result["score"] == 3.0, "Should match with wildcard"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 4.8
+    assert result["score"] == pytest.approx(4.8), "Should match with wildcard and hybrid score"
     assert "__init__*" in result["matched_keywords"], "Should match pattern"
 
 
@@ -143,7 +147,8 @@ def test_keyword_search_with_dunder_methods():
     results = searcher.search(["__init__"], top_n=10, filter_type="functions")
     assert len(results) == 1, "Should find __init__ method"
     assert results[0]["function"] == "__init__", "Should match __init__"
-    assert results[0]["score"] == 3.0, "Should have name match score"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 4.8
+    assert results[0]["score"] == 4.8, "Should have name match with hybrid score"
 
     # Search for __str__
     results = searcher.search(["__str__"], top_n=10, filter_type="functions")
@@ -154,7 +159,8 @@ def test_keyword_search_with_dunder_methods():
     results = searcher.search(["save"], top_n=10, filter_type="functions")
     assert len(results) == 1, "Should find save method"
     assert results[0]["function"] == "save", "Should match save"
-    assert results[0]["score"] == 1.5, "Should have keyword match score"
+    # Base: 1.5, Coverage: 100% → multiplier 1.6, Final: 2.4
+    assert results[0]["score"] == 2.4, "Should have keyword match with hybrid score"
 
 
 def test_name_extraction_with_arity():
@@ -169,7 +175,10 @@ def test_name_extraction_with_arity():
         query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
     )
 
-    assert result["score"] == 3.0, "Should extract __init__ from __init__/3"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 4.8
+    assert result["score"] == pytest.approx(
+        4.8
+    ), "Should extract __init__ from __init__/3 with hybrid score"
 
 
 def test_name_extraction_with_dots():
@@ -184,4 +193,7 @@ def test_name_extraction_with_dots():
         query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
     )
 
-    assert result["score"] == 3.0, "Should extract __init__ from nested module path"
+    # Base: 3.0, Coverage: 100% → multiplier 1.6, Final: 4.8
+    assert result["score"] == pytest.approx(
+        4.8
+    ), "Should extract __init__ from nested module path with hybrid score"
