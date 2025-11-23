@@ -90,6 +90,28 @@ def _build_score_result(
     }
 
 
+def _apply_coverage_bonus(
+    base_score: float,
+    matched_groups: set[int],
+    total_terms: int,
+    query_keywords: list[str],
+) -> float:
+    """Apply coverage multiplier to the base score.
+
+    Coverage is computed using the original term groups so OR synonyms don't
+    reduce coverage. When no terms match, short-circuit to return zero.
+    """
+    if not matched_groups or base_score == 0.0:
+        return 0.0
+
+    denominator = total_terms if total_terms else len(set(query_keywords))
+    coverage_ratio = len(matched_groups) / denominator if denominator else 0
+
+    # Coverage multiplier scales from 0.8x to 1.6x
+    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+    return base_score * coverage_multiplier
+
+
 def calculate_score(
     query_keywords: list[str],
     keyword_groups: list[int],
@@ -105,10 +127,10 @@ def calculate_score(
        - 1st match: full weight (1.0x)
        - 2nd match: 0.5x weight
        - 3rd match: 0.25x weight
-       - Pattern: weight × 0.5^(match_count - 1)
+       - Pattern: weight × 0.5^match_count (match_count starts at 0)
 
     2. Coverage bonus: Rewards matching diverse keywords
-       - coverage_ratio = unique_matched_keywords / total_query_keywords
+       - coverage_ratio = matched_groups / total_query_terms
        - coverage_multiplier = 0.8 + (coverage_ratio × 0.8)
        - Scales from 0.8x (0% coverage) to 1.6x (100% coverage)
 
@@ -156,6 +178,7 @@ def calculate_score(
         elif simple_name and query_kw == simple_name:
             matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
+
             # Apply diminishing returns to exact name matches too
             match_count = keyword_match_counts[query_kw]
             diminishing_factor = 0.5**match_count
@@ -194,7 +217,9 @@ def calculate_wildcard_score(
 
     Applies the same hybrid scoring formula as calculate_score():
     1. Diminishing returns for repeated keyword matches
+       - Pattern: weight × 0.5^match_count (match_count starts at 0)
     2. Coverage bonus for matching diverse keywords
+       - coverage_ratio = matched_groups / total_query_terms
 
     Args:
         query_keywords: Query keywords with potential wildcards (normalized to lowercase)
@@ -226,12 +251,12 @@ def calculate_wildcard_score(
         # Find all doc keywords matching this pattern
         for doc_kw, weight in doc_keywords.items():
             if match_wildcard_fn(query_kw, doc_kw):
+                matched_groups.add(group_idx)
                 # Add query keyword to matched list (not the doc keyword)
                 if query_kw not in matched_keywords:
                     matched_keywords.append(query_kw)
-                    matched_groups.add(group_idx)
 
-                # Apply diminishing returns: weight × 0.5^(match_count)
+                # Apply diminishing returns: weight × 0.5^match_count
                 match_count = keyword_match_counts[query_kw]
                 diminishing_factor = 0.5**match_count
                 base_score += weight * diminishing_factor
@@ -244,12 +269,14 @@ def calculate_wildcard_score(
 
         # Also check for wildcard name match
         if not matched and simple_name and match_wildcard_fn(query_kw, simple_name):
-            matched_keywords.append(query_kw)
             matched_groups.add(group_idx)
+            if query_kw not in matched_keywords:
+                matched_keywords.append(query_kw)
+
             # Apply diminishing returns to exact name matches
             match_count = keyword_match_counts[query_kw]
             diminishing_factor = 0.5**match_count
-            base_score += 3.0 * diminishing_factor
+            base_score += EXACT_NAME_MATCH_SCORE * diminishing_factor
 
             # Increment match count
             keyword_match_counts[query_kw] += 1

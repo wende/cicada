@@ -236,9 +236,9 @@ def format_matched_context(
         para = extract_multiple_keywords(doc_text, doc_keywords)
         if para:
             highlighted = highlight_keywords(para, doc_keywords, use_ansi)
-            sections.append(
-                f"Matched in documentation:\n> {highlighted}"
-            )  # Format string literal matches
+            sections.append(f"Matched in documentation:\n> {highlighted}")
+
+    # Format string literal matches
     if string_keywords and string_sources:
         relevant_strings = []
         for source in string_sources:

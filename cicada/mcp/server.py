@@ -159,24 +159,14 @@ async def async_main():
 
         shutdown_event.set()
 
-    # Prefer asyncio-native signal handling to avoid race conditions
-    signals_to_handle = [signal.SIGINT]
-    if hasattr(signal, "SIGTERM"):
-        signals_to_handle.append(signal.SIGTERM)
-
-    for sig in signals_to_handle:
-        try:
-            loop.add_signal_handler(sig, request_shutdown)
-        except (NotImplementedError, RuntimeError):
-            # Fallback for platforms without add_signal_handler support
-            signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))
-
     try:
         # Check if setup is needed before starting server
         # Redirect stdout to stderr during setup to avoid polluting MCP protocol
         original_stdout = sys.stdout
         try:
             sys.stdout = sys.stderr
+            # Pass shutdown_event to allow interruption (e.g., if running in executor or checking later)
+            # Note: Standard KeyboardInterrupt handles aborts during synchronous setup
             _auto_setup_if_needed(shutdown_event)
         finally:
             sys.stdout = original_stdout
@@ -184,6 +174,18 @@ async def async_main():
         if shutdown_event.is_set():
             return
 
+        # Prefer asyncio-native signal handling to avoid race conditions
+        # Register handlers AFTER synchronous setup to avoid blocking them or handling signals too early
+        signals_to_handle = [signal.SIGINT]
+        if hasattr(signal, "SIGTERM"):
+            signals_to_handle.append(signal.SIGTERM)
+
+        for sig in signals_to_handle:
+            try:
+                loop.add_signal_handler(sig, request_shutdown)
+            except (NotImplementedError, RuntimeError):
+                # Fallback for platforms without add_signal_handler support
+                signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))
         server = CicadaServer()
 
         # Run server with shutdown event monitoring
