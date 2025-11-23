@@ -42,6 +42,21 @@ class GenericSCIPIndexer(BaseIndexer):
         self.verbose = verbose
 
     @abstractmethod
+    def get_language_name(self) -> str:
+        """Return language identifier (e.g., 'python', 'typescript')."""
+        ...
+
+    @abstractmethod
+    def get_file_extensions(self) -> list[str]:
+        """Return list of file extensions (e.g., ['.py'], ['.ts', '.tsx'])."""
+        ...
+
+    @abstractmethod
+    def get_excluded_dirs(self) -> list[str]:
+        """Return list of directory names to exclude from indexing."""
+        ...
+
+    @abstractmethod
     def _run_scip_indexer(self, repo_path: Path) -> Path:
         """
         Run the language-specific SCIP indexer.
@@ -446,6 +461,9 @@ class GenericSCIPIndexer(BaseIndexer):
             print("  (This may take several minutes for large projects...)")
 
         try:
+            # Security audit: Command is passed as list (not shell=True),
+            # preventing shell injection. Caller is responsible for ensuring
+            # command arguments are safe (typically hardcoded by language-specific indexers).
             result = subprocess.run(
                 command,
                 cwd=repo_path,

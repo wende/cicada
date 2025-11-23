@@ -42,10 +42,15 @@ class TypeScriptSCIPIndexer(GenericSCIPIndexer):
     def _run_scip_indexer(self, repo_path: Path) -> Path:
         """Run scip-typescript indexer.
 
-        Note: scip-typescript creates index.scip by default, we cannot customize the output path.
+        Note: We don't use GenericSCIPIndexer._run_scip_command() here because
+        scip-typescript hardcodes its output to "index.scip" and doesn't support
+        custom output paths. The generic helper creates temp files with unique names,
+        which doesn't work with scip-typescript's fixed output behavior.
         """
         import subprocess
 
+        # Security audit: Command uses list-form arguments (not shell=True),
+        # so no command injection risk. All arguments are hardcoded strings.
         cmd = ["npx", "@sourcegraph/scip-typescript", "index"]
 
         if self.verbose:
@@ -64,7 +69,8 @@ class TypeScriptSCIPIndexer(GenericSCIPIndexer):
             if result.returncode != 0:
                 raise RuntimeError(f"scip-typescript indexing failed:\n{result.stderr}")
 
-            # scip-typescript always creates index.scip
+            # scip-typescript always creates index.scip in the repo root
+            # (unlike scip-python which accepts --output flag for custom paths)
             scip_file = repo_path / "index.scip"
 
             if not scip_file.exists():

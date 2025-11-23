@@ -348,7 +348,9 @@ class TestPythonSCIPIndexer:
                     verbose_indexer.index_repository(repo_path, output_path, verbose=True)
 
                     captured = capsys.readouterr()
-                    assert "Indexing python repository" in captured.out
+                    # Make assertion robust to language name changes
+                    expected_msg = f"Indexing {verbose_indexer.get_language_name()} repository"
+                    assert expected_msg in captured.out
                     assert "SCIP index" in captured.out
                     assert "Index saved to" in captured.out
                     assert "Cleaned up temporary file" in captured.out
