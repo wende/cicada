@@ -1,4 +1,3 @@
-import signal
 import sys
 
 from cicada.entry_utils import run_cli
@@ -17,14 +16,6 @@ def main() -> None:
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
     sys.excepthook = exception_hook
-
-    # Install signal handler early to handle Ctrl+C
-    def signal_handler(signum, _frame):
-        """Handle SIGINT/SIGTERM by raising KeyboardInterrupt."""
-        raise KeyboardInterrupt()
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     try:
         run_cli(

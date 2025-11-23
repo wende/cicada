@@ -152,16 +152,24 @@ async def async_main():
     # Create a shutdown event for clean async cancellation
     shutdown_event = asyncio.Event()
 
+    # Get the event loop for thread-safe signal handling
+    loop = asyncio.get_running_loop()
+
+    # Define callback for thread-safe event setting
+    def set_shutdown_event():
+        """Set the shutdown event from signal handler."""
+        shutdown_event.set()
+
     # Set up signal handlers for clean shutdown
     def signal_handler(signum, _frame):
         """Handle signals by triggering async shutdown."""
-        # Set the shutdown event to cancel running tasks cleanly
-        shutdown_event.set()
-        # Raise KeyboardInterrupt to break out of async loops
-        raise KeyboardInterrupt()
+        # Thread-safe way to set the event from signal handler
+        loop.call_soon_threadsafe(set_shutdown_event)
 
-    signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    # SIGTERM is Unix-only
+    if sys.platform != "win32":
+        signal.signal(signal.SIGTERM, signal_handler)
 
     try:
         # Check if setup is needed before starting server
@@ -189,6 +197,11 @@ async def async_main():
             server_task.cancel()
             with suppress(asyncio.CancelledError):
                 await server_task
+        else:
+            # Server completed on its own - check for exceptions
+            if server_task in done:
+                # This will re-raise any exception that occurred in server.run()
+                server_task.result()
 
         # Cancel any remaining tasks
         for task in pending:
