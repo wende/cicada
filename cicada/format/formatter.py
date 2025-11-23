@@ -138,6 +138,7 @@ class ModuleFormatter:
             func = clauses[0]
             func_sig = SignatureBuilder.build(func)
             lines.append(f"{func['line']:>5}: {func_sig}")
+            lines.append("")
         return True
 
     @staticmethod
@@ -511,9 +512,12 @@ class ModuleFormatter:
             if include_examples and site.get("code_lines"):
                 for code_entry in site["code_lines"]:
                     # Properly indent each line of the code block
+                    lines.append(f"{indent}  ```")
                     code_lines = code_entry["code"].split("\n")
                     for code_line in code_lines:
                         lines.append(f"{indent}  {code_line}")
+                    lines.append(f"{indent}  ```")
+                    lines.append("")
         return lines
 
     @staticmethod
