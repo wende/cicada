@@ -157,6 +157,8 @@ async def async_main():
         """Handle signals by triggering async shutdown."""
         # Set the shutdown event to cancel running tasks cleanly
         shutdown_event.set()
+        # Raise KeyboardInterrupt to break out of async loops
+        raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
