@@ -704,10 +704,11 @@ class ModuleFormatter:
         if show_relationships:
             # Check for detailed dependencies first (from what_it_calls=true)
             detailed_deps = result.get("detailed_dependencies")
-            if detailed_deps:
+            if detailed_deps is not None:
                 internal = detailed_deps.get("internal", [])
                 external = detailed_deps.get("external", [])
-                total = detailed_deps.get("total_count", len(internal) + len(external))
+                # Derive total from actual data to avoid inconsistencies
+                total = len(internal) + len(external)
 
                 # Only show section if there are actual dependencies
                 if total > 0:

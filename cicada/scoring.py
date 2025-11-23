@@ -41,13 +41,15 @@ def _extract_simple_name(doc_name: str | None) -> str | None:
     - "MyApp.User.create_user/2" -> "create_user"
     - "MyApp.User.__init__/1" -> "__init__"
     - "create_user/2" -> "create_user"
-    - "MyApp.User" -> "User"
+    - "MyApp.User" -> "user"
+
+    Note: The result is lowercased for case-insensitive matching.
 
     Args:
         doc_name: Qualified name, optionally with /N arity suffix
 
     Returns:
-        Simple name (last part after dots), or None if doc_name is None
+        Lowercased simple name (last part after dots), or None if doc_name is None
     """
     if not doc_name:
         return None
