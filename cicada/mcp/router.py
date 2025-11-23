@@ -327,9 +327,18 @@ class ToolRouter:
                 error_msg = "'query' must be a string or list of strings"
                 return [TextContent(type="text", text=error_msg)]
 
-            if isinstance(query, list) and not all(isinstance(q, str) for q in query):
-                error_msg = "'query' list must contain only strings"
-                return [TextContent(type="text", text=error_msg)]
+            if isinstance(query, list):
+                # Validate that list elements are either strings or lists of strings
+                for item in query:
+                    if isinstance(item, str):
+                        continue
+                    if isinstance(item, list) and all(isinstance(sub, str) for sub in item):
+                        continue
+
+                    error_msg = (
+                        "'query' list must contain strings or lists of strings (for synonyms)"
+                    )
+                    return [TextContent(type="text", text=error_msg)]
 
             # Validate enum parameters
             if scope not in ("all", "public", "private"):

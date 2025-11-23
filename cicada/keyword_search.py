@@ -397,33 +397,46 @@ class KeywordSearcher:
         return result
 
     def _has_wildcards(self, keywords: list[str]) -> bool:
-        """Check if any keywords contain wildcard patterns (* or |)."""
-        return any("*" in keyword or "|" in keyword for keyword in keywords)
+        """Check if any keywords contain wildcard patterns (*)."""
+        return any("*" in keyword for keyword in keywords)
 
-    def _expand_or_patterns(self, keywords: list[str]) -> tuple[list[str], list[int]]:
+    def _process_keyword_groups(
+        self, keywords: list[str | list[str]]
+    ) -> tuple[list[str], list[int]]:
         """
-        Expand OR patterns (|) in keywords.
+        Process keywords, handling both OR patterns (|) and nested lists (synonyms).
 
         Args:
-            keywords: List of keywords that may contain | for OR logic
+            keywords: List of keywords. Elements can be strings (supporting | for OR)
+                     or lists of strings (treated as synonym groups).
 
         Returns:
             Tuple of:
-            - Expanded list of keywords with OR patterns split out
+            - Expanded list of keywords (flat strings)
             - Parallel list of group indexes mapping each expanded keyword back to the
-              original keyword position. This lets us compute confidence using the
-              number of user-supplied keywords rather than the expanded variants.
+              original keyword position/group.
 
         Example:
+            ["user", ["auth", "login"]] -> (["user", "auth", "login"], [0, 1, 1])
             ["create*|update*", "user"] -> (["create*", "update*", "user"], [0, 0, 1])
         """
         expanded: list[str] = []
         groups: list[int] = []
         for idx, keyword in enumerate(keywords):
-            parts = [p.strip() for p in keyword.split("|")] if "|" in keyword else [keyword]
-            for part in parts:
-                expanded.append(part)
-                groups.append(idx)
+            if isinstance(keyword, list):
+                # Process nested list items (synonyms)
+                for item in keyword:
+                    # Also support | inside nested items
+                    parts = [p.strip() for p in item.split("|")] if "|" in item else [item]
+                    for part in parts:
+                        expanded.append(part)
+                        groups.append(idx)
+            else:
+                # Process string keyword
+                parts = [p.strip() for p in keyword.split("|")] if "|" in keyword else [keyword]
+                for part in parts:
+                    expanded.append(part)
+                    groups.append(idx)
         return expanded, groups
 
     def _extract_module_patterns(self, keywords: list[str]) -> list[str]:
@@ -600,7 +613,10 @@ class KeywordSearcher:
         ]
 
     def search(
-        self, query_keywords: list[str], top_n: int = 5, filter_type: str = "all"
+        self,
+        query_keywords: list[str | list[str]],
+        top_n: int = 5,
+        filter_type: str = "all",
     ) -> list[dict[str, Any]]:
         """
         Search for modules and functions matching the given keywords.
@@ -609,13 +625,14 @@ class KeywordSearcher:
         The score for each result is the sum of weights of matched keywords.
 
         Automatically detects wildcard patterns (* supported) and OR patterns (| supported) in keywords.
+        Supports nested lists for synonyms (e.g., ["user", ["auth", "login"]]).
 
         When keywords contain dots (e.g., "ApiKeys.create_user"), the module part is extracted
         and matched against the document's module name for additional scoring.
 
         Args:
-            query_keywords: List of keywords to search for (supports "create*|update*" for OR patterns,
-                           and "Module.keyword" for module-qualified searches)
+            query_keywords: List of keywords to search for. Can be strings (support | for OR)
+                           or nested lists of strings (treated as synonym groups).
             top_n: Maximum number of results to return
             filter_type: Filter results by type ('all', 'modules', 'functions'). Defaults to 'all'.
 
@@ -634,14 +651,20 @@ class KeywordSearcher:
         if not query_keywords or not self.documents:
             return []
 
-        # Normalize query keywords to lowercase
-        query_keywords_lower = [kw.lower() for kw in query_keywords]
+        # Normalize query keywords to lowercase, preserving structure
+        query_keywords_lower: list[str | list[str]] = []
+        for kw in query_keywords:
+            if isinstance(kw, list):
+                query_keywords_lower.append([k.lower() for k in kw])
+            else:
+                query_keywords_lower.append(kw.lower())
 
-        # Extract module patterns from keywords with dots (e.g., "ApiKeys.create_user" -> "ApiKeys")
-        module_patterns = self._extract_module_patterns(query_keywords_lower)
+        # Expand/process groups to get a flat list of all terms and their group indices
+        query_keywords_expanded, keyword_groups = self._process_keyword_groups(query_keywords_lower)
 
-        # Expand OR patterns (e.g., "create*|update*" -> ["create*", "update*"])
-        query_keywords_expanded, keyword_groups = self._expand_or_patterns(query_keywords_lower)
+        # Extract module patterns from the expanded flat list
+        # This handles cases like ["ApiKeys.create|Auth.login"] -> ["ApiKeys", "Auth"]
+        module_patterns = self._extract_module_patterns(query_keywords_expanded)
 
         # Check if wildcards are present
         enable_wildcards = self._has_wildcards(query_keywords_expanded)

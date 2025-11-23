@@ -133,7 +133,7 @@ class QueryStrategy:
 
     use_keyword_search: bool
     use_pattern_search: bool
-    search_keywords: list[str]
+    search_keywords: list[str | list[str]]
     search_patterns: list[str]
 
 

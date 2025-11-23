@@ -364,13 +364,13 @@ class TestKeywordSearcher:
         """Test that OR patterns (|) are expanded correctly."""
         searcher = KeywordSearcher(sample_index)
 
-        # Test _expand_or_patterns method
-        expanded, groups = searcher._expand_or_patterns(["create|update", "user"])
+        # Test _process_keyword_groups method
+        expanded, groups = searcher._process_keyword_groups(["create|update", "user"])
         assert expanded == ["create", "update", "user"]
         assert groups == [0, 0, 1]
 
         # Test with wildcards
-        expanded, groups = searcher._expand_or_patterns(["create*|update*", "user"])
+        expanded, groups = searcher._process_keyword_groups(["create*|update*", "user"])
         assert expanded == ["create*", "update*", "user"]
         assert groups == [0, 0, 1]
 
