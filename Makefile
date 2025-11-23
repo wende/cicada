@@ -226,7 +226,7 @@ pr-comments:
 	echo "================================================================================"; \
 	echo ""; \
 	TEMP_COMMENTS=$$(mktemp); \
-	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments > "$$TEMP_COMMENTS"; \
+	gh api --paginate repos/$$REPO/pulls/$$PR_NUMBER/comments > "$$TEMP_COMMENTS"; \
 	COMMENT_COUNT=$$(jq 'length' "$$TEMP_COMMENTS"); \
 	FOUND_UNADDRESSED=false; \
 	for i in $$(seq 0 $$((COMMENT_COUNT - 1))); do \

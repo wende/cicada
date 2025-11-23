@@ -270,9 +270,7 @@ class TestFindSimilarNames:
             "RandomModule",
             "UserHelper",
         ]
-        results = find_similar_names(
-            "User", candidates, max_suggestions=3, threshold=0.5
-        )
+        results = find_similar_names("User", candidates, max_suggestions=3, threshold=0.5)
 
         # Should return at most 3 results
         assert len(results) <= 3

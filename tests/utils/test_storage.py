@@ -677,9 +677,7 @@ class TestLinkResolutionEdgeCases:
         monkeypatch.setenv("HOME", str(tmp_path))
         return cicada_dir
 
-    def test_resolve_storage_dir_with_circular_reference_detection(
-        self, tmp_path, mock_home_dir
-    ):
+    def test_resolve_storage_dir_with_circular_reference_detection(self, tmp_path, mock_home_dir):
         """Should detect circular references in link chain (line 194)"""
         # Create three repos
         repo_a = tmp_path / "repo_a"
@@ -758,9 +756,7 @@ class TestLinkResolutionEdgeCases:
         result = resolve_storage_dir(repo_b)
         assert result == storage_a
 
-    def test_resolve_storage_dir_with_whitespace_source_storage_dir(
-        self, tmp_path, mock_home_dir
-    ):
+    def test_resolve_storage_dir_with_whitespace_source_storage_dir(self, tmp_path, mock_home_dir):
         """Should handle link with whitespace-only source_storage_dir (lines 216-233)"""
         repo_a = tmp_path / "repo_a"
         repo_b = tmp_path / "repo_b"
@@ -784,9 +780,7 @@ class TestLinkResolutionEdgeCases:
         result = resolve_storage_dir(repo_b)
         assert result == storage_a
 
-    def test_create_link_cycle_detection_breaks_on_missing_link_info(
-        self, tmp_path, mock_home_dir
-    ):
+    def test_create_link_cycle_detection_breaks_on_missing_link_info(self, tmp_path, mock_home_dir):
         """Should break cycle detection when link_info is None (line 298)"""
         repo_a = tmp_path / "repo_a"
         repo_b = tmp_path / "repo_b"

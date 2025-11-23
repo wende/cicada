@@ -555,8 +555,7 @@ class FunctionSearchHandler:
         for module_name, module_data in self.index["modules"].items():
             for func in module_data["functions"]:
                 if not any(
-                    p.matches(module_name, module_data["file"], func)
-                    for p in private_patterns
+                    p.matches(module_name, module_data["file"], func) for p in private_patterns
                 ):
                     continue
 
@@ -745,9 +744,7 @@ class FunctionSearchHandler:
         staleness_info = None
 
         # If no results found, check if there are private functions that match
-        private_suggestion = self._suggest_private_function(
-            results, parsed_patterns, cutoff_date
-        )
+        private_suggestion = self._suggest_private_function(results, parsed_patterns, cutoff_date)
 
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")

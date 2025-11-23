@@ -27,56 +27,40 @@ def sample_index():
                             {
                                 "callee": "App.Worker.perform",
                                 "file": "lib/app/caller.ex",
-                                "line": 10
+                                "line": 10,
                             },
                             {
                                 "callee": "App.Helper.assist",
                                 "file": "lib/app/caller.ex",
-                                "line": 12
-                            }
-                        ]
+                                "line": 12,
+                            },
+                        ],
                     }
                 ],
-                "dependencies": {
-                    "modules": ["App.Worker", "App.Helper"]
-                }
+                "dependencies": {"modules": ["App.Worker", "App.Helper"]},
             },
             "App.Worker": {
                 "file": "lib/app/worker.ex",
-                "functions": [
-                    {
-                        "name": "perform",
-                        "calls": []
-                    }
-                ],
-                "dependencies": {
-                    "modules": []
-                }
+                "functions": [{"name": "perform", "calls": []}],
+                "dependencies": {"modules": []},
             },
             "App.Legacy": {
                 "file": "lib/app/legacy.ex",
                 "functions": [],
-                "dependencies": [
-                    {"module": "App.OldDep"},
-                    {"other": "stuff"}
-                ]
+                "dependencies": [{"module": "App.OldDep"}, {"other": "stuff"}],
             },
             "App.User": {
                 "file": "lib/app/user.ex",
                 "functions": [
-                     {
+                    {
                         "name": "complex_call",
                         "dependencies": [
-                             # Alternative format found in code
-                             {
-                                 "function": "App.Worker.perform",
-                                 "line": 20,
-                                 "arity": 1
-                             }
-                        ]
-                     }
-                ]
-            }
+                            # Alternative format found in code
+                            {"function": "App.Worker.perform", "line": 20, "arity": 1}
+                        ],
+                    }
+                ],
+            },
         }
     }
 
@@ -217,4 +201,6 @@ class TestGetReferencesTo:
         # One is from App.Caller.do_work
         assert any(r.get("module") == "App.Caller" and r.get("function") == "do_work" for r in refs)
         # One is from App.User.complex_call
-        assert any(r.get("module") == "App.User" and r.get("function") == "complex_call" for r in refs)
+        assert any(
+            r.get("module") == "App.User" and r.get("function") == "complex_call" for r in refs
+        )
