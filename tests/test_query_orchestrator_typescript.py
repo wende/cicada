@@ -411,6 +411,101 @@ class TestTypeScriptSpecificFeatures:
         assert "Query:" in result
 
 
+class TestTypeScriptStructureQueries:
+    """Test pattern searches against concrete TypeScript structures."""
+
+    def test_class_wildcard_returns_methods(self, typescript_index):
+        """Ensure wildcard patterns surface TypeScript classes and methods."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query(
+            "Calculator*", show_snippets=False, max_results=2
+        )
+
+        assert isinstance(result, str)
+        assert "Calculator" in result
+        assert "calculator.ts" in result
+        assert "Found: 0" not in result
+
+    def test_interface_pattern_matches_results(self, typescript_index):
+        """Verify interface symbols are discoverable via patterns."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("DataProcessor*", show_snippets=False)
+
+        assert isinstance(result, str)
+        assert "DataProcessor" in result
+        assert "Found: 0" not in result
+
+    def test_function_patterns_cover_class_and_module_functions(
+        self, typescript_index
+    ):
+        """Wildcard queries should surface class methods and file-level functions."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("add*", show_snippets=False, max_results=3)
+
+        assert isinstance(result, str)
+        assert "add" in result  # Matches Calculator.add or Container.add
+        assert "Found: 0" not in result
+
+    def test_utility_functions_from_imports_are_searchable(self, typescript_index):
+        """Utility helpers referenced via imports should appear in results."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query(
+            "chainAdd*", show_snippets=False, max_results=2
+        )
+
+        assert isinstance(result, str)
+        assert "chainAdd" in result
+        assert "utils.ts" in result
+        assert "Found: 0" not in result
+
+    def test_generic_class_static_and_instance_members(self, typescript_index):
+        """Generic class search should surface both static and instance members."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("Container", show_snippets=False, max_results=5)
+
+        assert isinstance(result, str)
+        assert "Container" in result
+        assert "getInstanceCount" in result  # static method
+        assert "add(" in result or "add:" in result  # instance method
+        assert "typescript_features.ts" in result
+        assert "Found: 0" not in result
+
+    def test_interface_and_implementation_symbols(self, typescript_index):
+        """Interfaces and their implementations should be discoverable together."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("DataProcessor|StringProcessor", show_snippets=False)
+
+        assert isinstance(result, str)
+        assert "DataProcessor" in result
+        assert "StringProcessor" in result
+        assert "process(" in result
+        assert "typescript_features.ts" in result
+        assert "Found: 0" not in result
+
+    def test_async_and_promise_based_functions(self, typescript_index):
+        """Async utilities should be returned alongside their callers."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("asyncProcess", show_snippets=False, max_results=4)
+
+        assert isinstance(result, str)
+        assert "asyncProcess" in result
+        # fetchData chains asyncProcess internally
+        assert "fetchData" in result or "AsyncHandler" in result
+        assert "typescript_features.ts" in result
+        assert "Found: 0" not in result
+
+    def test_arrow_and_higher_order_functions(self, typescript_index):
+        """Arrow functions and higher-order helpers should be discoverable."""
+        orchestrator = QueryOrchestrator(typescript_index)
+        result = orchestrator.execute_query("arrow*", show_snippets=False, max_results=4)
+
+        assert isinstance(result, str)
+        assert "arrowAdd" in result
+        assert "arrowMultiply" in result or "createAdder" in result
+        assert "typescript_features.ts" in result
+        assert "Found: 0" not in result
+
+
 class TestTypeScriptEdgeCases:
     """Test edge cases and special scenarios."""
 
