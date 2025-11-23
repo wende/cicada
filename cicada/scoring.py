@@ -191,19 +191,7 @@ def calculate_score(
             diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
             base_score += EXACT_NAME_MATCH_SCORE * diminishing_factor
 
-            # Increment match count
-            keyword_match_counts[query_kw] += 1
-    # Calculate coverage bonus
-    # Coverage ratio = unique matched keywords / total query keywords
-    unique_matched = len(set(matched_keywords))
-    total_query_keywords = len(set(query_keywords))
-    coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
-
-    # Coverage multiplier scales from 0.8x to 1.6x
-    coverage_multiplier = COVERAGE_BONUS_BASE + (coverage_ratio * COVERAGE_BONUS_SCALE)
-
-    # Apply coverage bonus to get final score
-    final_score = base_score * coverage_multiplier
+    final_score = _apply_coverage_bonus(base_score, matched_groups, total_terms, query_keywords)
 
     return _build_score_result(
         final_score, matched_keywords, matched_groups, total_terms, query_keywords
@@ -287,17 +275,7 @@ def calculate_wildcard_score(
             # Increment match count
             keyword_match_counts[query_kw] += 1
 
-    # Calculate coverage bonus
-    # Coverage ratio = unique matched keywords / total query keywords
-    unique_matched = len(set(matched_keywords))
-    total_query_keywords = len(set(query_keywords))
-    coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
-
-    # Coverage multiplier scales from 0.8x to 1.6x
-    coverage_multiplier = COVERAGE_BONUS_BASE + (coverage_ratio * COVERAGE_BONUS_SCALE)
-
-    # Apply coverage bonus to get final score
-    final_score = base_score * coverage_multiplier
+    final_score = _apply_coverage_bonus(base_score, matched_groups, total_terms, query_keywords)
 
     return _build_score_result(
         final_score, matched_keywords, matched_groups, total_terms, query_keywords
