@@ -36,16 +36,24 @@ def _format_error_sections(prefix: str, error: Exception, sections: dict[str, li
 class AnalysisHandler:
     """Handler for analysis-related tools (keyword search, dead code detection)."""
 
-    def __init__(self, index: dict[str, Any], has_keywords: bool):
+    def __init__(self, index_manager: "IndexManager"):
         """
         Initialize the analysis handler.
 
         Args:
-            index: The code index containing modules and functions
-            has_keywords: Whether keywords are available in the index
+            index_manager: The index manager providing access to the code index
         """
-        self.index = index
-        self.has_keywords = has_keywords
+        self.index_manager = index_manager
+
+    @property
+    def index(self) -> dict[str, Any]:
+        """Get the current index from the index manager."""
+        return self.index_manager.index
+
+    @property
+    def has_keywords(self) -> bool:
+        """Check if keywords are available in the current index."""
+        return self.index_manager.has_keywords
 
     async def search_by_keywords(
         self,

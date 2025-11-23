@@ -56,6 +56,13 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
 - **Index Storage Location:** `~/.cicada/projects/<repo_hash>/`
   - All generated files (index.json, config.yaml, hashes.json, pr_index.json) are stored here
   - Repository hash is generated from the resolved absolute path using SHA-256 (truncated to 16 hex chars)
+  - **Discovering the storage directory:** Use `cicada dir` in your repository to display the hash and full path to the storage directory
+    ```bash
+    cd /path/to/your/repo
+    cicada dir
+    # Output: Repository hash: a1b2c3d4e5f6a7b8
+    #         Storage dir: /Users/username/.cicada/projects/a1b2c3d4e5f6a7b8/
+    ```
 
 - **Repository Config:** Only one MCP config file is added to the user's repository:
   - `.mcp.json` (Claude Code)
@@ -1270,7 +1277,7 @@ If any validation fails, you'll get a clear error message explaining the issue.
 - Include type hints where appropriate
 - Write tests for new features
 - Keep functions focused and modular
-- Use make to run tests
+- **ALWAYS use `make test` for running tests** - Never use `pytest` or `uv run pytest` directly
 - Always use uv to run any python commands. Don't just run python without that
 - Don't use --no-verify unless explicitly asked
 - There is no such thing as unrelated tests. They need to pass before commit

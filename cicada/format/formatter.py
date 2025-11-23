@@ -748,6 +748,7 @@ class ModuleFormatter:
         staleness_info: dict | None = None,
         show_relationships: bool = True,
         language: str = "elixir",
+        private_suggestion: str | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -758,6 +759,7 @@ class ModuleFormatter:
             staleness_info: Optional staleness info (is_stale, age_str)
             show_relationships: Whether to show relationship information (what this calls / what calls this)
             language: Programming language for formatting function identifiers
+            private_suggestion: Optional suggestion for private function pattern
 
         Returns:
             Formatted Markdown string
@@ -780,8 +782,23 @@ class ModuleFormatter:
                 f"""Function Not Found
 
 **Query:** `{function_name}`
+"""
+            )
 
-## Try:
+            if private_suggestion:
+                error_parts.append(
+                    f"""## Did you mean private functions?
+
+  • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
+
+No public functions match this pattern, but private functions do.
+"""
+                )
+
+            suggestions_header = "## Other suggestions:" if private_suggestion else "## Try:"
+
+            error_parts.append(
+                f"""{suggestions_header}
 
   • Search without arity: `{func_only}` (if you used /{'{arity}'})
   • Search without module: `{func_only}` (searches all modules)

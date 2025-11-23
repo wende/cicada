@@ -75,7 +75,7 @@ setup-fixtures:
 
 # Run tests
 test: install generate-scip-proto setup-fixtures
-	@uv run pytest -n auto
+	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
 
 # Run tests with verbose output
 test-verbose: install generate-scip-proto setup-fixtures
@@ -145,7 +145,7 @@ pre-commit: install
 	@$(MAKE) generate-scip-proto
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
-	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment

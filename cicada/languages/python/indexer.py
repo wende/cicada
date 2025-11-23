@@ -463,8 +463,22 @@ class PythonSCIPIndexer(BaseIndexer):
                 # Update functions with timestamp data
                 for func_info in file_functions:
                     func_name = func_info["name"]
-                    if func_name in evolution_data and evolution_data[func_name]:
-                        func_info["func_ref"]["timestamps"] = evolution_data[func_name]
+                    evolution = evolution_data.get(func_name)
+                    if evolution and isinstance(evolution, dict):
+                        # Extract fields like Elixir indexer does
+                        func_ref = func_info["func_ref"]
+                        created_at = evolution.get("created_at")
+                        last_modified = evolution.get("last_modified")
+
+                        if created_at and isinstance(created_at, dict):
+                            func_ref["created_at"] = created_at.get("date")
+                        if last_modified and isinstance(last_modified, dict):
+                            func_ref["last_modified_at"] = last_modified.get("date")
+                            func_ref["last_modified_sha"] = last_modified.get("sha")
+                        if "total_modifications" in evolution:
+                            func_ref["modification_count"] = evolution["total_modifications"]
+                        if "modification_frequency" in evolution:
+                            func_ref["modification_frequency"] = evolution["modification_frequency"]
 
         except Exception as e:
             if self.verbose:
