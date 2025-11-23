@@ -101,6 +101,23 @@ def test_module_name_not_confused_with_function_name():
     assert result["score"] == 0.0, "Should not match module name"
 
 
+def _assert_function_search(searcher, query_keyword, expected_function, expected_score=None):
+    """
+    Helper to search for a function and assert expected results.
+
+    Args:
+        searcher: KeywordSearcher instance
+        query_keyword: Keyword to search for
+        expected_function: Expected function name in results
+        expected_score: Optional expected score (if None, score check is skipped)
+    """
+    results = searcher.search([query_keyword], top_n=10, filter_type="functions")
+    assert len(results) == 1, f"Should find {expected_function} method"
+    assert results[0]["function"] == expected_function, f"Should match {expected_function}"
+    if expected_score is not None:
+        assert results[0]["score"] == expected_score, f"Should have score {expected_score}"
+
+
 def test_keyword_search_with_dunder_methods():
     """Integration test with KeywordSearcher."""
     # Create a simple index with dunder methods
@@ -139,22 +156,10 @@ def test_keyword_search_with_dunder_methods():
 
     searcher = KeywordSearcher(index)
 
-    # Search for __init__
-    results = searcher.search(["__init__"], top_n=10, filter_type="functions")
-    assert len(results) == 1, "Should find __init__ method"
-    assert results[0]["function"] == "__init__", "Should match __init__"
-    assert results[0]["score"] == 3.0, "Should have name match score"
-
-    # Search for __str__
-    results = searcher.search(["__str__"], top_n=10, filter_type="functions")
-    assert len(results) == 1, "Should find __str__ method"
-    assert results[0]["function"] == "__str__", "Should match __str__"
-
-    # Search for save (regular keyword match)
-    results = searcher.search(["save"], top_n=10, filter_type="functions")
-    assert len(results) == 1, "Should find save method"
-    assert results[0]["function"] == "save", "Should match save"
-    assert results[0]["score"] == 1.5, "Should have keyword match score"
+    # Search for dunder methods and regular function
+    _assert_function_search(searcher, "__init__", "__init__", expected_score=3.0)
+    _assert_function_search(searcher, "__str__", "__str__")
+    _assert_function_search(searcher, "save", "save", expected_score=1.5)
 
 
 def test_name_extraction_with_arity():
