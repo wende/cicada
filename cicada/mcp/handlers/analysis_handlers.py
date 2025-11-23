@@ -11,6 +11,13 @@ from typing import TYPE_CHECKING, Any
 import jq  # type: ignore[import-untyped]
 from mcp.types import TextContent
 
+from cicada.dead_code.analyzer import DeadCodeAnalyzer
+from cicada.dead_code.finder import (
+    filter_by_confidence,
+    format_json,
+    format_markdown,
+)
+
 if TYPE_CHECKING:
     from cicada.mcp.handlers.index_manager import IndexManager
 
@@ -232,12 +239,12 @@ class AnalysisHandler:
         Returns:
             TextContent with formatted dead code analysis
         """
-        from cicada.dead_code.analyzer import DeadCodeAnalyzer
-        from cicada.dead_code.finder import (
-            filter_by_confidence,
-            format_json,
-            format_markdown,
-        )
+        # Check if the project language is Python
+        metadata = self.index.get("metadata", {})
+        language = metadata.get("language")
+
+        if language == "python":
+            return [TextContent(type="text", text="Tool is WIP")]
 
         # Run analysis
         analyzer = DeadCodeAnalyzer(self.index)

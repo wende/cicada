@@ -316,7 +316,9 @@ def get_tool_definitions() -> list[Tool]:
                 "Use this for codebase maintenance and cleanup efforts. "
                 "Returns results categorized by confidence level (high, medium, low).\n\n"
                 "Note: Results are best-effort - some unused functions may be part of the public API, "
-                "used dynamically via atom introspection, or used in external packages.\n\n"
+                "used dynamically via atom introspection, or used in external packages.\n"
+                "**Important:** Python support is currently experimental/WIP. Dynamic method calls and "
+                "implicit dependencies may cause false positives (functions reported as unused when they are used).\n\n"
                 "AI USAGE TIPS:\n"
                 '• Use for codebase cleanup: "What code can potentially be removed?"\n'
                 "• Start with min_confidence='high' to find most likely unused code\n"
