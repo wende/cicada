@@ -21,6 +21,7 @@ from cicada.mcp.pattern_utils import (
     parse_function_patterns,
     split_or_patterns,
 )
+from cicada.query.context_extractor import format_matched_context
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import matches_glob_pattern
@@ -397,6 +398,7 @@ class QueryOrchestrator:
             pattern_match=result_dict.get("pattern_match", False),
             doc=result_dict.get("doc"),
             keyword_sources=result_dict.get("keyword_sources", {}),
+            string_sources=result_dict.get("string_sources", []),
             function=result_dict.get("function"),
             arity=result_dict.get("arity"),
             signature=result_dict.get("signature"),
@@ -733,23 +735,35 @@ class QueryOrchestrator:
             except (ValueError, AttributeError):
                 pass
 
-        # Matched keywords with source indicators
+        # Matched context (documentation and string excerpts with highlighted keywords)
         if result.matched_keywords:
-            kw_with_sources: list[str] = []
-            source_suffixes = {
-                "docs": " (in docs)",
-                "strings": " (in strings)",
-                "both": " (in docs+strings)",
-            }
-            for kw in result.matched_keywords[:5]:
-                source = result.keyword_sources.get(kw, "")
-                suffix = source_suffixes.get(source, "")
-                kw_with_sources.append(kw + suffix)
+            context = format_matched_context(
+                matched_keywords=result.matched_keywords,
+                keyword_sources=result.keyword_sources,
+                doc_text=result.doc,
+                string_sources=result.string_sources,
+                use_ansi=True,  # Use ANSI colors for terminal output
+            )
 
-            matched_str = ", ".join(kw_with_sources)
-            if len(result.matched_keywords) > 5:
-                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-            lines.append(f"Matched keywords: {matched_str}\n")
+            if context:
+                lines.append(f"\n{context}\n")
+            else:
+                # Fallback to simple keyword list if no context available
+                kw_with_sources: list[str] = []
+                source_suffixes = {
+                    "docs": " (in docs)",
+                    "strings": " (in strings)",
+                    "both": " (in docs+strings)",
+                }
+                for kw in result.matched_keywords[:5]:
+                    source = result.keyword_sources.get(kw, "")
+                    suffix = source_suffixes.get(source, "")
+                    kw_with_sources.append(kw + suffix)
+
+                matched_str = ", ".join(kw_with_sources)
+                if len(result.matched_keywords) > 5:
+                    matched_str += f" (+{len(result.matched_keywords) - 5} more)"
+                lines.append(f"Matched keywords: {matched_str}\n")
 
         # Code snippet preview (if enabled)
         if show_snippets:
