@@ -452,6 +452,8 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ## Contributing
 
+### Local Development
+
 ```bash
 git clone https://github.com/wende/cicada.git
 cd cicada
@@ -459,7 +461,21 @@ uv sync
 pytest
 ```
 
-Before submitting a PR:
+### GitHub Codespaces
+
+You can also use GitHub Codespaces for a pre-configured development environment:
+
+1. Click the "Code" button on the repository
+2. Select "Codespaces" tab
+3. Click "Create codespace on main"
+
+The environment will automatically:
+- Set up Python 3.11 and Node.js LTS
+- Install all dependencies
+- Configure VS Code with Python extensions
+- Be ready for development and testing
+
+### Before Submitting a PR
 - Run `black cicada tests`
 - Ensure tests + coverage pass (`pytest --cov=cicada --cov-report=term-missing`)
 - Update docs if behaviour changes
