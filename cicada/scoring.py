@@ -28,6 +28,13 @@ Z_SCORE_POOR_THRESHOLD = -1.0  # 16th percentile (>1σ below mean)
 # Module match boost value
 MODULE_MATCH_BOOST = 2.0
 
+# Diminishing returns factor for repeated keyword matches
+DIMINISHING_RETURNS_FACTOR = 0.5
+
+# Coverage bonus constants
+COVERAGE_BONUS_BASE = 0.8
+COVERAGE_BONUS_SCALE = 0.8
+
 # Exact name match score (for function/module name matches)
 # This is a high score awarded when a query keyword exactly matches the function/module name
 # (e.g., searching for "__init__" matches the __init__ function)
@@ -108,7 +115,7 @@ def _apply_coverage_bonus(
     coverage_ratio = len(matched_groups) / denominator if denominator else 0
 
     # Coverage multiplier scales from 0.8x to 1.6x
-    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+    coverage_multiplier = COVERAGE_BONUS_BASE + (coverage_ratio * COVERAGE_BONUS_SCALE)
     return base_score * coverage_multiplier
 
 
@@ -167,7 +174,7 @@ def calculate_score(
 
             # Apply diminishing returns: weight × 0.5^(match_count - 1)
             match_count = keyword_match_counts[query_kw]
-            diminishing_factor = 0.5**match_count
+            diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
             base_score += doc_keywords[query_kw] * diminishing_factor
 
             # Increment match count for this keyword
@@ -181,12 +188,11 @@ def calculate_score(
 
             # Apply diminishing returns to exact name matches too
             match_count = keyword_match_counts[query_kw]
-            diminishing_factor = 0.5**match_count
-            base_score += 3.0 * diminishing_factor
+            diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
+            base_score += EXACT_NAME_MATCH_SCORE * diminishing_factor
 
             # Increment match count
             keyword_match_counts[query_kw] += 1
-
     # Calculate coverage bonus
     # Coverage ratio = unique matched keywords / total query keywords
     unique_matched = len(set(matched_keywords))
@@ -194,7 +200,7 @@ def calculate_score(
     coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
 
     # Coverage multiplier scales from 0.8x to 1.6x
-    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+    coverage_multiplier = COVERAGE_BONUS_BASE + (coverage_ratio * COVERAGE_BONUS_SCALE)
 
     # Apply coverage bonus to get final score
     final_score = base_score * coverage_multiplier
@@ -258,7 +264,7 @@ def calculate_wildcard_score(
 
                 # Apply diminishing returns: weight × 0.5^match_count
                 match_count = keyword_match_counts[query_kw]
-                diminishing_factor = 0.5**match_count
+                diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
                 base_score += weight * diminishing_factor
 
                 # Increment match count
@@ -275,7 +281,7 @@ def calculate_wildcard_score(
 
             # Apply diminishing returns to exact name matches
             match_count = keyword_match_counts[query_kw]
-            diminishing_factor = 0.5**match_count
+            diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
             base_score += EXACT_NAME_MATCH_SCORE * diminishing_factor
 
             # Increment match count
@@ -288,7 +294,7 @@ def calculate_wildcard_score(
     coverage_ratio = unique_matched / total_query_keywords if total_query_keywords > 0 else 0
 
     # Coverage multiplier scales from 0.8x to 1.6x
-    coverage_multiplier = 0.8 + (coverage_ratio * 0.8)
+    coverage_multiplier = COVERAGE_BONUS_BASE + (coverage_ratio * COVERAGE_BONUS_SCALE)
 
     # Apply coverage bonus to get final score
     final_score = base_score * coverage_multiplier
