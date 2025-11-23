@@ -10,6 +10,12 @@ from cicada.keyword_search import KeywordSearcher
 from cicada.scoring import calculate_score, calculate_wildcard_score
 
 
+def _match_wildcard(pattern: str, text: str) -> bool:
+    import fnmatch
+
+    return fnmatch.fnmatch(text.lower(), pattern.lower())
+
+
 def test_dunder_method_exact_match():
     """Test that searching for __init__ matches functions with that name."""
     # Simulate a function document with __init__ as the name
@@ -54,17 +60,12 @@ def test_dunder_method_wildcard_match():
     doc_keywords = {"initialize": 1.0}
     doc_name = "myapp.Base.__init__/2"
 
-    def match_wildcard(pattern, text):
-        import fnmatch
-
-        return fnmatch.fnmatch(text.lower(), pattern.lower())
-
     result = calculate_wildcard_score(
         query_keywords,
         keyword_groups,
         total_terms,
         doc_keywords,
-        match_wildcard,
+        _match_wildcard,
         doc_name=doc_name,
     )
 
@@ -161,6 +162,56 @@ def test_keyword_search_with_dunder_methods():
     assert results[0]["function"] == "save", "Should match save"
     # Base: 1.5, Coverage: 100% → multiplier 1.6, Final: 2.4
     assert results[0]["score"] == 2.4, "Should have keyword match with hybrid score"
+
+
+def test_calculate_wildcard_score_diminishing_returns_repeated_patterns():
+    """Repeated wildcard patterns should have diminishing returns."""
+
+    doc_keywords = {"__init__": 3.0}
+
+    single_pattern = calculate_wildcard_score(
+        ["__init__*"],
+        [0],
+        1,
+        doc_keywords,
+        _match_wildcard,
+    )
+
+    repeated_pattern = calculate_wildcard_score(
+        ["__init__*", "__init__*"],
+        [0, 1],
+        2,
+        doc_keywords,
+        _match_wildcard,
+    )
+
+    assert repeated_pattern["score"] >= single_pattern["score"]
+    assert repeated_pattern["score"] < single_pattern["score"] * 2
+
+
+def test_calculate_wildcard_score_partial_coverage_multiplier():
+    """Wildcard queries should earn less coverage when some patterns miss."""
+
+    doc_keywords = {"__init__": 1.0, "__str__": 1.0}
+
+    full_coverage = calculate_wildcard_score(
+        ["__init__*", "__str__*"],
+        [0, 1],
+        2,
+        doc_keywords,
+        _match_wildcard,
+    )
+
+    partial_coverage = calculate_wildcard_score(
+        ["__init__*", "__str__*", "doesnotmatch*"],
+        [0, 1, 2],
+        3,
+        doc_keywords,
+        _match_wildcard,
+    )
+
+    assert partial_coverage["score"] > 0
+    assert partial_coverage["score"] < full_coverage["score"]
 
 
 def test_name_extraction_with_arity():
