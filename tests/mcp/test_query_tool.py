@@ -64,7 +64,10 @@ class TestQueryToolValidation:
         [
             ({}, "'query' is required"),
             ({"query": 123}, "'query' must be a string or list of strings"),
-            ({"query": ["ok", 5]}, "'query' list must contain strings or lists of strings (for synonyms)"),
+            (
+                {"query": ["ok", 5]},
+                "'query' list must contain strings or lists of strings (for synonyms)",
+            ),
             ({"query": "auth", "scope": "internal"}, "'scope' must be one of"),
             ({"query": "auth", "recent": "yes"}, "'recent' must be a boolean"),
             ({"query": "auth", "filter_type": "classes"}, "'filter_type' must be one of"),

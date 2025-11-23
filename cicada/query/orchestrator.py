@@ -646,7 +646,7 @@ class QueryOrchestrator:
             parts: list[str] = []
             for q in query:
                 if isinstance(q, list):
-                    quoted = ', '.join(f'"{k}"' for k in q)
+                    quoted = ", ".join(f'"{k}"' for k in q)
                     parts.append(f"[{quoted}]")
                 else:
                     parts.append(f'"{q}"')

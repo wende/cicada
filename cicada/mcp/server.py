@@ -154,7 +154,7 @@ async def async_main():
 
     loop = asyncio.get_running_loop()
 
-    def request_shutdown() -> None:
+    def request_shutdown(*_: object) -> None:
         """Signal the server to shut down."""
 
         shutdown_event.set()

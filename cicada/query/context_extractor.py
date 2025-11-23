@@ -3,12 +3,13 @@ Utilities for extracting and formatting contextual text snippets from matched ke
 
 This module provides functions to:
 - Extract paragraphs containing matched keywords
-- Highlight keywords with bold/color formatting
+- Highlight keywords with asterisk or markdown formatting
 - Smart truncation of long strings
 - Combine multiple keyword matches into unified excerpts
 """
 
 import re
+
 from cicada.query.types import StringSource
 
 
@@ -88,12 +89,12 @@ def extract_multiple_keywords(text: str, keywords: list[str]) -> str | None:
 
 def highlight_keywords(text: str, keywords: list[str], use_ansi: bool = True) -> str:
     """
-    Highlight keywords in text using bold formatting or ANSI colors.
+    Highlight keywords in text using single or double asterisks.
 
     Args:
         text: The text to highlight keywords in
         keywords: List of keywords to highlight
-        use_ansi: If True, use ANSI color codes; if False, use markdown bold
+        use_ansi: If True, wrap keywords in *; if False, use markdown bold
 
     Returns:
         Text with highlighted keywords
@@ -103,8 +104,24 @@ def highlight_keywords(text: str, keywords: list[str], use_ansi: bool = True) ->
 
     sorted_keywords = sorted(keywords, key=len, reverse=True)
 
-    start_mark = "\033[1;33m" if use_ansi else "**"
-    end_mark = "\033[0m" if use_ansi else "**"
+    start_mark = "*" if use_ansi else "**"
+    end_mark = "*" if use_ansi else "**"
+
+    def is_inside_existing_highlight(source: str, index: int) -> bool:
+        """Avoid double-wrapping already-highlighted text."""
+        if start_mark == end_mark:
+            return source[:index].count(start_mark) % 2 == 1
+
+        last_start = source.rfind(start_mark, 0, index)
+        if last_start == -1:
+            return False
+
+        last_end = source.rfind(end_mark, 0, index)
+        if last_end > last_start:
+            return False
+
+        next_end = source.find(end_mark, index)
+        return next_end != -1 and last_start < index < next_end
 
     result = text
     for keyword in sorted_keywords:
@@ -113,16 +130,8 @@ def highlight_keywords(text: str, keywords: list[str], use_ansi: bool = True) ->
         matches = []
         for match in pattern.finditer(result):
             start = match.start()
-            before_text = result[:start]
-
-            if use_ansi:
-                start_count = before_text.count(start_mark)
-                end_count = before_text.count(end_mark)
-                if start_count > end_count:
-                    continue
-            else:
-                if before_text.count(start_mark) % 2 == 1:
-                    continue
+            if is_inside_existing_highlight(result, start):
+                continue
 
             matches.append(match)
 
@@ -231,10 +240,9 @@ def format_matched_context(
     ]
 
     # Format documentation matches
-    if doc_keywords and doc_text:
-        if para := extract_multiple_keywords(doc_text, doc_keywords):
-            highlighted = highlight_keywords(para, doc_keywords, use_ansi)
-            sections.append(f"Matched in documentation:\n> {highlighted}")
+    if doc_keywords and doc_text and (para := extract_multiple_keywords(doc_text, doc_keywords)):
+        highlighted = highlight_keywords(para, doc_keywords, use_ansi)
+        sections.append(f"Matched in documentation:\n> {highlighted}")
 
     # Format string literal matches
     if string_keywords and string_sources:
