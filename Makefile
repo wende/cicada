@@ -204,6 +204,7 @@ pr-comments:
 		exit 1; \
 	fi; \
 	REPO=$$(gh repo view --json nameWithOwner --jq '.nameWithOwner'); \
+	CURRENT_COMMIT=$$(git rev-parse HEAD); \
 	echo "PR #$$PR_NUMBER"; \
 	echo ""; \
 	echo "================================================================================"; \
@@ -221,8 +222,23 @@ pr-comments:
 	echo "$$REVIEWS"; \
 	echo ""; \
 	echo "================================================================================"; \
-	echo "REVIEW COMMENTS (Line-level code comments)"; \
+	echo "REVIEW COMMENTS (Line-level code comments - unaddressed only)"; \
 	echo "================================================================================"; \
 	echo ""; \
-	REVIEW_COMMENTS=$$(gh api repos/$$REPO/pulls/$$PR_NUMBER/comments --paginate --jq '[.[] | select(.outdated != true)] | if length > 0 then .[] | "File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No active review comments found (all may be outdated or resolved).\n" end'); \
-	echo "$$REVIEW_COMMENTS"
+	TEMP_COMMENTS=$$(mktemp); \
+	gh api repos/$$REPO/pulls/$$PR_NUMBER/comments > "$$TEMP_COMMENTS"; \
+	COMMENT_COUNT=$$(jq 'length' "$$TEMP_COMMENTS"); \
+	FOUND_UNADDRESSED=false; \
+	for i in $$(seq 0 $$((COMMENT_COUNT - 1))); do \
+		COMMENT_DATE=$$(jq -r ".[$${i}].created_at" "$$TEMP_COMMENTS"); \
+		COMMITS_SINCE=$$(git log --since="$$COMMENT_DATE" --oneline); \
+		if echo "$$COMMITS_SINCE" | grep -qi "addressed"; then \
+			continue; \
+		fi; \
+		FOUND_UNADDRESSED=true; \
+		jq -r ".[$${i}] | \"File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_COMMENTS"; \
+	done; \
+	if [ "$$FOUND_UNADDRESSED" = "false" ]; then \
+		echo "All review comments have been addressed! 🎉"; \
+	fi; \
+	rm -f "$$TEMP_COMMENTS"

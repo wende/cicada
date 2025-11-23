@@ -1188,9 +1188,10 @@ This command automatically:
 2. Fetches and displays all PR discussion in organized sections:
    - **Regular PR Comments**: Top-level discussion comments
    - **Review Summaries**: Overall review bodies with approval/rejection status
-   - **Review Comments**: Line-level code review comments with file paths and diff context
+   - **Review Comments**: Line-level code review comments (filtered to show only unaddressed feedback)
 3. Filters out hidden/minimized comments (spam, resolved, etc.)
-4. Paginates through all comments (not just the first page)
+4. Filters out review comments addressed in commits (looks for "addressed" keyword in commit messages)
+5. Paginates through all comments (not just the first page)
 
 ### When to Use
 
@@ -1215,6 +1216,44 @@ make pr-comments
 
 # 4. Commit changes addressing the feedback
 ```
+
+### Smart Comment Filtering
+
+The `make pr-comments` command intelligently filters review comments to show only **unaddressed feedback**:
+
+**How it works:**
+- For each review comment, checks all commits made since the comment was created
+- If any commit message contains the keyword **"addressed"** (case-insensitive), the comment is hidden
+- This allows you to continue development after addressing feedback without losing visibility of still-relevant comments
+
+**CRITICAL RULE: When addressing PR feedback, you MUST include "addressed" in your commit message.**
+
+**Examples:**
+
+```bash
+# ✓ Good commit messages that will hide addressed comments:
+git commit -m "Add gh CLI dependency check (addressed PR feedback)"
+git commit -m "Addressed: Fix jq safe iteration and add master branch check"
+git commit -m "Improve error handling - addressed review comments"
+
+# ✓ Also works with different capitalization:
+git commit -m "ADDRESSED pr comments about error handling"
+git commit -m "Fix validation logic (Addressed feedback)"
+
+# ❌ Bad - comment will still show up:
+git commit -m "Add gh CLI dependency check"
+git commit -m "Fix jq safe iteration"
+```
+
+**Why this matters:**
+- Without "addressed" in the commit message, the comment will continue to appear even after you fix it
+- This creates confusion about what still needs to be done
+- The keyword acts as an explicit signal that feedback has been resolved
+
+**When NOT to use "addressed":**
+- Commits that don't resolve any PR feedback
+- Work in progress commits
+- Commits that only partially address a comment
 
 ### Error Handling
 
