@@ -152,24 +152,24 @@ async def async_main():
     # Create a shutdown event for clean async cancellation
     shutdown_event = asyncio.Event()
 
-    # Get the event loop for thread-safe signal handling
     loop = asyncio.get_running_loop()
 
-    # Define callback for thread-safe event setting
-    def set_shutdown_event():
-        """Set the shutdown event from signal handler."""
+    def request_shutdown() -> None:
+        """Signal the server to shut down."""
+
         shutdown_event.set()
 
-    # Set up signal handlers for clean shutdown
-    def signal_handler(signum, _frame):
-        """Handle signals by triggering async shutdown."""
-        # Thread-safe way to set the event from signal handler
-        loop.call_soon_threadsafe(set_shutdown_event)
+    # Prefer asyncio-native signal handling to avoid race conditions
+    signals_to_handle = [signal.SIGINT]
+    if hasattr(signal, "SIGTERM"):
+        signals_to_handle.append(signal.SIGTERM)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    # SIGTERM is Unix-only
-    if sys.platform != "win32":
-        signal.signal(signal.SIGTERM, signal_handler)
+    for sig in signals_to_handle:
+        try:
+            loop.add_signal_handler(sig, request_shutdown)
+        except (NotImplementedError, RuntimeError):
+            # Fallback for platforms without add_signal_handler support
+            signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))
 
     try:
         # Check if setup is needed before starting server
@@ -177,9 +177,12 @@ async def async_main():
         original_stdout = sys.stdout
         try:
             sys.stdout = sys.stderr
-            _auto_setup_if_needed()
+            _auto_setup_if_needed(shutdown_event)
         finally:
             sys.stdout = original_stdout
+
+        if shutdown_event.is_set():
+            return
 
         server = CicadaServer()
 
@@ -192,32 +195,26 @@ async def async_main():
             [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
         )
 
-        # If shutdown was triggered, cancel the server task
-        if shutdown_event.is_set():
-            server_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await server_task
-        else:
-            # Server completed on its own - check for exceptions
-            if server_task in done:
-                # This will re-raise any exception that occurred in server.run()
-                server_task.result()
+        # Propagate exceptions from completed tasks
+        for task in done:
+            if task.cancelled():
+                continue
+            exception = task.exception()
+            if exception:
+                raise exception
 
-        # Cancel any remaining tasks
+        # Cancel any remaining tasks (e.g., server_task during shutdown)
         for task in pending:
             task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
 
-    except KeyboardInterrupt:
-        # Suppress the traceback, just exit cleanly
-        pass
     except Exception as e:
         print(f"Error starting server: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def _auto_setup_if_needed():
+def _auto_setup_if_needed(shutdown_event=None):
     """
     Automatically run setup if the repository hasn't been indexed yet.
 
@@ -230,6 +227,12 @@ def _auto_setup_if_needed():
         get_config_path,
         get_index_path,
     )
+
+    def _ensure_not_shutdown():
+        if shutdown_event and shutdown_event.is_set():
+            raise KeyboardInterrupt
+
+    _ensure_not_shutdown()
 
     # Determine repository path from environment or current directory
     repo_path_str = None
@@ -264,18 +267,26 @@ def _auto_setup_if_needed():
     # Validate it's a supported project type
     from cicada.setup import detect_project_language
 
+    _ensure_not_shutdown()
+
     try:
         language = detect_project_language(repo_path)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    _ensure_not_shutdown()
+
     try:
         # Create storage directory
         storage_dir = create_storage_dir(repo_path)
 
+        _ensure_not_shutdown()
+
         # Index repository (silent mode)
         index_repository(repo_path, language, verbose=False)
+
+        _ensure_not_shutdown()
 
         # Create config.yaml (silent mode)
         create_config_yaml(repo_path, storage_dir, verbose=False)

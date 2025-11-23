@@ -1,176 +1,114 @@
 #!/usr/bin/env python
-"""
-Tests for graceful shutdown behavior in MCP server.
-
-Tests signal handling, task cancellation, and clean exits.
-"""
+"""Tests for graceful shutdown behavior in MCP server."""
 
 import asyncio
 import signal
-import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Callable
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 
-class TestGracefulShutdown:
-    """Test graceful shutdown mechanism in async_main."""
+@pytest.mark.asyncio
+async def test_shutdown_event_cancels_server_task(monkeypatch):
+    """SIGINT should trigger shutdown_event and cancel the running server task."""
+    from cicada.mcp import server as server_module
 
-    @pytest.mark.asyncio
-    async def test_shutdown_event_cancels_server_task(self):
-        """Test that setting shutdown_event cancels the server task cleanly."""
-        from cicada.mcp.server import async_main
+    # Capture signal callbacks registered by async_main
+    loop = asyncio.get_running_loop()
+    registered_handlers: dict[signal.Signals, Callable[[], None]] = {}
 
-        # Mock CicadaServer to control its behavior
-        with patch("cicada.mcp.server.CicadaServer") as mock_server_class:
-            # Create a mock server that runs indefinitely until cancelled
-            mock_server = mock_server_class.return_value
-            run_called = asyncio.Event()
+    def track_add_signal_handler(sig, callback):
+        registered_handlers[sig] = callback
 
-            async def mock_run():
-                """Mock server.run() that signals when called and waits indefinitely."""
-                run_called.set()
-                await asyncio.Event().wait()  # Wait forever (until cancelled)
+    monkeypatch.setattr(loop, "add_signal_handler", track_add_signal_handler)
 
-            mock_server.run = AsyncMock(side_effect=mock_run)
+    # Mock server that waits indefinitely until cancelled
+    with patch.object(server_module, "CicadaServer") as mock_server_class:
+        mock_server = mock_server_class.return_value
+        server_started = asyncio.Event()
 
-            # Mock _auto_setup_if_needed to avoid setup logic
-            with patch("cicada.mcp.server._auto_setup_if_needed"):
-                # Run async_main in a task so we can cancel it
-                main_task = asyncio.create_task(async_main())
+        async def mock_run():
+            server_started.set()
+            await asyncio.Event().wait()
 
-                # Wait for server.run() to be called
-                try:
-                    await asyncio.wait_for(run_called.wait(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    pytest.fail("Server run() was not called within timeout")
+        mock_server.run = AsyncMock(side_effect=mock_run)
 
-                # Send SIGINT to trigger shutdown
-                # Since we're in an async context, directly set the event instead
-                # In real usage, the signal handler would call loop.call_soon_threadsafe
-                loop = asyncio.get_running_loop()
+        with patch.object(server_module, "_auto_setup_if_needed"):
+            main_task = asyncio.create_task(server_module.async_main())
 
-                # Simulate signal by sending SIGINT
-                if sys.platform != "win32":
-                    signal.raise_signal(signal.SIGINT)
-                else:
-                    # On Windows, simulate KeyboardInterrupt
-                    loop.call_soon_threadsafe(lambda: main_task.cancel())
+            await asyncio.wait_for(server_started.wait(), timeout=1.0)
 
-                # Wait for main to exit cleanly
-                try:
-                    await asyncio.wait_for(main_task, timeout=2.0)
-                except asyncio.CancelledError:
-                    pass  # Expected on Windows
-                except KeyboardInterrupt:
-                    pass  # Expected, caught by async_main
+            # Simulate SIGINT delivery
+            assert signal.SIGINT in registered_handlers
+            registered_handlers[signal.SIGINT]()
 
-                # Verify server task was cancelled
-                assert mock_server.run.called
+            await asyncio.wait_for(main_task, timeout=1.0)
 
-    @pytest.mark.asyncio
-    async def test_server_exception_propagates(self):
-        """Test that exceptions in server.run() are properly raised."""
-        from cicada.mcp.server import async_main
+    assert main_task.done()
+    assert not main_task.cancelled()
+    assert mock_server.run.await_count == 1
 
-        # Mock CicadaServer to raise an exception
-        with patch("cicada.mcp.server.CicadaServer") as mock_server_class:
-            mock_server = mock_server_class.return_value
-            test_error = RuntimeError("Test server error")
-            mock_server.run = AsyncMock(side_effect=test_error)
 
-            # Mock _auto_setup_if_needed
-            with patch("cicada.mcp.server._auto_setup_if_needed"):
-                # Mock sys.exit to prevent actual exit
-                with patch("sys.exit") as mock_exit:
-                    # Run async_main - should catch exception and call sys.exit(1)
-                    await async_main()
+@pytest.mark.asyncio
+async def test_server_exception_propagates_to_sys_exit(monkeypatch):
+    """Exceptions from server.run should trigger sys.exit(1)."""
+    from cicada.mcp import server as server_module
 
-                    # Verify sys.exit(1) was called
-                    mock_exit.assert_called_once_with(1)
+    with patch.object(server_module, "CicadaServer") as mock_server_class:
+        mock_server = mock_server_class.return_value
+        mock_server.run = AsyncMock(side_effect=RuntimeError("Test server error"))
 
-    @pytest.mark.asyncio
-    async def test_keyboard_interrupt_suppresses_traceback(self):
-        """Test that KeyboardInterrupt is caught and handled cleanly."""
-        from cicada.mcp.server import async_main
+        with patch.object(server_module, "_auto_setup_if_needed"):
+            with patch("sys.exit") as mock_exit:
+                await server_module.async_main()
 
-        # Mock CicadaServer with a server that completes normally
-        with patch("cicada.mcp.server.CicadaServer") as mock_server_class:
-            mock_server = mock_server_class.return_value
+    mock_exit.assert_called_once_with(1)
 
-            async def complete_normally():
-                """Mock server that completes without error."""
-                await asyncio.sleep(0.01)
 
-            mock_server.run = AsyncMock(side_effect=complete_normally)
+@pytest.mark.asyncio
+async def test_signal_handlers_use_asyncio_loop(monkeypatch):
+    """async_main should register signal handlers via the running loop."""
+    from cicada.mcp import server as server_module
 
-            # Mock _auto_setup_if_needed
-            with patch("cicada.mcp.server._auto_setup_if_needed"):
-                # Test that async_main can handle the KeyboardInterrupt exception
-                # by wrapping it in a try/except that mimics what happens in real usage
-                try:
-                    await async_main()
-                except KeyboardInterrupt:
-                    # This should not happen - async_main should suppress it
-                    pytest.fail("KeyboardInterrupt was not suppressed by async_main")
+    loop = asyncio.get_running_loop()
+    signals_registered: list[signal.Signals] = []
 
-    @pytest.mark.asyncio
-    async def test_signal_handler_thread_safety(self):
-        """Test that signal handler uses thread-safe event setting."""
-        from cicada.mcp.server import async_main
+    def record_handler(sig, _callback):
+        signals_registered.append(sig)
 
-        with patch("cicada.mcp.server.CicadaServer") as mock_server_class:
-            mock_server = mock_server_class.return_value
+    monkeypatch.setattr(loop, "add_signal_handler", record_handler)
 
-            # Track calls to loop.call_soon_threadsafe
-            call_soon_calls = []
+    with patch.object(server_module, "CicadaServer") as mock_server_class:
+        mock_server = mock_server_class.return_value
+        mock_server.run = AsyncMock(return_value=None)
 
-            async def mock_run():
-                """Mock server that waits briefly."""
-                await asyncio.sleep(0.1)
+        with patch.object(server_module, "_auto_setup_if_needed"):
+            await server_module.async_main()
 
-            mock_server.run = AsyncMock(side_effect=mock_run)
+    assert signal.SIGINT in signals_registered
+    if hasattr(signal, "SIGTERM"):
+        assert signal.SIGTERM in signals_registered
 
-            with patch("cicada.mcp.server._auto_setup_if_needed"):
-                # Patch get_running_loop to track call_soon_threadsafe calls
-                original_get_loop = asyncio.get_running_loop
 
-                def patched_get_loop():
-                    loop = original_get_loop()
-                    original_call_soon = loop.call_soon_threadsafe
+@pytest.mark.asyncio
+async def test_shutdown_requested_during_setup_aborts(monkeypatch):
+    """_auto_setup_if_needed should stop early when shutdown is requested."""
+    from cicada.mcp import server as server_module
 
-                    def tracked_call_soon(callback, *args):
-                        call_soon_calls.append((callback, args))
-                        return original_call_soon(callback, *args)
+    shutdown_event = asyncio.Event()
+    shutdown_event.set()
 
-                    loop.call_soon_threadsafe = tracked_call_soon
-                    return loop
+    with (
+        patch("cicada.setup.detect_project_language") as detect_language,
+        patch("cicada.utils.create_storage_dir") as create_storage,
+        patch("cicada.setup.index_repository") as index_repo,
+        patch("cicada.setup.create_config_yaml") as create_config,
+    ):
+        with pytest.raises(KeyboardInterrupt):
+            server_module._auto_setup_if_needed(shutdown_event)
 
-                with patch("asyncio.get_running_loop", side_effect=patched_get_loop):
-                    await async_main()
-
-                    # Signal handler should be registered (we can't easily test the handler
-                    # itself without actually sending signals, but we verified the setup)
-                    # This test mainly verifies the code structure is correct
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not available on Windows")
-    def test_sigterm_handler_only_on_unix(self):
-        """Test that SIGTERM handler is only registered on Unix platforms."""
-        import signal as signal_module
-
-        from cicada.mcp.server import async_main
-
-        # Check that the code includes platform check
-        with patch("cicada.mcp.server.CicadaServer"):
-            with patch("cicada.mcp.server._auto_setup_if_needed"):
-                with patch.object(signal_module, "signal") as mock_signal:
-                    # Create minimal async context
-                    async def run_test():
-                        # We can't easily run async_main here, so just verify
-                        # the platform check exists in the source
-                        pass
-
-                    asyncio.run(run_test())
-
-        # The actual test is that the code doesn't crash on Windows
-        # The platform check is verified by reading the source
+    detect_language.assert_not_called()
+    create_storage.assert_not_called()
+    index_repo.assert_not_called()
+    create_config.assert_not_called()
