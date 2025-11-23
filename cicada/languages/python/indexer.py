@@ -541,10 +541,10 @@ class PythonSCIPIndexer(BaseIndexer):
 
     def _ensure_scip_python_installed(self):
         """
-        Ensure scip-python is installed, auto-install if needed.
+        Ensure scip-python is installed.
 
         Raises:
-            RuntimeError: If npm is not available or installation fails
+            RuntimeError: If scip-python is not available
         """
         if SCIPPythonInstaller.is_scip_python_installed():
             if self.verbose:
@@ -552,25 +552,12 @@ class PythonSCIPIndexer(BaseIndexer):
                 print(f"  Using scip-python {version}")
             return
 
-        # Check npm availability
-        if not SCIPPythonInstaller.is_npm_available():
-            raise RuntimeError(
-                "npm is required to install scip-python.\n"
-                "Install Node.js from: https://nodejs.org/\n"
-                "Or install scip-python manually: npm install -g @sourcegraph/scip-python"
-            )
-
-        # Auto-install
-        print("Installing scip-python (this may take a minute)...")
-        success = SCIPPythonInstaller.install_scip_python(verbose=self.verbose)
-
-        if not success:
-            raise RuntimeError(
-                "Failed to install scip-python.\n"
-                "Try installing manually: npm install -g @sourcegraph/scip-python"
-            )
-
-        print("✓ scip-python installed successfully")
+        raise RuntimeError(
+            "scip-python is required to index Python repositories.\n"
+            "Please install it globally using npm:\n"
+            "  npm install -g @sourcegraph/scip-python\n"
+            "Or see https://github.com/sourcegraph/scip-python for installation instructions."
+        )
 
     def _run_scip_python(self, repo_path: Path) -> Path:
         """
@@ -597,10 +584,8 @@ class PythonSCIPIndexer(BaseIndexer):
             if self.verbose:
                 print("  Created temporary pyrightconfig.json to exclude dependencies")
 
-        # Create temporary file for .scip output
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".scip", delete=False, dir=repo_path
-        ) as tmp:
+        # Create temporary file for .scip output in system temp directory
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".scip", delete=False) as tmp:
             scip_file = Path(tmp.name)
 
         cmd = [

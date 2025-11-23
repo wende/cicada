@@ -49,7 +49,7 @@ CICADA is an MCP server that gives assistants AST-level knowledge for Elixir and
 
 ---
 
-## Quick Install
+## Install
 
 ```bash
 # 1. Install uv (if needed)
@@ -61,25 +61,24 @@ cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cic
 ```
 
 <div align="left">
-<details>
 <summary><strong>Try before installing permanently</strong></summary>
+Runs CICADA on demand (worse indexing quality, but zero install).
 
 ```bash
 uvx cicada-mcp claude   # or cursor, vs
 ```
+or
 
-Runs CICADA on demand (worse indexing quality, but zero install).
-
-</details>
-
-<details>
-<summary><strong>Alternative: Use editor's native MCP installer</strong></summary>
-
-```bash
-claude mcp add uvx cicada-mcp
-gemini mcp add uvx cicada-mcp
-codex mcp add uvx cicada-mcp
 ```
+claude mcp add uvx cicada-mcp
+```   
+```
+gemini mcp add uvx cicada-mcp
+```  
+```
+codex mcp add uvx cicada-mcp
+```  
+
 
 Uses your editor's built-in MCP management to install CICADA.
 
@@ -87,12 +86,14 @@ Uses your editor's built-in MCP management to install CICADA.
 </div>
 
 **Available commands after installation:**
-- `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command setup per project
+- `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command interactive setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
 - `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
+- `cicada link [parent_dir]` - Links current repository to an existing index
+- `cicada clean` - Completely removes cicada integration from your folder as well as all settings
 
 Ask your assistant:
 ```
@@ -112,8 +113,8 @@ Ask your assistant:
 
 ## Privacy & Security
 
-- **100% local:** parsing + indexing happen on your machine; no cloud uploads.
-- **No telemetry:** CICADA doesn't collect usage or phone home.
+- **100% local:** parsing + indexing happen on your machine; no external access.
+- **No telemetry:** CICADA doesn't collect usage or any telemetry.
 - **Read-only tools:** MCP endpoints only read the index; they can't change your repo.
 - **Optional GitHub access:** PR features rely on `gh` and your existing OAuth token.
 - **Data layout:**
