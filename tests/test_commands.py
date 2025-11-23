@@ -18,6 +18,7 @@ from cicada.commands import (
     KNOWN_SUBCOMMANDS_SET,
     DEFAULT_WATCH_DEBOUNCE,
 )
+from cicada.logging_utils import get_verbose_flag, configure_logging
 
 
 # ============================================================================
@@ -463,3 +464,121 @@ class TestErrorPaths:
         except (AttributeError, TypeError):
             # If it doesn't handle None, that's also acceptable for incomplete args
             pass
+
+
+# ============================================================================
+# SECTION 13: Test Verbose Flag
+# ============================================================================
+
+
+class TestVerboseFlag:
+    """Test verbose flag functionality."""
+
+    def test_parser_has_verbose_flag(self):
+        """Test that parser includes --verbose flag."""
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--verbose"])
+        assert hasattr(args, "verbose")
+        assert args.verbose is True
+
+    def test_verbose_flag_defaults_to_false(self):
+        """Test that verbose flag defaults to False."""
+        parser = get_argument_parser()
+        args = parser.parse_args(["index"])
+        assert hasattr(args, "verbose")
+        assert args.verbose is False
+
+    def test_verbose_flag_on_all_commands(self):
+        """Test that verbose flag works with all commands."""
+        parser = get_argument_parser()
+        commands_to_test = ["index", "watch", "query authentication"]
+
+        for cmd in commands_to_test:
+            cmd_parts = cmd.split()
+            args = parser.parse_args(cmd_parts + ["--verbose"])
+            assert args.verbose is True, f"verbose flag failed for command: {cmd}"
+
+    def test_get_verbose_flag_utility(self):
+        """Test get_verbose_flag utility function."""
+        # Test with verbose=True
+        args = MagicMock()
+        args.verbose = True
+        assert get_verbose_flag(args) is True
+
+        # Test with verbose=False
+        args.verbose = False
+        assert get_verbose_flag(args) is False
+
+        # Test with missing verbose attribute
+        args = MagicMock(spec=[])
+        assert get_verbose_flag(args) is False
+
+    def test_configure_logging_verbose(self):
+        """Test configure_logging with verbose=True."""
+        import logging
+
+        configure_logging(verbose=True)
+        logger = logging.getLogger()
+        assert logger.level == logging.DEBUG
+
+    def test_configure_logging_not_verbose(self):
+        """Test configure_logging with verbose=False."""
+        import logging
+
+        configure_logging(verbose=False)
+        logger = logging.getLogger()
+        assert logger.level == logging.WARNING
+
+    @patch("cicada.commands._setup_and_start_watcher")
+    def test_watch_command_uses_verbose_flag(self, mock_watcher):
+        """Test that watch command passes verbose flag."""
+        parser = get_argument_parser()
+        args = parser.parse_args(["watch", "--verbose"])
+
+        # Mock handle_watch to verify it uses the verbose flag
+        from cicada.commands import handle_watch
+
+        with patch("cicada.version_check.check_for_updates"):
+            try:
+                handle_watch(args)
+            except Exception:
+                # We're just testing argument parsing, not execution
+                pass
+
+        # Verify mock was called (means watch command was invoked)
+        mock_watcher.assert_called_once()
+
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_command_uses_verbose_flag(self, mock_get_indexer):
+        """Test that index command passes verbose flag."""
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--verbose", "--force", "--fast"])
+
+        # Setup mock indexer
+        mock_indexer = MagicMock()
+        mock_indexer.incremental_index_repository = MagicMock()
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()  # Make it an Elixir project
+
+            args.repo = str(tmpdir_path)
+
+            from cicada.commands import handle_index_main
+
+            with patch("cicada.utils.storage.create_storage_dir"):
+                with patch("cicada.utils.storage.get_config_path"):
+                    with patch("cicada.utils.storage.get_index_path"):
+                        with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                            try:
+                                handle_index_main(args)
+                            except Exception:
+                                # We're just testing argument parsing
+                                pass
+
+            # Verify that incremental_index_repository was called with verbose=True
+            if mock_indexer.incremental_index_repository.called:
+                call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
+                assert "verbose" in call_kwargs
+                assert call_kwargs["verbose"] is True

@@ -961,6 +961,7 @@ class TestSetupAndStartWatcher:
             max=False,
             regular=False,
             debounce=3.5,
+            verbose=True,
         )
 
         config_path = tmp_path / "config.yaml"
