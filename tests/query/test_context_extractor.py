@@ -145,12 +145,11 @@ class TestHighlightKeywords:
         assert "**authentication**" in result
 
     def test_ansi_highlighting(self):
-        """Test highlighting with ANSI colors."""
+        """Test highlighting with single asterisks."""
         text = "This paragraph mentions authentication."
         result = highlight_keywords(text, ["authentication"], use_ansi=True)
-        # Should contain ANSI escape codes
-        assert "\033[" in result
-        assert "authentication" in result
+        assert "*authentication*" in result
+        assert "\033[" not in result
 
     def test_multiple_keywords(self):
         """Test highlighting multiple keywords."""
@@ -193,10 +192,10 @@ class TestHighlightKeywords:
         assert "**user authentication**" in result
 
     def test_ansi_highlight_skips_existing_markers(self):
-        """Ensure ANSI highlighting does not double-wrap existing highlights."""
-        highlighted = "\033[1;33mauthentication\033[0m is present"
+        """Ensure highlighting does not double-wrap existing highlights."""
+        highlighted = "*authentication* is present"
         result = highlight_keywords(highlighted, ["authentication"], use_ansi=True)
-        assert result.count("\033[1;33m") == 1
+        assert result.count("*authentication*") == 1
 
 
 class TestSmartTruncateString:
@@ -388,7 +387,7 @@ class TestFormatMatchedContext:
         assert result.count("(line") <= 3
 
     def test_ansi_highlighting_in_context(self):
-        """Test that ANSI highlighting is applied when use_ansi=True."""
+        """Test that single-asterisk highlighting is applied when use_ansi=True."""
         matched_keywords = ["test"]
         keyword_sources = {"test": "docs"}
         doc_text = "This is a test module."
@@ -398,8 +397,8 @@ class TestFormatMatchedContext:
             matched_keywords, keyword_sources, doc_text, string_sources, use_ansi=True
         )
 
-        # Should contain ANSI escape codes
-        assert "\033[" in result
+        assert "*test*" in result
+        assert "\033[" not in result
 
     def test_long_string_truncation_in_context(self):
         """Test that long strings are truncated in the formatted context."""

@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-rc1] - 2025-11-23
+
+### Added
+
+- **Verbose flag** ([#154](https://github.com/wende/cicada/pull/154)) - Added `--verbose` flag for detailed logging and debugging
+- **PR comments command** ([#144](https://github.com/wende/cicada/pull/144)) - New `make pr-comments` command for viewing and analyzing PR discussion
+- **Keyword context display** ([#158](https://github.com/wende/cicada/pull/158)) - Enhanced search results with keyword match context showing where keywords were found
+- **Multiple keyword weighting** ([#159](https://github.com/wende/cicada/pull/159)) - Support for multiple keyword weights in search scoring
+- **Graceful shutdown** ([#153](https://github.com/wende/cicada/pull/153)) - Added signal handlers (SIGINT/SIGTERM) for clean MCP server shutdown
+- **Coverage delta reporting** ([#149](https://github.com/wende/cicada/pull/149)) - CodeCov comments now show coverage deltas
+
+### Changed
+
+- **Python support refactoring** ([#160](https://github.com/wende/cicada/pull/160)) - Removed auto-install of scip-python and improved file handling safety
+- **Test output improvements** - Made test output more concise and less verbose ([#142](https://github.com/wende/cicada/pull/142))
+- **Markdown formatting** ([#167](https://github.com/wende/cicada/pull/167)) - Improved spacing after signatures and code blocks in usage output
+- **Documentation updates** - Revised installation and command usage in README
+
+### Fixed
+
+- **Class docstring display** ([#136](https://github.com/wende/cicada/pull/136)) - Fixed class docstring display in `expand_result` tool
+- **Wildcard matching** ([#137](https://github.com/wende/cicada/pull/137)) - Fixed wildcard match confidence scoring and z-score tier grading
+- **Python MCP tools** ([#139](https://github.com/wende/cicada/pull/139), [#151](https://github.com/wende/cicada/pull/151)) - Fixed critical bugs including dependency crashes and pattern matching issues
+- **Python recent filter** ([#141](https://github.com/wende/cicada/pull/141)) - Fixed `recent=true` filter now works correctly for Python code
+- **Private function suggestions** ([#140](https://github.com/wende/cicada/pull/140)) - Fixed incorrect private function suggestions in `search_function`
+- **Dunder method search** ([#152](https://github.com/wende/cicada/pull/152)) - Fixed search for Python dunder methods by matching function names correctly
+
+### Internal
+
+- **Test coverage improvements** ([#145](https://github.com/wende/cicada/pull/145), [#146](https://github.com/wende/cicada/pull/146), [#147](https://github.com/wende/cicada/pull/147), [#148](https://github.com/wende/cicada/pull/148), [#150](https://github.com/wende/cicada/pull/150))
+  - Added comprehensive tests for index lookup and reference utilities
+  - Added validation coverage for query MCP tool
+  - Added edge case tests for filter_utils and pattern_utils
+  - Overall test coverage increased to 84%
+- **CI/CD improvements**
+  - Added dev branch to CI test workflow
+  - Automated Codex review on every commit
+  - Updated pull request trigger types in workflow
+
 ## [0.5.0-rc0] - 2025-11-22
 
 ### Added
