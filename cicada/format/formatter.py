@@ -702,18 +702,49 @@ class ModuleFormatter:
                 lines.extend(["", f"**Guards:** `when {guards_str}`"])
 
         if show_relationships:
-            dependencies = result.get("dependencies", [])
-            if dependencies:
+            # Check for detailed dependencies first (from what_it_calls=true)
+            detailed_deps = result.get("detailed_dependencies")
+            if detailed_deps:
                 lines.append("")
                 lines.append("Calls these functions:")
-                for dep in dependencies[:5]:
+
+                # Show internal dependencies first
+                internal = detailed_deps.get("internal", [])
+                for dep in internal[:5]:
                     dep_module = dep.get("module", "?")
                     dep_func = dep.get("function", "?")
                     dep_arity = dep.get("arity", "?")
                     dep_line = dep.get("line", "?")
                     lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
-                if len(dependencies) > 5:
-                    lines.append(f"   ... and {len(dependencies) - 5} more")
+
+                # Show external dependencies
+                external = detailed_deps.get("external", [])
+                remaining = 5 - len(internal[:5])
+                for dep in external[:remaining]:
+                    dep_module = dep.get("module", "?")
+                    dep_func = dep.get("function", "?")
+                    dep_arity = dep.get("arity", "?")
+                    dep_line = dep.get("line", "?")
+                    lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+
+                total = detailed_deps.get("total_count", len(internal) + len(external))
+                shown = min(5, len(internal) + len(external))
+                if total > shown:
+                    lines.append(f"   ... and {total - shown} more")
+            else:
+                # Fallback to simple dependencies list (legacy format)
+                dependencies = result.get("dependencies", [])
+                if dependencies:
+                    lines.append("")
+                    lines.append("Calls these functions:")
+                    for dep in dependencies[:5]:
+                        dep_module = dep.get("module", "?")
+                        dep_func = dep.get("function", "?")
+                        dep_arity = dep.get("arity", "?")
+                        dep_line = dep.get("line", "?")
+                        lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                    if len(dependencies) > 5:
+                        lines.append(f"   ... and {len(dependencies) - 5} more")
 
         if call_sites:
             lines.extend(
