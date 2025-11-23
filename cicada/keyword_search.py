@@ -340,7 +340,12 @@ class KeywordSearcher:
             - confidence: Percentage of query keywords that matched
             - match_details: Detailed location and frequency info (if doc provided)
         """
-        result = calculate_score(query_keywords, keyword_groups, total_terms, doc_keywords)
+        # Extract document name for function/module name matching
+        doc_name = doc.get("name") if doc else None
+
+        result = calculate_score(
+            query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
+        )
 
         # Add match details if document provided
         if doc and result.get("matched_keywords"):
@@ -373,8 +378,16 @@ class KeywordSearcher:
             - confidence: Percentage of query keywords that matched
             - match_details: Detailed location and frequency info (if doc provided)
         """
+        # Extract document name for function/module name matching
+        doc_name = doc.get("name") if doc else None
+
         result = calculate_wildcard_score(
-            query_keywords, keyword_groups, total_terms, doc_keywords, self._match_wildcard
+            query_keywords,
+            keyword_groups,
+            total_terms,
+            doc_keywords,
+            self._match_wildcard,
+            doc_name=doc_name,
         )
 
         # Add match details if document provided
@@ -644,6 +657,7 @@ class KeywordSearcher:
                     keyword_groups,
                     len(query_keywords_lower),
                     doc["keywords"],
+                    doc=doc,
                 )
             else:
                 result_data = self._calculate_score(
@@ -651,6 +665,7 @@ class KeywordSearcher:
                     keyword_groups,
                     len(query_keywords_lower),
                     doc["keywords"],
+                    doc=doc,
                 )
 
             # Check for module name match if module patterns were extracted

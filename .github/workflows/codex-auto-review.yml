@@ -12,6 +12,7 @@ jobs:
       - name: Post @codex review comment
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
           script: |
             await github.rest.issues.createComment({
               issue_number: context.issue.number,

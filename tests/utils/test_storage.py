@@ -664,3 +664,164 @@ class TestLinkFunctionality:
         assert config_path.parent == repo_storage, "Config should be in repo's storage"
         assert hashes_path.parent == repo_storage, "Hashes should be in repo's storage"
         assert pr_index_path.parent == repo_storage, "PR index should be in repo's storage"
+
+
+class TestLinkResolutionEdgeCases:
+    """Tests for edge cases in link resolution"""
+
+    @pytest.fixture
+    def mock_home_dir(self, tmp_path, monkeypatch):
+        """Mock the home directory for storage"""
+        cicada_dir = tmp_path / ".cicada"
+        cicada_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        return cicada_dir
+
+    def test_resolve_storage_dir_with_circular_reference_detection(self, tmp_path, mock_home_dir):
+        """Should detect circular references in link chain (line 194)"""
+        # Create three repos
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+
+        # Create storage dirs
+        storage_a = create_storage_dir(repo_a)
+        storage_b = create_storage_dir(repo_b)
+
+        # Create indexes
+        (storage_a / "index.json").write_text('{"modules": {}}')
+        (storage_b / "index.json").write_text('{"modules": {}}')
+
+        # Create link A → B
+        create_link(repo_a, repo_b)
+
+        # Manually create a circular link B → A by editing link.yaml
+        # This would normally be prevented by create_link, but we're testing the detection
+        link_path_b = get_link_path(repo_b)
+        link_path_b.parent.mkdir(parents=True, exist_ok=True)
+        link_path_b.write_text(
+            f"source_repo_path: {repo_a}\n"
+            f"source_storage_dir: {storage_a}\n"
+            f"created_at: 2024-01-01T00:00:00\n"
+        )
+
+        # Attempting to resolve should detect the circular reference
+        # The while loop should break when it detects visiting the same repo twice (line 194)
+        # This should return the storage dir without infinite loop
+        result = resolve_storage_dir(repo_a)
+        assert result is not None
+
+    def test_resolve_storage_dir_with_missing_source_repo_path(self, tmp_path, mock_home_dir):
+        """Should handle broken link with missing source_repo_path (lines 216-233)"""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        # Create storage dir
+        storage = create_storage_dir(repo)
+
+        # Manually create a broken link with only source_storage_dir but it doesn't exist
+        link_path = get_link_path(repo)
+        link_path.parent.mkdir(parents=True, exist_ok=True)
+        fake_storage = tmp_path / "fake_storage"
+        link_path.write_text(
+            f"source_storage_dir: {fake_storage}\n" f"created_at: 2024-01-01T00:00:00\n"
+        )
+
+        # Should raise ValueError about broken link
+        with pytest.raises(ValueError, match="Link is broken"):
+            resolve_storage_dir(repo)
+
+    def test_resolve_storage_dir_with_empty_source_storage_dir(self, tmp_path, mock_home_dir):
+        """Should handle link with empty source_storage_dir (lines 216-233)"""
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+
+        # Create storage for repo_a
+        storage_a = create_storage_dir(repo_a)
+        (storage_a / "index.json").write_text('{"modules": {}}')
+
+        # Manually create a link with empty source_storage_dir but valid source_repo_path
+        link_path = get_link_path(repo_b)
+        link_path.parent.mkdir(parents=True, exist_ok=True)
+        link_path.write_text(
+            f"source_storage_dir: ''\n"  # Empty string
+            f"source_repo_path: {repo_a}\n"
+            f"created_at: 2024-01-01T00:00:00\n"
+        )
+
+        # Should follow source_repo_path and find the index
+        result = resolve_storage_dir(repo_b)
+        assert result == storage_a
+
+    def test_resolve_storage_dir_with_whitespace_source_storage_dir(self, tmp_path, mock_home_dir):
+        """Should handle link with whitespace-only source_storage_dir (lines 216-233)"""
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+
+        # Create storage for repo_a
+        storage_a = create_storage_dir(repo_a)
+        (storage_a / "index.json").write_text('{"modules": {}}')
+
+        # Manually create a link with whitespace source_storage_dir
+        link_path = get_link_path(repo_b)
+        link_path.parent.mkdir(parents=True, exist_ok=True)
+        link_path.write_text(
+            f"source_storage_dir: '   '\n"  # Whitespace only
+            f"source_repo_path: {repo_a}\n"
+            f"created_at: 2024-01-01T00:00:00\n"
+        )
+
+        # Should follow source_repo_path and find the index
+        result = resolve_storage_dir(repo_b)
+        assert result == storage_a
+
+    def test_create_link_cycle_detection_breaks_on_missing_link_info(self, tmp_path, mock_home_dir):
+        """Should break cycle detection when link_info is None (line 298)"""
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+
+        # Create storage for A with index
+        storage_a = create_storage_dir(repo_a)
+        (storage_a / "index.json").write_text('{"modules": {}}')
+
+        # Repo B has no link info - create_link should succeed
+        create_link(repo_b, repo_a)
+
+        # Should successfully create link
+        assert is_linked(repo_b)
+
+    def test_create_link_cycle_detection_breaks_on_missing_source_repo(
+        self, tmp_path, mock_home_dir
+    ):
+        """Should break cycle detection when source_repo_path is missing (line 305)"""
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_c = tmp_path / "repo_c"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        repo_c.mkdir()
+
+        # Create storage for A with index
+        storage_a = create_storage_dir(repo_a)
+        (storage_a / "index.json").write_text('{"modules": {}}')
+
+        # Create a broken link for B (missing source_repo_path)
+        link_path_b = get_link_path(repo_b)
+        link_path_b.parent.mkdir(parents=True, exist_ok=True)
+        link_path_b.write_text(
+            f"source_storage_dir: {storage_a}\n"  # Has storage but no repo path
+            f"created_at: 2024-01-01T00:00:00\n"
+        )
+
+        # Attempting to create link C → B should work (cycle detection stops at B)
+        create_link(repo_c, repo_b)
+
+        # Should successfully create link
+        assert is_linked(repo_c)

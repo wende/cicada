@@ -1,4 +1,4 @@
-.PHONY: help install install-deps generate-scip-proto setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test
+.PHONY: help install install-deps generate-scip-proto setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
 
 # Default target
 help:
@@ -17,6 +17,7 @@ help:
 	@echo "  make lint-fix         - Auto-fix issues with ruff"
 	@echo "  make pre-commit       - Run all pre-commit checks (auto-installs dependencies)"
 	@echo "  make ci-test          - Run tests in CI environment (auto-installs dependencies)"
+	@echo "  make pr-comments      - Display all comments from PR for current branch"
 	@echo "  make clean            - Remove generated files"
 	@echo "  make reset            - Full reset (cache, models, .cicada dirs)"
 	@echo "  make dev              - Clean rebuild and install (avoids cache issues)"
@@ -74,7 +75,7 @@ setup-fixtures:
 
 # Run tests
 test: install generate-scip-proto setup-fixtures
-	@uv run pytest -n auto -q --tb=short
+	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
 
 # Run tests with verbose output
 test-verbose: install generate-scip-proto setup-fixtures
@@ -144,7 +145,7 @@ pre-commit: install
 	@$(MAKE) generate-scip-proto
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
-	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
@@ -181,3 +182,63 @@ reset: clean
 	@echo ""
 	@echo "To reinstall cicada:"
 	@echo "  uv tool install --editable . --force"
+
+# Display all comments from PR for current branch
+pr-comments:
+	@echo "Fetching PR comments for current branch..."
+	@set -e; \
+	if ! command -v gh >/dev/null 2>&1; then \
+		echo "Error: 'gh' (GitHub CLI) is not installed. Please install it to use this command."; \
+		exit 1; \
+	fi; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ] || [ "$$BRANCH" = "master" ]; then \
+		echo "Error: Not on a feature branch (currently on $$BRANCH)"; \
+		exit 1; \
+	fi; \
+	echo "Current branch: $$BRANCH"; \
+	echo ""; \
+	PR_NUMBER=$$(gh pr list --head "$$BRANCH" --json number --jq '.[0].number'); \
+	if [ -z "$$PR_NUMBER" ]; then \
+		echo "Error: No PR found for branch $$BRANCH"; \
+		exit 1; \
+	fi; \
+	REPO=$$(gh repo view --json nameWithOwner --jq '.nameWithOwner'); \
+	CURRENT_COMMIT=$$(git rev-parse HEAD); \
+	echo "PR #$$PR_NUMBER"; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REGULAR PR COMMENTS"; \
+	echo "================================================================================"; \
+	echo ""; \
+	COMMENTS=$$(gh pr view $$PR_NUMBER --json comments --jq '[.comments[]? // empty | select(.isMinimized == false)] | if length > 0 then .[] | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No regular comments found.\n" end'); \
+	echo "$$COMMENTS"; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REVIEW SUMMARIES"; \
+	echo "================================================================================"; \
+	echo ""; \
+	REVIEWS=$$(gh pr view $$PR_NUMBER --json reviews --jq '[.reviews[]? // empty | select(.body != "" and (.isMinimized == false or .isMinimized == null))] | if length > 0 then .[] | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No review summaries found.\n" end'); \
+	echo "$$REVIEWS"; \
+	echo ""; \
+	echo "================================================================================"; \
+	echo "REVIEW COMMENTS (Line-level code comments - unaddressed only)"; \
+	echo "================================================================================"; \
+	echo ""; \
+	TEMP_COMMENTS=$$(mktemp); \
+	gh api --paginate repos/$$REPO/pulls/$$PR_NUMBER/comments > "$$TEMP_COMMENTS"; \
+	COMMENT_COUNT=$$(jq 'length' "$$TEMP_COMMENTS"); \
+	FOUND_UNADDRESSED=false; \
+	for i in $$(seq 0 $$((COMMENT_COUNT - 1))); do \
+		COMMENT_DATE=$$(jq -r ".[$${i}].created_at" "$$TEMP_COMMENTS"); \
+		COMMITS_SINCE=$$(git log --since="$$COMMENT_DATE" --oneline); \
+		if echo "$$COMMITS_SINCE" | grep -qi "addressed"; then \
+			continue; \
+		fi; \
+		FOUND_UNADDRESSED=true; \
+		jq -r ".[$${i}] | \"File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_COMMENTS"; \
+	done; \
+	if [ "$$FOUND_UNADDRESSED" = "false" ]; then \
+		echo "All review comments have been addressed! 🎉"; \
+	fi; \
+	rm -f "$$TEMP_COMMENTS"

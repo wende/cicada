@@ -67,9 +67,7 @@ class CicadaServer:
         self.function_handler = FunctionSearchHandler(self.index_manager.index, self.config)
         self.git_handler = GitHistoryHandler(self.git_helper, self.config)
         self.pr_handler = PRHistoryHandler(self.index_manager.pr_index, self.config)
-        self.analysis_handler = AnalysisHandler(
-            self.index_manager.index, self.index_manager.has_keywords
-        )
+        self.analysis_handler = AnalysisHandler(self.index_manager)
 
         # Initialize router
         self.router = ToolRouter(

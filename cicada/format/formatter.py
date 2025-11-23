@@ -702,18 +702,49 @@ class ModuleFormatter:
                 lines.extend(["", f"**Guards:** `when {guards_str}`"])
 
         if show_relationships:
-            dependencies = result.get("dependencies", [])
-            if dependencies:
+            # Check for detailed dependencies first (from what_it_calls=true)
+            detailed_deps = result.get("detailed_dependencies")
+            if detailed_deps:
                 lines.append("")
                 lines.append("Calls these functions:")
-                for dep in dependencies[:5]:
+
+                # Show internal dependencies first
+                internal = detailed_deps.get("internal", [])
+                for dep in internal[:5]:
                     dep_module = dep.get("module", "?")
                     dep_func = dep.get("function", "?")
                     dep_arity = dep.get("arity", "?")
                     dep_line = dep.get("line", "?")
                     lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
-                if len(dependencies) > 5:
-                    lines.append(f"   ... and {len(dependencies) - 5} more")
+
+                # Show external dependencies
+                external = detailed_deps.get("external", [])
+                remaining = 5 - len(internal[:5])
+                for dep in external[:remaining]:
+                    dep_module = dep.get("module", "?")
+                    dep_func = dep.get("function", "?")
+                    dep_arity = dep.get("arity", "?")
+                    dep_line = dep.get("line", "?")
+                    lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+
+                total = detailed_deps.get("total_count", len(internal) + len(external))
+                shown = min(5, len(internal) + len(external))
+                if total > shown:
+                    lines.append(f"   ... and {total - shown} more")
+            else:
+                # Fallback to simple dependencies list (legacy format)
+                dependencies = result.get("dependencies", [])
+                if dependencies:
+                    lines.append("")
+                    lines.append("Calls these functions:")
+                    for dep in dependencies[:5]:
+                        dep_module = dep.get("module", "?")
+                        dep_func = dep.get("function", "?")
+                        dep_arity = dep.get("arity", "?")
+                        dep_line = dep.get("line", "?")
+                        lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                    if len(dependencies) > 5:
+                        lines.append(f"   ... and {len(dependencies) - 5} more")
 
         if call_sites:
             lines.extend(
@@ -748,6 +779,7 @@ class ModuleFormatter:
         staleness_info: dict | None = None,
         show_relationships: bool = True,
         language: str = "elixir",
+        private_suggestion: str | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -758,6 +790,7 @@ class ModuleFormatter:
             staleness_info: Optional staleness info (is_stale, age_str)
             show_relationships: Whether to show relationship information (what this calls / what calls this)
             language: Programming language for formatting function identifiers
+            private_suggestion: Optional suggestion for private function pattern
 
         Returns:
             Formatted Markdown string
@@ -780,8 +813,23 @@ class ModuleFormatter:
                 f"""Function Not Found
 
 **Query:** `{function_name}`
+"""
+            )
 
-## Try:
+            if private_suggestion:
+                error_parts.append(
+                    f"""## Did you mean private functions?
+
+  • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
+
+No public functions match this pattern, but private functions do.
+"""
+                )
+
+            suggestions_header = "## Other suggestions:" if private_suggestion else "## Try:"
+
+            error_parts.append(
+                f"""{suggestions_header}
 
   • Search without arity: `{func_only}` (if you used /{'{arity}'})
   • Search without module: `{func_only}` (searches all modules)

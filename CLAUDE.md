@@ -56,6 +56,13 @@ As of the simplified setup workflow (PR #20), Cicada uses a centralized storage 
 - **Index Storage Location:** `~/.cicada/projects/<repo_hash>/`
   - All generated files (index.json, config.yaml, hashes.json, pr_index.json) are stored here
   - Repository hash is generated from the resolved absolute path using SHA-256 (truncated to 16 hex chars)
+  - **Discovering the storage directory:** Use `cicada dir` in your repository to display the hash and full path to the storage directory
+    ```bash
+    cd /path/to/your/repo
+    cicada dir
+    # Output: Repository hash: a1b2c3d4e5f6a7b8
+    #         Storage dir: /Users/username/.cicada/projects/a1b2c3d4e5f6a7b8/
+    ```
 
 - **Repository Config:** Only one MCP config file is added to the user's repository:
   - `.mcp.json` (Claude Code)
@@ -1173,13 +1180,104 @@ This project uses **uv** as the primary Python package manager and build tool. W
 
 The project includes `uv.lock` for reproducible builds and `pyproject.toml` for project configuration.
 
+## Reviewing Pull Request Comments
+
+When asked to review, address, or analyze PR comments, **ALWAYS use the `make pr-comments` command first** to get a comprehensive view of all discussion.
+
+### Usage
+
+```bash
+make pr-comments
+```
+
+This command automatically:
+1. Detects the current branch and finds its associated PR
+2. Fetches and displays all PR discussion in organized sections:
+   - **Regular PR Comments**: Top-level discussion comments
+   - **Review Summaries**: Overall review bodies with approval/rejection status
+   - **Review Comments**: Line-level code review comments (filtered to show only unaddressed feedback)
+3. Filters out hidden/minimized comments (spam, resolved, etc.)
+4. Filters out review comments addressed in commits (looks for "addressed" keyword in commit messages)
+5. Paginates through all comments (not just the first page)
+
+### When to Use
+
+Use `make pr-comments` proactively when:
+- User asks "what are the PR comments?" or "what did reviewers say?"
+- User asks to "address PR feedback" or "fix review comments"
+- User asks to "review the PR discussion"
+- Starting work on addressing review feedback
+- You need context about what changes reviewers are requesting
+
+### Example Workflow
+
+```bash
+# User: "Can you address the PR comments?"
+
+# 1. First, fetch all comments
+make pr-comments
+
+# 2. Read the output to understand reviewer feedback
+
+# 3. Address each piece of feedback systematically
+
+# 4. Commit changes addressing the feedback
+```
+
+### Smart Comment Filtering
+
+The `make pr-comments` command intelligently filters review comments to show only **unaddressed feedback**:
+
+**How it works:**
+- For each review comment, checks all commits made since the comment was created
+- If any commit message contains the keyword **"addressed"** (case-insensitive), the comment is hidden
+- This allows you to continue development after addressing feedback without losing visibility of still-relevant comments
+
+**CRITICAL RULE: When addressing PR feedback, you MUST include "addressed" in your commit message.**
+
+**Examples:**
+
+```bash
+# ✓ Good commit messages that will hide addressed comments:
+git commit -m "Add gh CLI dependency check (addressed PR feedback)"
+git commit -m "Addressed: Fix jq safe iteration and add master branch check"
+git commit -m "Improve error handling - addressed review comments"
+
+# ✓ Also works with different capitalization:
+git commit -m "ADDRESSED pr comments about error handling"
+git commit -m "Fix validation logic (Addressed feedback)"
+
+# ❌ Bad - comment will still show up:
+git commit -m "Add gh CLI dependency check"
+git commit -m "Fix jq safe iteration"
+```
+
+**Why this matters:**
+- Without "addressed" in the commit message, the comment will continue to appear even after you fix it
+- This creates confusion about what still needs to be done
+- The keyword acts as an explicit signal that feedback has been resolved
+
+**When NOT to use "addressed":**
+- Commits that don't resolve any PR feedback
+- Work in progress commits
+- Commits that only partially address a comment
+
+### Error Handling
+
+The command validates:
+- You're on a feature branch (not `main` or `HEAD`)
+- A PR exists for the current branch
+- GitHub CLI (`gh`) is installed
+
+If any validation fails, you'll get a clear error message explaining the issue.
+
 ## Code Style
 
 - Use `black` for Python code formatting
 - Include type hints where appropriate
 - Write tests for new features
 - Keep functions focused and modular
-- Use make to run tests
+- **ALWAYS use `make test` for running tests** - Never use `pytest` or `uv run pytest` directly
 - Always use uv to run any python commands. Don't just run python without that
 - Don't use --no-verify unless explicitly asked
 - There is no such thing as unrelated tests. They need to pass before commit
