@@ -1497,6 +1497,9 @@ def handle_server(args) -> None:
 
     try:
         asyncio.run(async_main())
+    except KeyboardInterrupt:
+        # Graceful shutdown on Ctrl+C, suppress traceback
+        pass
     finally:
         # Ensure watch process is stopped when server exits
         if watch_enabled:

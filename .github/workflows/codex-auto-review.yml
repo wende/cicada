@@ -1,7 +1,7 @@
 name: Auto Codex Review
 on:
   pull_request:
-    types: [opened, synchronize]  # Triggers on PR creation and new commits
+    types: [] #[opened, synchronize]  # Triggers on PR creation and new commits
 
 jobs:
   trigger-codex:
