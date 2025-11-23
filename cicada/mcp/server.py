@@ -166,10 +166,10 @@ async def async_main():
 
     for sig in signals_to_handle:
         try:
-            loop.add_signal_handler(sig, request_shutdown)
+            loop.add_signal_handler(sig, request_shutdown)  # type: ignore
         except (NotImplementedError, RuntimeError):
             # Fallback for platforms without add_signal_handler support
-            signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))
+            signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))  # type: ignore
 
     try:
         # Check if setup is needed before starting server
