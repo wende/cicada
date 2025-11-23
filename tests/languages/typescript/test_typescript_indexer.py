@@ -2,8 +2,7 @@
 
 import pytest
 import subprocess
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import Mock, patch
 
 from cicada.languages.typescript.indexer import TypeScriptSCIPIndexer
 
@@ -101,7 +100,7 @@ class TestTypeScriptSCIPIndexer:
         with pytest.raises(RuntimeError) as exc_info:
             indexer._run_scip_indexer(tmp_path)
 
-        assert "scip-typescript indexing failed" in str(exc_info.value)
+        assert "scip indexing failed" in str(exc_info.value).lower()
         assert "TypeScript compilation failed" in str(exc_info.value)
 
     @patch("subprocess.run")
@@ -114,7 +113,7 @@ class TestTypeScriptSCIPIndexer:
         with pytest.raises(RuntimeError) as exc_info:
             indexer._run_scip_indexer(tmp_path)
 
-        assert "scip-typescript did not generate" in str(exc_info.value)
+        assert "scip indexer did not generate" in str(exc_info.value).lower()
         assert "index.scip" in str(exc_info.value)
 
     @patch("subprocess.run")
@@ -129,7 +128,7 @@ class TestTypeScriptSCIPIndexer:
         with pytest.raises(RuntimeError) as exc_info:
             indexer._run_scip_indexer(tmp_path)
 
-        assert "scip-typescript indexing timed out" in str(exc_info.value)
+        assert "scip indexing timed out" in str(exc_info.value).lower()
         assert "600 seconds" in str(exc_info.value)
 
     @patch("subprocess.run")

@@ -5,7 +5,6 @@ type-aware semantic indexes of Python codebases.
 """
 
 import json
-import subprocess
 import tempfile
 from pathlib import Path
 
@@ -188,38 +187,10 @@ class PythonSCIPIndexer(GenericSCIPIndexer):
             str(scip_file),
         ]
 
-        if self.verbose:
-            print(f"  Running: {' '.join(cmd)}")
-            print("  (This may take several minutes for large projects...)")
-
         try:
-            result = subprocess.run(
-                cmd,
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=600,  # 10 minute timeout
+            return self._run_scip_command(
+                repo_path=repo_path, command=cmd, output_path=scip_file, timeout=600
             )
-
-            if result.returncode != 0:
-                raise RuntimeError(f"scip-python indexing failed:\n{result.stderr}")
-
-            if not scip_file.exists():
-                raise RuntimeError(f"scip-python did not generate {scip_file}")
-
-            return scip_file
-
-        except subprocess.TimeoutExpired as e:
-            if scip_file.exists():
-                scip_file.unlink()
-            raise RuntimeError(
-                "scip-python indexing timed out after 10 minutes. "
-                "Try indexing a smaller subset of the project."
-            ) from e
-        except Exception:
-            if scip_file.exists():
-                scip_file.unlink()
-            raise
         finally:
             # Clean up temporary pyrightconfig if we created it
             if temp_pyright_config and pyright_config_path.exists():

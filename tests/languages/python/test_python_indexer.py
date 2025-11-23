@@ -349,8 +349,10 @@ class TestPythonSCIPIndexer:
 
                     captured = capsys.readouterr()
                     # Make assertion robust to language name changes
-                    expected_msg = f"Indexing {verbose_indexer.get_language_name()} repository"
-                    assert expected_msg in captured.out
+                    expected_msg = (
+                        f"indexing {verbose_indexer.get_language_name()} repository"
+                    )
+                    assert expected_msg in captured.out.lower()
                     assert "SCIP index" in captured.out
                     assert "Index saved to" in captured.out
                     assert "Cleaned up temporary file" in captured.out

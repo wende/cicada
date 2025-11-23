@@ -1,8 +1,9 @@
 """Tests for GenericSCIPIndexer base class."""
 
-import pytest
+import subprocess
 from pathlib import Path
-from unittest.mock import Mock
+
+import pytest
 
 from cicada.languages.scip.indexer import GenericSCIPIndexer
 
@@ -79,9 +80,9 @@ class TestGenericSCIPIndexer:
         file_paths = [str(f) for f in files]
 
         # Should NOT find files in excluded directories
-        assert not any("excluded" in path for path in file_paths)
-        assert not any(".git" in path for path in file_paths)
-        assert not any("node_modules" in path for path in file_paths)
+        assert all("excluded" not in path for path in file_paths)
+        assert all(".git" not in path for path in file_paths)
+        assert all("node_modules" not in path for path in file_paths)
 
     def test_find_source_files_only_matching_extensions(self, mock_indexer, test_repo):
         """Should only return files with specified extensions."""
@@ -222,3 +223,154 @@ class TestGenericSCIPIndexer:
         # Test explicit True
         verbose_indexer = TestIndexer(verbose=True)
         assert verbose_indexer.verbose is True
+
+    def test_run_scip_command_success_returns_path_and_prints_verbose(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """_run_scip_command should return path and emit verbose output."""
+
+        class TestIndexer(GenericSCIPIndexer):
+            def get_language_name(self) -> str:
+                return "test"
+
+            def get_file_extensions(self) -> list[str]:
+                return [".test"]
+
+            def get_excluded_dirs(self) -> list[str]:
+                return []
+
+            def _run_scip_indexer(self, repo_path: Path) -> Path:  # pragma: no cover
+                raise NotImplementedError
+
+        run_calls: dict[str, object] = {}
+
+        def fake_run(*args, **kwargs):
+            run_calls["args"] = args
+            run_calls["kwargs"] = kwargs
+
+            class Result:
+                returncode = 0
+                stdout = "ok"
+                stderr = ""
+
+            # Simulate scip-typescript style output
+            output_path = tmp_path / "index.scip"
+            output_path.write_bytes(b"dummy scip contents")
+            return Result()
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        indexer = TestIndexer(verbose=True)
+        output_path = tmp_path / "index.scip"
+        result = indexer._run_scip_command(
+            repo_path=tmp_path, command=["scip"], output_path=output_path
+        )
+
+        assert result == output_path
+        assert result.exists()
+        assert run_calls
+        captured = capsys.readouterr()
+        assert "Running: scip" in captured.out
+
+    def test_run_scip_command_non_zero_exit_raises_runtime_error(
+        self, tmp_path, monkeypatch
+    ):
+        """_run_scip_command should raise when subprocess fails."""
+
+        class TestIndexer(GenericSCIPIndexer):
+            def get_language_name(self) -> str:
+                return "test"
+
+            def get_file_extensions(self) -> list[str]:
+                return [".test"]
+
+            def get_excluded_dirs(self) -> list[str]:
+                return []
+
+            def _run_scip_indexer(self, repo_path: Path) -> Path:  # pragma: no cover
+                raise NotImplementedError
+
+        def fake_run(*_args, **_kwargs):
+            class Result:
+                returncode = 1
+                stdout = ""
+                stderr = "error"
+
+            return Result()
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        indexer = TestIndexer(verbose=False)
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._run_scip_command(
+                repo_path=tmp_path, command=["scip"], output_path=tmp_path / "index.scip"
+            )
+
+        assert "error" in str(exc_info.value)
+
+    def test_run_scip_command_timeout_cleans_output(self, tmp_path, monkeypatch):
+        """Timeouts should raise and clean temp outputs created by helper."""
+
+        class TestIndexer(GenericSCIPIndexer):
+            def get_language_name(self) -> str:
+                return "test"
+
+            def get_file_extensions(self) -> list[str]:
+                return [".test"]
+
+            def get_excluded_dirs(self) -> list[str]:
+                return []
+
+            def _run_scip_indexer(self, repo_path: Path) -> Path:  # pragma: no cover
+                raise NotImplementedError
+
+        output_path = tmp_path / "index.scip"
+        output_path.write_bytes(b"stale")
+
+        def fake_run(*_args, **_kwargs):
+            raise subprocess.TimeoutExpired(cmd="scip", timeout=10)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        indexer = TestIndexer(verbose=False)
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._run_scip_command(
+                repo_path=tmp_path, command=["scip"], output_path=output_path
+            )
+
+        assert "scip indexing timed out" in str(exc_info.value).lower()
+        assert not output_path.exists()
+
+    def test_run_scip_command_missing_output_raises(self, tmp_path, monkeypatch):
+        """Should raise when command succeeds but output is missing."""
+
+        class TestIndexer(GenericSCIPIndexer):
+            def get_language_name(self) -> str:
+                return "test"
+
+            def get_file_extensions(self) -> list[str]:
+                return [".test"]
+
+            def get_excluded_dirs(self) -> list[str]:
+                return []
+
+            def _run_scip_indexer(self, repo_path: Path) -> Path:  # pragma: no cover
+                raise NotImplementedError
+
+        def fake_run(*_args, **_kwargs):
+            class Result:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        indexer = TestIndexer(verbose=False)
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._run_scip_command(
+                repo_path=tmp_path, command=["scip"], output_path=tmp_path / "index.scip"
+            )
+
+        assert "did not generate" in str(exc_info.value)

@@ -1,14 +1,14 @@
 """Generic SCIP indexer for all SCIP-based languages.
 
 This base class contains all the shared logic for indexing repositories
-using SCIP (SCIP Code Intelligence Protocol). Language-specific indexers
+using SCIP (Source Code Intelligence Protocol). Language-specific indexers
 (Python, TypeScript, etc.) only need to provide minimal configuration.
 """
 
 import json
 import subprocess
 import tempfile
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
@@ -26,7 +26,7 @@ from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils.storage import get_hashes_path
 
 
-class GenericSCIPIndexer(BaseIndexer):
+class GenericSCIPIndexer(BaseIndexer, ABC):
     """
     Generic indexer for SCIP-based languages.
 
@@ -149,7 +149,7 @@ class GenericSCIPIndexer(BaseIndexer):
 
         # Check if we can skip reindexing
         hashes_path = get_hashes_path(repo_path_obj)
-        existing_hashes = load_file_hashes(str(hashes_path))
+        existing_hashes = load_file_hashes(str(hashes_path.parent))
 
         # Find all source files
         source_files = list(self._find_source_files(repo_path_obj))
@@ -184,10 +184,11 @@ class GenericSCIPIndexer(BaseIndexer):
             else:
                 print("  Performing full index...")
 
-        # Run SCIP indexer
-        scip_file = self._run_scip_indexer(repo_path_obj)
-
+        scip_file: Path | None = None
         try:
+            # Run SCIP indexer
+            scip_file = self._run_scip_indexer(repo_path_obj)
+
             # Read SCIP file
             reader = SCIPReader()
             scip_index = reader.read_index(scip_file)
@@ -265,7 +266,9 @@ class GenericSCIPIndexer(BaseIndexer):
             # Save file hashes
             if source_files:
                 try:
-                    current_hashes = compute_hashes_for_files([str(f) for f in source_files])
+                    current_hashes = compute_hashes_for_files(
+                        relative_files, repo_path=str(repo_path_obj)
+                    )
                     save_file_hashes(str(hashes_path.parent), current_hashes)
                 except Exception as e:
                     if self.verbose:
@@ -276,7 +279,7 @@ class GenericSCIPIndexer(BaseIndexer):
             modules_count = len(all_modules)
             functions_count = cicada_index.get("metadata", {}).get("total_functions", 0)
 
-            file_count = sum(1 for name in all_modules if name.startswith("_file_"))
+            file_count = sum(bool(name.startswith("_file_")) for name in all_modules)
             class_count = modules_count - file_count
 
             if self.verbose:
@@ -309,7 +312,7 @@ class GenericSCIPIndexer(BaseIndexer):
             }
 
         finally:
-            if scip_file.exists():
+            if scip_file and scip_file.exists():
                 scip_file.unlink()
                 if self.verbose:
                     print(f"  Cleaned up temporary file: {scip_file}")
@@ -321,15 +324,22 @@ class GenericSCIPIndexer(BaseIndexer):
 
         for ext in self.get_file_extensions():
             for file in repo_path.rglob(f"*{ext}"):
-                if any(excluded in file.parts for excluded in excluded_dirs):
-                    continue
-                source_files.append(file)
+                if all(excluded not in file.parts for excluded in excluded_dirs):
+                    source_files.append(file)
         return source_files
 
     def _compute_timestamps(self, index: dict, repo_path: Path) -> None:
         """Compute git timestamps for functions."""
         if self.verbose:
             print("  Computing git timestamps...")
+
+        files = index.get("files", {})
+        has_functions = any(file_data.get("functions") for file_data in files.values())
+
+        if not has_functions:
+            if self.verbose:
+                print("  No functions found; skipping git timestamp computation.")
+            return
 
         try:
             git_helper = GitHelper(str(repo_path))
@@ -439,31 +449,30 @@ class GenericSCIPIndexer(BaseIndexer):
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(index, f, indent=2, ensure_ascii=False)
 
-    def _run_scip_command(self, repo_path: Path, command: list[str], timeout: int = 600) -> Path:
-        """
-        Generic helper to run a SCIP indexer command.
+    def _run_scip_command(
+        self,
+        repo_path: Path,
+        command: list[str],
+        *,
+        output_path: Path,
+        timeout: int = 600,
+    ) -> Path:
+        """Run a SCIP indexer command and validate output.
 
         Args:
             repo_path: Repository root
             command: Command to run (e.g., ["scip-python", "index", ...])
+            output_path: Expected path of the generated .scip file
             timeout: Command timeout in seconds
 
         Returns:
             Path to generated .scip file
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".scip", delete=False, dir=repo_path
-        ) as tmp:
-            scip_file = Path(tmp.name)
-
         if self.verbose:
             print(f"  Running: {' '.join(command)}")
             print("  (This may take several minutes for large projects...)")
 
         try:
-            # Security audit: Command is passed as list (not shell=True),
-            # preventing shell injection. Caller is responsible for ensuring
-            # command arguments are safe (typically hardcoded by language-specific indexers).
             result = subprocess.run(
                 command,
                 cwd=repo_path,
@@ -475,19 +484,19 @@ class GenericSCIPIndexer(BaseIndexer):
             if result.returncode != 0:
                 raise RuntimeError(f"SCIP indexing failed:\n{result.stderr}")
 
-            if not scip_file.exists():
-                raise RuntimeError(f"SCIP indexer did not generate {scip_file}")
+            if not output_path.exists():
+                raise RuntimeError(f"SCIP indexer did not generate {output_path}")
 
-            return scip_file
+            return output_path
 
         except subprocess.TimeoutExpired as e:
-            if scip_file.exists():
-                scip_file.unlink()
+            if output_path.exists():
+                output_path.unlink()
             raise RuntimeError(
                 f"SCIP indexing timed out after {timeout} seconds. "
                 "Try indexing a smaller subset of the project."
             ) from e
         except Exception:
-            if scip_file.exists():
-                scip_file.unlink()
+            if output_path.exists():
+                output_path.unlink()
             raise
