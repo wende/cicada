@@ -12,15 +12,27 @@ from cicada.utils.path_utils import is_test_file
 class DeadCodeAnalyzer:
     """Analyzes Elixir code index to find potentially unused public functions."""
 
-    def __init__(self, index: dict):
+    def __init__(self, index: dict, stop_functions: set[str] | None = None):
         """
         Initialize analyzer with code index.
 
         Args:
             index: The indexed codebase data containing modules and their metadata
+            stop_functions: Set of function names to always consider alive
         """
         self.index = index
         self.modules = index.get("modules", {})
+        # Default stop functions for Python (and potentially others)
+        self.stop_functions = stop_functions or {"__init__", "main"}
+
+    def add_stop_function(self, function_name: str) -> None:
+        """
+        Add a function name to the stop list.
+
+        Args:
+            function_name: Name of function to always consider alive
+        """
+        self.stop_functions.add(function_name)
 
     def analyze(self) -> dict:
         """
@@ -72,6 +84,10 @@ class DeadCodeAnalyzer:
                 # Python: type == "public" (vs "private")
                 func_type = function.get("type")
                 if func_type not in ("def", "public"):
+                    continue
+
+                # Check if it's a stop function (always considered alive)
+                if function["name"] in self.stop_functions:
                     continue
 
                 total_public += 1

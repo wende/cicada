@@ -266,7 +266,7 @@ pr-comments:
 			continue; \
 		fi; \
 		FOUND_UNADDRESSED=true; \
-		jq -r ".[$${i}] | \"File: \(.path):\(.line)\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nDiff:\n\(.diff_hunk)\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_COMMENTS"; \
+		jq -r ".[$${i}] | \"File: \(.path):\(.line // \"N/A\")\nAuthor: \(.user.login)\nDate: \(.created_at)\nURL: \(.html_url)\n\nContext (last 3 lines of diff):\n\(.diff_hunk | split(\"\n\") | .[-3:] | join(\"\n\"))\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_COMMENTS"; \
 	done; \
 	if [ "$$FOUND_UNADDRESSED" = "false" ]; then \
 		echo "All review comments have been addressed! 🎉"; \
