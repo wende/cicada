@@ -642,7 +642,7 @@ class SCIPConverter:
             dependencies.append(
                 {
                     "module": module_name,
-                    "name": func_name,
+                    "function": func_name,
                     "arity": arity,
                 }
             )

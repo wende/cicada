@@ -98,8 +98,9 @@ class PythonIndexingBenchmark:
             current_memory, peak_memory = tracemalloc.get_traced_memory()
             tracemalloc.stop()
 
-            # Extract file count
-            file_count = len(result.get("modules", {}))
+            # Extract file count from result
+            # Note: result is a dict with keys: success, modules_count, functions_count, files_indexed, errors
+            file_count = result.get("files_indexed", 0)
 
             # Parse conversion time from indexer logs (if available)
             # This is a rough extraction - the actual timing is printed to stdout
