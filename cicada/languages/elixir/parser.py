@@ -31,7 +31,7 @@ class ElixirParser:
 
     def __init__(self):
         """Initialize the tree-sitter parser with Elixir grammar."""
-        self.parser = Parser(Language(ts_elixir.language()))  # type: ignore[no-matching-overload]
+        self.parser = Parser(Language(ts_elixir.language()))  # type: ignore[deprecated]
 
     def parse_file(self, file_path: str) -> list[dict] | None:
         """

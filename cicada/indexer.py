@@ -702,7 +702,7 @@ class ElixirIndexer(BaseIndexer):
                                 with open(file_path, "rb") as f:
                                     source_code = f.read()
 
-                                ts_parser = Parser(Language(ts_elixir.language()))
+                                ts_parser = Parser(Language(ts_elixir.language()))  # type: ignore[deprecated]
                                 tree = ts_parser.parse(source_code)
 
                                 # Find the module node
