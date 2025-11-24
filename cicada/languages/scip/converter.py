@@ -128,6 +128,171 @@ class SCIPConverter:
                 symbol_map[symbol_info.symbol] = symbol_info
         return symbol_map
 
+    def _extract_aliases(self, doc: scip_pb2.Document, repo_path: Path) -> dict[str, str]:
+        """
+        Extract import aliases from Python source file.
+
+        Args:
+            doc: SCIP Document
+            repo_path: Repository root
+
+        Returns:
+            Dictionary mapping alias names to full module names
+        """
+        try:
+            from cicada.languages.python.alias_extractor import PythonAliasExtractor
+
+            full_path = repo_path / doc.relative_path
+            alias_extractor = PythonAliasExtractor()
+            aliases = alias_extractor.extract_aliases(full_path)
+            if self.verbose and aliases:
+                print(f"Extracted {len(aliases)} aliases from {doc.relative_path}", file=sys.stderr)
+            return aliases
+        except Exception as e:
+            if self.verbose:
+                print(
+                    f"Warning: Failed to extract aliases from {doc.relative_path}: {e}",
+                    file=sys.stderr,
+                )
+            return {}
+
+    def _process_definition(
+        self,
+        occurrence,
+        symbol: str,
+        line: int,
+        symbol_type: str,
+        symbols: dict,
+        function_ranges: list,
+        param_counts: dict,
+    ) -> None:
+        """
+        Process a definition occurrence and update data structures.
+
+        Args:
+            occurrence: SCIP occurrence object
+            symbol: SCIP symbol string
+            line: Line number (1-indexed)
+            symbol_type: Type of symbol (class, function, method, etc.)
+            symbols: Dictionary to store symbol metadata
+            function_ranges: List to store function line ranges
+            param_counts: Dictionary to track parameter counts per function
+        """
+        # Extract documentation (skip for test functions)
+        doc_text = ""
+        if occurrence.symbol_roles & scip_pb2.SymbolRole.Test:
+            doc_text = ""
+
+        # Store symbol metadata for relevant types
+        if symbol_type in ("class", "function", "method", "module", "parameter"):
+            # Get parent for methods
+            parent_symbol = None
+            if symbol_type == "method":
+                parent_symbol = self._get_parent_symbol(symbol)
+
+            symbols[symbol] = SymbolData(
+                symbol=symbol,
+                symbol_type=symbol_type,
+                line=line,
+                doc=doc_text,
+                arity=0,  # Will be computed from param_counts
+                parent_symbol=parent_symbol,
+            )
+
+            # Build function ranges for binary search
+            if symbol_type in ("function", "method"):
+                if occurrence.enclosing_range and len(occurrence.enclosing_range) >= 3:
+                    start_line = occurrence.enclosing_range[0] + 1
+                    end_line = occurrence.enclosing_range[2] + 1
+                    function_ranges.append((start_line, end_line, symbol))
+                elif occurrence.range:
+                    # Fallback: use definition line with reasonable upper bound
+                    start_line = occurrence.range[0] + 1
+                    function_ranges.append((start_line, 10000, symbol))
+
+            # Count parameters: increment parent function's param count
+            if symbol_type == "parameter":
+                parent_func = self._extract_function_from_parameter(symbol)
+                if parent_func:
+                    param_counts[parent_func] = param_counts.get(parent_func, 0) + 1
+
+    def _process_call_site(
+        self,
+        symbol: str,
+        line: int,
+        call_sites: list,
+    ) -> None:
+        """
+        Process a call site occurrence.
+
+        Args:
+            symbol: SCIP symbol string
+            line: Line number (1-indexed)
+            call_sites: List to store call site data
+        """
+        # Only collect if extract_references is enabled and symbol is a function call
+        if self.extract_references and symbol.endswith("()."):
+            call_sites.append(
+                CallSite(
+                    callee_symbol=symbol,
+                    line=line,
+                    caller_symbol=None,  # Will be set later via binary search
+                )
+            )
+
+    def _process_import(
+        self,
+        symbol: str,
+        line: int,
+        dependencies: list,
+        imports_by_line: dict,
+        seen_imports: set,
+    ) -> None:
+        """
+        Process an import statement occurrence.
+
+        Args:
+            symbol: SCIP symbol string
+            line: Line number (1-indexed)
+            dependencies: List to store import data
+            imports_by_line: Dictionary to group multi-symbol imports
+            seen_imports: Set to track already-seen module imports
+        """
+        # Only process imports within the search range
+        if line > self.import_search_lines:
+            return
+
+        module_name = self._extract_module_from_symbol(symbol)
+        if not module_name or self._is_builtin_module(module_name):
+            return
+
+        is_module_import = symbol.endswith(":")
+
+        if is_module_import:
+            # Module-level import: "import foo"
+            if module_name not in seen_imports:
+                dependencies.append(
+                    ImportData(
+                        module=module_name,
+                        symbols=[],
+                        line=line,
+                    )
+                )
+                seen_imports.add(module_name)
+        else:
+            # Symbol import: "from foo import bar"
+            if line not in imports_by_line:
+                imports_by_line[line] = ImportData(
+                    module=module_name,
+                    symbols=[],
+                    line=line,
+                )
+
+            # Extract and add symbol name
+            symbol_name = self._extract_name(symbol)
+            if symbol_name and symbol_name not in imports_by_line[line].symbols:
+                imports_by_line[line].symbols.append(symbol_name)
+
     def _extract_document_data(self, doc: scip_pb2.Document, repo_path: Path) -> DocumentData:
         """
         Phase 1: Extract all SCIP data in a single pass.
@@ -149,21 +314,7 @@ class SCIPConverter:
             DocumentData with all extracted information
         """
         # Extract import aliases from source file
-        aliases = {}
-        try:
-            from cicada.languages.python.alias_extractor import PythonAliasExtractor
-
-            full_path = repo_path / doc.relative_path
-            alias_extractor = PythonAliasExtractor()
-            aliases = alias_extractor.extract_aliases(full_path)
-            if self.verbose and aliases:
-                print(f"Extracted {len(aliases)} aliases from {doc.relative_path}", file=sys.stderr)
-        except Exception as e:
-            if self.verbose:
-                print(
-                    f"Warning: Failed to extract aliases from {doc.relative_path}: {e}",
-                    file=sys.stderr,
-                )
+        aliases = self._extract_aliases(doc, repo_path)
 
         # Initialize data structures
         symbols = {}  # symbol -> SymbolData
@@ -190,93 +341,19 @@ class SCIPConverter:
             # Determine symbol type ONCE per occurrence
             symbol_type = self._get_symbol_type(symbol)
 
-            # === Handle DEFINITIONS ===
+            # Handle definitions
             if is_definition:
-                # Extract documentation
-                doc_text = ""
-                if occurrence.symbol_roles & scip_pb2.SymbolRole.Test:
-                    doc_text = ""  # Skip test documentation for now
+                self._process_definition(
+                    occurrence, symbol, line, symbol_type, symbols, function_ranges, param_counts
+                )
 
-                # Store symbol metadata
-                if symbol_type in ("class", "function", "method", "module", "parameter"):
-                    # Get parent for methods
-                    parent_symbol = None
-                    if symbol_type == "method":
-                        parent_symbol = self._get_parent_symbol(symbol)
-
-                    symbols[symbol] = SymbolData(
-                        symbol=symbol,
-                        symbol_type=symbol_type,
-                        line=line,
-                        doc=doc_text,
-                        arity=0,  # Will be computed from param_counts
-                        parent_symbol=parent_symbol,
-                    )
-
-                    # Build function ranges for binary search
-                    if symbol_type in ("function", "method"):
-                        if occurrence.enclosing_range and len(occurrence.enclosing_range) >= 3:
-                            start_line = occurrence.enclosing_range[0] + 1
-                            end_line = occurrence.enclosing_range[2] + 1
-                            function_ranges.append((start_line, end_line, symbol))
-                        elif occurrence.range:
-                            # Fallback: use definition line as start with reasonable upper bound
-                            # Use 10000 as a practical file length limit
-                            start_line = occurrence.range[0] + 1
-                            function_ranges.append((start_line, 10000, symbol))
-
-                    # Count parameters: increment parent function's param count
-                    if symbol_type == "parameter":
-                        # Extract parent function symbol from parameter symbol
-                        # Parameter format: "function_symbol.(param_name)"
-                        parent_func = self._extract_function_from_parameter(symbol)
-                        if parent_func:
-                            param_counts[parent_func] = param_counts.get(parent_func, 0) + 1
-
-            # === Handle CALL SITES (ReadAccess, not Definition) ===
+            # Handle call sites and imports (ReadAccess, not Definition)
             if is_read_access and not is_definition:
-                # Function/method calls: symbols ending with "()."
-                # Only collect if extract_references is enabled
-                if self.extract_references and symbol.endswith("()."):
-                    call_sites.append(
-                        CallSite(
-                            callee_symbol=symbol,
-                            line=line,
-                            caller_symbol=None,  # Will be set later via binary search
-                        )
-                    )
+                # Process function/method calls
+                self._process_call_site(symbol, line, call_sites)
 
-                # Import statements: early lines (<= import_search_lines)
-                if line <= self.import_search_lines:
-                    module_name = self._extract_module_from_symbol(symbol)
-
-                    if module_name and not self._is_builtin_module(module_name):
-                        is_module_import = symbol.endswith(":")
-
-                        if is_module_import:
-                            # Module-level import: "import foo"
-                            if module_name not in seen_imports:
-                                dependencies.append(
-                                    ImportData(
-                                        module=module_name,
-                                        symbols=[],
-                                        line=line,
-                                    )
-                                )
-                                seen_imports.add(module_name)
-                        else:
-                            # Symbol import: "from foo import bar"
-                            if line not in imports_by_line:
-                                imports_by_line[line] = ImportData(
-                                    module=module_name,
-                                    symbols=[],
-                                    line=line,
-                                )
-
-                            # Extract symbol name
-                            symbol_name = self._extract_name(symbol)
-                            if symbol_name and symbol_name not in imports_by_line[line].symbols:
-                                imports_by_line[line].symbols.append(symbol_name)
+                # Process import statements
+                self._process_import(symbol, line, dependencies, imports_by_line, seen_imports)
 
         # Consolidate imports from imports_by_line
         dependencies.extend(imports_by_line.values())
