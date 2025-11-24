@@ -220,9 +220,10 @@ class SCIPConverter:
                             end_line = occurrence.enclosing_range[2] + 1
                             function_ranges.append((start_line, end_line, symbol))
                         elif occurrence.range:
-                            # Fallback: use definition line as start
+                            # Fallback: use definition line as start with reasonable upper bound
+                            # Use 10000 as a practical file length limit
                             start_line = occurrence.range[0] + 1
-                            function_ranges.append((start_line, float("inf"), symbol))
+                            function_ranges.append((start_line, 10000, symbol))
 
                     # Count parameters: increment parent function's param count
                     if symbol_type == "parameter":
@@ -235,7 +236,8 @@ class SCIPConverter:
             # === Handle CALL SITES (ReadAccess, not Definition) ===
             if is_read_access and not is_definition:
                 # Function/method calls: symbols ending with "()."
-                if symbol.endswith("()."):
+                # Only collect if extract_references is enabled
+                if self.extract_references and symbol.endswith("()."):
                     call_sites.append(
                         CallSite(
                             callee_symbol=symbol,
@@ -288,8 +290,10 @@ class SCIPConverter:
         function_ranges.sort(key=lambda x: x[0])
 
         # Match call sites to enclosing functions using FAST binary search
-        for call in call_sites:
-            call.caller_symbol = self._find_enclosing_fast(call.line, function_ranges)
+        # Only if extract_references is enabled
+        if self.extract_references:
+            for call in call_sites:
+                call.caller_symbol = self._find_enclosing_fast(call.line, function_ranges)
 
         return DocumentData(
             relative_path=doc.relative_path,
@@ -332,7 +336,8 @@ class SCIPConverter:
         Find enclosing function using binary search on pre-sorted ranges.
 
         This replaces the O(n) linear search in _find_enclosing_function()
-        with O(log n) binary search, eliminating nested loops.
+        with O(log n) binary search on the start lines, then checks nearby
+        candidates for the smallest enclosing range.
 
         Args:
             line: Line number to check
@@ -341,11 +346,28 @@ class SCIPConverter:
         Returns:
             Symbol of enclosing function, or None if not in a function
         """
-        # Find the most specific (smallest) function containing this line
+        import bisect
+
+        if not function_ranges:
+            return None
+
+        # Binary search for the rightmost function that starts at or before line
+        start_lines = [start for start, _, _ in function_ranges]
+        idx = bisect.bisect_right(start_lines, line) - 1
+
+        # Check candidates starting from idx (functions that might contain this line)
         best_match = None
         best_range_size = float("inf")
 
-        for start, end, symbol in function_ranges:
+        # Only check functions whose start_line <= line
+        for i in range(max(0, idx), len(function_ranges)):
+            start, end, symbol = function_ranges[i]
+
+            # If this function starts after line, no more candidates
+            if start > line:
+                break
+
+            # Check if line is within this function's range
             if start <= line <= end:
                 range_size = end - start
                 if range_size < best_range_size:

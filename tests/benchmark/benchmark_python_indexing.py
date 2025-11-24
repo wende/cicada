@@ -243,16 +243,18 @@ def run_benchmark_suite():
         # Run with profiling
         results = benchmark.run_baseline(extract_keywords=True, profile=True)
 
-        # Save results
+        # Set up paths
         output_dir = Path(__file__).parent
         output_dir.mkdir(exist_ok=True)
         baseline_path = output_dir / "baseline_results.json"
-        benchmark.save_results(baseline_path)
 
-        # If there's a previous baseline, compare
+        # If there's a previous baseline, compare BEFORE saving
         if baseline_path.exists():
             print("\n📊 Comparing against previous baseline...")
             benchmark.compare_results(baseline_path)
+
+        # Save results (after comparison)
+        benchmark.save_results(baseline_path)
 
         print("\n✅ Benchmark complete!")
         return 0
