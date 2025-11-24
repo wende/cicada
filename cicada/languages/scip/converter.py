@@ -106,14 +106,23 @@ class SCIPConverter:
         # Build a symbol lookup map for quick access
         symbol_map = self._build_symbol_map(scip_index)
 
-        # TWO-PHASE PROCESSING
+        # THREE-PHASE PROCESSING
+        # Phase 1: Extract all SCIP data for all documents (builds arity info)
+        all_doc_data = []
+        global_arity_map: dict[str, int] = {}
+
         for doc in scip_index.documents:
-            # Phase 1: Extract all SCIP data in single pass (no nested loops!)
             doc_data = self._extract_document_data(doc, repo_path)
+            all_doc_data.append(doc_data)
 
-            # Phase 2: Process intermediate data to build modules
-            file_modules = self._process_document_data(doc_data, symbol_map)
+            # Build global arity map from all symbols across all documents
+            for symbol, symbol_data in doc_data.symbols.items():
+                if symbol_data.arity > 0:
+                    global_arity_map[symbol] = symbol_data.arity
 
+        # Phase 2: Process extracted data to build modules (with global arity map)
+        for doc_data in all_doc_data:
+            file_modules = self._process_document_data(doc_data, symbol_map, global_arity_map)
             modules.update(file_modules)
 
         # Build metadata
@@ -434,8 +443,12 @@ class SCIPConverter:
             return None
 
         # Everything before ".(" is the function symbol (should end with "().")
+        # After rfind(".("), we get the symbol without the trailing dot, e.g. "func()"
+        # We need to add just "." to make it "func()."
         func_symbol = parameter_symbol[:idx]
-        if not func_symbol.endswith("()."):
+        if func_symbol.endswith("()"):
+            func_symbol += "."
+        elif not func_symbol.endswith("()."):
             func_symbol += "()."
 
         return func_symbol
@@ -519,7 +532,12 @@ class SCIPConverter:
 
         return best_match
 
-    def _process_document_data(self, doc_data: DocumentData, symbol_map: dict) -> dict:
+    def _process_document_data(
+        self,
+        doc_data: DocumentData,
+        symbol_map: dict,
+        global_arity_map: dict[str, int] | None = None,
+    ) -> dict:
         """
         Phase 2: Process intermediate data to build Cicada modules.
 
@@ -529,6 +547,7 @@ class SCIPConverter:
         Args:
             doc_data: Pre-extracted document data from Phase 1
             symbol_map: Symbol lookup map for documentation
+            global_arity_map: Global map of symbol -> arity for cross-file resolution
 
         Returns:
             Dict mapping module names to ModuleData dicts
@@ -580,6 +599,7 @@ class SCIPConverter:
                     doc_data,
                     symbol_map,
                     call_sites_by_function,
+                    global_arity_map,
                 )
                 function_entries.append(func_entry)
 
@@ -649,6 +669,7 @@ class SCIPConverter:
                     doc_data,
                     symbol_map,
                     call_sites_by_function,
+                    global_arity_map,
                 )
                 function_entries.append(func_entry)
 
@@ -774,17 +795,51 @@ class SCIPConverter:
         """
         args = []
 
-        # Find parameters between parentheses
-        paren_match = re.search(r"\((.*?)\)", signature, re.DOTALL)
-        if not paren_match:
+        # Find parameters between the function's parentheses
+        # Need to handle nested parens in type hints like Union[int, float]
+        # Find the opening paren after 'def funcname' and match to the closing paren
+        first_paren = signature.find("(")
+        if first_paren == -1:
             return args
 
-        params_str = paren_match.group(1)
+        # Find matching closing paren by counting depth
+        depth = 0
+        end_idx = -1
+        for i in range(first_paren, len(signature)):
+            if signature[i] == "(":
+                depth += 1
+            elif signature[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break
 
-        # Split by comma, handling nested parens/brackets
-        # Simple approach: split by comma and extract first word before : or =
-        for param in params_str.split(","):
-            param = param.strip()
+        if end_idx == -1:
+            return args
+
+        params_str = signature[first_paren + 1 : end_idx]
+
+        # Split by comma at depth 0 (not inside brackets/parens)
+        # This handles type hints like Union[int, float] correctly
+        params = []
+        current = []
+        depth = 0
+        for char in params_str:
+            if char in "([{":
+                depth += 1
+                current.append(char)
+            elif char in ")]}":
+                depth -= 1
+                current.append(char)
+            elif char == "," and depth == 0:
+                params.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        if current:
+            params.append("".join(current).strip())
+
+        for param in params:
             if not param or param == "self" or param == "cls":
                 continue
 
@@ -812,6 +867,7 @@ class SCIPConverter:
         doc_data: DocumentData,
         symbol_map: dict,
         call_sites_by_function: dict,
+        global_arity_map: dict[str, int] | None = None,
     ) -> dict:
         """
         Build a function entry dict from SymbolData.
@@ -821,6 +877,7 @@ class SCIPConverter:
             doc_data: Document data (for file path)
             symbol_map: SCIP symbol map for documentation
             call_sites_by_function: Pre-grouped call sites
+            global_arity_map: Global map of symbol -> arity for cross-file resolution
 
         Returns:
             Function entry dict
@@ -836,7 +893,7 @@ class SCIPConverter:
             dependencies = self._transform_calls_to_dependencies_fast(
                 call_sites,
                 doc_data.aliases,
-                doc_data.symbols,
+                global_arity_map,
             )
 
         # Determine visibility type (public/private)
@@ -852,15 +909,19 @@ class SCIPConverter:
             raw_doc = "\n".join(symbol_info.documentation)
             signature, clean_doc, args = self._parse_signature_from_doc(raw_doc)
 
-        # Compute arity: prefer SCIP arity, but use args length if SCIP arity is 0
-        arity = symbol_data.arity
-        if arity == 0 and args:
+        # Compute arity to match args length for schema consistency
+        # Priority: use args from docstring if available (excludes self/cls),
+        # otherwise fall back to SCIP arity and generate placeholder arg names
+        if args:
+            # Docstring args are canonical (excludes self/cls)
             arity = len(args)
-
-        # Fallback: if we have arity but no args from docstring, generate placeholder names
-        # This preserves parameter information when docs lack signatures
-        if arity > 0 and not args:
+        elif symbol_data.arity > 0:
+            # No docstring args, use SCIP arity and generate placeholders
+            arity = symbol_data.arity
             args = [f"arg{i}" for i in range(arity)]
+        else:
+            # No info from either source
+            arity = 0
 
         func_entry = {
             "name": func_name,
@@ -952,7 +1013,7 @@ class SCIPConverter:
         self,
         call_sites: list[dict],
         aliases: dict[str, str],
-        symbols: dict[str, "SymbolData"] | None = None,
+        arity_map: dict[str, int] | None = None,
     ) -> list[dict]:
         """
         Transform call sites to dependency format (optimized version).
@@ -963,7 +1024,7 @@ class SCIPConverter:
         Args:
             call_sites: List of call site dicts
             aliases: Import aliases
-            symbols: Symbol data dict for arity lookup (optional)
+            arity_map: Global map of symbol -> arity for cross-file resolution
 
         Returns:
             List of dependency dicts with module, function, arity, and line
@@ -990,11 +1051,11 @@ class SCIPConverter:
             if self._is_builtin_module(module_name):
                 continue
 
-            # Get arity from symbols dict if available (for internal calls)
+            # Get arity from global map (supports cross-file resolution)
             # Default to 0 for external functions where we don't have arity info
             arity = 0
-            if symbols and callee_symbol in symbols:
-                arity = symbols[callee_symbol].arity
+            if arity_map and callee_symbol in arity_map:
+                arity = arity_map[callee_symbol]
 
             # Create dependency key (include line to track multiple calls to same function)
             dep_key = (module_name, func_name, arity, line)

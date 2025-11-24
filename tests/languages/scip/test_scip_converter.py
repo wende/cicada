@@ -393,3 +393,54 @@ class TestLanguageAgnostic:
                     assert "args" in func
                     assert "type" in func
                     assert "line" in func
+
+
+class TestCrossFileArityResolution:
+    """Test that cross-file call dependencies resolve arity correctly."""
+
+    def test_cross_file_arity_resolution(self, python_scip_index):
+        """Test that calls to functions in other files have correct arity.
+
+        The sample_python fixture has cross-file calls:
+        - main.py calls operations.add(x, y) which has arity 2
+        - utils.py calls operations.add(result, num) which has arity 2
+        - utils.py calls operations.divide(total, len(numbers)) which has arity 2
+
+        Before the fix, cross-file calls would have arity=0 because we only
+        looked up arity in the current document's symbols. Now we use a global
+        arity map that includes all symbols from all files.
+        """
+        scip_index, repo_path = python_scip_index
+
+        # Enable reference extraction to get dependencies
+        converter = SCIPConverter(extract_references=True)
+        result = converter.convert(scip_index, repo_path)
+
+        # Find the utils file module (contains cross-file calls to operations)
+        utils_module = None
+        for name, module_data in result["modules"].items():
+            if module_data.get("file", "").endswith("utils.py"):
+                utils_module = module_data
+                break
+
+        assert utils_module is not None, "Should find utils module"
+
+        # Find functions that have dependencies on operations module
+        functions_with_ops_deps = []
+        for func in utils_module.get("functions", []):
+            deps = func.get("dependencies", [])
+            for dep in deps:
+                if dep.get("module", "").endswith("operations"):
+                    functions_with_ops_deps.append((func["name"], dep))
+
+        # Should have some cross-file dependencies
+        assert len(functions_with_ops_deps) > 0, "Should have cross-file dependencies"
+
+        # Verify that cross-file calls have arity > 0
+        # operations.add, operations.multiply, operations.divide all have arity 2
+        for func_name, dep in functions_with_ops_deps:
+            if dep["function"] in ["add", "subtract", "multiply", "divide"]:
+                assert dep["arity"] == 2, (
+                    f"Cross-file call {func_name} -> operations.{dep['function']} "
+                    f"should have arity=2, got {dep['arity']}"
+                )
