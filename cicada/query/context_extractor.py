@@ -235,6 +235,7 @@ def format_matched_context(
     if doc_keywords and doc_text and (para := extract_multiple_keywords(doc_text, doc_keywords)):
         highlighted = highlight_keywords(para, doc_keywords, use_ansi)
         sections.append(f"Matched in documentation:\n> {highlighted}")
+
     # Format string literal matches
     if string_keywords and string_sources:
         relevant_strings = []

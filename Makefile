@@ -208,18 +208,48 @@ pr-comments:
 	echo "PR #$$PR_NUMBER"; \
 	echo ""; \
 	echo "================================================================================"; \
-	echo "REGULAR PR COMMENTS"; \
+	echo "REGULAR PR COMMENTS (unaddressed only)"; \
 	echo "================================================================================"; \
 	echo ""; \
-	COMMENTS=$$(gh pr view $$PR_NUMBER --json comments --jq '[.comments[]? // empty | select(.isMinimized == false)] | if length > 0 then .[] | "Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No regular comments found.\n" end'); \
-	echo "$$COMMENTS"; \
+	TEMP_PR_COMMENTS=$$(mktemp); \
+	gh pr view $$PR_NUMBER --json comments --jq '.comments[]? // empty | select(.isMinimized == false)' > "$$TEMP_PR_COMMENTS"; \
+	PR_COMMENT_COUNT=$$(jq -s 'length' "$$TEMP_PR_COMMENTS"); \
+	FOUND_UNADDRESSED_PR=false; \
+	for i in $$(seq 0 $$((PR_COMMENT_COUNT - 1))); do \
+		COMMENT_DATE=$$(jq -r -s ".[$${i}].createdAt" "$$TEMP_PR_COMMENTS"); \
+		COMMITS_SINCE=$$(git log --since="$$COMMENT_DATE" --oneline); \
+		if echo "$$COMMITS_SINCE" | grep -qi "addressed"; then \
+			continue; \
+		fi; \
+		FOUND_UNADDRESSED_PR=true; \
+		jq -r -s ".[$${i}] | \"Author: \(.author.login)\nDate: \(.createdAt)\nURL: \(.url)\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_PR_COMMENTS"; \
+	done; \
+	if [ "$$FOUND_UNADDRESSED_PR" = "false" ]; then \
+		echo "All PR comments have been addressed! 🎉"; \
+	fi; \
+	rm -f "$$TEMP_PR_COMMENTS"; \
 	echo ""; \
 	echo "================================================================================"; \
-	echo "REVIEW SUMMARIES"; \
+	echo "REVIEW SUMMARIES (unaddressed only)"; \
 	echo "================================================================================"; \
 	echo ""; \
-	REVIEWS=$$(gh pr view $$PR_NUMBER --json reviews --jq '[.reviews[]? // empty | select(.body != "" and (.isMinimized == false or .isMinimized == null))] | if length > 0 then .[] | "Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n" + ("─" * 80) + "\n" else "No review summaries found.\n" end'); \
-	echo "$$REVIEWS"; \
+	TEMP_REVIEWS=$$(mktemp); \
+	gh pr view $$PR_NUMBER --json reviews --jq '.reviews[]? // empty | select(.body != "" and (.isMinimized == false or .isMinimized == null))' > "$$TEMP_REVIEWS"; \
+	REVIEW_COUNT=$$(jq -s 'length' "$$TEMP_REVIEWS"); \
+	FOUND_UNADDRESSED_REVIEW=false; \
+	for i in $$(seq 0 $$((REVIEW_COUNT - 1))); do \
+		REVIEW_DATE=$$(jq -r -s ".[$${i}].submittedAt" "$$TEMP_REVIEWS"); \
+		COMMITS_SINCE=$$(git log --since="$$REVIEW_DATE" --oneline); \
+		if echo "$$COMMITS_SINCE" | grep -qi "addressed"; then \
+			continue; \
+		fi; \
+		FOUND_UNADDRESSED_REVIEW=true; \
+		jq -r -s ".[$${i}] | \"Reviewer: \(.author.login)\nState: \(.state)\nDate: \(.submittedAt)\n\n\(.body)\n\n\" + (\"─\" * 80) + \"\\n\"" "$$TEMP_REVIEWS"; \
+	done; \
+	if [ "$$FOUND_UNADDRESSED_REVIEW" = "false" ]; then \
+		echo "All review summaries have been addressed! 🎉"; \
+	fi; \
+	rm -f "$$TEMP_REVIEWS"; \
 	echo ""; \
 	echo "================================================================================"; \
 	echo "REVIEW COMMENTS (Line-level code comments - unaddressed only)"; \
