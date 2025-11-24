@@ -836,6 +836,7 @@ class SCIPConverter:
             dependencies = self._transform_calls_to_dependencies_fast(
                 call_sites,
                 doc_data.aliases,
+                doc_data.symbols,
             )
 
         # Determine visibility type (public/private)
@@ -855,6 +856,11 @@ class SCIPConverter:
         arity = symbol_data.arity
         if arity == 0 and args:
             arity = len(args)
+
+        # Fallback: if we have arity but no args from docstring, generate placeholder names
+        # This preserves parameter information when docs lack signatures
+        if arity > 0 and not args:
+            args = [f"arg{i}" for i in range(arity)]
 
         func_entry = {
             "name": func_name,
@@ -946,6 +952,7 @@ class SCIPConverter:
         self,
         call_sites: list[dict],
         aliases: dict[str, str],
+        symbols: dict[str, "SymbolData"] | None = None,
     ) -> list[dict]:
         """
         Transform call sites to dependency format (optimized version).
@@ -956,6 +963,7 @@ class SCIPConverter:
         Args:
             call_sites: List of call site dicts
             aliases: Import aliases
+            symbols: Symbol data dict for arity lookup (optional)
 
         Returns:
             List of dependency dicts with module, function, arity, and line
@@ -982,8 +990,11 @@ class SCIPConverter:
             if self._is_builtin_module(module_name):
                 continue
 
-            # Get arity (default 0 for external functions)
+            # Get arity from symbols dict if available (for internal calls)
+            # Default to 0 for external functions where we don't have arity info
             arity = 0
+            if symbols and callee_symbol in symbols:
+                arity = symbols[callee_symbol].arity
 
             # Create dependency key (include line to track multiple calls to same function)
             dep_key = (module_name, func_name, arity, line)
