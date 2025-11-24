@@ -589,13 +589,34 @@ class SCIPConverter:
                 "line": class_data.line,
                 "functions": function_entries,
                 "calls": [],
-                "dependencies": [self._format_dependency(dep) for dep in doc_data.dependencies],
+                "dependencies": self._merge_dependencies_to_dict(doc_data.dependencies),
             }
 
             # Add documentation
             symbol_info = symbol_map.get(class_data.symbol)
             if symbol_info and symbol_info.documentation:
                 module_data["moduledoc"] = "\n".join(symbol_info.documentation)
+
+            # Extract keywords if enabled
+            if self.extract_keywords and self.keyword_extractor:
+                module_doc = module_data.get("moduledoc", "")
+                func_docs = " ".join(f.get("doc", "") for f in function_entries)
+                combined_text = f"{module_doc} {func_docs}".strip()
+                if combined_text:
+                    keywords = self._normalize_keywords(
+                        self.keyword_extractor.extract_keywords(combined_text)
+                    )
+                    if keywords:
+                        module_data["keywords"] = keywords
+                # Also extract keywords for individual functions
+                for func_entry in function_entries:
+                    func_doc = func_entry.get("doc", "")
+                    if func_doc:
+                        func_keywords = self._normalize_keywords(
+                            self.keyword_extractor.extract_keywords(func_doc)
+                        )
+                        if func_keywords:
+                            func_entry["keywords"] = func_keywords
 
             # Store metadata for parent module
             class_metadata_list.append(
@@ -637,14 +658,153 @@ class SCIPConverter:
                 "line": 1,
                 "functions": function_entries,
                 "calls": [],
-                "dependencies": [self._format_dependency(dep) for dep in doc_data.dependencies],
+                "dependencies": self._merge_dependencies_to_dict(doc_data.dependencies),
                 "type": "module",
                 "classes": class_metadata_list,  # Track classes defined in this module
             }
 
+            # Extract keywords if enabled
+            if self.extract_keywords and self.keyword_extractor:
+                func_docs = " ".join(f.get("doc", "") for f in function_entries)
+                if func_docs.strip():
+                    keywords = self._normalize_keywords(
+                        self.keyword_extractor.extract_keywords(func_docs)
+                    )
+                    if keywords:
+                        file_module["keywords"] = keywords
+                # Also extract keywords for individual functions
+                for func_entry in function_entries:
+                    func_doc = func_entry.get("doc", "")
+                    if func_doc:
+                        func_keywords = self._normalize_keywords(
+                            self.keyword_extractor.extract_keywords(func_doc)
+                        )
+                        if func_keywords:
+                            func_entry["keywords"] = func_keywords
+
             modules[file_module_name] = file_module
 
         return modules
+
+    def _normalize_keywords(self, keywords_result: dict | list) -> dict:
+        """
+        Normalize keyword extractor output to a simple dict format.
+
+        The keyword extractor may return different formats depending on the extractor type:
+        - dict with 'tf_scores' or 'top_keywords' keys
+        - list of (keyword, score) tuples
+        - simple dict of {keyword: score}
+
+        Args:
+            keywords_result: Raw output from keyword extractor
+
+        Returns:
+            Dict mapping keyword strings to numeric scores
+        """
+        if not keywords_result:
+            return {}
+
+        # If already a simple dict with numeric values, return as-is
+        if isinstance(keywords_result, dict):
+            # Check if it's a nested structure from RegularKeywordExtractor
+            if "tf_scores" in keywords_result:
+                return keywords_result["tf_scores"]
+            if "top_keywords" in keywords_result:
+                # Convert list of tuples to dict
+                return dict(keywords_result["top_keywords"])
+            # Assume it's already a simple {keyword: score} dict
+            # But verify values are numeric, not nested
+            first_value = next(iter(keywords_result.values()), None)
+            if isinstance(first_value, (int, float)):
+                return keywords_result
+            # If values aren't numeric, return empty
+            return {}
+
+        # If it's a list of tuples, convert to dict
+        if isinstance(keywords_result, list):
+            return dict(keywords_result)
+
+        return {}
+
+    def _parse_signature_from_doc(self, doc_text: str) -> tuple[str, str, list[str]]:
+        """
+        Parse signature and args from SCIP documentation.
+
+        SCIP documentation often contains markdown code blocks with signatures:
+        ```python
+        def foo(x: int, y: str) -> bool:
+        ```
+
+        This extracts the signature, cleans up the doc, and extracts arg names.
+
+        Args:
+            doc_text: Raw documentation from SCIP
+
+        Returns:
+            Tuple of (signature, clean_doc, args_list)
+        """
+        signature = ""
+        clean_doc = doc_text
+        args = []
+
+        # Look for markdown code block with signature
+        # Pattern: ```language\n...signature...\n```
+        code_block_pattern = r"```(?:python|typescript|javascript|ts|js)?\s*\n(.*?)\n```"
+        match = re.search(code_block_pattern, doc_text, re.DOTALL)
+
+        if match:
+            signature = match.group(1).strip()
+            # Remove the code block from doc
+            clean_doc = re.sub(code_block_pattern, "", doc_text, flags=re.DOTALL).strip()
+
+            # Extract args from signature
+            args = self._extract_args_from_signature(signature)
+
+        return signature, clean_doc, args
+
+    def _extract_args_from_signature(self, signature: str) -> list[str]:
+        """
+        Extract argument names from a function signature.
+
+        Args:
+            signature: Function signature string (e.g., "def foo(x: int, y: str) -> bool:")
+
+        Returns:
+            List of argument names (e.g., ["x", "y"])
+        """
+        args = []
+
+        # Find parameters between parentheses
+        paren_match = re.search(r"\((.*?)\)", signature, re.DOTALL)
+        if not paren_match:
+            return args
+
+        params_str = paren_match.group(1)
+
+        # Split by comma, handling nested parens/brackets
+        # Simple approach: split by comma and extract first word before : or =
+        for param in params_str.split(","):
+            param = param.strip()
+            if not param or param == "self" or param == "cls":
+                continue
+
+            # Handle patterns like:
+            # - x: int
+            # - y: str = "default"
+            # - *args
+            # - **kwargs
+            # - /  (positional-only marker)
+
+            # Skip positional-only marker
+            if param == "/":
+                continue
+
+            # Extract just the name (before : or =)
+            name_match = re.match(r"^\*{0,2}(\w+)", param)
+            if name_match:
+                args.append(name_match.group(1))
+
+        return args
 
     def _build_function_entry(
         self,
@@ -678,18 +838,38 @@ class SCIPConverter:
                 doc_data.aliases,
             )
 
+        # Determine visibility type (public/private)
+        func_type = "private" if self._is_private(symbol_data.symbol) else "public"
+
+        # Extract signature and args from documentation
+        signature = ""
+        clean_doc = ""
+        args = []
+
+        symbol_info = symbol_map.get(symbol_data.symbol)
+        if symbol_info and symbol_info.documentation:
+            raw_doc = "\n".join(symbol_info.documentation)
+            signature, clean_doc, args = self._parse_signature_from_doc(raw_doc)
+
+        # Compute arity: prefer SCIP arity, but use args length if SCIP arity is 0
+        arity = symbol_data.arity
+        if arity == 0 and args:
+            arity = len(args)
+
         func_entry = {
             "name": func_name,
-            "arity": symbol_data.arity,
+            "arity": arity,
             "line": symbol_data.line,
             "calls": call_sites,
             "dependencies": dependencies,
+            "type": func_type,
+            "args": args,
+            "signature": signature,
         }
 
-        # Add documentation
-        symbol_info = symbol_map.get(symbol_data.symbol)
-        if symbol_info and symbol_info.documentation:
-            func_entry["doc"] = "\n".join(symbol_info.documentation)
+        # Add cleaned documentation if available
+        if clean_doc:
+            func_entry["doc"] = clean_doc
 
         return func_entry
 
@@ -699,6 +879,32 @@ class SCIPConverter:
             "module": import_data.module,
             "symbols": import_data.symbols,
             "line": import_data.line,
+        }
+
+    def _merge_dependencies_to_dict(self, dependencies: list[ImportData]) -> dict:
+        """
+        Merge dependencies list into Elixir-compatible format.
+
+        Converts a list of ImportData to a dict with 'modules' and 'has_dynamic_calls'.
+        This matches the format expected by Cicada's UniversalIndexSchema.
+
+        Args:
+            dependencies: List of ImportData objects
+
+        Returns:
+            Dict with 'modules' (list of module names) and 'has_dynamic_calls' (bool)
+        """
+        modules = set()
+        has_dynamic_calls = False
+
+        for dep in dependencies:
+            modules.add(dep.module)
+            # TODO: Detect dynamic calls (e.g., getattr, exec, eval)
+            # For now, assume static calls only
+
+        return {
+            "modules": sorted(modules),  # Sort for deterministic output
+            "has_dynamic_calls": has_dynamic_calls,
         }
 
     def _build_module_name(self, symbol: str) -> str:
@@ -719,16 +925,22 @@ class SCIPConverter:
         """
         Get module name for a file.
 
-        Converts file path to module notation, e.g.:
-        "cicada/git/history_analyzer.py" -> "cicada.git.history_analyzer"
+        Converts file path to module notation with _file_ prefix, e.g.:
+        "cicada/git/history_analyzer.py" -> "_file_cicada.git.history_analyzer"
+
+        This prefix distinguishes file-level modules from class modules
+        (e.g., _file_calculator vs Calculator class).
 
         Args:
             file_path: File path
 
         Returns:
-            Module name or None
+            Module name with _file_ prefix, or None
         """
-        return self._file_path_to_module_name(file_path)
+        module_name = self._file_path_to_module_name(file_path)
+        if module_name:
+            return f"_file_{module_name}"
+        return None
 
     def _transform_calls_to_dependencies_fast(
         self,
@@ -746,13 +958,14 @@ class SCIPConverter:
             aliases: Import aliases
 
         Returns:
-            List of dependency dicts
+            List of dependency dicts with module, function, arity, and line
         """
         dependencies = []
         seen = set()
 
         for call_site in call_sites:
             callee_symbol = call_site["callee"]
+            line = call_site.get("line", 0)
 
             # Extract module and function name
             module_name = self._extract_module_from_symbol(callee_symbol)
@@ -772,8 +985,8 @@ class SCIPConverter:
             # Get arity (default 0 for external functions)
             arity = 0
 
-            # Create dependency key
-            dep_key = (module_name, func_name, arity)
+            # Create dependency key (include line to track multiple calls to same function)
+            dep_key = (module_name, func_name, arity, line)
             if dep_key in seen:
                 continue
             seen.add(dep_key)
@@ -783,6 +996,7 @@ class SCIPConverter:
                     "module": module_name,
                     "function": func_name,
                     "arity": arity,
+                    "line": line,
                 }
             )
 
