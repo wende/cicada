@@ -310,6 +310,59 @@ class TestClassTracking:
         assert converter._file_path_to_module_name("") is None
 
 
+class TestNormalizeKeywords:
+    """Test _normalize_keywords helper method."""
+
+    def test_empty_input(self):
+        """Test with empty input returns empty dict."""
+        converter = SCIPConverter()
+        assert converter._normalize_keywords({}) == {}
+        assert converter._normalize_keywords([]) == {}
+        assert converter._normalize_keywords(None) == {}
+
+    def test_tf_scores_format(self):
+        """Test dict with 'tf_scores' key (RegularKeywordExtractor format)."""
+        converter = SCIPConverter()
+        input_data = {"tf_scores": {"keyword1": 0.5, "keyword2": 0.3}}
+        result = converter._normalize_keywords(input_data)
+        assert result == {"keyword1": 0.5, "keyword2": 0.3}
+
+    def test_top_keywords_format(self):
+        """Test dict with 'top_keywords' key (list of tuples)."""
+        converter = SCIPConverter()
+        input_data = {"top_keywords": [("keyword1", 0.5), ("keyword2", 0.3)]}
+        result = converter._normalize_keywords(input_data)
+        assert result == {"keyword1": 0.5, "keyword2": 0.3}
+
+    def test_simple_dict_format(self):
+        """Test simple dict with numeric values."""
+        converter = SCIPConverter()
+        input_data = {"keyword1": 0.5, "keyword2": 0.3}
+        result = converter._normalize_keywords(input_data)
+        assert result == {"keyword1": 0.5, "keyword2": 0.3}
+
+    def test_dict_with_non_numeric_values(self):
+        """Test dict with non-numeric values returns empty."""
+        converter = SCIPConverter()
+        input_data = {"keyword1": "not_a_number", "keyword2": {"nested": True}}
+        result = converter._normalize_keywords(input_data)
+        assert result == {}
+
+    def test_list_of_tuples_format(self):
+        """Test list of (keyword, score) tuples."""
+        converter = SCIPConverter()
+        input_data = [("keyword1", 0.5), ("keyword2", 0.3)]
+        result = converter._normalize_keywords(input_data)
+        assert result == {"keyword1": 0.5, "keyword2": 0.3}
+
+    def test_integer_scores(self):
+        """Test that integer scores are accepted."""
+        converter = SCIPConverter()
+        input_data = {"keyword1": 5, "keyword2": 3}
+        result = converter._normalize_keywords(input_data)
+        assert result == {"keyword1": 5, "keyword2": 3}
+
+
 class TestLanguageAgnostic:
     """Test that SCIP converter works across languages."""
 
