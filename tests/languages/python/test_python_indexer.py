@@ -101,6 +101,34 @@ class TestPythonSCIPIndexer:
 
         assert "scip-python is required" in str(exc_info.value)
 
+    @patch.object(SCIPPythonInstaller, "is_local_install")
+    @patch.object(SCIPPythonInstaller, "get_scip_python_path")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    @patch.object(SCIPPythonInstaller, "get_scip_python_version")
+    def test_ensure_scip_python_local_log_message(
+        self, mock_version, mock_installed, mock_path, mock_is_local, verbose_indexer, capsys
+    ):
+        """Should show (local) in log message when using local installation."""
+        mock_installed.return_value = True
+        mock_version.return_value = "0.3.15"
+        mock_path.return_value = str(SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python")
+        mock_is_local.return_value = True
+
+        verbose_indexer._ensure_scip_python_installed()
+
+        captured = capsys.readouterr()
+        assert "Using scip-python 0.3.15 (local)" in captured.out
+
+    @patch.object(SCIPPythonInstaller, "get_scip_python_path")
+    def test_run_scip_python_raises_when_path_is_none(self, mock_path, indexer, tmp_path):
+        """Should raise RuntimeError when scip-python path is not available."""
+        mock_path.return_value = None
+
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._run_scip_python(tmp_path)
+
+        assert "call _ensure_scip_python_installed() first" in str(exc_info.value)
+
     def test_run_scip_python_success(self, indexer, tmp_path):
         """Should successfully run scip-python and return .scip file path."""
         # Create a mock .scip file

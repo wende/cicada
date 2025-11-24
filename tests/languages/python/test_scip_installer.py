@@ -112,12 +112,13 @@ class TestSCIPPythonInstaller:
 
     def test_get_scip_python_path_local(self):
         """Should return local path when not in PATH but installed locally."""
+        local_bin_path = SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python"
         with patch("shutil.which") as mock_which:
             mock_which.return_value = None
             with patch("pathlib.Path.exists", return_value=True):
                 path = SCIPPythonInstaller.get_scip_python_path()
 
-                assert path == str(SCIPPythonInstaller.LOCAL_BIN_PATH)
+                assert path == str(local_bin_path)
 
     def test_get_scip_python_path_not_found(self):
         """Should return None when scip-python is not installed anywhere."""
@@ -130,13 +131,18 @@ class TestSCIPPythonInstaller:
 
     def test_install_locally_success(self):
         """Should install scip-python locally when npm is available."""
+        local_scip_path = str(SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python")
         with patch.object(SCIPPythonInstaller, "is_npm_available", return_value=True):
             with patch("pathlib.Path.mkdir"):
                 with patch("subprocess.run") as mock_run:
                     mock_result = Mock()
                     mock_result.returncode = 0
                     mock_run.return_value = mock_result
-                    with patch("pathlib.Path.exists", return_value=True):
+                    with patch.object(
+                        SCIPPythonInstaller,
+                        "_get_local_scip_python_path",
+                        return_value=local_scip_path,
+                    ):
                         result = SCIPPythonInstaller.install_locally()
 
                         assert result is True
@@ -148,3 +154,21 @@ class TestSCIPPythonInstaller:
             result = SCIPPythonInstaller.install_locally()
 
             assert result is False
+
+    def test_is_local_install_true(self):
+        """Should return True for path in ~/.cicada/node."""
+        # Use the actual local path that would be returned by get_scip_python_path
+        local_path = str(SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python")
+        result = SCIPPythonInstaller.is_local_install(local_path)
+        assert result is True
+
+    def test_is_local_install_false_for_global(self):
+        """Should return False for global installation path."""
+        global_path = "/usr/local/bin/scip-python"
+        result = SCIPPythonInstaller.is_local_install(global_path)
+        assert result is False
+
+    def test_is_local_install_none(self):
+        """Should return False for None path."""
+        result = SCIPPythonInstaller.is_local_install(None)
+        assert result is False

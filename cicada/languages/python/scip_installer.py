@@ -3,6 +3,7 @@
 Provides utilities to check for scip-python availability and local installation.
 """
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -13,7 +14,7 @@ class SCIPPythonInstaller:
 
     # Local install directory under ~/.cicada
     LOCAL_NODE_DIR = Path.home() / ".cicada" / "node"
-    LOCAL_BIN_PATH = LOCAL_NODE_DIR / "node_modules" / ".bin" / "scip-python"
+    LOCAL_BIN_DIR = LOCAL_NODE_DIR / "node_modules" / ".bin"
 
     @staticmethod
     def is_npm_available() -> bool:
@@ -25,18 +26,35 @@ class SCIPPythonInstaller:
         """
         return shutil.which("npm") is not None
 
-    @staticmethod
-    def is_npx_available() -> bool:
+    @classmethod
+    def _get_local_scip_python_path(cls) -> str | None:
         """
-        Check if npx is installed and available in PATH.
+        Get path to local scip-python executable.
+
+        Handles platform differences (Windows uses .cmd shims).
 
         Returns:
-            True if npx is found, False otherwise
+            Path to local scip-python if found, None otherwise
         """
-        return shutil.which("npx") is not None
+        bin_dir = cls.LOCAL_BIN_DIR
+        if not bin_dir.exists():
+            return None
 
-    @staticmethod
-    def get_scip_python_path() -> str | None:
+        # On Windows, npm creates .cmd shims
+        if os.name == "nt":
+            cmd_path = bin_dir / "scip-python.cmd"
+            if cmd_path.exists():
+                return str(cmd_path)
+        else:
+            # Unix: direct executable
+            bin_path = bin_dir / "scip-python"
+            if bin_path.exists():
+                return str(bin_path)
+
+        return None
+
+    @classmethod
+    def get_scip_python_path(cls) -> str | None:
         """
         Get path to scip-python executable.
 
@@ -52,42 +70,63 @@ class SCIPPythonInstaller:
         if global_path:
             return global_path
 
-        # Check local installation
-        if SCIPPythonInstaller.LOCAL_BIN_PATH.exists():
-            return str(SCIPPythonInstaller.LOCAL_BIN_PATH)
+        # Check local installation (platform-aware)
+        return cls._get_local_scip_python_path()
 
-        return None
+    @classmethod
+    def is_local_install(cls, scip_path: str | None) -> bool:
+        """
+        Check if a scip-python path is from the local ~/.cicada installation.
 
-    @staticmethod
-    def is_scip_python_installed() -> bool:
+        Args:
+            scip_path: Path to scip-python executable
+
+        Returns:
+            True if path is from local cicada installation
+        """
+        if not scip_path:
+            return False
+        try:
+            # Check if the path (without resolving symlinks) is under ~/.cicada/node
+            path = Path(scip_path)
+            local_node_dir = cls.LOCAL_NODE_DIR
+            # Use is_relative_to for proper path containment check
+            return path.is_relative_to(local_node_dir)
+        except (ValueError, OSError):
+            return False
+
+    @classmethod
+    def is_scip_python_installed(cls) -> bool:
         """
         Check if scip-python is installed (globally or locally).
 
         Returns:
             True if scip-python is found, False otherwise
         """
-        return SCIPPythonInstaller.get_scip_python_path() is not None
+        return cls.get_scip_python_path() is not None
 
-    @staticmethod
-    def get_scip_python_version() -> str | None:
+    @classmethod
+    def get_scip_python_version(cls) -> str | None:
         """
         Get installed scip-python version.
 
         Returns:
             Version string if installed, None otherwise
         """
-        scip_path = SCIPPythonInstaller.get_scip_python_path()
+        scip_path = cls.get_scip_python_path()
         if not scip_path:
             return None
 
+        # Security: scip_path comes from either shutil.which() (PATH lookup)
+        # or our own LOCAL_BIN_DIR constant - not from user input
         result = subprocess.run([scip_path, "--version"], capture_output=True, text=True)
 
         if result.returncode == 0:
             return result.stdout.strip()
         return None
 
-    @staticmethod
-    def install_locally(verbose: bool = False) -> bool:
+    @classmethod
+    def install_locally(cls, verbose: bool = False) -> bool:
         """
         Install scip-python locally to ~/.cicada/node/.
 
@@ -97,23 +136,23 @@ class SCIPPythonInstaller:
         Returns:
             True if installation succeeded, False otherwise
         """
-        if not SCIPPythonInstaller.is_npm_available():
+        if not cls.is_npm_available():
             if verbose:
                 print("  npm not found - cannot install scip-python")
             return False
 
         # Create directory
-        SCIPPythonInstaller.LOCAL_NODE_DIR.mkdir(parents=True, exist_ok=True)
+        cls.LOCAL_NODE_DIR.mkdir(parents=True, exist_ok=True)
 
         if verbose:
-            print(f"  Installing scip-python to {SCIPPythonInstaller.LOCAL_NODE_DIR}...")
+            print(f"  Installing scip-python to {cls.LOCAL_NODE_DIR}...")
 
         result = subprocess.run(
             [
                 "npm",
                 "install",
                 "--prefix",
-                str(SCIPPythonInstaller.LOCAL_NODE_DIR),
+                str(cls.LOCAL_NODE_DIR),
                 "@sourcegraph/scip-python",
             ],
             capture_output=True,
@@ -128,4 +167,5 @@ class SCIPPythonInstaller:
         if verbose:
             print("  scip-python installed successfully")
 
-        return SCIPPythonInstaller.LOCAL_BIN_PATH.exists()
+        # Verify installation by checking if executable exists
+        return cls._get_local_scip_python_path() is not None

@@ -1,4 +1,4 @@
-.PHONY: help install install-deps generate-scip-proto setup-fixtures setup-scip test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
+.PHONY: help install install-deps generate-scip-proto setup-fixtures setup-scip setup-scip-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
 
 # Default target
 help:
@@ -74,40 +74,63 @@ generate-scip-proto:
 setup-fixtures:
 	@bash tests/setup_fixtures.sh
 
-# Setup SCIP indexers and generate indexes for test fixtures
+# Setup SCIP indexers globally (for manual setup)
 setup-scip:
-	@echo "Setting up SCIP indexers for test fixtures..."
+	@echo "Setting up SCIP indexers globally..."
 	@if ! command -v npm >/dev/null 2>&1; then \
 		echo "Error: npm is not installed. Please install Node.js first."; \
 		exit 1; \
 	fi
 	@echo "Installing SCIP indexers..."
 	@npm install -g @sourcegraph/scip-python @sourcegraph/scip-typescript
-	@echo ""
-	@echo "Generating Python SCIP index..."
-	@cd tests/fixtures/sample_python && scip-python index .
-	@echo "✓ Python SCIP index generated"
-	@echo ""
-	@echo "Generating TypeScript SCIP index..."
-	@cd tests/fixtures/sample_typescript && npm install && scip-typescript index .
-	@echo "✓ TypeScript SCIP index generated"
-	@echo ""
-	@echo "✓ SCIP setup complete! Run 'make test' to run all tests including SCIP tests."
+	@$(MAKE) setup-scip-fixtures
+	@echo "✓ SCIP setup complete!"
+
+# Generate SCIP index files for test fixtures (uses local install if needed)
+setup-scip-fixtures:
+	@if [ -f tests/fixtures/sample_python/index.scip ] && [ -f tests/fixtures/sample_typescript/index.scip ]; then \
+		echo "SCIP fixture indexes already exist"; \
+	else \
+		echo "Generating SCIP fixture indexes..."; \
+		if ! command -v npm >/dev/null 2>&1; then \
+			echo "Warning: npm not installed, skipping SCIP fixture generation"; \
+			echo "  Install Node.js and run 'make setup-scip' for full test coverage"; \
+		else \
+			if ! command -v scip-python >/dev/null 2>&1; then \
+				echo "  Installing scip-python locally to ~/.cicada/node/..."; \
+				npm install --prefix ~/.cicada/node @sourcegraph/scip-python >/dev/null 2>&1 || true; \
+			fi; \
+			SCIP_PYTHON=$$(command -v scip-python || echo ~/.cicada/node/node_modules/.bin/scip-python); \
+			if [ -x "$$SCIP_PYTHON" ] || [ -f "$$SCIP_PYTHON" ]; then \
+				echo "  Generating Python SCIP index..."; \
+				(cd $(CURDIR)/tests/fixtures/sample_python && "$$SCIP_PYTHON" index . 2>/dev/null && echo "  ✓ Python SCIP index generated") || echo "  ⚠ Python SCIP index generation failed"; \
+			fi; \
+			if ! command -v scip-typescript >/dev/null 2>&1; then \
+				echo "  Installing scip-typescript locally to ~/.cicada/node/..."; \
+				npm install --prefix ~/.cicada/node @sourcegraph/scip-typescript >/dev/null 2>&1 || true; \
+			fi; \
+			SCIP_TS=$$(command -v scip-typescript || echo ~/.cicada/node/node_modules/.bin/scip-typescript); \
+			if [ -x "$$SCIP_TS" ] || [ -f "$$SCIP_TS" ]; then \
+				echo "  Generating TypeScript SCIP index..."; \
+				(cd $(CURDIR)/tests/fixtures/sample_typescript && npm install --silent 2>/dev/null && "$$SCIP_TS" index . 2>/dev/null && echo "  ✓ TypeScript SCIP index generated") || echo "  ⚠ TypeScript SCIP index generation failed"; \
+			fi; \
+		fi; \
+	fi
 
 # Run tests
-test: install generate-scip-proto setup-fixtures
+test: install generate-scip-proto setup-fixtures setup-scip-fixtures
 	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
 
 # Run tests with verbose output
-test-verbose: install generate-scip-proto setup-fixtures
+test-verbose: install generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto -v
 
 # Run tests in watch mode
-test-watch: install generate-scip-proto setup-fixtures
+test-watch: install generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: install generate-scip-proto setup-fixtures
+cover: install generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 

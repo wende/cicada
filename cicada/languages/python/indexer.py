@@ -553,7 +553,7 @@ class PythonSCIPIndexer(BaseIndexer):
             if self.verbose:
                 version = SCIPPythonInstaller.get_scip_python_version()
                 scip_path = SCIPPythonInstaller.get_scip_python_path()
-                if "/.cicada/" in str(scip_path):
+                if SCIPPythonInstaller.is_local_install(scip_path):
                     print(f"  Using scip-python {version} (local)")
                 else:
                     print(f"  Using scip-python {version}")
