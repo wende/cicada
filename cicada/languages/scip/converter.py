@@ -355,12 +355,16 @@ class SCIPConverter:
         start_lines = [start for start, _, _ in function_ranges]
         idx = bisect.bisect_right(start_lines, line) - 1
 
+        # If line is before all functions, no enclosing function exists
+        if idx < 0:
+            return None
+
         # Check candidates starting from idx (functions that might contain this line)
         best_match = None
         best_range_size = float("inf")
 
         # Only check functions whose start_line <= line
-        for i in range(max(0, idx), len(function_ranges)):
+        for i in range(idx, len(function_ranges)):
             start, end, symbol = function_ranges[i]
 
             # If this function starts after line, no more candidates
@@ -466,7 +470,7 @@ class SCIPConverter:
             )
 
             # Add module name and type
-            full_class_name = self._build_module_name(class_data.symbol, doc_data.relative_path)
+            full_class_name = self._build_module_name(class_data.symbol)
             module_data["name"] = full_class_name
             module_data["type"] = "class"
             module_data["parent_module"] = self._get_file_module_name(doc_data.relative_path)
@@ -558,7 +562,7 @@ class SCIPConverter:
             "line": import_data.line,
         }
 
-    def _build_module_name(self, symbol: str, file_path: str) -> str:
+    def _build_module_name(self, symbol: str) -> str:
         """
         Build module name for a class.
 
@@ -566,7 +570,6 @@ class SCIPConverter:
 
         Args:
             symbol: SCIP symbol for the class
-            file_path: File path (used for context)
 
         Returns:
             Simple class name
