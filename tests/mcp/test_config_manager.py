@@ -91,6 +91,86 @@ class TestGetConfigPath:
         # Should fall back to linked storage config path
         assert result == str(linked_storage / "config.yaml")
 
+    def test_falls_back_when_source_storage_dir_is_null(self, monkeypatch, tmp_path):
+        """Test that link.yaml with null source_storage_dir falls back."""
+        linked_storage = tmp_path / "linked_storage"
+        linked_storage.mkdir()
+        link_file = linked_storage / "link.yaml"
+        link_data = {
+            "source_repo_path": "/source/repo",
+            "source_storage_dir": None,
+            "linked_at": "2025-11-24T12:00:00",
+        }
+        with open(link_file, "w") as f:
+            yaml.dump(link_data, f)
+
+        monkeypatch.setenv("CICADA_CONFIG_DIR", str(linked_storage))
+
+        result = ConfigManager.get_config_path()
+
+        # Should fall back to linked storage config path
+        assert result == str(linked_storage / "config.yaml")
+
+    def test_falls_back_when_source_storage_dir_is_empty_string(self, monkeypatch, tmp_path):
+        """Test that link.yaml with empty source_storage_dir falls back."""
+        linked_storage = tmp_path / "linked_storage"
+        linked_storage.mkdir()
+        link_file = linked_storage / "link.yaml"
+        link_data = {
+            "source_repo_path": "/source/repo",
+            "source_storage_dir": "",
+            "linked_at": "2025-11-24T12:00:00",
+        }
+        with open(link_file, "w") as f:
+            yaml.dump(link_data, f)
+
+        monkeypatch.setenv("CICADA_CONFIG_DIR", str(linked_storage))
+
+        result = ConfigManager.get_config_path()
+
+        # Should fall back to linked storage config path
+        assert result == str(linked_storage / "config.yaml")
+
+    def test_falls_back_when_source_storage_dir_is_whitespace(self, monkeypatch, tmp_path):
+        """Test that link.yaml with whitespace-only source_storage_dir falls back."""
+        linked_storage = tmp_path / "linked_storage"
+        linked_storage.mkdir()
+        link_file = linked_storage / "link.yaml"
+        link_data = {
+            "source_repo_path": "/source/repo",
+            "source_storage_dir": "   ",
+            "linked_at": "2025-11-24T12:00:00",
+        }
+        with open(link_file, "w") as f:
+            yaml.dump(link_data, f)
+
+        monkeypatch.setenv("CICADA_CONFIG_DIR", str(linked_storage))
+
+        result = ConfigManager.get_config_path()
+
+        # Should fall back to linked storage config path
+        assert result == str(linked_storage / "config.yaml")
+
+    def test_falls_back_when_source_storage_dir_is_number(self, monkeypatch, tmp_path):
+        """Test that link.yaml with non-string source_storage_dir falls back."""
+        linked_storage = tmp_path / "linked_storage"
+        linked_storage.mkdir()
+        link_file = linked_storage / "link.yaml"
+        link_data = {
+            "source_repo_path": "/source/repo",
+            "source_storage_dir": 12345,
+            "linked_at": "2025-11-24T12:00:00",
+        }
+        with open(link_file, "w") as f:
+            yaml.dump(link_data, f)
+
+        monkeypatch.setenv("CICADA_CONFIG_DIR", str(linked_storage))
+
+        result = ConfigManager.get_config_path()
+
+        # Should fall back to linked storage config path
+        assert result == str(linked_storage / "config.yaml")
+
     def test_uses_workspace_folder_paths_single_path(self, monkeypatch):
         """Test WORKSPACE_FOLDER_PATHS with a single path."""
         workspace_path = "/home/user/project"

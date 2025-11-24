@@ -36,9 +36,12 @@ class ConfigManager:
                     with open(link_file) as f:
                         link_data = yaml.safe_load(f)
                         if link_data and "source_storage_dir" in link_data:
-                            # Use the source storage directory's config
-                            return str(Path(link_data["source_storage_dir"]) / "config.yaml")
-                except (yaml.YAMLError, OSError, KeyError):
+                            source_dir = link_data["source_storage_dir"]
+                            # Validate value is a non-empty string
+                            if isinstance(source_dir, str) and source_dir.strip():
+                                # Use the source storage directory's config
+                                return str(Path(source_dir) / "config.yaml")
+                except (yaml.YAMLError, OSError, KeyError, TypeError):
                     # If link is corrupted, fall through to using config_dir directly
                     pass
 
