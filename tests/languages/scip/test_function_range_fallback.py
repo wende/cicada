@@ -86,7 +86,11 @@ class TestFunctionRangeFallback:
         assert converter._find_enclosing_fast(250, function_ranges, function_start_lines) is None
 
     def test_nested_functions_with_fallback(self):
-        """Test nested functions where outer function uses fallback."""
+        """Test nested functions where outer function uses fallback.
+
+        The outer function should contain the nested function, so its range
+        should extend past the nested function (not end before it).
+        """
         converter = SCIPConverter(extract_references=True, verbose=False)
 
         # Simulate outer function with fallback and nested function with proper range
@@ -95,26 +99,86 @@ class TestFunctionRangeFallback:
             (20, 30, "test.outer().inner()."),  # Nested function with proper range
         ]
 
-        # Sort and fix fallbacks
+        # Sort and fix fallbacks - use the actual logic from converter.py
         function_ranges.sort(key=lambda x: x[0])
         for i in range(len(function_ranges)):
             start, end, symbol = function_ranges[i]
-            if end >= 10000:
-                if i + 1 < len(function_ranges):
-                    function_ranges[i] = (start, function_ranges[i + 1][0] - 1, symbol)
+            if end >= 10000:  # Fallback upper bound was used
+                # Find next sibling function (not a nested child)
+                sibling_start = None
+                for j in range(i + 1, len(function_ranges)):
+                    next_symbol = function_ranges[j][2]
+                    # A nested function's symbol starts with the parent's symbol
+                    if not next_symbol.startswith(symbol):
+                        sibling_start = function_ranges[j][0]
+                        break
+
+                if sibling_start is not None:
+                    function_ranges[i] = (start, sibling_start - 1, symbol)
                 else:
                     function_ranges[i] = (start, 999999, symbol)
-
-        # First pass sets outer to end at 19 (before nested)
-        # But we want outer to contain nested, so this is actually wrong behavior
-        # The fix should handle this by checking if i+1 is nested (starts within current range)
 
         # Pre-compute start lines
         function_start_lines = [start for start, _, _ in function_ranges]
 
-        # For now, test current behavior (outer ends before nested)
-        # This is a known limitation - we may want to improve this later
-        assert function_ranges[0][1] == 19  # Ends before nested
+        # Outer function should now use 999999 because inner is nested (not a sibling)
+        assert function_ranges[0][1] == 999999  # Contains nested function
+
+        # Test call site matching - line 25 is inside the nested function
+        result = converter._find_enclosing_fast(25, function_ranges, function_start_lines)
+        assert result == "test.outer().inner()."  # Nested takes precedence
+
+        # Line 35 is after nested but still in outer (since outer extends to 999999)
+        result = converter._find_enclosing_fast(35, function_ranges, function_start_lines)
+        assert result == "test.outer()."
+
+    def test_nested_functions_with_sibling_after(self):
+        """Test outer function with nested child and sibling function after.
+
+        The outer function should end before the sibling, not before the nested child.
+        """
+        converter = SCIPConverter(extract_references=True, verbose=False)
+
+        # outer has nested child, then sibling comes after
+        function_ranges = [
+            (10, 10000, "test.outer()."),  # Fallback (outer)
+            (20, 30, "test.outer().inner()."),  # Nested function
+            (100, 150, "test.sibling()."),  # Sibling function (not nested)
+        ]
+
+        # Sort and fix fallbacks - use the actual logic from converter.py
+        function_ranges.sort(key=lambda x: x[0])
+        for i in range(len(function_ranges)):
+            start, end, symbol = function_ranges[i]
+            if end >= 10000:  # Fallback upper bound was used
+                sibling_start = None
+                for j in range(i + 1, len(function_ranges)):
+                    next_symbol = function_ranges[j][2]
+                    if not next_symbol.startswith(symbol):
+                        sibling_start = function_ranges[j][0]
+                        break
+
+                if sibling_start is not None:
+                    function_ranges[i] = (start, sibling_start - 1, symbol)
+                else:
+                    function_ranges[i] = (start, 999999, symbol)
+
+        # Pre-compute start lines
+        function_start_lines = [start for start, _, _ in function_ranges]
+
+        # Outer should end at 99 (before sibling at 100), skipping the nested function
+        assert function_ranges[0][1] == 99
+        # Nested and sibling should be unchanged
+        assert function_ranges[1] == (20, 30, "test.outer().inner().")
+        assert function_ranges[2] == (100, 150, "test.sibling().")
+
+        # Line 50 is after nested but before sibling, should match outer
+        result = converter._find_enclosing_fast(50, function_ranges, function_start_lines)
+        assert result == "test.outer()."
+
+        # Line 120 should match sibling
+        result = converter._find_enclosing_fast(120, function_ranges, function_start_lines)
+        assert result == "test.sibling()."
 
     def test_binary_search_with_fallback_ranges(self):
         """Test that binary search works correctly with fallback ranges."""

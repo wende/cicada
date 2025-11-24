@@ -367,16 +367,28 @@ class SCIPConverter:
         # Sort function ranges by start line for binary search
         function_ranges.sort(key=lambda x: x[0])
 
-        # Fix fallback ranges: replace placeholder upper bounds with next function's start
+        # Fix fallback ranges: replace placeholder upper bounds with next sibling's start
         # This handles functions without enclosing_range that used a fallback upper bound
+        # IMPORTANT: Skip nested functions (whose symbols start with current function's symbol)
         for i in range(len(function_ranges)):
             start, end, symbol = function_ranges[i]
             if end >= 10000:  # Fallback upper bound was used
-                if i + 1 < len(function_ranges):
-                    # Use next function's start line - 1 as the upper bound
-                    function_ranges[i] = (start, function_ranges[i + 1][0] - 1, symbol)
+                # Find next sibling function (not a nested child)
+                # Nested functions have symbols that start with the parent's symbol
+                sibling_start = None
+                for j in range(i + 1, len(function_ranges)):
+                    next_symbol = function_ranges[j][2]
+                    # A nested function's symbol starts with the parent's symbol
+                    # e.g., "module.outer().inner()." starts with "module.outer()."
+                    if not next_symbol.startswith(symbol):
+                        sibling_start = function_ranges[j][0]
+                        break
+
+                if sibling_start is not None:
+                    # Use sibling function's start line - 1 as the upper bound
+                    function_ranges[i] = (start, sibling_start - 1, symbol)
                 else:
-                    # Last function: use a very large line number
+                    # No sibling found: use a very large line number
                     function_ranges[i] = (start, 999999, symbol)
 
                 if self.verbose:
@@ -468,18 +480,35 @@ class SCIPConverter:
         while first_idx > 0 and function_start_lines[first_idx - 1] == target_start:
             first_idx -= 1
 
-        # Check candidates starting from first_idx (functions that might contain this line)
-        # For nested functions with same start_line, find the smallest enclosing range
+        # Check candidates (functions that might contain this line)
+        # For nested functions, find the smallest enclosing range
         best_match = None
         best_range_size = float("inf")
 
-        # Only check functions whose start_line <= line
+        # Check forward from first_idx for functions whose start_line <= line
         for i in range(first_idx, len(function_ranges)):
             start, end, symbol = function_ranges[i]
 
-            # If this function starts after line, no more candidates
+            # If this function starts after line, no more candidates going forward
             if start > line:
                 break
+
+            # Check if line is within this function's range
+            if start <= line <= end:
+                range_size = end - start
+                if range_size < best_range_size:
+                    best_match = symbol
+                    best_range_size = range_size
+
+        # Also check backward from first_idx for outer functions that might contain the line
+        # This handles nested functions where an outer function at a lower index
+        # has a range that extends past inner functions
+        for i in range(first_idx - 1, -1, -1):
+            start, end, symbol = function_ranges[i]
+
+            # If this function ends before line, skip it
+            if end < line:
+                continue
 
             # Check if line is within this function's range
             if start <= line <= end:
