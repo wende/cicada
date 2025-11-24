@@ -52,6 +52,7 @@ class DocumentData:
     aliases: dict[str, str]
     symbols: dict[str, SymbolData]  # symbol -> SymbolData
     function_ranges: list[tuple[int, int, str]]  # (start_line, end_line, symbol)
+    function_start_lines: list[int]  # Pre-computed for binary search
     call_sites: list[CallSite]
     dependencies: list[ImportData]
 
@@ -366,17 +367,38 @@ class SCIPConverter:
         # Sort function ranges by start line for binary search
         function_ranges.sort(key=lambda x: x[0])
 
+        # Fix fallback ranges: replace placeholder upper bounds with next function's start
+        # This handles functions without enclosing_range that used a fallback upper bound
+        for i in range(len(function_ranges)):
+            start, end, symbol = function_ranges[i]
+            if end >= 10000:  # Fallback upper bound was used
+                if i + 1 < len(function_ranges):
+                    # Use next function's start line - 1 as the upper bound
+                    function_ranges[i] = (start, function_ranges[i + 1][0] - 1, symbol)
+                else:
+                    # Last function: use a very large line number
+                    function_ranges[i] = (start, 999999, symbol)
+
+                if self.verbose:
+                    print(f"  Warning: No enclosing_range for {symbol}, using fallback range")
+
+        # Pre-compute start_lines list for binary search (performance optimization)
+        function_start_lines = [start for start, _, _ in function_ranges]
+
         # Match call sites to enclosing functions using FAST binary search
         # Only if extract_references is enabled
         if self.extract_references:
             for call in call_sites:
-                call.caller_symbol = self._find_enclosing_fast(call.line, function_ranges)
+                call.caller_symbol = self._find_enclosing_fast(
+                    call.line, function_ranges, function_start_lines
+                )
 
         return DocumentData(
             relative_path=doc.relative_path,
             aliases=aliases,
             symbols=symbols,
             function_ranges=function_ranges,
+            function_start_lines=function_start_lines,
             call_sites=call_sites,
             dependencies=dependencies,
         )
@@ -407,18 +429,21 @@ class SCIPConverter:
         return func_symbol
 
     def _find_enclosing_fast(
-        self, line: int, function_ranges: list[tuple[int, int, str]]
+        self,
+        line: int,
+        function_ranges: list[tuple[int, int, str]],
+        function_start_lines: list[int],
     ) -> str | None:
         """
         Find enclosing function using binary search on pre-sorted ranges.
 
-        This replaces the O(n) linear search in _find_enclosing_function()
-        with O(log n) binary search on the start lines, then checks nearby
-        candidates for the smallest enclosing range.
+        This uses O(log n) binary search on pre-computed start lines, then checks
+        nearby candidates for the smallest enclosing range (for nested functions).
 
         Args:
             line: Line number to check
             function_ranges: Sorted list of (start_line, end_line, symbol) tuples
+            function_start_lines: Pre-computed list of start lines (for binary search)
 
         Returns:
             Symbol of enclosing function, or None if not in a function
@@ -429,19 +454,27 @@ class SCIPConverter:
             return None
 
         # Binary search for the rightmost function that starts at or before line
-        start_lines = [start for start, _, _ in function_ranges]
-        idx = bisect.bisect_right(start_lines, line) - 1
+        idx = bisect.bisect_right(function_start_lines, line) - 1
 
         # If line is before all functions, no enclosing function exists
         if idx < 0:
             return None
 
-        # Check candidates starting from idx (functions that might contain this line)
+        # When multiple functions have the same start_line, bisect_right gives us
+        # the last one. We need to check all functions with that start_line.
+        # Walk backwards to find the first function with the same start_line.
+        target_start = function_start_lines[idx]
+        first_idx = idx
+        while first_idx > 0 and function_start_lines[first_idx - 1] == target_start:
+            first_idx -= 1
+
+        # Check candidates starting from first_idx (functions that might contain this line)
+        # For nested functions with same start_line, find the smallest enclosing range
         best_match = None
         best_range_size = float("inf")
 
         # Only check functions whose start_line <= line
-        for i in range(idx, len(function_ranges)):
+        for i in range(first_idx, len(function_ranges)):
             start, end, symbol = function_ranges[i]
 
             # If this function starts after line, no more candidates
