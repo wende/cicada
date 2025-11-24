@@ -193,7 +193,7 @@ pre-commit: install
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: install generate-scip-proto setup-fixtures
+ci-test: install generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
