@@ -1040,7 +1040,7 @@ class ElixirIndexer(BaseIndexer):
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
-        extract_cochange: bool = True,
+        extract_cochange: bool = False,
         force_full: bool = False,
         verbose: bool = True,
     ):
@@ -1057,7 +1057,7 @@ class ElixirIndexer(BaseIndexer):
             extract_keywords: If True, extract keywords from documentation using NLP
             extract_string_keywords: If True, extract keywords from string literals
             compute_timestamps: If True, compute git history timestamps for functions (default: True)
-            extract_cochange: If True, analyze git history for co-change patterns
+            extract_cochange: If True, analyze git history for co-change patterns (disabled by default)
             force_full: If True, ignore existing hashes and do full reindex
             verbose: If True, print detailed progress information (default: True)
 

@@ -7,6 +7,7 @@ type-aware semantic indexes of Python codebases.
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
@@ -132,6 +133,19 @@ class PythonSCIPIndexer(BaseIndexer):
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path).resolve()
 
+        # Start timing
+        start_time = time.time()
+        last_step_time = start_time
+
+        def log_timing(step_name: str):
+            nonlocal last_step_time
+            if self.verbose:
+                now = time.time()
+                elapsed = now - last_step_time
+                total = now - start_time
+                print(f"  ⏱️  {step_name}: {elapsed:.2f}s (total: {total:.2f}s)")
+                last_step_time = now
+
         if self.verbose:
             print(f"Indexing Python repository: {repo_path_obj}")
 
@@ -141,6 +155,7 @@ class PythonSCIPIndexer(BaseIndexer):
 
         # Find all Python files
         python_files = list(self._find_python_files(repo_path_obj))
+        log_timing("File discovery")
 
         # Convert to relative paths for comparison
         relative_files = [str(f.relative_to(repo_path_obj)) for f in python_files]
@@ -176,9 +191,11 @@ class PythonSCIPIndexer(BaseIndexer):
 
         # 1. Ensure scip-python is installed
         self._ensure_scip_python_installed()
+        log_timing("SCIP-python check")
 
         # 2. Run scip-python indexer
         scip_file = self._run_scip_python(repo_path_obj)
+        log_timing("SCIP-python indexing")
 
         try:
             # 3. Read .scip file
@@ -192,6 +209,7 @@ class PythonSCIPIndexer(BaseIndexer):
                         f"  SCIP index: {summary['documents']} documents, "
                         f"{summary['symbols']} symbols"
                     )
+                log_timing("SCIP file reading")
             except Exception as e:
                 raise RuntimeError(f"Failed to read SCIP index: {e}") from e
 
@@ -219,6 +237,7 @@ class PythonSCIPIndexer(BaseIndexer):
                     keyword_expander = KeywordExpander(
                         expansion_type=expansion_method, verbose=self.verbose
                     )
+                    log_timing("Keyword extractor initialization")
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Keyword extractor initialization failed: {e}")
@@ -233,6 +252,7 @@ class PythonSCIPIndexer(BaseIndexer):
                     verbose=self.verbose,
                 )
                 cicada_index = converter.convert(scip_index, repo_path_obj)
+                log_timing("SCIP to Cicada conversion")
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
@@ -242,6 +262,7 @@ class PythonSCIPIndexer(BaseIndexer):
                     self._extract_string_keywords(
                         cicada_index, repo_path_obj, keyword_extractor, keyword_expander
                     )
+                    log_timing("String keyword extraction")
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: String keyword extraction failed: {e}")
@@ -250,6 +271,7 @@ class PythonSCIPIndexer(BaseIndexer):
             if compute_timestamps:
                 try:
                     self._compute_timestamps(cicada_index, repo_path_obj)
+                    log_timing("Timestamp computation")
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Timestamp computation failed: {e}")
@@ -258,6 +280,7 @@ class PythonSCIPIndexer(BaseIndexer):
             if extract_cochange:
                 try:
                     self._extract_cochange(cicada_index, repo_path_obj)
+                    log_timing("Co-change analysis")
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Co-change analysis failed: {e}")
@@ -265,6 +288,7 @@ class PythonSCIPIndexer(BaseIndexer):
             # 9. Save index
             try:
                 self._save_index(cicada_index, output_path_obj)
+                log_timing("Index saving")
             except Exception as e:
                 raise RuntimeError(f"Failed to save index: {e}") from e
 
@@ -273,6 +297,7 @@ class PythonSCIPIndexer(BaseIndexer):
                 if python_files:  # Only compute hashes if we have files
                     current_hashes = compute_hashes_for_files([str(f) for f in python_files])
                     save_file_hashes(str(hashes_path.parent), current_hashes)
+                log_timing("Hash computation and saving")
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to save file hashes: {e}")

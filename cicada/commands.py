@@ -911,7 +911,8 @@ def handle_index_main(args) -> None:
 
     # Check if indexer supports incremental_index_repository (new unified API)
     if hasattr(indexer, "incremental_index_repository"):
-        extract_cochange = getattr(args, "extract_cochange", True)
+        # Co-change disabled by default due to performance issues (can be enabled with --extract-cochange)
+        extract_cochange = getattr(args, "extract_cochange", False)
         indexer.incremental_index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
