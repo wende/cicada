@@ -130,36 +130,46 @@ class TestPythonSCIPIndexer:
         assert "call _ensure_scip_python_installed() first" in str(exc_info.value)
 
     def test_run_scip_python_success(self, indexer, tmp_path):
-        """Should successfully run scip-python and return .scip file path."""
+        """Should successfully run scip-python using resolved path from installer."""
         # Create a mock .scip file
         mock_scip_content = scip_pb2.Index()
         mock_scip_content.metadata.version = 0  # ProtocolVersion enum
 
-        with patch("subprocess.run") as mock_run:
-            # Mock successful subprocess run
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stderr = ""
-            mock_run.return_value = mock_result
+        fake_scip_python_path = "/fake/bin/scip-python"
 
-            # Mock the scip file creation
-            with patch("tempfile.NamedTemporaryFile") as mock_temp:
-                scip_file_path = tmp_path / "test.scip"
-                mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
+        with patch.object(
+            SCIPPythonInstaller, "get_scip_python_path", return_value=fake_scip_python_path
+        ):
+            with patch("cicada.languages.python.indexer.subprocess.run") as mock_run:
+                # Mock successful subprocess run
+                mock_result = Mock()
+                mock_result.returncode = 0
+                mock_result.stderr = ""
+                mock_run.return_value = mock_result
 
-                # Create the file to simulate scip-python output
-                with open(scip_file_path, "wb") as f:
-                    f.write(mock_scip_content.SerializeToString())
+                # Mock the scip file creation
+                with patch("tempfile.NamedTemporaryFile") as mock_temp:
+                    scip_file_path = tmp_path / "test.scip"
+                    mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
 
-                result_path = indexer._run_scip_python(tmp_path)
+                    # Create the file to simulate scip-python output
+                    with open(scip_file_path, "wb") as f:
+                        f.write(mock_scip_content.SerializeToString())
 
-                assert result_path == scip_file_path
-                assert result_path.exists()
+                    result_path = indexer._run_scip_python(tmp_path)
 
-                # Verify NamedTemporaryFile usage
-                mock_temp.assert_called_once()
-                call_kwargs = mock_temp.call_args[1]
-                assert "dir" not in call_kwargs
+                    assert result_path == scip_file_path
+                    assert result_path.exists()
+
+                    # Verify the resolved scip-python path is used as the command
+                    mock_run.assert_called_once()
+                    called_cmd = mock_run.call_args[0][0]
+                    assert called_cmd[0] == fake_scip_python_path
+
+                    # Verify NamedTemporaryFile usage
+                    mock_temp.assert_called_once()
+                    call_kwargs = mock_temp.call_args[1]
+                    assert "dir" not in call_kwargs
 
     def test_run_scip_python_command_failure(self, indexer, tmp_path):
         """Should raise error when scip-python command fails."""

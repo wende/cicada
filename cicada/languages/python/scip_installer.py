@@ -34,22 +34,18 @@ class SCIPPythonInstaller:
         Handles platform differences (Windows uses .cmd shims).
 
         Returns:
-            Path to local scip-python if found, None otherwise
+            Path to local scip-python if found and executable, None otherwise
         """
         bin_dir = cls.LOCAL_BIN_DIR
         if not bin_dir.exists():
             return None
 
-        # On Windows, npm creates .cmd shims
-        if os.name == "nt":
-            cmd_path = bin_dir / "scip-python.cmd"
-            if cmd_path.exists():
-                return str(cmd_path)
-        else:
-            # Unix: direct executable
-            bin_path = bin_dir / "scip-python"
-            if bin_path.exists():
-                return str(bin_path)
+        # On Windows, npm creates .cmd shims; on Unix we expect a direct executable
+        candidate = bin_dir / "scip-python.cmd" if os.name == "nt" else bin_dir / "scip-python"
+
+        # Only return the path if it is a regular file and is executable
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
 
         return None
 
@@ -66,8 +62,7 @@ class SCIPPythonInstaller:
             Path to scip-python if found, None otherwise
         """
         # Check global first
-        global_path = shutil.which("scip-python")
-        if global_path:
+        if global_path := shutil.which("scip-python"):
             return global_path
 
         # Check local installation (platform-aware)

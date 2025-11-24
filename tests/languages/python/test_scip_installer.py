@@ -115,7 +115,11 @@ class TestSCIPPythonInstaller:
         local_bin_path = SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python"
         with patch("shutil.which") as mock_which:
             mock_which.return_value = None
-            with patch("pathlib.Path.exists", return_value=True):
+            with patch.object(
+                SCIPPythonInstaller,
+                "_get_local_scip_python_path",
+                return_value=str(local_bin_path),
+            ):
                 path = SCIPPythonInstaller.get_scip_python_path()
 
                 assert path == str(local_bin_path)
@@ -124,7 +128,11 @@ class TestSCIPPythonInstaller:
         """Should return None when scip-python is not installed anywhere."""
         with patch("shutil.which") as mock_which:
             mock_which.return_value = None
-            with patch("pathlib.Path.exists", return_value=False):
+            with patch.object(
+                SCIPPythonInstaller,
+                "_get_local_scip_python_path",
+                return_value=None,
+            ):
                 path = SCIPPythonInstaller.get_scip_python_path()
 
                 assert path is None
@@ -154,6 +162,38 @@ class TestSCIPPythonInstaller:
             result = SCIPPythonInstaller.install_locally()
 
             assert result is False
+
+    def test_install_locally_npm_command_fails(self):
+        """Should return False when npm install command fails."""
+        with patch.object(SCIPPythonInstaller, "is_npm_available", return_value=True):
+            with patch("pathlib.Path.mkdir"):
+                with patch("cicada.languages.python.scip_installer.subprocess.run") as mock_run:
+                    mock_result = Mock()
+                    mock_result.returncode = 1
+                    mock_result.stderr = "npm ERR! 404 Not Found"
+                    mock_run.return_value = mock_result
+
+                    result = SCIPPythonInstaller.install_locally(verbose=False)
+
+                    assert result is False
+
+    def test_install_locally_executable_not_created(self):
+        """Should return False when npm succeeds but executable is not created."""
+        with patch.object(SCIPPythonInstaller, "is_npm_available", return_value=True):
+            with patch("pathlib.Path.mkdir"):
+                with patch("cicada.languages.python.scip_installer.subprocess.run") as mock_run:
+                    mock_result = Mock()
+                    mock_result.returncode = 0
+                    mock_run.return_value = mock_result
+
+                    with patch.object(
+                        SCIPPythonInstaller,
+                        "_get_local_scip_python_path",
+                        return_value=None,
+                    ):
+                        result = SCIPPythonInstaller.install_locally(verbose=False)
+
+                        assert result is False
 
     def test_is_local_install_true(self):
         """Should return True for path in ~/.cicada/node."""
