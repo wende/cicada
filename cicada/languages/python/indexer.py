@@ -543,20 +543,35 @@ class PythonSCIPIndexer(BaseIndexer):
         """
         Ensure scip-python is installed.
 
+        Checks for existing installation (global or local), and auto-installs
+        locally to ~/.cicada/node/ if not found and npm is available.
+
         Raises:
-            RuntimeError: If scip-python is not available
+            RuntimeError: If scip-python is not available and cannot be installed
         """
         if SCIPPythonInstaller.is_scip_python_installed():
             if self.verbose:
                 version = SCIPPythonInstaller.get_scip_python_version()
-                print(f"  Using scip-python {version}")
+                scip_path = SCIPPythonInstaller.get_scip_python_path()
+                if "/.cicada/" in str(scip_path):
+                    print(f"  Using scip-python {version} (local)")
+                else:
+                    print(f"  Using scip-python {version}")
             return
+
+        # Try to auto-install locally
+        if SCIPPythonInstaller.is_npm_available():
+            if self.verbose:
+                print("  scip-python not found, installing locally...")
+            if SCIPPythonInstaller.install_locally(verbose=self.verbose):
+                return
 
         raise RuntimeError(
             "scip-python is required to index Python repositories.\n"
-            "Please install it globally using npm:\n"
-            "  npm install -g @sourcegraph/scip-python\n"
-            "Or see https://github.com/sourcegraph/scip-python for installation instructions."
+            "npm is required to install it. Please install Node.js, then run:\n"
+            "  cicada index <path>  # will auto-install scip-python\n"
+            "Or install manually:\n"
+            "  npm install -g @sourcegraph/scip-python"
         )
 
     def _run_scip_python(self, repo_path: Path) -> Path:
@@ -588,8 +603,14 @@ class PythonSCIPIndexer(BaseIndexer):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".scip", delete=False) as tmp:
             scip_file = Path(tmp.name)
 
-        cmd = [
-            "scip-python",
+        # Get scip-python path (global or local)
+        # Note: _ensure_scip_python_installed() must be called before this method
+        scip_python_path = SCIPPythonInstaller.get_scip_python_path()
+        if scip_python_path is None:
+            raise RuntimeError("scip-python not found - call _ensure_scip_python_installed() first")
+
+        cmd: list[str] = [
+            scip_python_path,
             "index",
             str(repo_path),
             "--project-name",

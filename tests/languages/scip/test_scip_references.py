@@ -29,7 +29,7 @@ def python_index(fixtures_dir):
     """Load and convert Python SCIP index for testing."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)

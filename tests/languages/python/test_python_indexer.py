@@ -56,16 +56,50 @@ class TestPythonSCIPIndexer:
         captured = capsys.readouterr()
         assert "Using scip-python 0.3.15" in captured.out
 
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
     @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
-    def test_ensure_scip_python_not_installed(self, mock_installed, indexer):
-        """Should raise error when scip-python is not installed."""
+    def test_ensure_scip_python_not_installed(self, mock_installed, mock_npm, indexer):
+        """Should raise error when scip-python is not installed and npm unavailable."""
         mock_installed.return_value = False
+        mock_npm.return_value = False  # npm not available, can't auto-install
 
         with pytest.raises(RuntimeError) as exc_info:
             indexer._ensure_scip_python_installed()
 
         assert "scip-python is required" in str(exc_info.value)
-        assert "npm install -g @sourcegraph/scip-python" in str(exc_info.value)
+        assert "npm is required" in str(exc_info.value)
+
+    @patch.object(SCIPPythonInstaller, "install_locally")
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    def test_ensure_scip_python_auto_installs(
+        self, mock_installed, mock_npm, mock_install, indexer
+    ):
+        """Should auto-install scip-python locally when npm is available."""
+        mock_installed.return_value = False
+        mock_npm.return_value = True
+        mock_install.return_value = True  # Install succeeds
+
+        # Should not raise - auto-install succeeds
+        indexer._ensure_scip_python_installed()
+
+        mock_install.assert_called_once()
+
+    @patch.object(SCIPPythonInstaller, "install_locally")
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    def test_ensure_scip_python_auto_install_fails(
+        self, mock_installed, mock_npm, mock_install, indexer
+    ):
+        """Should raise error when auto-install fails."""
+        mock_installed.return_value = False
+        mock_npm.return_value = True
+        mock_install.return_value = False  # Install fails
+
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._ensure_scip_python_installed()
+
+        assert "scip-python is required" in str(exc_info.value)
 
     def test_run_scip_python_success(self, indexer, tmp_path):
         """Should successfully run scip-python and return .scip file path."""

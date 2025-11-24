@@ -18,7 +18,7 @@ def python_index(fixtures_dir):
     """Load and convert Python SCIP index for testing."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)
@@ -279,7 +279,7 @@ class TestTypescriptFormatting:
         """Test formatting TypeScript type annotations."""
         scip_file = fixtures_dir / "sample_typescript" / "index.scip"
         if not scip_file.exists():
-            pytest.skip("TypeScript SCIP index not found")
+            pytest.fail("TypeScript SCIP index not found - run make setup-scip")
 
         reader = SCIPReader()
         scip_index = reader.read_index(scip_file)

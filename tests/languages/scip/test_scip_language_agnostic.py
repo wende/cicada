@@ -19,7 +19,7 @@ def python_calculator_index(fixtures_dir):
     """Load Python Calculator index via SCIP."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)
@@ -33,7 +33,7 @@ def typescript_calculator_index(fixtures_dir):
     """Load TypeScript Calculator index via SCIP."""
     scip_file = fixtures_dir / "sample_typescript" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("TypeScript SCIP index not found")
+        pytest.fail("TypeScript SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)
@@ -383,7 +383,7 @@ class TestIdempotency:
         """Test that converting the same SCIP file twice produces identical output."""
         scip_file = fixtures_dir / "sample_python" / "index.scip"
         if not scip_file.exists():
-            pytest.skip("Python SCIP index not found")
+            pytest.fail("Python SCIP index not found - run make setup-scip")
 
         reader = SCIPReader()
         scip_index = reader.read_index(scip_file)

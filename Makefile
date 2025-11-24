@@ -1,4 +1,4 @@
-.PHONY: help install install-deps generate-scip-proto setup-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
+.PHONY: help install install-deps generate-scip-proto setup-fixtures setup-scip test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
 
 # Default target
 help:
@@ -8,6 +8,7 @@ help:
 	@echo "  make uninstall        - Uninstall cicada tool"
 	@echo "  make generate-scip-proto - Generate SCIP protobuf files for local development (auto-generated during package build)"
 	@echo "  make setup-fixtures   - Setup test fixtures"
+	@echo "  make setup-scip       - Install SCIP indexers and generate indexes for test fixtures"
 	@echo "  make test             - Run all tests (auto-installs dependencies)"
 	@echo "  make test-verbose     - Run tests with verbose output (auto-installs dependencies)"
 	@echo "  make test-watch       - Run tests in watch mode (auto-installs dependencies)"
@@ -72,6 +73,26 @@ generate-scip-proto:
 # Setup test fixtures
 setup-fixtures:
 	@bash tests/setup_fixtures.sh
+
+# Setup SCIP indexers and generate indexes for test fixtures
+setup-scip:
+	@echo "Setting up SCIP indexers for test fixtures..."
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "Error: npm is not installed. Please install Node.js first."; \
+		exit 1; \
+	fi
+	@echo "Installing SCIP indexers..."
+	@npm install -g @sourcegraph/scip-python @sourcegraph/scip-typescript
+	@echo ""
+	@echo "Generating Python SCIP index..."
+	@cd tests/fixtures/sample_python && scip-python index .
+	@echo "✓ Python SCIP index generated"
+	@echo ""
+	@echo "Generating TypeScript SCIP index..."
+	@cd tests/fixtures/sample_typescript && npm install && scip-typescript index .
+	@echo "✓ TypeScript SCIP index generated"
+	@echo ""
+	@echo "✓ SCIP setup complete! Run 'make test' to run all tests including SCIP tests."
 
 # Run tests
 test: install generate-scip-proto setup-fixtures

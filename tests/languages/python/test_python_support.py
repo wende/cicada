@@ -64,8 +64,8 @@ class TestSCIPPythonInstaller:
 
     def test_get_version_returns_none_when_not_installed(self, monkeypatch):
         """Should return None when scip-python is not installed."""
-        # Mock is_scip_python_installed to return False
-        monkeypatch.setattr(SCIPPythonInstaller, "is_scip_python_installed", lambda: False)
+        # Mock get_scip_python_path to return None (not installed)
+        monkeypatch.setattr(SCIPPythonInstaller, "get_scip_python_path", lambda: None)
         assert SCIPPythonInstaller.get_scip_python_version() is None
 
 
