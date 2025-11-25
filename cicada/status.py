@@ -147,7 +147,7 @@ def find_agent_files(repo_path: Path) -> dict:
                                     "relative_path": str(agent_file.relative_to(repo_path)),
                                 }
                             )
-                except (OSError, json.JSONDecodeError):
+                except OSError:
                     pass
 
     # Check root-level markdown files
