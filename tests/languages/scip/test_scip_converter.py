@@ -444,3 +444,160 @@ class TestCrossFileArityResolution:
                     f"Cross-file call {func_name} -> operations.{dep['function']} "
                     f"should have arity=2, got {dep['arity']}"
                 )
+
+
+class TestDocstringDerivedArity:
+    """Test that arity from docstrings is used for dependency resolution."""
+
+    def test_docstring_arity_enriches_global_map(self):
+        """Test that docstring-derived arity updates global arity map.
+
+        This addresses the PR feedback about dependency arity ignoring
+        docstring-only signatures. When SCIP doesn't emit parameter occurrences
+        (symbol_data.arity == 0), but the function has a signature in its
+        documentation, we should extract the arity from the docstring and
+        use it for dependency resolution.
+        """
+        from unittest.mock import MagicMock, patch
+        from pathlib import Path
+
+        converter = SCIPConverter(extract_references=True)
+
+        # Create a mock SCIP index with:
+        # 1. A function with no parameter occurrences but has a docstring signature
+        # 2. A caller function that calls the first function
+        mock_index = MagicMock()
+        mock_doc = MagicMock()
+        mock_doc.relative_path = "test.py"
+        mock_doc.occurrences = []
+
+        # Mock symbol info with docstring containing signature
+        mock_symbol_info = MagicMock()
+        mock_symbol_info.symbol = "scip-python python test 1.0 test/callee()."
+        mock_symbol_info.documentation = [
+            "```python\ndef callee(a: int, b: str, c: float) -> bool:\n```",
+            "A test function with three parameters.",
+        ]
+
+        mock_doc.symbols = [mock_symbol_info]
+        mock_index.documents = [mock_doc]
+
+        # Patch the methods we need
+        with patch.object(converter, "_extract_document_data") as mock_extract:
+            from cicada.languages.scip.converter import DocumentData, SymbolData
+
+            # Create symbol data with arity=0 (no parameter occurrences)
+            symbol_data = SymbolData(
+                symbol="scip-python python test 1.0 test/callee().",
+                line=10,
+                symbol_type="function",
+                parent_symbol=None,
+                arity=0,  # No parameter occurrences
+            )
+
+            doc_data = DocumentData(
+                relative_path="test.py",
+                aliases={},
+                symbols={"scip-python python test 1.0 test/callee().": symbol_data},
+                function_ranges=[],
+                function_start_lines=[],
+                call_sites=[],
+                dependencies=[],
+            )
+
+            mock_extract.return_value = doc_data
+
+            # Build the symbol map as the converter would
+            symbol_map = {mock_symbol_info.symbol: mock_symbol_info}
+
+            with patch.object(converter, "_build_symbol_map", return_value=symbol_map):
+                with patch.object(converter, "_process_document_data", return_value={}):
+                    with patch.object(
+                        converter,
+                        "_build_metadata",
+                        return_value={"language": "python"},
+                    ):
+                        # Run the convert method
+                        converter.convert(mock_index, Path("/test"))
+
+                        # The Phase 1.5 should have extracted arity from docstring
+                        # and passed it to _process_document_data via global_arity_map
+                        # We can verify by checking the call args
+                        call_args = converter._process_document_data.call_args
+                        global_arity_map = call_args[0][2]  # Third positional arg
+
+                        # The docstring has 3 args: a, b, c
+                        assert (
+                            global_arity_map.get("scip-python python test 1.0 test/callee().") == 3
+                        ), f"Expected arity 3 from docstring, got {global_arity_map}"
+
+    def test_parameter_occurrences_take_precedence(self):
+        """Test that parameter occurrences take precedence over docstring arity.
+
+        When SCIP emits parameter occurrences, we should use that arity
+        even if the docstring suggests a different number (e.g., docstring
+        might include optional params not tracked by SCIP).
+        """
+        from unittest.mock import MagicMock, patch
+        from pathlib import Path
+
+        converter = SCIPConverter(extract_references=True)
+
+        mock_index = MagicMock()
+        mock_doc = MagicMock()
+        mock_doc.relative_path = "test.py"
+        mock_doc.occurrences = []
+
+        # Docstring says 3 args, but SCIP found 2 parameter occurrences
+        mock_symbol_info = MagicMock()
+        mock_symbol_info.symbol = "scip-python python test 1.0 test/func()."
+        mock_symbol_info.documentation = [
+            "```python\ndef func(a: int, b: str, c: float = None) -> bool:\n```",
+        ]
+
+        mock_doc.symbols = [mock_symbol_info]
+        mock_index.documents = [mock_doc]
+
+        with patch.object(converter, "_extract_document_data") as mock_extract:
+            from cicada.languages.scip.converter import DocumentData, SymbolData
+
+            # Symbol has arity=2 from parameter occurrences
+            symbol_data = SymbolData(
+                symbol="scip-python python test 1.0 test/func().",
+                line=10,
+                symbol_type="function",
+                parent_symbol=None,
+                arity=2,  # Parameter occurrences found 2 params
+            )
+
+            doc_data = DocumentData(
+                relative_path="test.py",
+                aliases={},
+                symbols={"scip-python python test 1.0 test/func().": symbol_data},
+                function_ranges=[],
+                function_start_lines=[],
+                call_sites=[],
+                dependencies=[],
+            )
+
+            mock_extract.return_value = doc_data
+
+            symbol_map = {mock_symbol_info.symbol: mock_symbol_info}
+
+            with patch.object(converter, "_build_symbol_map", return_value=symbol_map):
+                with patch.object(converter, "_process_document_data", return_value={}):
+                    with patch.object(
+                        converter,
+                        "_build_metadata",
+                        return_value={"language": "python"},
+                    ):
+                        converter.convert(mock_index, Path("/test"))
+
+                        call_args = converter._process_document_data.call_args
+                        global_arity_map = call_args[0][2]
+
+                        # Should use arity from parameter occurrences (2),
+                        # not docstring (3)
+                        assert (
+                            global_arity_map.get("scip-python python test 1.0 test/func().") == 2
+                        ), f"Expected arity 2 from param occurrences, got {global_arity_map}"

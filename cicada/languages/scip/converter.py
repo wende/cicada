@@ -120,6 +120,24 @@ class SCIPConverter:
                 if symbol_data.arity > 0:
                     global_arity_map[symbol] = symbol_data.arity
 
+        # Phase 1.5: Enrich arity map with docstring-derived arities
+        # SCIP may not emit parameter occurrences for all functions, but docstrings
+        # often contain signatures. Update arity map for functions that have arity 0
+        # from parameter occurrences but have signature info in documentation.
+        for doc_data in all_doc_data:
+            for symbol, symbol_data in doc_data.symbols.items():
+                # Only process functions/methods without arity from parameter occurrences
+                is_func_or_method = symbol_data.symbol_type in ("function", "method")
+                needs_arity = symbol not in global_arity_map or global_arity_map[symbol] == 0
+                if is_func_or_method and needs_arity:
+                    # Try to extract arity from docstring
+                    symbol_info = symbol_map.get(symbol)
+                    if symbol_info and symbol_info.documentation:
+                        raw_doc = "\n".join(symbol_info.documentation)
+                        _, _, args = self._parse_signature_from_doc(raw_doc)
+                        if args:
+                            global_arity_map[symbol] = len(args)
+
         # Phase 2: Process extracted data to build modules (with global arity map)
         for doc_data in all_doc_data:
             file_modules = self._process_document_data(doc_data, symbol_map, global_arity_map)
