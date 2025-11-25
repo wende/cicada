@@ -55,18 +55,19 @@ Some other content.
     assert "ALWAYS use cicada-mcp tools for Elixir and Python code searches" in content
 
 
-def test_update_claude_md_skips_if_cicada_mentioned(mock_repo):
-    """Test that update_claude_md skips if 'cicada' is already mentioned without tags."""
+def test_update_claude_md_appends_tags_even_if_cicada_mentioned(mock_repo):
+    """Test that update_claude_md appends <cicada> tags even if 'cicada' is mentioned without tags."""
     claude_md = mock_repo / "CLAUDE.md"
     initial_content = "# Project Instructions\n\nPlease use cicada for searches.\n"
     claude_md.write_text(initial_content)
 
     update_claude_md(mock_repo)
 
-    # Content should remain unchanged
+    # <cicada> tags should be appended
     content = claude_md.read_text()
-    assert content == initial_content
-    assert "<cicada>" not in content
+    assert initial_content in content
+    assert "<cicada>" in content
+    assert "</cicada>" in content
 
 
 def test_update_claude_md_skips_if_no_claude_md(mock_repo):
@@ -159,20 +160,6 @@ def test_update_claude_md_adds_newline_if_missing(mock_repo):
     lines = content.split("\n")
     # Should have: initial content, empty line, <cicada> section
     assert any("<cicada>" in line for line in lines)
-
-
-def test_update_claude_md_case_insensitive_check(mock_repo):
-    """Test that the 'cicada' mention check is case-insensitive."""
-    claude_md = mock_repo / "CLAUDE.md"
-    # Use "Cicada" with capital C
-    initial_content = "# Project Instructions\n\nUse Cicada-MCP for searches.\n"
-    claude_md.write_text(initial_content)
-
-    update_claude_md(mock_repo)
-
-    # Content should remain unchanged (skip due to mention)
-    content = claude_md.read_text()
-    assert "<cicada>" not in content
 
 
 def test_creates_agents_md_for_gemini(mock_repo):

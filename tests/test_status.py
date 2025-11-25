@@ -336,6 +336,72 @@ class TestFindAgentFiles:
 
         assert result["total_found"] == 0
 
+    def test_finds_claude_md_with_cicada(self, tmp_path):
+        """Should find CLAUDE.md when it mentions cicada"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create CLAUDE.md with cicada reference
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("# Instructions\n\nUse cicada-mcp for code searches.")
+
+        result = find_agent_files(repo_path)
+
+        assert result["total_found"] == 1
+        assert result["agents"][0]["description"] == "Claude Code instructions"
+        assert result["agents"][0]["relative_path"] == "CLAUDE.md"
+
+    def test_finds_agents_md_with_cicada(self, tmp_path):
+        """Should find AGENTS.md when it mentions cicada"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create AGENTS.md with cicada reference
+        agents_md = repo_path / "AGENTS.md"
+        agents_md.write_text("# Agent Guidelines\n\nCICADA tools are required.")
+
+        result = find_agent_files(repo_path)
+
+        assert result["total_found"] == 1
+        assert result["agents"][0]["description"] == "Agent instructions"
+        assert result["agents"][0]["relative_path"] == "AGENTS.md"
+
+    def test_ignores_claude_md_without_cicada(self, tmp_path):
+        """Should ignore CLAUDE.md without cicada references"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create CLAUDE.md without cicada reference
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("# Instructions\n\nSome other instructions.")
+
+        result = find_agent_files(repo_path)
+
+        assert result["total_found"] == 0
+
+    def test_finds_both_md_and_json_agents(self, tmp_path):
+        """Should find both markdown files and JSON agent files"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create CLAUDE.md with cicada
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("Use cicada for searches.")
+
+        # Create agent JSON file with cicada
+        agent_dir = repo_path / ".claude" / "agents"
+        agent_dir.mkdir(parents=True)
+        agent_file = agent_dir / "my_agent.json"
+        with open(agent_file, "w") as f:
+            json.dump({"tools": ["cicada"]}, f)
+
+        result = find_agent_files(repo_path)
+
+        assert result["total_found"] == 2
+        descriptions = [a["description"] for a in result["agents"]]
+        assert "Claude Code instructions" in descriptions
+        assert "Claude Code agents" in descriptions
+
 
 class TestFindMcpFiles:
     """Tests for find_mcp_files function"""

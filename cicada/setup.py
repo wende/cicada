@@ -455,10 +455,6 @@ def _update_md_file(md_path: Path, tools) -> None:
             with open(md_path, "w") as f:
                 f.write(new_content)
             print(f"✓ Updated <cicada> instructions in {md_path.name}")
-        elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
-            # Content already mentions cicada, don't add duplication
-            # This handles cases where users manually added cicada instructions
-            print(f"✓ {md_path.name} already mentions cicada, skipping update")
         else:
             # Append the instruction
             with open(md_path, "a") as f:

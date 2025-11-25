@@ -124,8 +124,15 @@ def find_agent_files(repo_path: Path) -> dict:
         (repo_path / ".vscode" / "agents", "VS Code agents"),
     ]
 
+    # Root-level markdown files that may contain cicada instructions
+    agent_md_files = [
+        (repo_path / "CLAUDE.md", "Claude Code instructions"),
+        (repo_path / "AGENTS.md", "Agent instructions"),
+    ]
+
     agents_with_cicada = []
 
+    # Check JSON agent files in editor directories
     for agent_dir, desc in agent_locations:
         if agent_dir.exists() and agent_dir.is_dir():
             for agent_file in agent_dir.glob("*.json"):
@@ -142,6 +149,23 @@ def find_agent_files(repo_path: Path) -> dict:
                             )
                 except (OSError, json.JSONDecodeError):
                     pass
+
+    # Check root-level markdown files
+    for md_file, desc in agent_md_files:
+        if md_file.exists() and md_file.is_file():
+            try:
+                with open(md_file) as f:
+                    content = f.read()
+                    if "cicada" in content.lower():
+                        agents_with_cicada.append(
+                            {
+                                "file": str(md_file),
+                                "description": desc,
+                                "relative_path": str(md_file.relative_to(repo_path)),
+                            }
+                        )
+            except OSError:
+                pass
 
     return {
         "total_found": len(agents_with_cicada),
