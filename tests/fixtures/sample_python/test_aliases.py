@@ -25,4 +25,5 @@ def test_alias_usage():
     # Using class with alias
     Calc(100)
 
-    return result1 + result2 + result3 + result4
+    # Use the results to avoid unused variable warnings
+    _ = result1 + result2 + result3 + result4

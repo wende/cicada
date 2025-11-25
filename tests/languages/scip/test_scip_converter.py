@@ -12,7 +12,7 @@ def python_scip_index(fixtures_dir):
     """Load Python SCIP index for testing."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found - run scip-python first")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     return reader.read_index(scip_file), scip_file.parent
@@ -23,7 +23,7 @@ def typescript_scip_index(fixtures_dir):
     """Load TypeScript SCIP index for testing."""
     scip_file = fixtures_dir / "sample_typescript" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("TypeScript SCIP index not found - run scip-typescript first")
+        pytest.fail("TypeScript SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     return reader.read_index(scip_file), scip_file.parent

@@ -14,7 +14,7 @@ class TestExtractStringFromArguments:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def _parse_and_find_arguments(self, parser, code: str):
@@ -156,7 +156,7 @@ class TestCountArguments:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def _get_arguments_node(self, parser, code: str):
@@ -315,7 +315,7 @@ class TestIntegrationScenarios:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def test_extract_moduledoc_string(self, parser):
@@ -418,7 +418,7 @@ class TestGetParamName:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def _get_first_param_node(self, parser, code: str):

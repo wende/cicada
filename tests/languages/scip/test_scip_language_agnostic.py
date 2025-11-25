@@ -15,17 +15,22 @@ from cicada.languages.scip.converter import SCIPConverter
 
 
 @pytest.fixture
-def python_calculator_index(fixtures_dir):
-    """Load Python Calculator index via SCIP."""
+def python_scip_file(fixtures_dir):
+    """Return path to Python SCIP file."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
+    return scip_file
 
+
+@pytest.fixture
+def python_calculator_index(python_scip_file):
+    """Load Python Calculator index via SCIP."""
     reader = SCIPReader()
-    scip_index = reader.read_index(scip_file)
+    scip_index = reader.read_index(python_scip_file)
 
     converter = SCIPConverter()
-    return converter.convert(scip_index, scip_file.parent)
+    return converter.convert(scip_index, python_scip_file.parent)
 
 
 @pytest.fixture
@@ -33,7 +38,7 @@ def typescript_calculator_index(fixtures_dir):
     """Load TypeScript Calculator index via SCIP."""
     scip_file = fixtures_dir / "sample_typescript" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("TypeScript SCIP index not found")
+        pytest.fail("TypeScript SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)
@@ -379,21 +384,17 @@ class TestNoLanguageLeakage:
 class TestIdempotency:
     """Test that processing is idempotent - same input produces same output."""
 
-    def test_convert_twice_identical(self, fixtures_dir):
+    def test_convert_twice_identical(self, python_scip_file):
         """Test that converting the same SCIP file twice produces identical output."""
-        scip_file = fixtures_dir / "sample_python" / "index.scip"
-        if not scip_file.exists():
-            pytest.skip("Python SCIP index not found")
-
         reader = SCIPReader()
-        scip_index = reader.read_index(scip_file)
+        scip_index = reader.read_index(python_scip_file)
 
         # Convert twice
         converter1 = SCIPConverter()
-        result1 = converter1.convert(scip_index, scip_file.parent)
+        result1 = converter1.convert(scip_index, python_scip_file.parent)
 
         converter2 = SCIPConverter()
-        result2 = converter2.convert(scip_index, scip_file.parent)
+        result2 = converter2.convert(scip_index, python_scip_file.parent)
 
         # Strip timestamp (will differ)
         result1_meta = dict(result1["metadata"])

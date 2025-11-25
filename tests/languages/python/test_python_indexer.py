@@ -56,48 +56,120 @@ class TestPythonSCIPIndexer:
         captured = capsys.readouterr()
         assert "Using scip-python 0.3.15" in captured.out
 
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
     @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
-    def test_ensure_scip_python_not_installed(self, mock_installed, indexer):
-        """Should raise error when scip-python is not installed."""
+    def test_ensure_scip_python_not_installed(self, mock_installed, mock_npm, indexer):
+        """Should raise error when scip-python is not installed and npm unavailable."""
         mock_installed.return_value = False
+        mock_npm.return_value = False  # npm not available, can't auto-install
 
         with pytest.raises(RuntimeError) as exc_info:
             indexer._ensure_scip_python_installed()
 
         assert "scip-python is required" in str(exc_info.value)
-        assert "npm install -g @sourcegraph/scip-python" in str(exc_info.value)
+        assert "npm is required" in str(exc_info.value)
+
+    @patch.object(SCIPPythonInstaller, "install_locally")
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    def test_ensure_scip_python_auto_installs(
+        self, mock_installed, mock_npm, mock_install, indexer
+    ):
+        """Should auto-install scip-python locally when npm is available."""
+        mock_installed.return_value = False
+        mock_npm.return_value = True
+        mock_install.return_value = True  # Install succeeds
+
+        # Should not raise - auto-install succeeds
+        indexer._ensure_scip_python_installed()
+
+        mock_install.assert_called_once()
+
+    @patch.object(SCIPPythonInstaller, "install_locally")
+    @patch.object(SCIPPythonInstaller, "is_npm_available")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    def test_ensure_scip_python_auto_install_fails(
+        self, mock_installed, mock_npm, mock_install, indexer
+    ):
+        """Should raise error when auto-install fails."""
+        mock_installed.return_value = False
+        mock_npm.return_value = True
+        mock_install.return_value = False  # Install fails
+
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._ensure_scip_python_installed()
+
+        assert "scip-python is required" in str(exc_info.value)
+
+    @patch.object(SCIPPythonInstaller, "is_local_install")
+    @patch.object(SCIPPythonInstaller, "get_scip_python_path")
+    @patch.object(SCIPPythonInstaller, "is_scip_python_installed")
+    @patch.object(SCIPPythonInstaller, "get_scip_python_version")
+    def test_ensure_scip_python_local_log_message(
+        self, mock_version, mock_installed, mock_path, mock_is_local, verbose_indexer, capsys
+    ):
+        """Should show (local) in log message when using local installation."""
+        mock_installed.return_value = True
+        mock_version.return_value = "0.3.15"
+        mock_path.return_value = str(SCIPPythonInstaller.LOCAL_BIN_DIR / "scip-python")
+        mock_is_local.return_value = True
+
+        verbose_indexer._ensure_scip_python_installed()
+
+        captured = capsys.readouterr()
+        assert "Using scip-python 0.3.15 (local)" in captured.out
+
+    @patch.object(SCIPPythonInstaller, "get_scip_python_path")
+    def test_run_scip_python_raises_when_path_is_none(self, mock_path, indexer, tmp_path):
+        """Should raise RuntimeError when scip-python path is not available."""
+        mock_path.return_value = None
+
+        with pytest.raises(RuntimeError) as exc_info:
+            indexer._run_scip_python(tmp_path)
+
+        assert "call _ensure_scip_python_installed() first" in str(exc_info.value)
 
     def test_run_scip_python_success(self, indexer, tmp_path):
-        """Should successfully run scip-python and return .scip file path."""
+        """Should successfully run scip-python using resolved path from installer."""
         # Create a mock .scip file
         mock_scip_content = scip_pb2.Index()
         mock_scip_content.metadata.version = 0  # ProtocolVersion enum
 
-        with patch("subprocess.run") as mock_run:
-            # Mock successful subprocess run
-            mock_result = Mock()
-            mock_result.returncode = 0
-            mock_result.stderr = ""
-            mock_run.return_value = mock_result
+        fake_scip_python_path = "/fake/bin/scip-python"
 
-            # Mock the scip file creation
-            with patch("tempfile.NamedTemporaryFile") as mock_temp:
-                scip_file_path = tmp_path / "test.scip"
-                mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
+        with patch.object(
+            SCIPPythonInstaller, "get_scip_python_path", return_value=fake_scip_python_path
+        ):
+            with patch("cicada.languages.python.indexer.subprocess.run") as mock_run:
+                # Mock successful subprocess run
+                mock_result = Mock()
+                mock_result.returncode = 0
+                mock_result.stderr = ""
+                mock_run.return_value = mock_result
 
-                # Create the file to simulate scip-python output
-                with open(scip_file_path, "wb") as f:
-                    f.write(mock_scip_content.SerializeToString())
+                # Mock the scip file creation
+                with patch("tempfile.NamedTemporaryFile") as mock_temp:
+                    scip_file_path = tmp_path / "test.scip"
+                    mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
 
-                result_path = indexer._run_scip_python(tmp_path)
+                    # Create the file to simulate scip-python output
+                    with open(scip_file_path, "wb") as f:
+                        f.write(mock_scip_content.SerializeToString())
 
-                assert result_path == scip_file_path
-                assert result_path.exists()
+                    result_path = indexer._run_scip_python(tmp_path)
 
-                # Verify NamedTemporaryFile usage
-                mock_temp.assert_called_once()
-                call_kwargs = mock_temp.call_args[1]
-                assert "dir" not in call_kwargs
+                    assert result_path == scip_file_path
+                    assert result_path.exists()
+
+                    # Verify the resolved scip-python path is used as the command
+                    mock_run.assert_called_once()
+                    called_cmd = mock_run.call_args[0][0]
+                    assert called_cmd[0] == fake_scip_python_path
+
+                    # Verify NamedTemporaryFile usage
+                    mock_temp.assert_called_once()
+                    call_kwargs = mock_temp.call_args[1]
+                    assert "dir" not in call_kwargs
 
     def test_run_scip_python_command_failure(self, indexer, tmp_path):
         """Should raise error when scip-python command fails."""

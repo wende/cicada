@@ -14,7 +14,6 @@ pytestmark = pytest.mark.skip(
 
 
 @pytest.fixture
-@pytest.mark.xdist_group(name="cochange_tests")
 def git_repo_for_incremental(tmp_path):
     """Create a git repository with multiple files that will be incrementally updated."""
     repo = tmp_path / "test_repo"

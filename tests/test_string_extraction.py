@@ -14,7 +14,7 @@ from cicada.languages.elixir.extractors import StringExtractor, extract_modules
 @pytest.fixture
 def parser():
     """Create an Elixir parser instance."""
-    return Parser(Language(ts_elixir.language()))
+    return Parser(Language(ts_elixir.language()))  # type: ignore[deprecated]
 
 
 @pytest.fixture
@@ -288,7 +288,7 @@ def test_empty_module():
     end
     """
 
-    parser = Parser(Language(ts_elixir.language()))
+    parser = Parser(Language(ts_elixir.language()))  # type: ignore[deprecated]
     tree = parser.parse(source_code)
     root_node = tree.root_node
 

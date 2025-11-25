@@ -18,7 +18,21 @@ def python_index(fixtures_dir):
     """Load and convert Python SCIP index for testing."""
     scip_file = fixtures_dir / "sample_python" / "index.scip"
     if not scip_file.exists():
-        pytest.skip("Python SCIP index not found")
+        pytest.fail("Python SCIP index not found - run make setup-scip")
+
+    reader = SCIPReader()
+    scip_index = reader.read_index(scip_file)
+
+    converter = SCIPConverter()
+    return converter.convert(scip_index, scip_file.parent)
+
+
+@pytest.fixture
+def typescript_index(fixtures_dir):
+    """Load and convert TypeScript SCIP index for testing."""
+    scip_file = fixtures_dir / "sample_typescript" / "index.scip"
+    if not scip_file.exists():
+        pytest.fail("TypeScript SCIP index not found - run make setup-scip")
 
     reader = SCIPReader()
     scip_index = reader.read_index(scip_file)
@@ -275,19 +289,9 @@ class TestCallSiteFormatting:
 class TestTypescriptFormatting:
     """Test that TypeScript data formats correctly too."""
 
-    def test_signature_builder_typescript_types(self, fixtures_dir):
+    def test_signature_builder_typescript_types(self, typescript_index):
         """Test formatting TypeScript type annotations."""
-        scip_file = fixtures_dir / "sample_typescript" / "index.scip"
-        if not scip_file.exists():
-            pytest.skip("TypeScript SCIP index not found")
-
-        reader = SCIPReader()
-        scip_index = reader.read_index(scip_file)
-
-        converter = SCIPConverter()
-        result = converter.convert(scip_index, scip_file.parent)
-
-        calc = result["modules"]["Calculator"]
+        calc = typescript_index["modules"]["Calculator"]
 
         formatter = ModuleFormatter()
         output = formatter.format_module_json("Calculator", calc)

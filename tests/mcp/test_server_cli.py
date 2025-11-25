@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
 
@@ -19,19 +19,15 @@ def test_cicada_server_accepts_repo_path_argument(monkeypatch, tmp_path):
     # Mock sys.argv to include the repo path
     test_args = ["cicada-server", str(test_repo)]
 
-    # Mock asyncio.run to prevent actual server startup
-    mock_async_run = MagicMock()
-
     # Track what CICADA_CONFIG_DIR gets set to
     captured_env = {}
 
-    def capture_env(*args, **kwargs):
+    def capture_env_and_close_coro(coro):
         captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
-
-    mock_async_run.side_effect = capture_env
+        coro.close()  # Close coroutine to prevent "never awaited" warning
 
     with patch("sys.argv", test_args):
-        with patch("asyncio.run", mock_async_run):
+        with patch("asyncio.run", capture_env_and_close_coro):
             # Import and call main
             from cicada.mcp.server import main
 
@@ -53,16 +49,12 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
     # Mock sys.argv with just the program name
     test_args = ["cicada-server"]
 
-    # Mock asyncio.run to prevent actual server startup
-    mock_async_run = MagicMock()
-
     # Track environment state
     captured_env = {}
 
-    def capture_env(*args, **kwargs):
+    def capture_env_and_close_coro(coro):
         captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
-
-    mock_async_run.side_effect = capture_env
+        coro.close()  # Close coroutine to prevent "never awaited" warning
 
     # Clear CICADA_CONFIG_DIR if set
     original_env = os.environ.get("CICADA_CONFIG_DIR")
@@ -71,7 +63,7 @@ def test_cicada_server_without_argument_uses_cwd(monkeypatch):
 
     try:
         with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
+            with patch("asyncio.run", capture_env_and_close_coro):
                 from cicada.mcp.server import main
 
                 try:
@@ -103,17 +95,14 @@ def test_cicada_server_converts_relative_to_absolute(monkeypatch, tmp_path):
         # Mock sys.argv with relative path
         test_args = ["cicada-server", "test_repo"]
 
-        # Mock asyncio.run
-        mock_async_run = MagicMock()
         captured_env = {}
 
-        def capture_env(*args, **kwargs):
+        def capture_env_and_close_coro(coro):
             captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
-
-        mock_async_run.side_effect = capture_env
+            coro.close()  # Close coroutine to prevent "never awaited" warning
 
         with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
+            with patch("asyncio.run", capture_env_and_close_coro):
                 from cicada.mcp.server import main
 
                 try:
@@ -146,17 +135,14 @@ def test_cicada_server_dot_argument(monkeypatch, tmp_path):
         # Mock sys.argv with "."
         test_args = ["cicada-server", "."]
 
-        # Mock asyncio.run
-        mock_async_run = MagicMock()
         captured_env = {}
 
-        def capture_env(*args, **kwargs):
+        def capture_env_and_close_coro(coro):
             captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
-
-        mock_async_run.side_effect = capture_env
+            coro.close()  # Close coroutine to prevent "never awaited" warning
 
         with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
+            with patch("asyncio.run", capture_env_and_close_coro):
                 from cicada.mcp.server import main
 
                 try:
@@ -256,14 +242,13 @@ def test_positional_arg_auto_setup_from_different_directory(monkeypatch, tmp_pat
         # Track environment variables that get set
         captured_env = {}
 
-        def capture_env(*args, **kwargs):
+        def capture_env_and_close_coro(coro):
             captured_env["_CICADA_REPO_PATH_ARG"] = os.environ.get("_CICADA_REPO_PATH_ARG")
             captured_env["CICADA_CONFIG_DIR"] = os.environ.get("CICADA_CONFIG_DIR")
-
-        mock_async_run = MagicMock(side_effect=capture_env)
+            coro.close()  # Close coroutine to prevent "never awaited" warning
 
         with patch("sys.argv", test_args):
-            with patch("asyncio.run", mock_async_run):
+            with patch("asyncio.run", capture_env_and_close_coro):
                 from cicada.mcp.server import main
 
                 try:

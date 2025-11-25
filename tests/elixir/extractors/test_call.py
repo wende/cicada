@@ -16,7 +16,7 @@ class TestExtractFunctionCalls:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def test_excludes_module_attributes_from_calls(self, parser):
