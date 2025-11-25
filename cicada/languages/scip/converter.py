@@ -621,13 +621,20 @@ class SCIPConverter:
                 )
                 function_entries.append(func_entry)
 
+            # Aggregate all calls from function entries for module-level tracking
+            module_calls = []
+            for func_entry in function_entries:
+                module_calls.extend(func_entry.get("dependencies", []))
+
             # Create class module
             module_data = {
                 "file": doc_data.relative_path,
                 "line": class_data.line,
                 "functions": function_entries,
-                "calls": [],
+                "calls": module_calls,
                 "dependencies": self._merge_dependencies_to_dict(doc_data.dependencies),
+                "aliases": doc_data.aliases,
+                "imports": [dep.module for dep in doc_data.dependencies],
             }
 
             # Add documentation
@@ -691,15 +698,22 @@ class SCIPConverter:
                 )
                 function_entries.append(func_entry)
 
+            # Aggregate all calls from function entries for module-level tracking
+            module_calls = []
+            for func_entry in function_entries:
+                module_calls.extend(func_entry.get("dependencies", []))
+
             file_module = {
                 "name": file_module_name,
                 "file": doc_data.relative_path,
                 "line": 1,
                 "functions": function_entries,
-                "calls": [],
+                "calls": module_calls,
                 "dependencies": self._merge_dependencies_to_dict(doc_data.dependencies),
                 "type": "module",
                 "classes": class_metadata_list,  # Track classes defined in this module
+                "aliases": doc_data.aliases,
+                "imports": [dep.module for dep in doc_data.dependencies],
             }
 
             # Extract keywords if enabled
