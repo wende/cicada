@@ -38,6 +38,33 @@ class ModuleSearchHandler:
         self.index = index
         self.config = config
 
+    def _get_function_bounds(
+        self, module_name: str, function_name: str, arity: int
+    ) -> tuple[int, int]:
+        """
+        Look up a function's line bounds from the index.
+
+        Args:
+            module_name: Name of the module containing the function
+            function_name: Name of the function
+            arity: Function arity
+
+        Returns:
+            Tuple of (start_line, end_line). Uses estimates if bounds unknown.
+        """
+        modules = self.index.get("modules", {})
+        module_data = modules.get(module_name, {})
+        functions = module_data.get("functions", [])
+
+        for func in functions:
+            if func.get("name") == function_name and func.get("arity", 0) == arity:
+                start_line = func.get("line", 1)
+                end_line = func.get("end_line", start_line + self.APPROXIMATE_FUNCTION_LENGTH)
+                return (start_line, end_line)
+
+        # Function not found - return reasonable defaults
+        return (1, self.APPROXIMATE_FUNCTION_LENGTH)
+
     def _collect_transitive_dependencies(
         self,
         module_name: str,
@@ -621,17 +648,22 @@ class ModuleSearchHandler:
 
                     called_func_key = f"{key_func}/0"
                     if called_func_key not in module_calls_from_reverse[caller_key]["calls"]:
+                        # Build calling_function with bounds for formatter compatibility
+                        calling_function = None
+                        if caller["function"]:
+                            start_line, end_line = self._get_function_bounds(
+                                caller_module, caller["function"], caller["arity"]
+                            )
+                            calling_function = {
+                                "name": caller["function"],
+                                "arity": caller["arity"],
+                                "start_line": start_line,
+                                "end_line": end_line,
+                            }
                         module_calls_from_reverse[caller_key]["calls"][called_func_key] = {
                             "called_function": key_func,
                             "called_arity": 0,
-                            "calling_function": (
-                                {
-                                    "name": caller["function"],
-                                    "arity": caller["arity"],
-                                }
-                                if caller["function"]
-                                else None
-                            ),
+                            "calling_function": calling_function,
                             "lines": [],
                             "alias_used": None,
                         }

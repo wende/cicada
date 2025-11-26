@@ -566,5 +566,49 @@ class TestModuleUsageData:
         assert len(usage["function_calls"]) >= 1
 
 
+class TestGetFunctionBounds:
+    """Tests for _get_function_bounds method."""
+
+    @pytest.fixture
+    def index_with_functions(self):
+        """Index with functions that have line bounds."""
+        return {
+            "modules": {
+                "MyApp.Service": {
+                    "file": "lib/my_app/service.ex",
+                    "functions": [
+                        {"name": "start", "arity": 0, "line": 10, "end_line": 25},
+                        {"name": "stop", "arity": 1, "line": 30},  # No end_line
+                    ],
+                }
+            }
+        }
+
+    def test_get_bounds_with_end_line(self, index_with_functions):
+        """Test getting bounds when end_line is available."""
+        handler = ModuleSearchHandler(index_with_functions, {"repository": {"path": "."}})
+        start, end = handler._get_function_bounds("MyApp.Service", "start", 0)
+
+        assert start == 10
+        assert end == 25
+
+    def test_get_bounds_without_end_line(self, index_with_functions):
+        """Test getting bounds when end_line is missing (uses estimate)."""
+        handler = ModuleSearchHandler(index_with_functions, {"repository": {"path": "."}})
+        start, end = handler._get_function_bounds("MyApp.Service", "stop", 1)
+
+        assert start == 30
+        assert end == 30 + handler.APPROXIMATE_FUNCTION_LENGTH
+
+    def test_get_bounds_for_nonexistent_function(self, index_with_functions):
+        """Test getting bounds for a function that doesn't exist."""
+        handler = ModuleSearchHandler(index_with_functions, {"repository": {"path": "."}})
+        start, end = handler._get_function_bounds("MyApp.Service", "missing", 0)
+
+        # Should return reasonable defaults
+        assert start == 1
+        assert end == handler.APPROXIMATE_FUNCTION_LENGTH
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

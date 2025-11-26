@@ -107,7 +107,7 @@ def calculate_difference(a, b):
         assert len(add_calls) > 0, "Index should contain calls to 'add' function"
 
         # Now test search_function
-        handler = FunctionSearchHandler(index)
+        handler = FunctionSearchHandler(index, {"repository": {"path": str(repo_path)}})
 
         # Search for the add function and find its call sites
         result = await handler.search_function(
@@ -170,7 +170,7 @@ async def test_search_function_finds_call_sites_for_index_repository():
     assert len(index_repo_calls) > 0, "Index should contain calls to index_repository"
 
     # Now test search_function
-    handler = FunctionSearchHandler(index)
+    handler = FunctionSearchHandler(index, {"repository": {"path": str(index_path.parent)}})
 
     # Search for BaseIndexer.index_repository
     result = await handler.search_function(

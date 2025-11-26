@@ -422,5 +422,64 @@ class TestFindFunctionAtLine:
         assert result is None
 
 
+class TestFindCallSitesFromReverseIndex:
+    """Test the reverse index call site lookup."""
+
+    @pytest.fixture
+    def index_with_reverse(self):
+        """Index with reverse_calls for testing."""
+        return {
+            "modules": {
+                "MyApp.User": {
+                    "file": "lib/my_app/user.ex",
+                    "functions": [{"name": "get", "arity": 1, "line": 10}],
+                }
+            },
+            "reverse_calls": {
+                "MyApp.User.get": [
+                    {
+                        "module": "MyApp.Auth",
+                        "function": "authenticate",
+                        "arity": 2,
+                        "file": "lib/my_app/auth.ex",
+                        "line": 15,
+                    },
+                    {
+                        "module": "MyApp.Controller",
+                        "function": "show",
+                        "arity": 1,
+                        "file": "lib/my_app/controller.ex",
+                        "line": 25,
+                    },
+                ]
+            },
+        }
+
+    def test_finds_call_sites_from_reverse_index(self, index_with_reverse):
+        """Test finding call sites using reverse_calls index."""
+        handler = FunctionSearchHandler(index_with_reverse, {"repository": {"path": "."}})
+        result = handler._find_call_sites_from_reverse_index("MyApp.User", "get")
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["calling_module"] == "MyApp.Auth"
+        assert result[0]["line"] == 15
+        assert result[1]["calling_module"] == "MyApp.Controller"
+
+    def test_returns_none_without_reverse_index(self, sample_index):
+        """Test returns None when no reverse_calls exists."""
+        handler = FunctionSearchHandler(sample_index, {"repository": {"path": "."}})
+        result = handler._find_call_sites_from_reverse_index("MyApp.Auth", "authenticate")
+
+        assert result is None
+
+    def test_returns_none_for_function_with_no_callers(self, index_with_reverse):
+        """Test returns None when function has no callers."""
+        handler = FunctionSearchHandler(index_with_reverse, {"repository": {"path": "."}})
+        result = handler._find_call_sites_from_reverse_index("MyApp.User", "nonexistent")
+
+        assert result is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
