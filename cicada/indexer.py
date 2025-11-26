@@ -357,7 +357,7 @@ class ElixirIndexer(BaseIndexer):
         force: bool = False,
         verbose: bool = False,
         config_path: str | Path | None = None,
-        extract_cochange: bool = False,
+        extract_cochange: bool = True,
     ) -> dict:
         """
         Index an Elixir repository (implements BaseIndexer interface).
@@ -984,6 +984,41 @@ class ElixirIndexer(BaseIndexer):
                 if self.verbose:
                     print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
 
+        # Analyze git co-changes if requested
+        if extract_cochange:
+            if self.verbose:
+                print("Analyzing git co-change patterns...")
+            try:
+                from cicada.git.cochange_analyzer import CoChangeAnalyzer
+
+                cochange_analyzer = CoChangeAnalyzer(
+                    language=self.get_language_name(),
+                    verbose=self.verbose,
+                )
+                cochange_data = cochange_analyzer.analyze_repository(
+                    str(repo_path_obj),
+                    min_count=2,  # Filter out noise
+                )
+
+                # Integrate co-change data into modules and functions
+                self._integrate_cochange_data(all_modules, cochange_data, repo_path_obj)
+
+                # Add metadata to index
+                index["cochange_metadata"] = cochange_data["metadata"]
+
+                if self.verbose:
+                    metadata = cochange_data["metadata"]
+                    print(f"  ✓ Analyzed {metadata['commit_count']} commits")
+                    print(f"  ✓ Found {metadata['file_pairs']} file co-change pairs")
+                    print(
+                        f"  ✓ Found {metadata['function_pairs']} function co-change pairs (estimated)"
+                    )
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Co-change analysis failed: {e}", file=sys.stderr)
+                # Continue without co-change data
+
         # Save to file
         output_path_obj = Path(output_path)
 
@@ -1040,7 +1075,7 @@ class ElixirIndexer(BaseIndexer):
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
-        extract_cochange: bool = False,
+        extract_cochange: bool = True,
         force_full: bool = False,
         verbose: bool = True,
     ):
@@ -1057,7 +1092,7 @@ class ElixirIndexer(BaseIndexer):
             extract_keywords: If True, extract keywords from documentation using NLP
             extract_string_keywords: If True, extract keywords from string literals
             compute_timestamps: If True, compute git history timestamps for functions (default: True)
-            extract_cochange: If True, analyze git history for co-change patterns (disabled by default)
+            extract_cochange: If True, analyze git history for co-change patterns (enabled by default)
             force_full: If True, ignore existing hashes and do full reindex
             verbose: If True, print detailed progress information (default: True)
 
@@ -1527,6 +1562,49 @@ class ElixirIndexer(BaseIndexer):
             except Exception as e:
                 if self.verbose:
                     print(f"Warning: Failed to build co-occurrence matrix: {e}", file=sys.stderr)
+
+        # Reanalyze git co-changes if requested
+        if extract_cochange:
+            if self.verbose:
+                print("Reanalyzing git co-change patterns...")
+            try:
+                from cicada.git.cochange_analyzer import CoChangeAnalyzer
+
+                cochange_analyzer = CoChangeAnalyzer(
+                    language=self.get_language_name(),
+                    verbose=self.verbose,
+                )
+                cochange_data = cochange_analyzer.analyze_repository(
+                    str(repo_path_obj),
+                    min_count=2,  # Filter out noise
+                )
+
+                # Integrate co-change data into modules and functions
+                # First, clear any existing co-change data
+                for module_info in merged_index["modules"].values():
+                    module_info["cochange_files"] = []
+                    if "functions" in module_info:
+                        for func_info in module_info["functions"]:
+                            func_info["cochange_functions"] = []
+
+                # Now integrate new co-change data
+                self._integrate_cochange_data(merged_index["modules"], cochange_data, repo_path_obj)
+
+                # Add metadata to index
+                merged_index["cochange_metadata"] = cochange_data["metadata"]
+
+                if self.verbose:
+                    metadata = cochange_data["metadata"]
+                    print(f"  ✓ Analyzed {metadata['commit_count']} commits")
+                    print(f"  ✓ Found {metadata['file_pairs']} file co-change pairs")
+                    print(
+                        f"  ✓ Found {metadata['function_pairs']} function co-change pairs (estimated)"
+                    )
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Co-change analysis failed: {e}", file=sys.stderr)
+                # Continue without co-change data
 
         # Update hashes for all current files
         if self.verbose:

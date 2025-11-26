@@ -459,6 +459,11 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
+    index_parser.add_argument(
+        "--no-cochange",
+        action="store_true",
+        help="Disable co-change analysis (enabled by default for better search results)",
+    )
 
     index_pr_parser = subparsers.add_parser(
         "index-pr",
@@ -911,8 +916,9 @@ def handle_index_main(args) -> None:
 
     # Check if indexer supports incremental_index_repository (new unified API)
     if hasattr(indexer, "incremental_index_repository"):
-        # Co-change disabled by default due to performance issues (can be enabled with --extract-cochange)
-        extract_cochange = getattr(args, "extract_cochange", False)
+        # Co-change analysis is enabled by default for better search results
+        # Can be disabled with --no-cochange flag
+        extract_cochange = not getattr(args, "no_cochange", False)
         indexer.incremental_index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
