@@ -15,9 +15,6 @@ from cicada.languages.python.indexer import PythonSCIPIndexer
 from cicada.mcp.handlers.function_handlers import FunctionSearchHandler
 
 
-@pytest.mark.skip(
-    reason="Requires git repository for scip-python - tested manually with real index"
-)
 @pytest.mark.asyncio
 async def test_search_function_finds_call_sites():
     """
@@ -67,12 +64,16 @@ def calculate_difference(a, b):
         indexer = PythonSCIPIndexer(verbose=False)
         index_path = repo_path / "index.json"
 
-        indexer.index_repository(
+        result = indexer.index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
             force=True,
             verbose=False,
         )
+
+        # If no index created, skip test
+        if not index_path.exists():
+            pytest.skip(f"SCIP Python indexing not available: {result}")
 
         # Load the index
         with open(index_path) as f:
@@ -131,7 +132,6 @@ def calculate_difference(a, b):
         )
 
 
-@pytest.mark.skip(reason="Uses real index - tested manually")
 @pytest.mark.asyncio
 async def test_search_function_finds_call_sites_for_index_repository():
     """

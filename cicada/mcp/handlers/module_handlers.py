@@ -577,6 +577,74 @@ class ModuleSearchHandler:
                     }
                 )
 
+        # Fast path: use reverse_calls index to find function calls to this module
+        reverse_calls = self.index.get("reverse_calls", {})
+        if reverse_calls:
+            # Get target module's functions and file path for matching
+            target_module_data = self.index["modules"].get(module_name, {})
+            target_file = target_module_data.get("file", "")
+            target_functions = target_module_data.get("functions", [])
+
+            # Build set of target function names for matching
+            target_func_names = {f["name"] for f in target_functions}
+
+            # Search reverse_calls for calls to this module's functions
+            module_calls_from_reverse = {}
+            for key, callers in reverse_calls.items():
+                # Key format: "ModuleName.functionName" or "functionName"
+                key_parts = key.rsplit(".", 1)
+                if len(key_parts) == 2:
+                    key_module, key_func = key_parts
+                    # Check if this key matches our target module
+                    if key_module != module_name and not (
+                        target_file and key_module == target_file.rsplit(".", 1)[0]
+                    ):
+                        continue
+                else:
+                    key_func = key_parts[0]
+                    # For bare function names, only match if in our target functions
+                    if key_func not in target_func_names:
+                        continue
+
+                for caller in callers:
+                    caller_module = caller["module"]
+                    if caller_module == module_name:
+                        continue  # Skip self-references
+
+                    caller_key = f"{caller_module}|{caller['function']}"
+                    if caller_key not in module_calls_from_reverse:
+                        module_calls_from_reverse[caller_key] = {
+                            "calling_module": caller_module,
+                            "file": caller["file"],
+                            "calls": {},
+                        }
+
+                    called_func_key = f"{key_func}/0"
+                    if called_func_key not in module_calls_from_reverse[caller_key]["calls"]:
+                        module_calls_from_reverse[caller_key]["calls"][called_func_key] = {
+                            "called_function": key_func,
+                            "called_arity": 0,
+                            "calling_function": (
+                                {
+                                    "name": caller["function"],
+                                    "arity": caller["arity"],
+                                }
+                                if caller["function"]
+                                else None
+                            ),
+                            "lines": [],
+                            "alias_used": None,
+                        }
+                    module_calls_from_reverse[caller_key]["calls"][called_func_key]["lines"].append(
+                        caller["line"]
+                    )
+
+            # Merge reverse index results with existing function_calls
+            for _caller_key, data in module_calls_from_reverse.items():
+                # Convert calls dict to list
+                data["calls"] = list(data["calls"].values())
+                usage_results["function_calls"].append(data)
+
         # Apply usage type filter if not 'all'
         if usage_type != "all":
             from cicada.mcp.filter_utils import filter_by_file_type

@@ -13,6 +13,31 @@ from typing import Any
 
 import cicada.languages.scip.scip_pb2 as scip_pb2
 
+# Lazy imports for symbol_types modules to avoid circular imports
+# These are imported at module load time but after the class is defined
+_python_symbols = None
+_typescript_symbols = None
+
+
+def _get_python_symbols():
+    """Lazy import for Python symbol types module."""
+    global _python_symbols
+    if _python_symbols is None:
+        import cicada.languages.python.symbol_types as ps
+
+        _python_symbols = ps
+    return _python_symbols
+
+
+def _get_typescript_symbols():
+    """Lazy import for TypeScript symbol types module."""
+    global _typescript_symbols
+    if _typescript_symbols is None:
+        import cicada.languages.typescript.symbol_types as ts
+
+        _typescript_symbols = ts
+    return _typescript_symbols
+
 
 @dataclass
 class SymbolData:
@@ -143,10 +168,16 @@ class SCIPConverter:
             file_modules = self._process_document_data(doc_data, symbol_map, global_arity_map)
             modules.update(file_modules)
 
+        # Phase 3: Build reverse call index for O(1) "what calls this" queries
+        reverse_calls = self._build_reverse_call_index(modules)
+
         # Build metadata
         metadata = self._build_metadata(scip_index, repo_path, len(modules))
 
-        return {"modules": modules, "metadata": metadata}
+        result = {"modules": modules, "metadata": metadata}
+        if reverse_calls:
+            result["reverse_calls"] = reverse_calls
+        return result
 
     def _build_symbol_map(self, scip_index: scip_pb2.Index) -> dict:
         """Build a map of symbol -> SymbolInformation for quick lookup."""
@@ -258,8 +289,12 @@ class SCIPConverter:
             line: Line number (1-indexed)
             call_sites: List to store call site data
         """
-        # Only collect if extract_references is enabled and symbol is a function call
-        if self.extract_references and symbol.endswith("()."):
+        if not self.extract_references:
+            return
+
+        # Use language-aware symbol type detection to identify callables
+        symbol_type = self._get_symbol_type(symbol)
+        if symbol_type in ("function", "method"):
             call_sites.append(
                 CallSite(
                     callee_symbol=symbol,
@@ -375,13 +410,17 @@ class SCIPConverter:
                     occurrence, symbol, line, symbol_type, symbols, function_ranges, param_counts
                 )
 
-            # Handle call sites and imports (ReadAccess, not Definition)
+            # Handle call sites and imports (non-definitions)
+            # Note: scip-typescript doesn't set ReadAccess for function calls,
+            # so we also check for non-definition callable symbols
+            is_callable_reference = not is_definition and symbol_type in ("function", "method")
             if is_read_access and not is_definition:
-                # Process function/method calls
-                self._process_call_site(symbol, line, call_sites)
-
-                # Process import statements
+                # Process import statements (requires ReadAccess)
                 self._process_import(symbol, line, dependencies, imports_by_line, seen_imports)
+
+            # Process call sites - either ReadAccess OR callable reference
+            if (is_read_access or is_callable_reference) and not is_definition:
+                self._process_call_site(symbol, line, call_sites)
 
         # Consolidate imports from imports_by_line
         dependencies.extend(imports_by_line.values())
@@ -1127,48 +1166,27 @@ class SCIPConverter:
         """
         Determine symbol type by parsing SCIP symbol descriptor.
 
+        Delegates to language-specific modules based on the SCIP scheme prefix.
+
         SCIP symbols have format: scheme language package version descriptor
-        Examples:
-        - scip-python python sample_python 0.1.0 calculator/__init__: -> module
-        - scip-python python sample_python 0.1.0 calculator/Calculator# -> class
-        - scip-python python sample_python 0.1.0 calculator/Calculator#add(). -> method
-        - scip-python python sample_python 0.1.0 calculator/helper_function(). -> function
-        - scip-python python sample_python 0.1.0 calculator/Calculator#add().(x) -> parameter
 
         Returns:
-            One of: 'class', 'method', 'function', 'module', 'parameter', 'unknown'
+            One of: 'class', 'method', 'function', 'module', 'parameter',
+                   'attribute', 'unknown'
         """
         parts = symbol.split()
         if len(parts) < 5:
             return "unknown"
 
+        scheme = parts[0]
         descriptor = " ".join(parts[4:])
 
-        # Parameter: ends with .(param_name)
-        if re.match(r".*\.\([^)]+\)$", descriptor):
-            return "parameter"
-
-        # Module/namespace: ends with :
-        if descriptor.endswith(":"):
-            return "module"
-
-        # Class: ends with # (no method following)
-        if descriptor.endswith("#"):
-            return "class"
-
-        # Method: contains # and ends with ().
-        if "#" in descriptor and descriptor.endswith("()."):
-            return "method"
-
-        # Function: no # but ends with ().
-        if "#" not in descriptor and descriptor.endswith("()."):
-            return "function"
-
-        # Attribute/variable: ends with . (but not ().)
-        if descriptor.endswith(".") and not descriptor.endswith("()."):
-            return "attribute"
-
-        return "unknown"
+        # Delegate to language-specific symbol type detection
+        if scheme.startswith(("scip-typescript", "scip-javascript")):
+            return _get_typescript_symbols().get_symbol_type(descriptor)
+        else:
+            # Default to Python-style parsing (works for Python and unknown languages)
+            return _get_python_symbols().get_symbol_type(descriptor)
 
     def _scip_kind_to_module_kind(self, kind: int) -> str:
         """
@@ -1515,3 +1533,59 @@ class SCIPConverter:
                 }
 
         return metadata
+
+    def _build_reverse_call_index(self, modules: dict) -> dict[str, list[dict]]:
+        """
+        Build reverse lookup from callee to callers for O(1) "what calls this" queries.
+
+        Iterates through all modules and functions, extracting call sites and inverting
+        the relationship: instead of "function X calls [A, B, C]", we build
+        "function A is called by [X, Y, Z]".
+
+        Args:
+            modules: The fully processed modules dict from convert()
+
+        Returns:
+            Dict mapping "ModuleName.functionName" to list of caller info dicts.
+            Each caller dict has: module, function, arity, file, line
+        """
+        reverse_index: dict[str, list[dict]] = {}
+
+        for module_name, module_data in modules.items():
+            file_path = module_data.get("file", "")
+
+            for func in module_data.get("functions", []):
+                caller_name = func.get("name")
+                caller_arity = func.get("arity", 0)
+
+                # Process raw call sites (SCIP format with callee symbol)
+                for call in func.get("calls", []):
+                    callee_symbol = call.get("callee", "")
+                    call_line = call.get("line", 0)
+
+                    if not callee_symbol:
+                        continue
+
+                    # Extract function name and module from SCIP symbol
+                    callee_name = self._extract_name(callee_symbol)
+                    callee_module = self._extract_module_from_symbol(callee_symbol)
+
+                    if not callee_name:
+                        continue
+
+                    # Build key: "Module.function" or just "function"
+                    key = f"{callee_module}.{callee_name}" if callee_module else callee_name
+
+                    caller_ref = {
+                        "module": module_name,
+                        "function": caller_name,
+                        "arity": caller_arity,
+                        "file": file_path,
+                        "line": call_line,
+                    }
+
+                    if key not in reverse_index:
+                        reverse_index[key] = []
+                    reverse_index[key].append(caller_ref)
+
+        return reverse_index

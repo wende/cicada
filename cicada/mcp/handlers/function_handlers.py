@@ -177,6 +177,86 @@ class FunctionSearchHandler:
 
         return best_match
 
+    def _find_call_sites_from_reverse_index(
+        self,
+        target_module: str,
+        target_function: str,
+    ) -> list | None:
+        """
+        O(1) lookup using pre-computed reverse_calls index.
+
+        Args:
+            target_module: The module containing the function
+            target_function: The function name
+
+        Returns:
+            List of call sites, or None if reverse_calls index not available
+        """
+        reverse_calls = self.index.get("reverse_calls")
+        if not reverse_calls:
+            return None
+
+        # Try multiple key formats to find matches
+        keys_to_check = [
+            f"{target_module}.{target_function}",
+            target_function,
+        ]
+
+        # Also try file-path based keys for TypeScript/Python
+        target_module_data = self.index.get("modules", {}).get(target_module, {})
+        target_file = target_module_data.get("file", "")
+        if target_file:
+            # Try file path without extension as key component
+            file_stem = target_file.rsplit(".", 1)[0] if "." in target_file else target_file
+            keys_to_check.append(f"{file_stem}.{target_function}")
+
+            # For TypeScript: also try path segments as module prefix
+            # e.g., "packages/server/src/router.ts" -> try "src.lazy", "router.lazy"
+            path_parts = target_file.replace("\\", "/").split("/")
+            for part in path_parts:
+                part_stem = part.rsplit(".", 1)[0] if "." in part else part
+                if part_stem:
+                    keys_to_check.append(f"{part_stem}.{target_function}")
+
+        # Also search for any key ending with ".{function_name}" as fallback
+        # This handles cases where SCIP module extraction differs from our module naming
+        suffix = f".{target_function}"
+        for key in reverse_calls:
+            if key.endswith(suffix) and key not in keys_to_check:
+                keys_to_check.append(key)
+
+        call_sites = []
+        seen = set()
+
+        for key in keys_to_check:
+            for caller in reverse_calls.get(key, []):
+                # Deduplicate by (module, function, line)
+                dedup_key = (caller["module"], caller["function"], caller["line"])
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+
+                # Build call site in the expected format
+                calling_function = None
+                if caller["function"]:
+                    calling_function = {
+                        "name": caller["function"],
+                        "arity": caller["arity"],
+                    }
+
+                call_sites.append(
+                    {
+                        "calling_module": caller["module"],
+                        "calling_function": calling_function,
+                        "file": caller["file"],
+                        "line": caller["line"],
+                        "call_type": "qualified",
+                        "alias_used": None,
+                    }
+                )
+
+        return call_sites if call_sites else None
+
     def _find_call_sites(self, target_module: str, target_function: str, target_arity: int) -> list:
         """
         Find all locations where a function is called.
@@ -189,6 +269,12 @@ class FunctionSearchHandler:
         Returns:
             List of call sites with resolved module names
         """
+        # Fast path: use reverse_calls index if available
+        fast_result = self._find_call_sites_from_reverse_index(target_module, target_function)
+        if fast_result is not None:
+            return fast_result
+
+        # Fallback: O(n) scan for indexes without reverse_calls
         call_sites = []
 
         # Find the function definition line to filter out @spec/@doc

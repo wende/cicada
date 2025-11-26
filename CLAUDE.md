@@ -74,7 +74,7 @@ For detailed information on specific topics, see:
   **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
-  - YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery. `mcp__cicada__query`
+  - ALWAYS use this tool for code searches. `mcp__cicada__query`
   - DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query. `mcp__cicada__search_module`
   - DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query. `mcp__cicada__search_function`
   - UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history. `mcp__cicada__git_history`
@@ -92,3 +92,5 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
+- For CLAUDE.md generation in this repo look at cicada/setup.py - the update_claude_md function. It inserts <cicada> tags with tool instructions into existing CLAUDE.md files.

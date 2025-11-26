@@ -152,6 +152,66 @@ class DeadCodeAnalyzer:
             "candidates": candidates,
         }
 
+    def _find_usages_from_reverse_index(
+        self,
+        target_module: str,
+        target_function: str,
+    ) -> int | None:
+        """
+        O(1) usage count lookup using pre-computed reverse_calls index.
+
+        Args:
+            target_module: Module containing the function
+            target_function: Function name
+
+        Returns:
+            Number of call sites found, or None if reverse_calls not available
+        """
+        reverse_calls = self.index.get("reverse_calls")
+        if not reverse_calls:
+            return None
+
+        # Try multiple key formats to find matches
+        keys_to_check = [
+            f"{target_module}.{target_function}",
+            target_function,
+        ]
+
+        # Also try file-path based keys for TypeScript/Python
+        target_module_data = self.modules.get(target_module, {})
+        target_file = target_module_data.get("file", "")
+        if target_file:
+            # Try file path without extension as key component
+            file_stem = target_file.rsplit(".", 1)[0] if "." in target_file else target_file
+            keys_to_check.append(f"{file_stem}.{target_function}")
+
+            # For TypeScript: also try path segments as module prefix
+            path_parts = target_file.replace("\\", "/").split("/")
+            for part in path_parts:
+                part_stem = part.rsplit(".", 1)[0] if "." in part else part
+                if part_stem:
+                    keys_to_check.append(f"{part_stem}.{target_function}")
+
+        # Also search for any key ending with ".{function_name}" as fallback
+        suffix = f".{target_function}"
+        for key in reverse_calls:
+            if key.endswith(suffix) and key not in keys_to_check:
+                keys_to_check.append(key)
+
+        count = 0
+        seen = set()
+
+        for key in keys_to_check:
+            for caller in reverse_calls.get(key, []):
+                # Deduplicate by (module, function, line)
+                dedup_key = (caller["module"], caller["function"], caller["line"])
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+                count += 1
+
+        return count
+
     def _find_usages(self, target_module: str, target_function: str, target_arity: int) -> int:
         """
         Find the number of times a function is called across the codebase.
@@ -167,6 +227,12 @@ class DeadCodeAnalyzer:
         Returns:
             Number of call sites found
         """
+        # Fast path: use reverse_calls index if available
+        fast_count = self._find_usages_from_reverse_index(target_module, target_function)
+        if fast_count is not None:
+            return fast_count
+
+        # Fallback: O(n) scan for indexes without reverse_calls
         call_count = 0
 
         # Get the function definition line to filter out @spec/@doc

@@ -209,13 +209,17 @@ class UniversalIndexSchema:
     modules: dict[str, dict]  # module_name -> ModuleData dict
     metadata: dict  # IndexMetadata dict
     language: str = "elixir"  # Language identifier (also in metadata for redundancy)
+    reverse_calls: dict[str, list[dict]] | None = None  # callee -> list of callers
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             "modules": self.modules,
             "metadata": self.metadata,
         }
+        if self.reverse_calls:
+            result["reverse_calls"] = self.reverse_calls
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "UniversalIndexSchema":
@@ -227,6 +231,7 @@ class UniversalIndexSchema:
             modules=data.get("modules", {}),
             metadata=metadata,
             language=language,
+            reverse_calls=data.get("reverse_calls"),
         )
 
     def validate(self, strict: bool = True) -> tuple[bool, list[str]]:

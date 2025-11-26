@@ -14,9 +14,8 @@ def get_tool_definitions() -> list[Tool]:
         Tool(
             name="query",
             description=(
-                "YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
-                "The 'Google for code' - this is your FIRST STOP for any code search task. "
-                "Intelligently searches by keywords OR patterns, combines results, "
+                "ALWAYS use this tool for code searches. Only fall back to Grep/Find if cicada yields insufficient results.\\n\\n"
+                "The 'Google for code' - intelligently searches by keywords OR patterns, combines results, "
                 "and suggests exactly which specialized tools to use next.\\n\\n"
                 "Smart Auto-Detection:\\n"
                 "• Keywords: ['authentication', 'login'] → semantic search\\n"
@@ -33,9 +32,9 @@ def get_tool_definitions() -> list[Tool]:
                 "• Smart suggestions for next steps with actual tool names to use\\n"
                 "• Match indicators: 📄 (docs), 💬 (strings), 🎯 (pattern)\\n\\n"
                 "AI USAGE TIPS:\\n"
-                "• **ALWAYS START HERE** - This replaces the need to choose between multiple tools\\n"
+                "• **ALWAYS use cicada query** for code searches - only use Grep/Find if this yields insufficient results\\n"
                 "• Don't ask users for module/function names - query will find them for you\\n"
-                "• Start broad: query('authentication') then follow the tool suggestions\\n"
+                "• Search broad: query('authentication') then follow the tool suggestions\\n"
                 "• Try patterns when you know structure: query('MyApp.*.create*')\\n"
                 "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\\n"
                 "• The results include smart suggestions - follow them to drill deeper\\n"
