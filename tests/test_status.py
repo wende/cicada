@@ -760,8 +760,8 @@ class TestCheckRepository:
         check_repository(repo_path)
 
         captured = capsys.readouterr()
-        # Should have 3/4 components: Index, PR Index, MCP files (no agent files)
-        assert "Summary: 3/4 components configured" in captured.out
+        # Should have 3/5 components: Index, PR Index, MCP files (no agent files, no links)
+        assert "Summary: 3/5 components configured" in captured.out
 
     def test_resolves_repo_path(self, tmp_path, mock_home_dir, capsys):
         """Should resolve repository path"""
