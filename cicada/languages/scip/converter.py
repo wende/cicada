@@ -1359,12 +1359,14 @@ class SCIPConverter:
             "scip-python python pkg 1.0 operations/__init__:" -> "operations"
             "scip-python python pkg 1.0 utils/chain_add()." -> "utils"
             "scip-python python pkg 1.0 typing/List." -> "typing"
+            "scip-typescript npm pkg 1.0 `file.ts`/add()." -> "file.ts"
 
         Args:
             symbol: SCIP symbol string
 
         Returns:
-            Module name, or None if can't be extracted
+            Module name, or None if can't be extracted.
+            Note: Backticks from TypeScript path wrappers are stripped.
         """
         parts = symbol.split()
         if len(parts) < 5:
@@ -1383,11 +1385,15 @@ class SCIPConverter:
         if "/" in descriptor:
             # For "utils/chain_add" -> "utils"
             # For "typing/List" -> "typing"
+            # For TypeScript: "`file.ts`/add" -> "file.ts"
             module_path = descriptor.split("/")[0]
+            # Strip backticks from TypeScript path wrappers
+            module_path = module_path.strip("`")
             return module_path
         elif descriptor:
             # For "operations" (after __init__ removal) -> "operations"
-            return descriptor
+            # Strip backticks from TypeScript path wrappers
+            return descriptor.strip("`")
 
         return None
 

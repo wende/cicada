@@ -601,3 +601,61 @@ class TestDocstringDerivedArity:
                         assert (
                             global_arity_map.get("scip-python python test 1.0 test/func().") == 2
                         ), f"Expected arity 2 from param occurrences, got {global_arity_map}"
+
+
+class TestExtractModuleFromSymbol:
+    """Test _extract_module_from_symbol helper method.
+
+    This is used for extracting module names from SCIP symbols when building
+    reverse call indexes. TypeScript symbols wrap file paths in backticks.
+    """
+
+    def test_python_module_extraction(self):
+        """Test extracting module from Python SCIP symbols."""
+        converter = SCIPConverter()
+
+        test_cases = [
+            ("scip-python python pkg 1.0 operations/__init__:", "operations"),
+            ("scip-python python pkg 1.0 utils/chain_add().", "utils"),
+            ("scip-python python pkg 1.0 typing/List.", "typing"),
+        ]
+
+        for symbol, expected in test_cases:
+            result = converter._extract_module_from_symbol(symbol)
+            assert result == expected, f"Failed for {symbol}: got {result}, expected {expected}"
+
+    def test_typescript_backtick_stripping(self):
+        """Test that backticks are stripped from TypeScript module names.
+
+        TypeScript SCIP symbols wrap file paths in backticks like `file.ts`.
+        These must be stripped for reverse-call index lookups to work correctly.
+        """
+        converter = SCIPConverter()
+
+        test_cases = [
+            # TypeScript function
+            ("scip-typescript npm pkg 1.0 `file.ts`/add().", "file.ts"),
+            # TypeScript method
+            ("scip-typescript npm pkg 1.0 `calculator.ts`/Calculator#add().", "calculator.ts"),
+            # TypeScript class
+            ("scip-typescript npm pkg 1.0 `models.ts`/User#", "models.ts"),
+            # TypeScript module
+            ("scip-typescript npm pkg 1.0 `router.ts`/", "router.ts"),
+            # Nested path with backticks
+            ("scip-typescript npm pkg 1.0 `src/utils.ts`/helper().", "src"),
+        ]
+
+        for symbol, expected in test_cases:
+            result = converter._extract_module_from_symbol(symbol)
+            assert result == expected, f"Failed for {symbol}: got {result}, expected {expected}"
+            # Verify no backticks remain
+            assert "`" not in result, f"Backticks not stripped from {symbol}: got {result}"
+
+    def test_invalid_symbol_returns_none(self):
+        """Test that invalid symbols return None."""
+        converter = SCIPConverter()
+
+        # Too few parts
+        assert converter._extract_module_from_symbol("scip-python python pkg 1.0") is None
+        assert converter._extract_module_from_symbol("short") is None
+        assert converter._extract_module_from_symbol("") is None
