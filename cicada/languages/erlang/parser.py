@@ -5,6 +5,10 @@ from typing import Any
 
 from tree_sitter_language_pack import get_language, get_parser
 
+from cicada.languages.erlang.extractors.doc import (
+    extract_docs_from_comments,
+    match_docs_to_declarations,
+)
 from cicada.parsing.base_parser import BaseParser
 
 
@@ -31,6 +35,7 @@ class ErlangParser(BaseParser):
     def _extract_modules(self, root, source: bytes, file_path: str) -> list[dict]:
         modules = []
         module_name = None
+        module_line = 1
         exports = set()
         functions = []
 
@@ -38,6 +43,7 @@ class ErlangParser(BaseParser):
             if child.type == "module_attribute":
                 # -module(name).
                 module_name = self._extract_module_name(child, source)
+                module_line = child.start_point[0] + 1
             elif child.type == "export_attribute":
                 # -export([...]).
                 exports.update(self._extract_exports(child, source))
@@ -48,14 +54,18 @@ class ErlangParser(BaseParser):
                     functions.append(func)
 
         if module_name:
-            modules.append(
-                {
-                    "module": module_name,
-                    "file": file_path,
-                    "line": 1,
-                    "functions": functions,
-                }
-            )
+            module_data = {
+                "module": module_name,
+                "file": file_path,
+                "line": module_line,
+                "functions": functions,
+            }
+
+            # Extract and match EDoc comments
+            docs = extract_docs_from_comments(root, source)
+            match_docs_to_declarations(docs, [module_data], functions)
+
+            modules.append(module_data)
 
         return modules
 

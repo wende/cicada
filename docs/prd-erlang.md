@@ -1,15 +1,17 @@
 # Erlang Support - PRD
 
-## Status: Phase 2 Complete (Basic Indexing)
+## Status: Phase 4 Complete (Semantic Search)
 
-Erlang indexing is functional. Tested on real-world project [PURITY](https://github.com/mpitid/purity) (26 modules, 630 functions).
+Erlang indexing with EDoc extraction and keyword-based semantic search. Tested on real-world project [PURITY](https://github.com/mpitid/purity) (26 modules, 630 functions).
 
 ## Implementation Summary
 
 | Component | Status | Location |
 |-----------|--------|----------|
 | Parser | ✅ Complete | `cicada/languages/erlang/parser.py` |
+| EDoc Extractor | ✅ Complete | `cicada/languages/erlang/extractors/doc.py` |
 | Indexer | ✅ Complete | `cicada/languages/erlang/indexer.py` |
+| Keyword Extraction | ✅ Complete | Integrated via `keyword_utils` |
 | Formatter | ✅ Complete | `cicada/languages/erlang/formatter.py` |
 | Language detection | ✅ Complete | `cicada/setup.py` |
 | CLI integration | ✅ Complete | `cicada claude` works |
@@ -19,13 +21,16 @@ Erlang indexing is functional. Tested on real-world project [PURITY](https://git
 - Module extraction from `-module(name).`
 - Export parsing for public/private visibility
 - Function names, line numbers, arity
+- **EDoc `@doc` extraction for modules and functions**
+- **EDoc `@param` and `@returns` tag parsing**
+- **Keyword extraction from module/function names and docs**
+- **Semantic search enabled via keyword index**
 - Erlang notation formatting (`module:func/arity`)
 - Detection via `rebar.config`, `erlang.mk`, or `src/*.erl`
 - Full CLI workflow (`cicada claude` on Erlang repos)
 
 ### What's Not Implemented
 
-- Keyword extraction from docs (no semantic search)
 - Multiple function clause handling
 - `-spec` extraction
 - Function call sites / dependencies
@@ -79,11 +84,15 @@ source_file
 
 **New files:**
 - `cicada/languages/erlang/__init__.py`
-- `cicada/languages/erlang/parser.py` (~120 lines)
-- `cicada/languages/erlang/indexer.py` (~80 lines)
+- `cicada/languages/erlang/parser.py` (~130 lines)
+- `cicada/languages/erlang/indexer.py` (~100 lines)
 - `cicada/languages/erlang/formatter.py` (~20 lines)
-- `tests/erlang/test_parser.py`
+- `cicada/languages/erlang/extractors/__init__.py`
+- `cicada/languages/erlang/extractors/doc.py` (~180 lines)
+- `tests/erlang/test_parser.py` (6 tests)
+- `tests/erlang/test_indexer.py` (3 tests)
 - `tests/fixtures/sample.erl`
+- `tests/fixtures/sample_with_docs.erl`
 
 **Modified files:**
 - `cicada/languages/__init__.py` - Register Erlang
@@ -125,24 +134,21 @@ result = indexer.index_repository(
 
 ## Remaining Work (Optional Future Enhancements)
 
-### Phase 3: Dependency Extraction
+### Phase 5: Dependency Extraction
 - [ ] Parse `-import` declarations
 - [ ] Extract function call sites
 - [ ] Module dependency graph
 
-### Phase 4: Advanced Features
+### Phase 6: Advanced Features
 - [ ] Handle multiple function clauses (pattern matching)
 - [ ] Extract `-spec` attributes
-- [ ] Extract function documentation (`%% @doc`)
+- [x] ~~Extract function documentation (`%% @doc`)~~ ✅ Done
+- [x] ~~Keyword extraction from docs~~ ✅ Done
+- [x] ~~Semantic search enabled~~ ✅ Done
 - [ ] `-type`, `-opaque` definitions
 - [ ] `-record` definitions
 - [ ] `-behaviour`/`-callback` support
 - [ ] Header file (`.hrl`) imports tracking
-
-### Phase 5: Keyword Extraction
-- [ ] Parse Erlang doc comments
-- [ ] Integrate with keyword extraction pipeline
-- [ ] Enable semantic search for Erlang
 
 ## Test Results
 

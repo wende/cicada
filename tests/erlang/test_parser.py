@@ -42,3 +42,47 @@ def test_function_arity():
 
     assert funcs["hello"]["arity"] == 1
     assert funcs["add"]["arity"] == 2
+
+
+def test_edoc_module_doc():
+    """Test that module-level @doc is extracted."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample_with_docs.erl")
+
+    module = result[0]
+    assert module["doc"] is not None
+    assert "greeting utilities" in module["doc"]
+
+
+def test_edoc_function_doc():
+    """Test that function-level @doc is extracted."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample_with_docs.erl")
+
+    module = result[0]
+    funcs = {f["name"]: f for f in module["functions"]}
+
+    # hello has @doc, @param, and @returns
+    assert funcs["hello"]["doc"] == "Greets a person by name."
+    assert funcs["hello"]["params"][0]["name"] == "Name"
+    assert funcs["hello"]["returns"] == "ok"
+
+    # add has @doc with multi-line text
+    assert "Adds two numbers" in funcs["add"]["doc"]
+    assert "arithmetic function" in funcs["add"]["doc"]
+
+    # private_helper has no @doc (regular comment)
+    assert funcs["private_helper"].get("doc") is None
+
+
+def test_no_doc_without_tag():
+    """Test that regular comments without @doc are not extracted."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample.erl")
+
+    module = result[0]
+    # sample.erl has no @doc comments
+    assert module.get("doc") is None
+
+    for func in module["functions"]:
+        assert func.get("doc") is None
