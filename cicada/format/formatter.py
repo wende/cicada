@@ -72,18 +72,42 @@ class ModuleFormatter:
         return CallSiteFormatter.group_by_caller(call_sites)
 
     @staticmethod
-    def _format_caller_name(site: dict[str, Any]) -> str:
+    def _format_func_ref(module: str, func: str, arity: int, language: str = "elixir") -> str:
+        """Format function reference using language-appropriate notation.
+
+        Args:
+            module: Module name
+            func: Function name
+            arity: Function arity
+            language: Programming language for notation style
+
+        Returns:
+            Formatted string (e.g., "Module.func/2" for Elixir, "Module.func()" for TypeScript)
+        """
+        from cicada.languages.formatter_registry import get_language_formatter
+
+        formatter = get_language_formatter(language)
+        return formatter.format_function_identifier(module, func, arity)
+
+    @staticmethod
+    def _format_caller_name(site: dict[str, Any], language: str = "elixir") -> str:
         """Format caller name from a call site.
 
         Args:
             site: Call site dictionary with 'calling_module' and optionally 'calling_function'
+            language: Programming language for formatting
 
         Returns:
-            Formatted caller string (e.g., "Module.func/2" or "Module")
+            Formatted caller string (e.g., "Module.func/2" or "Module.func()")
         """
         calling_func = site.get("calling_function")
         if calling_func:
-            return f"{site['calling_module']}.{calling_func['name']}/{calling_func['arity']}"
+            return ModuleFormatter._format_func_ref(
+                site["calling_module"],
+                calling_func["name"],
+                calling_func["arity"],
+                language,
+            )
         return site["calling_module"]
 
     @staticmethod
@@ -185,11 +209,41 @@ class ModuleFormatter:
         public_count = len(public_grouped)
         private_count = len(private_grouped)
 
+        # Check module_kind for type-aware formatting
+        module_kind = data.get("module_kind", "module")
+
         # Build the markdown output - compact format
-        lines = [
-            f"{data['file']}:{data['line']}",
-            f"{module_name} • {public_count} public • {private_count} private",
-        ]
+        lines = [f"{data['file']}:{data['line']}"]
+
+        # Type-aware header based on module_kind
+        if module_kind == "type_alias":
+            # Type aliases don't have functions - show as type
+            lines.append(f"{module_name} (type alias)")
+        elif module_kind == "interface":
+            # Interfaces have methods, not functions
+            method_count = public_count + private_count
+            if method_count > 0:
+                lines.append(f"{module_name} (interface) • {method_count} method(s)")
+            else:
+                lines.append(f"{module_name} (interface)")
+        elif module_kind == "struct":
+            # Structs may have fields/methods
+            lines.append(
+                f"{module_name} (struct) • {public_count} public • {private_count} private"
+            )
+        elif module_kind == "enum":
+            # Enums have variants
+            lines.append(f"{module_name} (enum) • {public_count} public • {private_count} private")
+        elif module_kind == "trait":
+            # Traits have methods
+            method_count = public_count + private_count
+            if method_count > 0:
+                lines.append(f"{module_name} (trait) • {method_count} method(s)")
+            else:
+                lines.append(f"{module_name} (trait)")
+        else:
+            # Default: class or module - standard format
+            lines.append(f"{module_name} • {public_count} public • {private_count} private")
 
         # Add staleness warning if applicable
         if staleness_info and staleness_info.get("is_stale"):
@@ -254,16 +308,18 @@ class ModuleFormatter:
 
         private_shown = False
 
-        if visibility != "private":
-            ModuleFormatter._append_function_section(lines, public_grouped, "Public")
+        # Skip function sections for type aliases (they don't have functions)
+        if module_kind != "type_alias":
+            if visibility != "private":
+                ModuleFormatter._append_function_section(lines, public_grouped, "Public")
 
-        if visibility in ["all", "private"]:
-            private_shown = ModuleFormatter._append_function_section(
-                lines, private_grouped, "Private"
-            )
+            if visibility in ["all", "private"]:
+                private_shown = ModuleFormatter._append_function_section(
+                    lines, private_grouped, "Private"
+                )
 
-        if visibility == "private" and not private_shown:
-            lines.extend(["", "*No private functions found*"])
+            if visibility == "private" and not private_shown:
+                lines.extend(["", "*No private functions found*"])
 
         # Add detailed dependencies if provided
         if detailed_dependencies:
@@ -723,18 +779,24 @@ class ModuleFormatter:
                     for dep in internal[:5]:
                         dep_module = dep.get("module", "?")
                         dep_func = dep.get("function", "?")
-                        dep_arity = dep.get("arity", "?")
+                        dep_arity = dep.get("arity", 0)
                         dep_line = dep.get("line", "?")
-                        lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                        func_ref = ModuleFormatter._format_func_ref(
+                            dep_module, dep_func, dep_arity, language
+                        )
+                        lines.append(f"   • {func_ref} :{dep_line}")
 
                     # Show external dependencies
                     remaining = 5 - len(internal[:5])
                     for dep in external[:remaining]:
                         dep_module = dep.get("module", "?")
                         dep_func = dep.get("function", "?")
-                        dep_arity = dep.get("arity", "?")
+                        dep_arity = dep.get("arity", 0)
                         dep_line = dep.get("line", "?")
-                        lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                        func_ref = ModuleFormatter._format_func_ref(
+                            dep_module, dep_func, dep_arity, language
+                        )
+                        lines.append(f"   • {func_ref} :{dep_line}")
 
                     shown = min(5, len(internal) + len(external))
                     if total > shown:
@@ -748,9 +810,12 @@ class ModuleFormatter:
                     for dep in dependencies[:5]:
                         dep_module = dep.get("module", "?")
                         dep_func = dep.get("function", "?")
-                        dep_arity = dep.get("arity", "?")
+                        dep_arity = dep.get("arity", 0)
                         dep_line = dep.get("line", "?")
-                        lines.append(f"   • {dep_module}.{dep_func}/{dep_arity} :{dep_line}")
+                        func_ref = ModuleFormatter._format_func_ref(
+                            dep_module, dep_func, dep_arity, language
+                        )
+                        lines.append(f"   • {func_ref} :{dep_line}")
                     if len(dependencies) > 5:
                         lines.append(f"   ... and {len(dependencies) - 5} more")
 
@@ -914,13 +979,18 @@ If this function was deleted:
         return "\n".join(lines)
 
     @staticmethod
-    def format_function_results_json(function_name: str, results: list[dict[str, Any]]) -> str:
+    def format_function_results_json(
+        function_name: str,
+        results: list[dict[str, Any]],
+        language: str = "elixir",
+    ) -> str:
         """
         Format function search results as JSON.
 
         Args:
             function_name: The searched function name
             results: List of function matches with module context
+            language: Programming language for formatting
 
         Returns:
             Formatted JSON string
@@ -935,12 +1005,18 @@ If this function was deleted:
 
         formatted_results = []
         for result in results:
+            full_name = ModuleFormatter._format_func_ref(
+                result["module"],
+                result["function"]["name"],
+                result["function"]["arity"],
+                language,
+            )
             func_entry = {
                 "module": result["module"],
                 "moduledoc": result.get("moduledoc"),
                 "function": result["function"]["name"],
                 "arity": result["function"]["arity"],
-                "full_name": f"{result['module']}.{result['function']['name']}/{result['function']['arity']}",
+                "full_name": full_name,
                 "signature": SignatureBuilder.build(result["function"]),
                 "location": f"{result['file']}:{result['function']['line']}",
                 "type": result["function"]["type"],
@@ -970,13 +1046,16 @@ If this function was deleted:
         return json.dumps(output, indent=2)
 
     @staticmethod
-    def format_module_usage_markdown(module_name: str, usage_results: dict[str, Any]) -> str:
+    def format_module_usage_markdown(
+        module_name: str, usage_results: dict[str, Any], language: str = "elixir"
+    ) -> str:
         """
         Format module usage results as Markdown.
 
         Args:
             module_name: The module being searched for
             usage_results: Dictionary with usage category keys
+            language: Programming language for formatting (default: elixir)
 
         Returns:
             Formatted Markdown string
@@ -1086,17 +1165,29 @@ If this function was deleted:
             )
 
             # Display each called function
-            for func_key, func_data in sorted(called_functions.items()):
+            for _func_key, func_data in sorted(called_functions.items()):
                 num_functions = len(func_data["calling_functions"])
+                # Format using language-appropriate notation (not hardcoded /arity)
+                display_name = ModuleFormatter._format_func_ref(
+                    module_name,
+                    func_data["name"],
+                    func_data["arity"],
+                    language,
+                )
                 lines.append(
-                    f"- {func_key} — {func_data['total_calls']} calls in {num_functions} function(s)"
+                    f"- {display_name} — {func_data['total_calls']} calls in {num_functions} function(s)"
                 )
 
                 # Display calling functions
                 for caller in func_data["calling_functions"]:
                     if caller["function"]:
-                        # Regular function call
-                        func_sig = f"{caller['function']}/{caller['arity']}"
+                        # Regular function call - use language-appropriate notation
+                        func_sig = ModuleFormatter._format_func_ref(
+                            caller["module"],
+                            caller["function"],
+                            caller["arity"],
+                            language,
+                        )
                         line_range = f":{caller['start_line']}-{caller['end_line']}"
                         call_info = f"{caller['call_count']} calls"
 
@@ -1189,12 +1280,13 @@ If this function was deleted:
         return lines
 
     @staticmethod
-    def _format_cochange_info(cochange_info: dict[str, Any]) -> list[str]:
+    def _format_cochange_info(cochange_info: dict[str, Any], language: str = "elixir") -> list[str]:
         """
         Format co-change information for display.
 
         Args:
             cochange_info: Dictionary with 'related_files' and/or 'related_functions' keys
+            language: Programming language for formatting (default: elixir)
 
         Returns:
             List of formatted lines
@@ -1226,8 +1318,10 @@ If this function was deleted:
             def format_function(f: dict[str, Any]) -> tuple[str, int]:
                 module = f.get("module", "?")
                 function = f.get("function", "?")
-                arity = f.get("arity", "?")
-                return f"{module}.{function}/{arity}", f.get("count", 0)
+                arity = f.get("arity", 0)
+                # Use language-appropriate notation (not hardcoded /arity)
+                display_name = ModuleFormatter._format_func_ref(module, function, arity, language)
+                return display_name, f.get("count", 0)
 
             lines.extend(
                 ModuleFormatter._format_related_items(
@@ -1239,7 +1333,9 @@ If this function was deleted:
 
     @staticmethod
     def format_keyword_search_results_markdown(
-        results: list[dict[str, Any]], show_scores: bool = True
+        results: list[dict[str, Any]],
+        show_scores: bool = True,
+        language: str = "elixir",
     ) -> str:
         """
         Format keyword search results as Markdown.
@@ -1247,6 +1343,7 @@ If this function was deleted:
         Args:
             results: List of search result dictionaries
             show_scores: Whether to show relevance scores. Defaults to True.
+            language: Programming language for formatting (default: elixir)
 
         Returns:
             Formatted Markdown string
@@ -1272,7 +1369,7 @@ If this function was deleted:
             # Show co-change information if available
             cochange_info = result.get("cochange_info")
             if cochange_info:
-                cochange_lines = ModuleFormatter._format_cochange_info(cochange_info)
+                cochange_lines = ModuleFormatter._format_cochange_info(cochange_info, language)
                 if cochange_lines:  # Only add if there's actual content
                     lines.extend(cochange_lines)
 

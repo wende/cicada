@@ -131,8 +131,9 @@ class AnalysisHandler:
             return [TextContent(type="text", text=result)]
 
         # Format results
+        language = self.index.get("metadata", {}).get("language", "elixir")
         formatted_result = ModuleFormatter.format_keyword_search_results_markdown(
-            results, show_scores=True
+            results, show_scores=True, language=language
         )
 
         return [TextContent(type="text", text=formatted_result)]

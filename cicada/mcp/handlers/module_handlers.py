@@ -414,8 +414,9 @@ class ModuleSearchHandler:
                 if usage_results:
                     result += "\n\n---\n\n## Module Usage (what calls it)\n\n"
                     # Format the usage data directly (no header parsing needed)
+                    language = self.index.get("metadata", {}).get("language", "elixir")
                     usage_text = ModuleFormatter.format_module_usage_markdown(
-                        module_name, usage_results
+                        module_name, usage_results, language
                     )
                     # Skip the first line (header) from the usage formatter
                     usage_lines = usage_text.split("\n")
@@ -616,9 +617,12 @@ class ModuleSearchHandler:
         usage_results = self._get_module_usage_data(module_name, usage_type)
 
         # Format results
+        language = self.index.get("metadata", {}).get("language", "elixir")
         if output_format == "json":
             result = ModuleFormatter.format_module_usage_json(module_name, usage_results)
         else:
-            result = ModuleFormatter.format_module_usage_markdown(module_name, usage_results)
+            result = ModuleFormatter.format_module_usage_markdown(
+                module_name, usage_results, language
+            )
 
         return [TextContent(type="text", text=result)]

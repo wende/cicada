@@ -680,6 +680,22 @@ class SCIPConverter:
             module_data["type"] = "class"
             module_data["parent_module"] = self._get_file_module_name(doc_data.relative_path)
 
+            # Set module_kind from SCIP SymbolInformation.kind, with moduledoc fallback
+            module_kind = "unknown"
+            if symbol_info and hasattr(symbol_info, "kind"):
+                module_kind = self._scip_kind_to_module_kind(symbol_info.kind)
+
+            # If SCIP kind is unknown/unspecified, try parsing moduledoc
+            if module_kind == "unknown":
+                moduledoc = module_data.get("moduledoc", "")
+                module_kind = self._extract_module_kind_from_moduledoc(moduledoc)
+
+            # Final fallback to "class" for class-type modules
+            if module_kind == "unknown":
+                module_kind = "class"
+
+            module_data["module_kind"] = module_kind
+
             modules[full_class_name] = module_data
 
         # Build file-level module for top-level functions
@@ -711,6 +727,7 @@ class SCIPConverter:
                 "calls": module_calls,
                 "dependencies": self._merge_dependencies_to_dict(doc_data.dependencies),
                 "type": "module",
+                "module_kind": "module",  # File-level modules are always "module" kind
                 "classes": class_metadata_list,  # Track classes defined in this module
                 "aliases": doc_data.aliases,
                 "imports": [dep.module for dep in doc_data.dependencies],
@@ -1150,6 +1167,65 @@ class SCIPConverter:
         # Attribute/variable: ends with . (but not ().)
         if descriptor.endswith(".") and not descriptor.endswith("()."):
             return "attribute"
+
+        return "unknown"
+
+    def _scip_kind_to_module_kind(self, kind: int) -> str:
+        """
+        Map SCIP SymbolInformation.Kind to module_kind string.
+
+        SCIP Kind enum values (from scip.proto):
+        - Class = 7
+        - Interface = 21
+        - TypeAlias = 55
+        - Type = 54
+        - Module = 29
+        - Struct = 49
+        - Enum = 11
+        - Trait = 53
+        - UnspecifiedKind = 0
+
+        Returns one of: 'class', 'interface', 'type_alias', 'module', 'struct',
+                        'enum', 'trait', 'unknown'
+        """
+        kind_mapping = {
+            7: "class",  # Class
+            21: "interface",  # Interface
+            55: "type_alias",  # TypeAlias
+            54: "type_alias",  # Type (generic type definition)
+            29: "module",  # Module
+            49: "struct",  # Struct
+            11: "enum",  # Enum
+            53: "trait",  # Trait
+            0: "unknown",  # UnspecifiedKind
+        }
+        return kind_mapping.get(kind, "unknown")
+
+    def _extract_module_kind_from_moduledoc(self, moduledoc: str) -> str:
+        """
+        Extract module_kind from moduledoc code fence.
+
+        TypeScript/JavaScript moduledocs have patterns like:
+        - ```ts\ninterface StoreApi\n``` -> 'interface'
+        - ```ts\ntype SetStateInternal\n``` -> 'type_alias'
+        - ```ts\nclass Container\n``` -> 'class'
+        - ```ts\nenum Status\n``` -> 'enum'
+
+        This is a fallback when SCIP kind is UnspecifiedKind (0).
+        Returns 'unknown' if no pattern matches.
+        """
+        if not moduledoc:
+            return "unknown"
+
+        # Check for TypeScript/JavaScript patterns
+        if "```ts\ninterface " in moduledoc or "```typescript\ninterface " in moduledoc:
+            return "interface"
+        if "```ts\ntype " in moduledoc or "```typescript\ntype " in moduledoc:
+            return "type_alias"
+        if "```ts\nclass " in moduledoc or "```typescript\nclass " in moduledoc:
+            return "class"
+        if "```ts\nenum " in moduledoc or "```typescript\nenum " in moduledoc:
+            return "enum"
 
         return "unknown"
 
