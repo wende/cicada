@@ -443,9 +443,8 @@ def add_linked_from(source_repo: str | Path, target_repo: str | Path) -> None:
     existing = get_linked_from_info(source_path)
 
     # Check if already registered (avoid duplicates) - use hash for comparison
-    for entry in existing:
-        if entry.get("target_repo_hash") == target_hash:
-            return  # Already registered
+    if any(entry.get("target_repo_hash") == target_hash for entry in existing):
+        return  # Already registered
 
     # Add new entry
     new_entry: LinkedFromEntry = {
@@ -553,6 +552,10 @@ def validate_linked_from(
         try:
             with open(target_link_path) as f:
                 link_info = yaml.safe_load(f)
+
+            if not isinstance(link_info, dict):
+                results.append((entry, False, "Invalid or empty target link file"))
+                continue
 
             if link_info.get("source_storage_dir") != str(source_storage):
                 results.append((entry, False, "Target now links to different source"))

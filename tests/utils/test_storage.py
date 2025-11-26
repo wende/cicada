@@ -1039,6 +1039,22 @@ class TestLinkedFromFunctionality:
         assert is_valid is False
         assert "does not exist" in reason
 
+    def test_validate_linked_from_stale_link_empty_file(self, setup_repos):
+        """Should detect when target's link.yaml is empty"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+
+        # Manually empty the link file
+        link_path = get_link_path(target_repo)
+        link_path.write_text("")
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        _, is_valid, reason = results[0]
+        assert is_valid is False
+        assert "Invalid or empty target link file" in reason
+
     def test_validate_linked_from_empty(self, tmp_path, mock_home_dir):
         """Should return empty list for repo with no reverse links"""
         repo = tmp_path / "test_repo"
