@@ -2,6 +2,7 @@
 Comprehensive tests for cicada/utils/storage.py
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -1029,8 +1030,6 @@ class TestLinkedFromFunctionality:
 
         create_link(target_repo, source_repo)
         # Remove target storage directory
-        import shutil
-
         target_storage = get_storage_dir(target_repo)
         shutil.rmtree(target_storage)
 
@@ -1073,3 +1072,42 @@ class TestLinkedFromFunctionality:
         entry, is_valid, reason = results[0]
         assert is_valid is False
         assert "different source" in reason
+
+    def test_remove_link_cleans_reverse_in_chained_scenario(self, tmp_path, mock_home_dir):
+        """Should clean reverse link from source's own storage, not resolved storage.
+
+        Scenario: A links to B, B links to C
+        When A unlinks from B, the reverse link should be removed from B's storage,
+        not from C's storage (which is the resolved storage for B).
+        """
+        # Create three repos: A -> B -> C
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_c = tmp_path / "repo_c"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        repo_c.mkdir()
+
+        # Setup C (root source)
+        create_storage_dir(repo_c)
+        (get_storage_dir(repo_c) / "index.json").write_text('{"modules": {}}')
+
+        # Setup B and link to C
+        create_storage_dir(repo_b)
+        (get_storage_dir(repo_b) / "index.json").write_text('{"modules": {}}')
+        create_link(repo_b, repo_c)
+
+        # Link A to B
+        create_link(repo_a, repo_b)
+
+        # Verify reverse link was added to B's storage (not C's)
+        b_linked_from = get_linked_from_info(repo_b)
+        assert len(b_linked_from) == 1
+        assert b_linked_from[0]["target_repo_hash"] == get_repo_hash(repo_a)
+
+        # Now unlink A from B
+        remove_link(repo_a)
+
+        # Verify reverse link was removed from B's storage
+        b_linked_from_after = get_linked_from_info(repo_b)
+        assert len(b_linked_from_after) == 0

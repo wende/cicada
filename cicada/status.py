@@ -384,10 +384,13 @@ def check_repository(repo_path: Path) -> None:
 
     # Check reverse links (other repos link to this one)
     validation_results = validate_linked_from(repo_path)
-    valid_links = [(entry, reason) for entry, is_valid, reason in validation_results if is_valid]
-    stale_links = [
-        (entry, reason) for entry, is_valid, reason in validation_results if not is_valid
-    ]
+    valid_links = []
+    stale_links = []
+    for entry, is_valid, reason in validation_results:
+        if is_valid:
+            valid_links.append((entry, reason))
+        else:
+            stale_links.append((entry, reason))
 
     if valid_links:
         print(f"Repositories linking to this ({len(valid_links)} valid):")

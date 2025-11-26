@@ -364,12 +364,15 @@ def remove_link(repo_path: str | Path) -> bool:
     link_path.unlink()
 
     # Best-effort cleanup of reverse link in source repo
+    # Note: Use source_repo_path (not source_storage_dir) because add_linked_from
+    # stores entries in the source repo's own storage, not the resolved storage
     if link_info:
-        source_storage_dir = link_info.get("source_storage_dir")
-        if source_storage_dir:
+        source_repo_path = link_info.get("source_repo_path")
+        if source_repo_path:
+            source_storage = get_storage_dir(source_repo_path)
             target_hash = get_repo_hash(repo_path)
             # Don't fail if reverse link cleanup fails
-            remove_linked_from(source_storage_dir, target_hash)
+            remove_linked_from(source_storage, target_hash)
 
     return True
 
