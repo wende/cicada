@@ -29,19 +29,23 @@ class ErlangIndexer(BaseIndexer):
         self,
         repo_path: str | Path,
         output_path: str | Path,
-        force: bool = False,
+        force: bool = False,  # noqa: ARG002 - interface compatibility
         verbose: bool = False,
-        config_path: str | Path | None = None,
+        config_path: str | Path | None = None,  # noqa: ARG002 - interface compatibility
     ) -> dict:
         """
         Index an Erlang repository.
 
+        Note: This implementation always performs a full index. Incremental
+        indexing is not yet implemented. The force and config_path parameters
+        are accepted for interface compatibility but not currently used.
+
         Args:
             repo_path: Path to the repository to index
             output_path: Path where the index.json should be saved
-            force: If True, reindex all files regardless of changes
+            force: Not yet implemented (always does full reindex)
             verbose: If True, print detailed progress information
-            config_path: Optional path to config.yaml for custom settings
+            config_path: Not yet implemented
 
         Returns:
             Dictionary with indexing results

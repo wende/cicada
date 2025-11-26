@@ -103,6 +103,10 @@ class ErlangParser(BaseParser):
 
     def _extract_function_from_decl(self, node, source: bytes, exports: set) -> dict | None:
         # fun_decl contains function_clause children
+        # NOTE: We only extract the first clause. Multiple clauses for the same function
+        # (pattern matching) will share the same name/arity, so we get the correct
+        # function signature from the first clause. Full multi-clause handling is
+        # documented as future work in docs/prd-erlang.md.
         for child in node.children:
             if child.type == "function_clause":
                 return self._extract_function(child, source, exports)
@@ -118,8 +122,9 @@ class ErlangParser(BaseParser):
             if child.type == "atom" and name is None:
                 name = child.text.decode("utf-8")
             elif child.type == "expr_args":
-                # Count var nodes as arguments
-                arity = sum(1 for c in child.children if c.type == "var")
+                # Count named children to correctly calculate arity,
+                # handles pattern matching in arguments (tuples, records, literals)
+                arity = sum(1 for c in child.children if c.is_named)
 
         if name:
             func_key = f"{name}/{arity}"

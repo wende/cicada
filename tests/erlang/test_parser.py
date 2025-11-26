@@ -86,3 +86,48 @@ def test_no_doc_without_tag():
 
     for func in module["functions"]:
         assert func.get("doc") is None
+
+
+def test_multi_clause_functions():
+    """Test that functions with multiple clauses are parsed correctly."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample_advanced.erl")
+
+    module = result[0]
+    funcs = {f["name"]: f for f in module["functions"]}
+
+    # factorial has multiple clauses - we should get the function once
+    assert "factorial" in funcs
+    assert funcs["factorial"]["arity"] == 1
+    assert funcs["factorial"]["type"] == "def"  # exported
+
+
+def test_pattern_matching_arity():
+    """Test that arity is correct for functions with pattern matching args."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample_advanced.erl")
+
+    module = result[0]
+    funcs = {f["name"]: f for f in module["functions"]}
+
+    # handle_response takes a tuple - arity should still be 1
+    assert "handle_response" in funcs
+    assert funcs["handle_response"]["arity"] == 1
+
+    # process_tuple takes a 3-tuple - arity is 1 (the tuple)
+    assert "process_tuple" in funcs
+    assert funcs["process_tuple"]["arity"] == 1
+
+
+def test_private_functions():
+    """Test that non-exported functions are marked as private."""
+    parser = ErlangParser()
+    result = parser.parse_file("tests/fixtures/sample_advanced.erl")
+
+    module = result[0]
+    funcs = {f["name"]: f for f in module["functions"]}
+
+    # internal_helper is not exported, so type should be defp
+    assert "internal_helper" in funcs
+    assert funcs["internal_helper"]["type"] == "defp"
+    assert funcs["internal_helper"]["arity"] == 1

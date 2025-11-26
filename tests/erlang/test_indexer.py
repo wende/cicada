@@ -118,3 +118,64 @@ validate_token(Token) ->
         assert "authenticate" in keywords
         assert "validate" in keywords
         assert "token" in keywords
+
+
+def test_indexer_verbose_output(capsys):
+    """Test verbose output during indexing."""
+    indexer = ErlangIndexer()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        src_dir = Path(tmpdir) / "src"
+        src_dir.mkdir()
+
+        erl_file = src_dir / "mymod.erl"
+        erl_file.write_text(
+            """
+-module(mymod).
+-export([foo/0]).
+foo() -> ok.
+"""
+        )
+
+        output_path = Path(tmpdir) / "index.json"
+        indexer.index_repository(tmpdir, output_path, verbose=True)
+
+        captured = capsys.readouterr()
+        assert "Indexed 1 Erlang modules" in captured.out
+
+
+def test_indexer_empty_repo():
+    """Test indexing an empty repository (no Erlang files)."""
+    indexer = ErlangIndexer()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "index.json"
+        result = indexer.index_repository(tmpdir, output_path)
+
+        assert result["success"] is True
+        assert result["modules_count"] == 0
+        assert result["files_indexed"] == 0
+
+
+def test_indexer_header_files():
+    """Test that .hrl header files are indexed."""
+    indexer = ErlangIndexer()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        include_dir = Path(tmpdir) / "include"
+        include_dir.mkdir()
+
+        hrl_file = include_dir / "records.hrl"
+        hrl_file.write_text(
+            """
+-record(user, {name, email}).
+"""
+        )
+
+        output_path = Path(tmpdir) / "index.json"
+        result = indexer.index_repository(tmpdir, output_path)
+
+        # Header files are scanned but may not produce modules
+        # (records aren't module declarations)
+        assert result["success"] is True
+        assert result["files_indexed"] == 1
