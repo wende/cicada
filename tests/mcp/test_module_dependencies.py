@@ -436,5 +436,135 @@ class TestResolveFileToModule:
         assert result is None
 
 
+class TestWildcardModuleSearch:
+    """Test wildcard pattern matching in search_module."""
+
+    @pytest.mark.asyncio
+    async def test_wildcard_no_matches(self, handler):
+        """Test wildcard pattern with no matches."""
+        result = await handler.search_module(module_name="NonExistent.*")
+        assert len(result) == 1
+        assert "No module found" in result[0].text or "not found" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_wildcard_multiple_matches(self, handler):
+        """Test wildcard pattern matching multiple modules."""
+        result = await handler.search_module(module_name="MyApp.*")
+        assert len(result) == 1
+        assert "Found" in result[0].text
+        assert "MyApp.Auth" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_wildcard_json_output(self, handler):
+        """Test wildcard search with JSON output."""
+        import json
+
+        result = await handler.search_module(
+            module_name="MyApp.User|MyApp.Logger", output_format="json"
+        )
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        assert isinstance(output, list)
+        assert len(output) == 2
+
+    @pytest.mark.asyncio
+    async def test_wildcard_no_matches_json(self, handler):
+        """Test wildcard no matches with JSON output."""
+        import json
+
+        result = await handler.search_module(module_name="NonExistent.*", output_format="json")
+        output = json.loads(result[0].text)
+        assert "error" in output
+
+
+class TestSearchModuleUsage:
+    """Test search_module_usage method."""
+
+    @pytest.mark.asyncio
+    async def test_search_usage_module_not_found(self, handler):
+        """Test search_module_usage with non-existent module."""
+        result = await handler.search_module_usage("NonExistent")
+        assert len(result) == 1
+        assert "not found" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_search_usage_json_output(self, handler):
+        """Test search_module_usage with JSON output."""
+        import json
+
+        result = await handler.search_module_usage("MyApp.User", output_format="json")
+        assert len(result) == 1
+        output = json.loads(result[0].text)
+        assert "module" in output
+        assert output["module"] == "MyApp.User"
+
+
+class TestModuleUsageData:
+    """Test _get_module_usage_data method paths."""
+
+    @pytest.fixture
+    def index_with_calls(self):
+        """Index with call relationships for usage testing."""
+        return {
+            "metadata": {"total_modules": 2, "language": "elixir"},
+            "modules": {
+                "Target": {
+                    "file": "lib/target.ex",
+                    "line": 1,
+                    "functions": [{"name": "do_work", "arity": 1, "line": 10, "type": "def"}],
+                    "aliases": {},
+                },
+                "Caller": {
+                    "file": "lib/caller.ex",
+                    "line": 1,
+                    "functions": [{"name": "call_target", "arity": 0, "line": 5, "type": "def"}],
+                    "aliases": {"T": "Target"},
+                    "imports": ["Target"],
+                    "requires": [],
+                    "uses": [],
+                    "value_mentions": [],
+                    "calls": [{"module": "T", "function": "do_work", "arity": 1, "line": 10}],
+                },
+            },
+        }
+
+    def test_get_module_usage_with_alias_resolution(self, index_with_calls):
+        """Test usage data resolves aliases correctly."""
+        handler = ModuleSearchHandler(index_with_calls, {"repository": {"path": "."}})
+        usage = handler._get_module_usage_data("Target")
+
+        assert len(usage["imports"]) == 1
+        assert usage["imports"][0]["importing_module"] == "Caller"
+
+    def test_get_module_usage_with_reverse_calls(self):
+        """Test usage data uses reverse_calls index."""
+        index = {
+            "metadata": {"total_modules": 2, "language": "elixir"},
+            "modules": {
+                "Target": {
+                    "file": "lib/target.ex",
+                    "line": 1,
+                    "functions": [{"name": "work", "arity": 0, "line": 5, "type": "def"}],
+                },
+                "Other": {"file": "lib/other.ex", "line": 1, "functions": []},
+            },
+            "reverse_calls": {
+                "Target.work": [
+                    {
+                        "module": "Other",
+                        "function": "run",
+                        "arity": 0,
+                        "file": "lib/other.ex",
+                        "line": 10,
+                    }
+                ],
+            },
+        }
+        handler = ModuleSearchHandler(index, {"repository": {"path": "."}})
+        usage = handler._get_module_usage_data("Target")
+
+        assert len(usage["function_calls"]) >= 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

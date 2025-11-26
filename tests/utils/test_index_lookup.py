@@ -9,6 +9,7 @@ from cicada.utils.index_lookup import (
     lookup_by_location,
     get_function_documentation,
     get_function_signature,
+    find_callers_from_reverse_index,
 )
 
 
@@ -234,3 +235,101 @@ class TestGetFunctionSignature:
         """Test getting signature for non-existent function."""
         sig = get_function_signature(sample_index, "TestApp.Calculator", "multiply")
         assert sig is None
+
+
+class TestFindCallersFromReverseIndex:
+    """Tests for find_callers_from_reverse_index function."""
+
+    @pytest.fixture
+    def index_with_reverse_calls(self):
+        """Index with reverse_calls for testing caller lookup."""
+        return {
+            "modules": {
+                "Calculator": {
+                    "file": "lib/calculator.ex",
+                    "functions": [{"name": "add", "arity": 2, "line": 10}],
+                },
+                "Math": {
+                    "file": "lib/math.ex",
+                    "functions": [{"name": "sum", "arity": 1, "line": 5}],
+                },
+            },
+            "reverse_calls": {
+                "Calculator.add": [
+                    {
+                        "module": "Math",
+                        "function": "sum",
+                        "arity": 1,
+                        "file": "lib/math.ex",
+                        "line": 15,
+                    },
+                    {
+                        "module": "Main",
+                        "function": "run",
+                        "arity": 0,
+                        "file": "lib/main.ex",
+                        "line": 20,
+                    },
+                ],
+                "add": [
+                    {
+                        "module": "Helper",
+                        "function": "calc",
+                        "arity": 2,
+                        "file": "lib/helper.ex",
+                        "line": 30,
+                    },
+                ],
+            },
+        }
+
+    def test_find_callers_by_module_function(self, index_with_reverse_calls):
+        """Test finding callers using Module.function key."""
+        callers = find_callers_from_reverse_index(index_with_reverse_calls, "Calculator", "add")
+        assert callers is not None
+        assert len(callers) == 3  # From both keys, deduplicated
+        modules = {c["module"] for c in callers}
+        assert "Math" in modules
+        assert "Main" in modules
+        assert "Helper" in modules
+
+    def test_find_callers_no_reverse_index(self, sample_index):
+        """Test returns None when no reverse_calls index."""
+        result = find_callers_from_reverse_index(sample_index, "TestApp.Calculator", "add")
+        assert result is None
+
+    def test_find_callers_no_matches(self, index_with_reverse_calls):
+        """Test returns None when function has no callers."""
+        result = find_callers_from_reverse_index(index_with_reverse_calls, "Calculator", "subtract")
+        assert result is None
+
+    def test_find_callers_deduplicates(self):
+        """Test deduplication of duplicate caller entries."""
+        index = {
+            "modules": {"Mod": {"file": "mod.ex", "functions": []}},
+            "reverse_calls": {
+                "Mod.func": [
+                    {"module": "A", "function": "x", "arity": 0, "file": "a.ex", "line": 10}
+                ],
+                "func": [
+                    {"module": "A", "function": "x", "arity": 0, "file": "a.ex", "line": 10}
+                ],  # Duplicate
+            },
+        }
+        callers = find_callers_from_reverse_index(index, "Mod", "func")
+        assert callers is not None
+        assert len(callers) == 1  # Deduplicated
+
+    def test_find_callers_with_file_path_key(self):
+        """Test matching via file path-based keys (TypeScript/Python)."""
+        index = {
+            "modules": {"MyModule": {"file": "src/utils/helper.ts", "functions": []}},
+            "reverse_calls": {
+                "src/utils/helper.process": [
+                    {"module": "Main", "function": "run", "arity": 0, "file": "main.ts", "line": 5}
+                ],
+            },
+        }
+        callers = find_callers_from_reverse_index(index, "MyModule", "process")
+        assert callers is not None
+        assert callers[0]["module"] == "Main"
