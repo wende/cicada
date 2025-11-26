@@ -1255,6 +1255,8 @@ class SCIPConverter:
         - scip-python python myproject 1.0 mymodule/MyClass# -> 'MyClass'
         - scip-python python myproject 1.0 mymodule/MyClass#method(). -> 'method'
         - scip-python python myproject 1.0 mymodule/function(). -> 'function'
+        - scip-typescript npm pkg 1.0 src/file.ts:Class#method. -> 'method'
+        - scip-typescript npm pkg 1.0 src/file.ts:function. -> 'function'
 
         Returns the appropriate name for each symbol type.
         """
@@ -1264,11 +1266,36 @@ class SCIPConverter:
         if len(parts) < 5:
             return symbol  # Fallback
 
+        scheme = parts[0]
         descriptor = " ".join(parts[4:])  # Join remaining parts
 
-        # Remove trailing . and ()
+        # Remove trailing .
         descriptor = descriptor.rstrip(".")
 
+        # TypeScript/JavaScript: uses / for file path, # for class members, (). for callables
+        # Note: TypeScript DOES use (). suffix for functions/methods (similar to Python)
+        if scheme.startswith(("scip-typescript", "scip-javascript")):
+            # Strip trailing () if present (TypeScript uses (). for callables)
+            if descriptor.endswith("()"):
+                descriptor = descriptor[:-2]
+
+            # For classes (ends with #): get class name before #
+            if descriptor.endswith("#"):
+                # e.g., "`file.ts`/Calculator#" -> "Calculator"
+                descriptor = descriptor.rstrip("#")
+                name = descriptor.split("/")[-1]
+            # For methods (contains # with content after): get part after #
+            elif "#" in descriptor:
+                # e.g., "`file.ts`/Calculator#add" -> "add"
+                name = descriptor.split("#")[-1]
+            # For module-level functions: get part after /
+            elif "/" in descriptor:
+                name = descriptor.split("/")[-1]
+            else:
+                name = descriptor
+            return name
+
+        # Python and other languages: use () for callables
         # For classes (ending with #), remove # and get last / component
         if descriptor.endswith("#"):
             descriptor = descriptor.rstrip("#")

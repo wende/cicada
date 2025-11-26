@@ -11,6 +11,7 @@ from typing import Any, cast
 from mcp.types import TextContent
 
 from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
+from cicada.utils.index_lookup import find_callers_from_reverse_index
 
 
 class FunctionSearchHandler:
@@ -183,7 +184,9 @@ class FunctionSearchHandler:
         target_function: str,
     ) -> list | None:
         """
-        O(1) lookup using pre-computed reverse_calls index.
+        Fast path: find call sites using pre-computed reverse_calls index.
+
+        Uses shared utility for key matching and deduplication.
 
         Args:
             target_module: The module containing the function
@@ -192,68 +195,30 @@ class FunctionSearchHandler:
         Returns:
             List of call sites, or None if reverse_calls index not available
         """
-        reverse_calls = self.index.get("reverse_calls")
-        if not reverse_calls:
+        callers = find_callers_from_reverse_index(self.index, target_module, target_function)
+        if callers is None:
             return None
 
-        # Try multiple key formats to find matches
-        keys_to_check = [
-            f"{target_module}.{target_function}",
-            target_function,
-        ]
-
-        # Also try file-path based keys for TypeScript/Python
-        target_module_data = self.index.get("modules", {}).get(target_module, {})
-        target_file = target_module_data.get("file", "")
-        if target_file:
-            # Try file path without extension as key component
-            file_stem = target_file.rsplit(".", 1)[0] if "." in target_file else target_file
-            keys_to_check.append(f"{file_stem}.{target_function}")
-
-            # For TypeScript: also try path segments as module prefix
-            # e.g., "packages/server/src/router.ts" -> try "src.lazy", "router.lazy"
-            path_parts = target_file.replace("\\", "/").split("/")
-            for part in path_parts:
-                part_stem = part.rsplit(".", 1)[0] if "." in part else part
-                if part_stem:
-                    keys_to_check.append(f"{part_stem}.{target_function}")
-
-        # Also search for any key ending with ".{function_name}" as fallback
-        # This handles cases where SCIP module extraction differs from our module naming
-        suffix = f".{target_function}"
-        for key in reverse_calls:
-            if key.endswith(suffix) and key not in keys_to_check:
-                keys_to_check.append(key)
-
+        # Transform callers to call site format
         call_sites = []
-        seen = set()
+        for caller in callers:
+            calling_function = None
+            if caller["function"]:
+                calling_function = {
+                    "name": caller["function"],
+                    "arity": caller["arity"],
+                }
 
-        for key in keys_to_check:
-            for caller in reverse_calls.get(key, []):
-                # Deduplicate by (module, function, line)
-                dedup_key = (caller["module"], caller["function"], caller["line"])
-                if dedup_key in seen:
-                    continue
-                seen.add(dedup_key)
-
-                # Build call site in the expected format
-                calling_function = None
-                if caller["function"]:
-                    calling_function = {
-                        "name": caller["function"],
-                        "arity": caller["arity"],
-                    }
-
-                call_sites.append(
-                    {
-                        "calling_module": caller["module"],
-                        "calling_function": calling_function,
-                        "file": caller["file"],
-                        "line": caller["line"],
-                        "call_type": "qualified",
-                        "alias_used": None,
-                    }
-                )
+            call_sites.append(
+                {
+                    "calling_module": caller["module"],
+                    "calling_function": calling_function,
+                    "file": caller["file"],
+                    "line": caller["line"],
+                    "call_type": "qualified",
+                    "alias_used": None,
+                }
+            )
 
         return call_sites if call_sites else None
 

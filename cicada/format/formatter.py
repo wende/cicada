@@ -508,6 +508,7 @@ class ModuleFormatter:
         *,
         prepend_blank: bool = False,
         include_examples: bool = False,
+        language: str = "elixir",
     ) -> list[str]:
         if not sites:
             return []
@@ -523,7 +524,9 @@ class ModuleFormatter:
 
         lines.append(f"{indent}{label} ({site_count}):")
         lines.extend(
-            ModuleFormatter._format_grouped_sites(truncated_sites, indent, include_examples)
+            ModuleFormatter._format_grouped_sites(
+                truncated_sites, indent, include_examples, language
+            )
         )
 
         if truncation_msg:
@@ -533,7 +536,11 @@ class ModuleFormatter:
 
     @staticmethod
     def _format_remaining_sites(
-        label: str, sites: list[dict[str, Any]], indent: str, prepend_blank: bool = False
+        label: str,
+        sites: list[dict[str, Any]],
+        indent: str,
+        prepend_blank: bool = False,
+        language: str = "elixir",
     ) -> list[str]:
         if not sites:
             return []
@@ -546,16 +553,18 @@ class ModuleFormatter:
         remaining_count = sum(len(site["lines"]) for site in grouped_sites)
         lines.append(f"{indent}{label} ({remaining_count}):")
         for site in grouped_sites:
-            caller = ModuleFormatter._format_caller_name(site)
+            caller = ModuleFormatter._format_caller_name(site, language)
             line_list = ", ".join(f":{line}" for line in site["lines"])
             lines.append(f"{indent}- {caller} at {site['file']}{line_list}")
         return lines
 
     @staticmethod
-    def _format_grouped_sites(grouped_sites, indent, include_examples: bool) -> list[str]:
+    def _format_grouped_sites(
+        grouped_sites, indent, include_examples: bool, language: str = "elixir"
+    ) -> list[str]:
         lines: list[str] = []
         for site in grouped_sites:
-            caller = ModuleFormatter._format_caller_name(site)
+            caller = ModuleFormatter._format_caller_name(site, language)
 
             # Show consolidated line numbers only if multiple lines (with automatic truncation)
             if len(site["lines"]) > 1:
@@ -577,7 +586,9 @@ class ModuleFormatter:
         return lines
 
     @staticmethod
-    def _format_remaining_call_sites(call_sites, call_sites_with_examples, indent):
+    def _format_remaining_call_sites(
+        call_sites, call_sites_with_examples, indent, language: str = "elixir"
+    ):
         lines = []
         # Create a set of call sites that were shown with examples
         shown_call_lines = set()
@@ -599,19 +610,25 @@ class ModuleFormatter:
 
             if remaining_code:
                 lines.extend(
-                    ModuleFormatter._format_remaining_sites("Code", remaining_code, indent)
+                    ModuleFormatter._format_remaining_sites(
+                        "Code", remaining_code, indent, language=language
+                    )
                 )
 
             if remaining_test:
                 lines.extend(
                     ModuleFormatter._format_remaining_sites(
-                        "Test", remaining_test, indent, prepend_blank=bool(remaining_code)
+                        "Test",
+                        remaining_test,
+                        indent,
+                        prepend_blank=bool(remaining_code),
+                        language=language,
                     )
                 )
         return lines
 
     @staticmethod
-    def _format_call_sites_without_examples(call_sites, indent):
+    def _format_call_sites_without_examples(call_sites, indent, language: str = "elixir"):
         lines = []
         code_sites, test_sites = ModuleFormatter._split_call_sites(call_sites)
 
@@ -623,7 +640,7 @@ class ModuleFormatter:
         if code_sites:
             lines.extend(
                 ModuleFormatter._format_call_site_section(
-                    "Code", code_sites, indent, include_examples=False
+                    "Code", code_sites, indent, include_examples=False, language=language
                 )
             )
 
@@ -635,13 +652,16 @@ class ModuleFormatter:
                     indent,
                     prepend_blank=bool(code_sites),
                     include_examples=False,
+                    language=language,
                 )
             )
         lines.append("")
         return lines
 
     @staticmethod
-    def _format_call_sites_with_examples(call_sites, call_sites_with_examples, indent):
+    def _format_call_sites_with_examples(
+        call_sites, call_sites_with_examples, indent, language: str = "elixir"
+    ):
         lines = []
         code_sites_with_examples, test_sites_with_examples = ModuleFormatter._split_call_sites(
             call_sites_with_examples
@@ -656,6 +676,7 @@ class ModuleFormatter:
                     code_sites_with_examples,
                     indent,
                     include_examples=True,
+                    language=language,
                 )
             )
 
@@ -667,18 +688,19 @@ class ModuleFormatter:
                     indent,
                     prepend_blank=bool(code_sites_with_examples),
                     include_examples=True,
+                    language=language,
                 )
             )
 
         lines.extend(
             ModuleFormatter._format_remaining_call_sites(
-                call_sites, call_sites_with_examples, indent
+                call_sites, call_sites_with_examples, indent, language
             )
         )
         return lines
 
     @staticmethod
-    def _format_call_sites(call_sites, call_sites_with_examples, indent):
+    def _format_call_sites(call_sites, call_sites_with_examples, indent, language: str = "elixir"):
         lines = []
         # Check if we have usage examples (code lines)
         has_examples = len(call_sites_with_examples) > 0
@@ -686,11 +708,13 @@ class ModuleFormatter:
         if has_examples:
             lines.extend(
                 ModuleFormatter._format_call_sites_with_examples(
-                    call_sites, call_sites_with_examples, indent
+                    call_sites, call_sites_with_examples, indent, language
                 )
             )
         else:
-            lines.extend(ModuleFormatter._format_call_sites_without_examples(call_sites, indent))
+            lines.extend(
+                ModuleFormatter._format_call_sites_without_examples(call_sites, indent, language)
+            )
         return lines
 
     @staticmethod
@@ -821,7 +845,9 @@ class ModuleFormatter:
 
         if call_sites:
             lines.extend(
-                ModuleFormatter._format_call_sites(call_sites, call_sites_with_examples, "")
+                ModuleFormatter._format_call_sites(
+                    call_sites, call_sites_with_examples, "", language
+                )
             )
         else:
             lines.append("*No call sites found*")

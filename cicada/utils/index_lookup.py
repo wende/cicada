@@ -6,6 +6,9 @@ Provides fast lookup and reverse lookup operations on Cicada indexes.
 
 from typing import Any
 
+# Type alias for caller data from reverse_calls index
+CallerInfo = dict[str, Any]
+
 
 def lookup_module(index: dict[str, Any], module_name: str) -> dict[str, Any] | None:
     """
@@ -184,3 +187,83 @@ def get_function_signature(
             return func.get("signature")
 
     return None
+
+
+def find_callers_from_reverse_index(
+    index: dict[str, Any],
+    target_module: str,
+    target_function: str,
+) -> list[CallerInfo] | None:
+    """
+    Find all callers of a function using the pre-computed reverse_calls index.
+
+    This is a shared utility used by both function_handlers (for call site details)
+    and dead_code analyzer (for usage counting). It handles the key matching logic
+    and deduplication.
+
+    Note: While primary lookups are O(1), a fallback scan for matching keys
+    makes worst-case complexity O(N) where N is the number of keys in reverse_calls.
+
+    Args:
+        index: The Cicada index containing modules and reverse_calls
+        target_module: Module containing the function (e.g., "MyApp.User")
+        target_function: Function name (e.g., "create_user")
+
+    Returns:
+        List of caller dictionaries (each with module, function, arity, file, line),
+        or None if reverse_calls index not available.
+
+    Example:
+        callers = find_callers_from_reverse_index(index, "Calculator", "add")
+        if callers:
+            for caller in callers:
+                print(f"Called from {caller['module']}.{caller['function']}")
+    """
+    reverse_calls = index.get("reverse_calls")
+    if not reverse_calls:
+        return None
+
+    modules = index.get("modules", {})
+
+    # Try multiple key formats to find matches
+    keys_to_check = [
+        f"{target_module}.{target_function}",
+        target_function,
+    ]
+
+    # Also try file-path based keys for TypeScript/Python
+    target_module_data = modules.get(target_module, {})
+    target_file = target_module_data.get("file", "")
+    if target_file:
+        # Try file path without extension as key component
+        file_stem = target_file.rsplit(".", 1)[0] if "." in target_file else target_file
+        keys_to_check.append(f"{file_stem}.{target_function}")
+
+        # For TypeScript: also try path segments as module prefix
+        # e.g., "packages/server/src/router.ts" -> try "src.lazy", "router.lazy"
+        path_parts = target_file.replace("\\", "/").split("/")
+        for part in path_parts:
+            part_stem = part.rsplit(".", 1)[0] if "." in part else part
+            if part_stem:
+                keys_to_check.append(f"{part_stem}.{target_function}")
+
+    # Also search for any key ending with ".{function_name}" as fallback
+    # This handles cases where SCIP module extraction differs from our module naming
+    suffix = f".{target_function}"
+    for key in reverse_calls:
+        if key.endswith(suffix) and key not in keys_to_check:
+            keys_to_check.append(key)
+
+    callers = []
+    seen: set[tuple[str, str | None, int]] = set()
+
+    for key in keys_to_check:
+        for caller in reverse_calls.get(key, []):
+            # Deduplicate by (module, function, line)
+            dedup_key = (caller["module"], caller["function"], caller["line"])
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            callers.append(caller)
+
+    return callers if callers else None

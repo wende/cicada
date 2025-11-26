@@ -1,20 +1,21 @@
 """TypeScript/JavaScript SCIP symbol type detection.
 
 TypeScript symbol descriptor patterns (from scip-typescript):
-- src/file.ts:moduleName: -> module (ends with :)
-- src/file.ts:ClassName# -> class (ends with #)
-- src/file.ts:ClassName#methodName. -> method (contains #, ends with .)
-- src/file.ts:functionName. -> function (no #, ends with .)
-- src/file.ts:ClassName#methodName.(param). -> parameter
+- `file.ts`/ -> module (ends with /)
+- `file.ts`/ClassName# -> class (ends with #)
+- `file.ts`/ClassName#methodName(). -> method (contains #, ends with ().)
+- `file.ts`/functionName(). -> function (no #, ends with ().)
+- `file.ts`/ClassName#property. -> property (contains #, ends with . but not ().)
+- `file.ts`/ClassName#methodName().(param) -> parameter
 
-Note: TypeScript doesn't use ()., it uses just . for functions/methods.
-This differs from Python which uses (). suffix for callables.
+Note: TypeScript DOES use (). suffix for callables, similar to Python.
+Properties use just . suffix (without ()).
 """
 
 import re
 from typing import Literal
 
-SymbolType = Literal["class", "method", "function", "module", "parameter", "attribute", "unknown"]
+SymbolType = Literal["class", "method", "function", "module", "parameter", "unknown"]
 
 
 def get_symbol_type(descriptor: str) -> SymbolType:
@@ -26,27 +27,31 @@ def get_symbol_type(descriptor: str) -> SymbolType:
 
     Returns:
         Symbol type: 'class', 'method', 'function', 'module', 'parameter',
-                    'attribute', or 'unknown'
+                    or 'unknown'
     """
-    # Parameter: ends with .(param_name)
-    if re.match(r".*\.\([^)]+\)$", descriptor):
+    # Parameter: ends with .(param_name) or ().(param_name)
+    if re.match(r".*\(\)\.\([^)]+\)$", descriptor) or re.match(r".*\.\([^)]+\)$", descriptor):
         return "parameter"
 
-    # Module/namespace: ends with :
-    if descriptor.endswith(":"):
+    # Module/namespace: ends with / or :
+    if descriptor.endswith(("/", ":")):
         return "module"
 
     # Class/Interface/Type: ends with #
     if descriptor.endswith("#"):
         return "class"
 
-    # Method: contains # and ends with . (TypeScript style - no parens)
-    if "#" in descriptor and descriptor.endswith("."):
+    # Method: contains # and ends with (). (callable)
+    if "#" in descriptor and descriptor.endswith("()."):
         return "method"
 
-    # Function: no # but ends with . (TypeScript style - no parens)
-    if "#" not in descriptor and descriptor.endswith("."):
+    # Function: no # but ends with (). (callable)
+    if "#" not in descriptor and descriptor.endswith("()."):
         return "function"
+
+    # Property: contains # and ends with . (not ().)
+    if "#" in descriptor and descriptor.endswith(".") and not descriptor.endswith("()."):
+        return "unknown"  # Property - not a callable
 
     return "unknown"
 
