@@ -73,16 +73,19 @@ class BackgroundRefreshManager:
         Returns:
             True if a refresh was scheduled, False otherwise
         """
-        if self._stopped:
-            return False
+        # Acquire lock to safely read shared state
+        with self._refresh_lock:
+            if self._stopped:
+                return False
 
-        if self._refresh_in_progress:
-            return False
+            if self._refresh_in_progress:
+                return False
 
-        now = time.time()
-        if now - self._last_refresh_time < self.MIN_REFRESH_INTERVAL:
-            return False
+            now = time.time()
+            if now - self._last_refresh_time < self.MIN_REFRESH_INTERVAL:
+                return False
 
+        # Staleness check doesn't need lock (reads from index_manager)
         staleness = self.index_manager.check_staleness()
         if not staleness or not staleness.get("is_stale"):
             return False
@@ -165,58 +168,73 @@ class BackgroundRefreshManager:
         Returns:
             Dictionary with refresh status and stats
         """
-        from cicada.languages import LanguageRegistry
-        from cicada.setup import detect_project_language
-
-        start_time = time.time()
+        # Thread-safe: check and acquire refresh lock
+        with self._refresh_lock:
+            if self._refresh_in_progress:
+                return {
+                    "success": False,
+                    "error": "A refresh is already in progress. Please try again shortly.",
+                    "elapsed_seconds": 0,
+                }
+            self._refresh_in_progress = True
 
         try:
-            language = detect_project_language(self.repo_path)
-            # Cast to Any - concrete indexers have methods not in BaseIndexer
-            indexer: Any = cast(Any, LanguageRegistry.get_indexer(language))
+            from cicada.languages import LanguageRegistry
+            from cicada.setup import detect_project_language
 
-            # Get indexing options from config
-            indexing_config = self.config.get("indexing", {})
-            extract_keywords = indexing_config.get("extract_keywords", False)
-            extract_string_keywords = indexing_config.get("extract_string_keywords", False)
+            start_time = time.time()
 
-            if force_full:
-                result = indexer.index_repository(
-                    repo_path=str(self.repo_path),
-                    output_path=str(self.index_path),
-                    extract_keywords=extract_keywords,
-                    extract_string_keywords=extract_string_keywords,
-                    verbose=False,
-                )
-            else:
-                result = indexer.incremental_index_repository(
-                    repo_path=str(self.repo_path),
-                    output_path=str(self.index_path),
-                    extract_keywords=extract_keywords,
-                    extract_string_keywords=extract_string_keywords,
-                    force_full=False,
-                    verbose=False,
-                )
+            try:
+                language = detect_project_language(self.repo_path)
+                # Cast to Any - concrete indexers have methods not in BaseIndexer
+                indexer: Any = cast(Any, LanguageRegistry.get_indexer(language))
 
-            elapsed = time.time() - start_time
-            self._last_refresh_time = time.time()
+                # Get indexing options from config
+                indexing_config = self.config.get("indexing", {})
+                extract_keywords = indexing_config.get("extract_keywords", False)
+                extract_string_keywords = indexing_config.get("extract_string_keywords", False)
 
-            # Extract stats from result
-            metadata = result.get("metadata", {}) if result else {}
-            return {
-                "success": True,
-                "elapsed_seconds": round(elapsed, 2),
-                "total_modules": metadata.get("total_modules", 0),
-                "total_functions": metadata.get("total_functions", 0),
-                "mode": "full" if force_full else "incremental",
-            }
-        except Exception as e:
-            elapsed = time.time() - start_time
-            return {
-                "success": False,
-                "error": str(e),
-                "elapsed_seconds": round(elapsed, 2),
-            }
+                if force_full:
+                    result = indexer.index_repository(
+                        repo_path=str(self.repo_path),
+                        output_path=str(self.index_path),
+                        extract_keywords=extract_keywords,
+                        extract_string_keywords=extract_string_keywords,
+                        verbose=False,
+                    )
+                else:
+                    result = indexer.incremental_index_repository(
+                        repo_path=str(self.repo_path),
+                        output_path=str(self.index_path),
+                        extract_keywords=extract_keywords,
+                        extract_string_keywords=extract_string_keywords,
+                        force_full=False,
+                        verbose=False,
+                    )
+
+                elapsed = time.time() - start_time
+                with self._refresh_lock:
+                    self._last_refresh_time = time.time()
+
+                # Extract stats from result
+                metadata = result.get("metadata", {}) if result else {}
+                return {
+                    "success": True,
+                    "elapsed_seconds": round(elapsed, 2),
+                    "total_modules": metadata.get("total_modules", 0),
+                    "total_functions": metadata.get("total_functions", 0),
+                    "mode": "full" if force_full else "incremental",
+                }
+            except Exception as e:
+                elapsed = time.time() - start_time
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "elapsed_seconds": round(elapsed, 2),
+                }
+        finally:
+            with self._refresh_lock:
+                self._refresh_in_progress = False
 
     def stop(self) -> None:
         """Stop any pending refresh operations."""
