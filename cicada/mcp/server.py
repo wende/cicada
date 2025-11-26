@@ -94,7 +94,7 @@ class CicadaServer:
 
     async def call_tool_with_logging(self, name: str, arguments: dict) -> list[TextContent]:
         """Wrapper for call_tool that logs execution details."""
-        # Reload index if it has been modified
+        # Reload index if it has been modified (e.g., by background refresh)
         self.index_manager.reload_if_changed()
 
         # Record start time
@@ -126,22 +126,31 @@ class CicadaServer:
                 error=error_msg,
             )
 
+            # Trigger background refresh check after tool completes (non-blocking)
+            # This schedules a refresh if source files have changed since last index
+            self.index_manager.request_background_refresh_if_stale()
+
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent]:
         """Handle tool calls."""
-        # Route to appropriate handler with callbacks for PR info and staleness check
+        # Route to appropriate handler with callbacks for PR info, staleness, and refresh
         return await self.router.route_tool(
             name=name,
             arguments=arguments,
             pr_info_callback=self.pr_handler.get_recent_pr_info,
             staleness_info_callback=self.index_manager.check_staleness,
+            refresh_callback=self.index_manager.force_refresh,
         )
 
     async def run(self):
         """Run the MCP server."""
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream, write_stream, self.server.create_initialization_options()
-            )
+        try:
+            async with stdio_server() as (read_stream, write_stream):
+                await self.server.run(
+                    read_stream, write_stream, self.server.create_initialization_options()
+                )
+        finally:
+            # Clean up background refresh manager on shutdown
+            self.index_manager.stop_background_refresh()
 
 
 async def async_main():

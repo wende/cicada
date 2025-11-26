@@ -176,6 +176,7 @@ class ToolRouter:
         arguments: dict,
         pr_info_callback: Any = None,
         staleness_info_callback: Any = None,
+        refresh_callback: Any = None,
     ) -> list[TextContent]:
         """
         Route tool call to appropriate handler.
@@ -185,6 +186,7 @@ class ToolRouter:
             arguments: Tool arguments
             pr_info_callback: Optional callback to get PR info for a file
             staleness_info_callback: Optional callback to check index staleness
+            refresh_callback: Optional callback to force index refresh
 
         Returns:
             List of TextContent responses
@@ -502,6 +504,31 @@ class ToolRouter:
                     what_it_calls=what_it_calls,
                     include_code_context=include_code_context,
                 )
+
+        elif name == "refresh_index":
+            force_full = arguments.get("force_full", False)
+
+            if not isinstance(force_full, bool):
+                error_msg = "'force_full' must be a boolean"
+                return [TextContent(type="text", text=error_msg)]
+
+            if not refresh_callback:
+                error_msg = "Index refresh not available"
+                return [TextContent(type="text", text=error_msg)]
+
+            result = refresh_callback(force_full)
+
+            if result.get("success"):
+                response = (
+                    f"Index refreshed successfully ({result['mode']} mode)\n\n"
+                    f"- Time: {result['elapsed_seconds']}s\n"
+                    f"- Modules: {result['total_modules']}\n"
+                    f"- Functions: {result['total_functions']}"
+                )
+            else:
+                response = f"Index refresh failed: {result.get('error', 'Unknown error')}"
+
+            return [TextContent(type="text", text=response)]
 
         else:
             raise ValueError(f"Unknown tool: {name}")
