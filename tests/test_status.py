@@ -790,3 +790,139 @@ class TestCheckRepository:
         captured = capsys.readouterr()
         assert "Cicada Status" in captured.out
         assert "Config Dir:" in captured.out
+
+    def test_handles_storage_dir_exception(self, tmp_path, mock_home_dir, capsys):
+        """Should handle get_storage_dir exception gracefully (lines 296-297)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+        from cicada.utils import storage as storage_module
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        # Store the original function
+        original_get_storage_dir = storage_module.get_storage_dir
+
+        # Track call count - the first call is inside check_repository's try block
+        call_count = {"count": 0}
+
+        def selective_raiser(*args, **kwargs):
+            call_count["count"] += 1
+            # Fail on the FIRST call (the try block in check_repository at line 294)
+            if call_count["count"] == 1:
+                raise Exception("Storage error")
+            return original_get_storage_dir(*args, **kwargs)
+
+        with patch.object(storage_module, "get_storage_dir", selective_raiser):
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "Cicada Status" in captured.out
+        # Exception was caught - no crash and "Config Dir:" was not printed
+        assert "Config Dir:" not in captured.out
+
+
+class TestExceptionPaths:
+    """Tests for exception handling paths"""
+
+    def test_index_stat_oserror(self, tmp_path, mock_home_dir):
+        """Should handle OSError when getting index file stats (lines 52-53)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+        from datetime import datetime
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        # Mock datetime.fromtimestamp to raise ValueError
+        with patch("cicada.status.datetime") as mock_dt:
+            mock_dt.fromtimestamp.side_effect = ValueError("Invalid timestamp")
+            info = get_index_info(repo_path)
+
+        # Should have exists=True but gracefully handle the error
+        assert info["exists"] is True
+
+    def test_pr_index_stat_valueerror(self, tmp_path, mock_home_dir):
+        """Should handle ValueError when getting PR index file stats (lines 103-104)"""
+        from cicada.utils.storage import create_storage_dir, get_pr_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        pr_index_path = get_pr_index_path(repo_path)
+        pr_index_path.write_text('{"prs": []}')
+
+        # Mock datetime.fromtimestamp to raise ValueError
+        with patch("cicada.status.datetime") as mock_dt:
+            mock_dt.fromtimestamp.side_effect = ValueError("Invalid timestamp")
+            info = get_pr_index_info(repo_path)
+
+        assert info["exists"] is True
+
+    def test_markdown_file_read_oserror(self, tmp_path):
+        """Should handle OSError when reading markdown files (lines 166-167)"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("cicada content")
+
+        # Directly test the exception handling by mocking open at the cicada.status module level
+        with patch("cicada.status.open", side_effect=OSError("Cannot read")):
+            result = find_agent_files(repo_path)
+
+        # Should gracefully handle the error
+        assert result["total_found"] == 0
+
+    def test_check_repository_no_date_display(self, tmp_path, mock_home_dir, capsys):
+        """Should skip date display when date is None (branch 307->309)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        with patch("cicada.status.get_index_info") as mock_info:
+            mock_info.return_value = {
+                "exists": True,
+                "path": str(index_path),
+                "date": None,  # No date
+                "file_size": None,  # No size
+                "tier": None,
+                "extraction_method": None,
+                "expansion_method": None,
+            }
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "✓ Index exists:" in captured.out
+        assert "Built:" not in captured.out
+        assert "Size:" not in captured.out
+
+    def test_check_repository_pr_index_no_date(self, tmp_path, mock_home_dir, capsys):
+        """Should skip PR index date display when date is None (branch 328->330)"""
+        from cicada.utils.storage import create_storage_dir, get_pr_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        pr_path = get_pr_index_path(repo_path)
+        pr_path.write_text('{"prs": []}')
+
+        with patch("cicada.status.get_pr_index_info") as mock_info:
+            mock_info.return_value = {
+                "exists": True,
+                "path": str(pr_path),
+                "date": None,
+                "file_size": None,
+            }
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "✓ PR index exists:" in captured.out
+        assert captured.out.count("Built:") == 0  # No "Built:" for PR index
