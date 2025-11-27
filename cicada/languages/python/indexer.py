@@ -672,6 +672,11 @@ class PythonSCIPIndexer(BaseIndexer):
                 "scip-python indexing timed out after 10 minutes. "
                 "Try indexing a smaller subset of the project."
             ) from e
+        except KeyboardInterrupt:
+            # Clean up and re-raise to propagate to command layer
+            if scip_file.exists():
+                scip_file.unlink()
+            raise
         except Exception:
             if scip_file.exists():
                 scip_file.unlink()

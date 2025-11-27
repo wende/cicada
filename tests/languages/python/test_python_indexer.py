@@ -242,6 +242,24 @@ class TestPythonSCIPIndexer:
                 # File should be cleaned up
                 assert not scip_file_path.exists()
 
+    def test_run_scip_python_keyboard_interrupt_cleanup(self, indexer, tmp_path):
+        """Should cleanup temp file on KeyboardInterrupt and re-raise."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = KeyboardInterrupt()
+
+            with patch("tempfile.NamedTemporaryFile") as mock_temp:
+                scip_file_path = tmp_path / "test.scip"
+                mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
+
+                # Create file
+                scip_file_path.touch()
+
+                with pytest.raises(KeyboardInterrupt):
+                    indexer._run_scip_python(tmp_path)
+
+                # File should be cleaned up
+                assert not scip_file_path.exists()
+
     def test_save_index(self, indexer, tmp_path):
         """Should save index to JSON file."""
         output_path = tmp_path / "subdir" / "index.json"
