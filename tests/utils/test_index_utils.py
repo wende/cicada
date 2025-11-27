@@ -3,6 +3,10 @@ Comprehensive tests for cicada/utils/index_utils.py
 """
 
 import json
+import os
+import threading
+import time
+from pathlib import Path
 
 import pytest
 
@@ -241,6 +245,83 @@ class TestSaveIndex:
         with open(output_path) as f:
             loaded = json.load(f)
         assert loaded == sample_index
+
+    def test_save_index_atomic_no_temp_files_left(self, tmp_path, sample_index):
+        """Test that atomic save doesn't leave temp files on success"""
+        output_path = tmp_path / "output.json"
+        save_index(sample_index, output_path)
+
+        # Check no temp files remain
+        temp_files = list(tmp_path.glob(".index_*.tmp"))
+        assert len(temp_files) == 0
+
+        # But the actual file should exist
+        assert output_path.exists()
+
+    def test_save_index_atomic_concurrent_read_safe(self, tmp_path, sample_index):
+        """Test that atomic save allows concurrent reads without corruption"""
+        output_path = tmp_path / "output.json"
+        save_index(sample_index, output_path)
+
+        errors = []
+        reads_completed = []
+
+        def reader():
+            """Continuously read the index file"""
+            for _ in range(50):
+                try:
+                    result = load_index(output_path)
+                    if result is not None:
+                        reads_completed.append(True)
+                        # Should always be valid JSON if we got a result
+                        assert "modules" in result or "metadata" in result
+                except Exception as e:
+                    errors.append(str(e))
+                time.sleep(0.001)
+
+        def writer():
+            """Repeatedly save the index"""
+            for i in range(20):
+                modified = sample_index.copy()
+                modified["metadata"] = {"iteration": i}
+                save_index(modified, output_path)
+                time.sleep(0.002)
+
+        # Start reader and writer concurrently
+        reader_thread = threading.Thread(target=reader)
+        writer_thread = threading.Thread(target=writer)
+
+        reader_thread.start()
+        writer_thread.start()
+
+        reader_thread.join()
+        writer_thread.join()
+
+        # No JSON decode errors during concurrent access
+        json_errors = [e for e in errors if "JSON" in e or "decode" in e.lower()]
+        assert len(json_errors) == 0, f"Got JSON errors: {json_errors}"
+        # Some reads should have completed successfully
+        assert len(reads_completed) > 0
+
+    def test_save_index_cleans_up_on_failure(self, tmp_path, monkeypatch):
+        """Test that temp file is cleaned up on failure"""
+        output_path = tmp_path / "output.json"
+
+        # Mock json.dump to raise an exception
+        def mock_dump(*args, **kwargs):
+            raise ValueError("Simulated serialization error")
+
+        monkeypatch.setattr(json, "dump", mock_dump)
+
+        with pytest.raises(ValueError):
+            save_index({"test": "data"}, output_path)
+
+        # No temp files should remain
+        temp_files = list(tmp_path.glob(".index_*.tmp"))
+        assert len(temp_files) == 0
+
+        # And the output file should not exist
+        assert not output_path.exists()
 
 
 class TestValidateIndexStructure:

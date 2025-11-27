@@ -527,14 +527,19 @@ class HistoryAnalyzer:
 
         return {"file_path": file_path, "prs": prs}
 
-    def format_result(self, result: dict[str, Any]) -> str:
+    def format_result(
+        self, result: dict[str, Any], format_opts: dict[str, Any] | None = None
+    ) -> str:
         """
         Format analysis result as markdown.
 
         Args:
             result: Result from analyze() method
+            format_opts: Optional formatting options:
+                - include_pr_description: Include PR descriptions (default: False)
+                - include_review_comments: Include PR review comments (default: False)
 
         Returns:
             Formatted markdown string
         """
-        return GitFormatter.format_result(result)
+        return GitFormatter.format_result(result, format_opts)

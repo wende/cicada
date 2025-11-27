@@ -584,3 +584,681 @@ class TestVerboseFlag:
             call_kwargs = mock_indexer.incremental_index_repository.call_args[1]
             assert "verbose" in call_kwargs
             assert call_kwargs["verbose"] is True
+
+
+# ============================================================================
+# SECTION 14: Test Command Handlers
+# ============================================================================
+
+
+class TestHandleQuery:
+    """Test handle_query command."""
+
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_query_no_index(self, mock_get_path, mock_load, capsys):
+        """Test query fails when index doesn't exist."""
+        from cicada.commands import handle_query
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
+        mock_get_path.return_value = mock_path
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_query(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.query.QueryOrchestrator")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_query_no_keywords(self, mock_get_path, mock_load, mock_orch, capsys):
+        """Test query fails when index has no keywords."""
+        from cicada.commands import handle_query
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.return_value = {"modules": {"TestMod": {}}}  # No keywords
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_query(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.query.QueryOrchestrator")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_query_success(self, mock_get_path, mock_load, mock_orch, capsys):
+        """Test successful query execution."""
+        from cicada.commands import handle_query
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.return_value = {"modules": {"TestMod": {"keywords": {"test": 1.0}}}}
+
+        mock_instance = MagicMock()
+        mock_instance.execute_query.return_value = "Results found"
+        mock_orch.return_value = mock_instance
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["query", "test"])
+        handle_query(args)
+
+        captured = capsys.readouterr()
+        assert "Results found" in captured.out
+
+
+class TestHandleClean:
+    """Test handle_clean command."""
+
+    @patch("cicada.clean.clean_all_projects")
+    def test_clean_all_success(self, mock_clean):
+        """Test clean --all command."""
+        from cicada.commands import handle_clean
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean", "--all", "-f"])
+        handle_clean(args)
+        mock_clean.assert_called_once_with(force=True)
+
+    @patch("cicada.clean.clean_all_projects")
+    def test_clean_all_error(self, mock_clean, capsys):
+        """Test clean --all error handling."""
+        from cicada.commands import handle_clean
+
+        mock_clean.side_effect = Exception("Cleanup failed")
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean", "--all", "-f"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_clean(args)
+        assert exc.value.code == 1
+
+    def test_clean_multiple_flags_error(self, capsys):
+        """Test clean with multiple flags errors."""
+        from cicada.commands import handle_clean
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean", "--index", "--pr-index"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_clean(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.clean.clean_index_only")
+    def test_clean_index_only(self, mock_clean):
+        """Test clean --index command."""
+        from cicada.commands import handle_clean
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean", "--index"])
+        handle_clean(args)
+        mock_clean.assert_called_once()
+
+    @patch("cicada.clean.clean_pr_index_only")
+    def test_clean_pr_index_only(self, mock_clean):
+        """Test clean --pr-index command."""
+        from cicada.commands import handle_clean
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean", "--pr-index"])
+        handle_clean(args)
+        mock_clean.assert_called_once()
+
+
+class TestHandleStatus:
+    """Test handle_status command."""
+
+    @patch("cicada.status.check_repository")
+    def test_status_success(self, mock_check):
+        """Test status command success."""
+        from cicada.commands import handle_status
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["status"])
+        handle_status(args)
+        mock_check.assert_called_once()
+
+    @patch("cicada.status.check_repository")
+    def test_status_error(self, mock_check, capsys):
+        """Test status command error handling."""
+        from cicada.commands import handle_status
+
+        mock_check.side_effect = Exception("Status check failed")
+        parser = get_argument_parser()
+        args = parser.parse_args(["status"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_status(args)
+        assert exc.value.code == 1
+
+
+class TestHandleDir:
+    """Test handle_dir command."""
+
+    @patch("cicada.utils.storage.get_storage_dir")
+    def test_dir_success(self, mock_get_dir, capsys):
+        """Test dir command shows storage path."""
+        from cicada.commands import handle_dir
+
+        mock_get_dir.return_value = Path("/tmp/cicada/test")
+        parser = get_argument_parser()
+        args = parser.parse_args(["dir"])
+        handle_dir(args)
+
+        captured = capsys.readouterr()
+        assert "/tmp/cicada/test" in captured.out
+
+    @patch("cicada.utils.storage.get_storage_dir")
+    def test_dir_with_link(self, mock_get_dir, tmp_path, capsys):
+        """Test dir command with linked repository."""
+        from cicada.commands import handle_dir
+        import yaml
+
+        storage_dir = tmp_path / "storage"
+        storage_dir.mkdir()
+        link_file = storage_dir / "link.yaml"
+        link_file.write_text(
+            yaml.dump({"source_repo_path": "/source/repo", "source_storage_dir": "/source/storage"})
+        )
+
+        mock_get_dir.return_value = storage_dir
+        parser = get_argument_parser()
+        args = parser.parse_args(["dir"])
+        handle_dir(args)
+
+        captured = capsys.readouterr()
+        assert "Linked to:" in captured.out
+
+    @patch("cicada.utils.storage.get_storage_dir")
+    def test_dir_yaml_error(self, mock_get_dir, tmp_path, capsys):
+        """Test dir command with YAML error."""
+        from cicada.commands import handle_dir
+
+        storage_dir = tmp_path / "storage"
+        storage_dir.mkdir()
+        link_file = storage_dir / "link.yaml"
+        link_file.write_text("invalid: yaml: [")
+
+        mock_get_dir.return_value = storage_dir
+        parser = get_argument_parser()
+        args = parser.parse_args(["dir"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_dir(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.utils.storage.get_storage_dir")
+    def test_dir_unexpected_error(self, mock_get_dir, capsys):
+        """Test dir command with unexpected error."""
+        from cicada.commands import handle_dir
+
+        mock_get_dir.side_effect = RuntimeError("Unexpected")
+        parser = get_argument_parser()
+        args = parser.parse_args(["dir"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_dir(args)
+        assert exc.value.code == 1
+
+
+class TestHandleLinkUnlink:
+    """Test handle_link and handle_unlink commands."""
+
+    @patch("cicada.utils.storage.get_link_info")
+    @patch("cicada.utils.storage.create_link")
+    def test_link_success(self, mock_create, mock_info, capsys):
+        """Test link command success."""
+        from cicada.commands import handle_link
+
+        mock_info.return_value = {"source_repo_path": "/source", "source_storage_dir": "/storage"}
+        parser = get_argument_parser()
+        args = parser.parse_args(["link", "/source/repo"])
+        handle_link(args)
+
+        captured = capsys.readouterr()
+        assert "Successfully linked" in captured.out
+
+    @patch("cicada.utils.storage.create_link")
+    def test_link_error(self, mock_create, capsys):
+        """Test link command error handling."""
+        from cicada.commands import handle_link
+
+        mock_create.side_effect = ValueError("Source not indexed")
+        parser = get_argument_parser()
+        args = parser.parse_args(["link", "/source/repo"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_link(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.utils.storage.remove_link")
+    @patch("cicada.utils.storage.get_link_info")
+    @patch("cicada.utils.storage.is_linked")
+    def test_unlink_success(self, mock_is_linked, mock_info, mock_remove, capsys):
+        """Test unlink command success."""
+        from cicada.commands import handle_unlink
+
+        mock_is_linked.return_value = True
+        mock_info.return_value = {"source_repo_path": "/source"}
+        mock_remove.return_value = True
+        parser = get_argument_parser()
+        args = parser.parse_args(["unlink"])
+        handle_unlink(args)
+
+        captured = capsys.readouterr()
+        assert "Successfully unlinked" in captured.out
+
+    @patch("cicada.utils.storage.is_linked")
+    def test_unlink_not_linked(self, mock_is_linked, capsys):
+        """Test unlink when repo not linked."""
+        from cicada.commands import handle_unlink
+
+        mock_is_linked.return_value = False
+        parser = get_argument_parser()
+        args = parser.parse_args(["unlink"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_unlink(args)
+        assert exc.value.code == 0  # Exits cleanly
+
+
+class TestDetermineEditorFromArgs:
+    """Test _determine_editor_from_args function."""
+
+    def test_editor_claude(self):
+        """Test --claude flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--claude"])
+        assert _determine_editor_from_args(args) == "claude"
+
+    def test_editor_cursor(self):
+        """Test --cursor flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--cursor"])
+        assert _determine_editor_from_args(args) == "cursor"
+
+    def test_editor_vs(self):
+        """Test --vs flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--vs"])
+        assert _determine_editor_from_args(args) == "vs"
+
+    def test_editor_gemini(self):
+        """Test --gemini flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--gemini"])
+        assert _determine_editor_from_args(args) == "gemini"
+
+    def test_editor_codex(self):
+        """Test --codex flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--codex"])
+        assert _determine_editor_from_args(args) == "codex"
+
+    def test_no_editor(self):
+        """Test no editor flag."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install"])
+        assert _determine_editor_from_args(args) is None
+
+    def test_multiple_editors_error(self, capsys):
+        """Test multiple editor flags cause error."""
+        from cicada.commands import _determine_editor_from_args
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["install", "--claude", "--cursor"])
+
+        with pytest.raises(SystemExit) as exc:
+            _determine_editor_from_args(args)
+        assert exc.value.code == 1
+
+
+class TestLoadExistingConfig:
+    """Test _load_existing_config function."""
+
+    def test_load_success(self, tmp_path):
+        """Test loading existing config."""
+        import yaml
+        from cicada.commands import _load_existing_config
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(
+            yaml.dump(
+                {
+                    "keyword_extraction": {"method": "bert_small"},
+                    "keyword_expansion": {"method": "glove"},
+                }
+            )
+        )
+
+        extraction, expansion = _load_existing_config(config_path)
+        assert extraction == "bert_small"
+        assert expansion == "glove"
+
+    def test_load_error_returns_defaults(self, tmp_path, capsys):
+        """Test loading invalid config returns defaults."""
+        from cicada.commands import _load_existing_config
+
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("invalid: yaml: [")
+
+        extraction, expansion = _load_existing_config(config_path)
+        assert extraction == "regular"
+        assert expansion == "lemmi"
+
+
+class TestHandleIndexTestModes:
+    """Test handle_index_test_mode and handle_index_test_expansion_mode."""
+
+    @patch("cicada.keyword_test.run_keywords_interactive")
+    def test_index_test_mode(self, mock_run):
+        """Test --test flag triggers interactive mode."""
+        from cicada.commands import handle_index_test_mode
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--test", "--fast"])
+        handle_index_test_mode(args)
+        mock_run.assert_called_once()
+
+    @patch("cicada.keyword_test.run_expansion_interactive")
+    def test_index_test_expansion_mode(self, mock_run):
+        """Test --test-expansion flag triggers interactive mode."""
+        from cicada.commands import handle_index_test_expansion_mode
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--test-expansion", "--fast"])
+        handle_index_test_expansion_mode(args)
+        mock_run.assert_called_once()
+
+
+class TestHandleIndexMain:
+    """Test handle_index_main function."""
+
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_main_default_flag(self, mock_get_indexer):
+        """Test --default flag converts to --force --fast."""
+        from cicada.commands import handle_index_main
+
+        mock_indexer = MagicMock()
+        mock_indexer.incremental_index_repository = MagicMock()
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()
+
+            parser = get_argument_parser()
+            args = parser.parse_args(["index", "--default", tmpdir])
+
+            with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                handle_index_main(args)
+
+            assert args.force is True
+            assert args.fast is True
+
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_main_legacy_fallback(self, mock_get_indexer):
+        """Test fallback to basic interface for legacy indexers."""
+        from cicada.commands import handle_index_main
+
+        mock_indexer = MagicMock(spec=[])  # No incremental_index_repository
+        mock_indexer.index_repository = MagicMock()
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()
+
+            parser = get_argument_parser()
+            args = parser.parse_args(["index", "--force", "--fast", tmpdir])
+
+            with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                handle_index_main(args)
+
+            mock_indexer.index_repository.assert_called_once()
+
+
+class TestHandleServerHelpers:
+    """Test server helper functions."""
+
+    def test_cleanup_watch_process(self, capsys):
+        """Test _cleanup_watch_process handles errors."""
+        from cicada.commands import _cleanup_watch_process
+        import logging
+
+        logger = logging.getLogger("test")
+
+        with patch("cicada.watch_manager.stop_watch_process", side_effect=Exception("Stop failed")):
+            _cleanup_watch_process(logger)
+
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+
+    @patch("cicada.watch_manager.start_watch_process")
+    def test_start_watch_for_server_failure(self, mock_start, capsys):
+        """Test _start_watch_for_server fails gracefully."""
+        from cicada.commands import _start_watch_for_server
+
+        mock_start.return_value = False
+        parser = get_argument_parser()
+        args = parser.parse_args(["server", "--watch"])
+
+        with pytest.raises(SystemExit) as exc:
+            _start_watch_for_server(args, Path("/tmp/repo"))
+        assert exc.value.code == 1
+
+    @patch("cicada.watch_manager.start_watch_process")
+    def test_start_watch_for_server_runtime_error(self, mock_start, capsys):
+        """Test _start_watch_for_server handles RuntimeError."""
+        from cicada.commands import _start_watch_for_server
+
+        mock_start.side_effect = RuntimeError("Watch error")
+        parser = get_argument_parser()
+        args = parser.parse_args(["server", "--watch"])
+
+        with pytest.raises(SystemExit) as exc:
+            _start_watch_for_server(args, Path("/tmp/repo"))
+        assert exc.value.code == 1
+
+
+class TestHandleFindDeadCode:
+    """Test handle_find_dead_code error paths."""
+
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_find_dead_code_load_error(self, mock_get_path, mock_load, capsys):
+        """Test find-dead-code handles load errors."""
+        from cicada.commands import handle_find_dead_code
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.side_effect = Exception("Load failed")
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["find-dead-code"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_find_dead_code(args)
+        assert exc.value.code == 1
+
+
+class TestHandleCleanErrors:
+    """Test handle_clean error paths."""
+
+    @patch("cicada.clean.clean_repository")
+    def test_clean_default_error(self, mock_clean, capsys):
+        """Test clean default mode (no flags) error handling."""
+        from cicada.commands import handle_clean
+
+        mock_clean.side_effect = Exception("Repository cleanup failed")
+        parser = get_argument_parser()
+        args = parser.parse_args(["clean"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_clean(args)
+        assert exc.value.code == 1
+
+
+class TestHandleDirErrors:
+    """Test handle_dir error paths."""
+
+    @patch("cicada.utils.storage.get_storage_dir")
+    def test_dir_key_error(self, mock_get_dir, tmp_path, capsys):
+        """Test dir command with KeyError."""
+        from cicada.commands import handle_dir
+
+        storage_dir = tmp_path / "storage"
+        storage_dir.mkdir()
+        link_file = storage_dir / "link.yaml"
+        # Write valid YAML but with missing expected keys
+        link_file.write_text("other_key: value\n")
+
+        mock_get_dir.return_value = storage_dir
+        parser = get_argument_parser()
+        args = parser.parse_args(["dir"])
+
+        # This should succeed but show defaults for missing keys
+        handle_dir(args)
+
+        captured = capsys.readouterr()
+        assert "Linked to:" in captured.out
+
+
+class TestHandleLinkErrors:
+    """Test handle_link error paths."""
+
+    @patch("cicada.utils.storage.create_link")
+    def test_link_unexpected_error(self, mock_create, capsys):
+        """Test link command with unexpected error."""
+        from cicada.commands import handle_link
+
+        mock_create.side_effect = RuntimeError("Unexpected error")
+        parser = get_argument_parser()
+        args = parser.parse_args(["link", "/source/repo"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_link(args)
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Unexpected error" in captured.err
+
+
+class TestHandleUnlinkErrors:
+    """Test handle_unlink error paths."""
+
+    @patch("cicada.utils.storage.remove_link")
+    @patch("cicada.utils.storage.get_link_info")
+    @patch("cicada.utils.storage.is_linked")
+    def test_unlink_remove_fails(self, mock_is_linked, mock_info, mock_remove, capsys):
+        """Test unlink when remove_link returns False."""
+        from cicada.commands import handle_unlink
+
+        mock_is_linked.return_value = True
+        mock_info.return_value = {"source_repo_path": "/source"}
+        mock_remove.return_value = False  # Simulate failure
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["unlink"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_unlink(args)
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Failed to remove" in captured.out
+
+    @patch("cicada.utils.storage.is_linked")
+    def test_unlink_file_not_found(self, mock_is_linked, capsys):
+        """Test unlink with FileNotFoundError."""
+        from cicada.commands import handle_unlink
+
+        mock_is_linked.side_effect = FileNotFoundError("Link file not found")
+        parser = get_argument_parser()
+        args = parser.parse_args(["unlink"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_unlink(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.utils.storage.is_linked")
+    def test_unlink_unexpected_error(self, mock_is_linked, capsys):
+        """Test unlink with unexpected error."""
+        from cicada.commands import handle_unlink
+
+        mock_is_linked.side_effect = RuntimeError("Unexpected")
+        parser = get_argument_parser()
+        args = parser.parse_args(["unlink"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_unlink(args)
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Unexpected error" in captured.err
+
+
+class TestHandleQueryExtended:
+    """Extended tests for handle_query."""
+
+    @patch("cicada.query.QueryOrchestrator")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_query_load_error(self, mock_get_path, mock_load, mock_orch, capsys):
+        """Test query with index load error."""
+        from cicada.commands import handle_query
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.side_effect = Exception("Corrupted index")
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_query(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.query.QueryOrchestrator")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_query_json_format(self, mock_get_path, mock_load, mock_orch, capsys):
+        """Test query with JSON format output."""
+        from cicada.commands import handle_query
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.return_value = {"modules": {"TestMod": {"keywords": {"test": 1.0}}}}
+
+        mock_instance = MagicMock()
+        mock_instance.execute_query.return_value = '{"results": []}'
+        mock_orch.return_value = mock_instance
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["query", "--format", "json", "test"])
+        handle_query(args)
+
+        captured = capsys.readouterr()
+        assert '{"results": []}' in captured.out

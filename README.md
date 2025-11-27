@@ -6,9 +6,9 @@
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-**Give your AI assistant structured access to your Elixir and Python codebases.**
+**Context compaction for AI code assistants** – Give your AI structured, token-efficient access to Elixir and Python codebases.
 
-> **Python support is in Beta** – Full code intelligence with automatic language detection. TypeScript support coming soon.
+> **Python support: 6/7 tools functional** – Full code intelligence with automatic language detection. TypeScript support coming soon.
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -16,7 +16,7 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
 [![Elixir Support](https://img.shields.io/badge/Elixir-✓_Production-blueviolet.svg)](https://elixir-lang.org/)
-[![Python Support](https://img.shields.io/badge/Python-🚧_Beta-orange.svg)](https://www.python.org/)
+[![Python Support](https://img.shields.io/badge/Python-6/7_Tools-orange.svg)](https://www.python.org/)
 [![TypeScript Support](https://img.shields.io/badge/TypeScript-Coming_Soon-lightgrey.svg)](https://www.typescriptlang.org/)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
@@ -29,23 +29,28 @@
 
 ## Why CICADA?
 
-Traditional AI assistants treat your repo like a pile of text. That leads to:
+**The core problem:** AI code assistants waste context on blind searches. Grep dumps entire files when you only need a function signature, leaving less room for actual reasoning.
 
-- **Token waste:** blind grep dumps that burn 3k+ tokens per question.
-- **Hallucinated edits:** aliases/imports hide call sites, so refactors miss real usages.
-- **No historical context:** design intent and PR trade-offs never make it into the prompt.
+> 📺 **See it in action:** [Context Compaction for AI Agents](https://www.youtube.com/live/xmbSQz-PNMM?t=2402) – How structured code intelligence reduces token waste.
 
-CICADA is an MCP server that gives assistants AST-level knowledge for Elixir and Python (Beta):
+### The Context Compaction Approach
 
-- Module + function definitions with signatures, specs, docs, owning files.
-- Class and method tracking for Python, module/function tracking for Elixir.
-- Complete call-site tracking (aliases, imports, dynamic references).
-- Semantic/keyword search so you can ask for "authentication" even if it's called `verify_credentials/2` or `AuthService.check()`.
-- Git + PR attribution to surface *why* code exists.
-- Dead-code detection and module dependency views for safe refactors.
-- Automatic language detection – works seamlessly with both languages.
+Instead of raw text dumps, CICADA gives your AI **structured, pre-indexed knowledge**:
 
-**Result:** in our comparison, the same question dropped from **3,127 tokens / 52.8s** to **550 tokens / 35s** with correct answers.
+| Traditional Search | CICADA |
+|-------------------|--------|
+| Grep dumps entire files | Returns only signatures + call sites |
+| Misses aliased imports | Tracks all reference types |
+| No semantic understanding | Keyword search finds `verify_credentials` when you ask for "authentication" |
+
+### What You Get
+
+- **AST-level indexing** – Module/function/class definitions with signatures, specs, docs
+- **Complete call-site tracking** – Aliases, imports, dynamic references across Elixir and Python
+- **Semantic search** – Find code by concept, not just literal strings
+- **Git + PR attribution** – Surface *why* code exists, not just what
+- **Dead-code detection** – Safe refactors with dependency analysis
+- **Automatic language detection** – Works seamlessly with both Elixir and Python
 
 ---
 
@@ -438,7 +443,7 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 ### Current Status
 
 - ✅ **Elixir** - Production ready with full feature support
-- 🚧 **Python** - Beta (v0.5.0-rc0) - Full code intelligence via SCIP
+- 🚧 **Python** - 6/7 tools functional via SCIP integration
 - 🔜 **TypeScript** - Coming soon
 
 ### What's Next
@@ -477,7 +482,7 @@ MIT – see [LICENSE](LICENSE).
 
 <div align="center">
 
-**Stop letting your AI search blindly. Give it CICADA.**
+**Stop wasting context on blind searches. Give your AI CICADA.**
 
 [Get Started](#quick-install) · [Report Issues](https://github.com/wende/cicada/issues)
 

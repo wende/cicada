@@ -15,11 +15,12 @@ from typing import Any
 class CommandLogger:
     """Logger for MCP tool executions."""
 
-    def __init__(self, log_dir: str | None = None):
+    def __init__(self, log_dir: str | None = None, repo_path: str | None = None):
         """Initialize the command logger.
 
         Args:
             log_dir: Directory to store logs. If None, uses system temp directory.
+            repo_path: Repository path for project identification. If None, logs won't include repo_hash.
         """
         if log_dir is None:
             # Use system temp directory with a cicada subdirectory
@@ -29,6 +30,23 @@ class CommandLogger:
 
         # Create log directory if it doesn't exist
         self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Calculate repo_hash if repo_path is provided
+        self.repo_hash: str | None = None
+        if repo_path:
+            from cicada.utils.storage import get_repo_hash
+
+            self.repo_hash = get_repo_hash(Path(repo_path))
+
+        # Initialize tiktoken encoding for token counting
+        self.encoding: Any | None = None
+        try:
+            import tiktoken
+
+            self.encoding = tiktoken.get_encoding("cl100k_base")
+        except (ImportError, ValueError):
+            # If tiktoken is not available or encoding is invalid, token counting will return 0
+            pass
 
     def _get_log_file_path(self, timestamp: datetime) -> Path:
         """Get the log file path for a given timestamp.
@@ -43,6 +61,37 @@ class CommandLogger:
         """
         date_str = timestamp.strftime("%Y-%m-%d")
         return self.log_dir / f"{date_str}.jsonl"
+
+    def _count_tokens(self, text: str) -> int:
+        """Count tokens in text using tiktoken.
+
+        Args:
+            text: The text to count tokens for.
+
+        Returns:
+            Number of tokens, or 0 if tiktoken not available.
+        """
+        if self.encoding is None:
+            return 0
+
+        try:
+            return len(self.encoding.encode(text))
+        except UnicodeError:
+            return 0
+
+    def _serialize_for_token_counting(self, obj: Any) -> str:
+        """Serialize object to string for token counting.
+
+        Args:
+            obj: The object to serialize (arguments dict or response).
+
+        Returns:
+            String representation for token counting.
+        """
+        try:
+            return json.dumps(obj, ensure_ascii=False)
+        except TypeError:
+            return str(obj)
 
     def log_command(
         self,
@@ -74,13 +123,27 @@ class CommandLogger:
             "execution_time_ms": round(execution_time_ms, 3),
         }
 
+        # Add repo_hash if available
+        if self.repo_hash:
+            log_entry["repo_hash"] = self.repo_hash
+
+        # Count input tokens
+        args_text = self._serialize_for_token_counting(arguments)
+        log_entry["input_tokens"] = self._count_tokens(args_text)
+
         # Add response or error
         if error:
             log_entry["error"] = error
             log_entry["success"] = False
+            log_entry["output_tokens"] = 0
         else:
-            log_entry["response"] = self._serialize_response(response)
+            serialized_response = self._serialize_response(response)
+            log_entry["response"] = serialized_response
             log_entry["success"] = True
+
+            # Count output tokens
+            response_text = self._serialize_for_token_counting(serialized_response)
+            log_entry["output_tokens"] = self._count_tokens(response_text)
 
         # Get the log file path for this date
         log_file = self._get_log_file_path(timestamp)
@@ -166,12 +229,18 @@ class CommandLogger:
         log_files = sorted(self.log_dir.glob("*.jsonl"))
         return log_files
 
-    def read_logs(self, date: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+    def read_logs(
+        self,
+        date: str | None = None,
+        limit: int | None = None,
+        repo_hash: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Read logs from file(s).
 
         Args:
             date: Date string in YYYY-MM-DD format. If None, reads all logs.
             limit: Maximum number of log entries to return (most recent).
+            repo_hash: Filter logs by repository hash. If None, returns all logs.
 
         Returns:
             List of log entries.
@@ -194,6 +263,10 @@ class CommandLogger:
             # Read from all log files, sorted by date
             for log_file in self.get_log_files():
                 logs.extend(self._read_log_file(log_file))
+
+        # Filter by repo_hash if specified
+        if repo_hash:
+            logs = [log for log in logs if log.get("repo_hash") == repo_hash]
 
         # Sort by timestamp (most recent last)
         logs.sort(key=lambda x: x.get("timestamp", ""))
@@ -276,16 +349,17 @@ class CommandLogger:
 _global_logger: CommandLogger | None = None
 
 
-def get_logger(log_dir: str | None = None) -> CommandLogger:
+def get_logger(log_dir: str | None = None, repo_path: str | None = None) -> CommandLogger:
     """Get or create the global command logger instance.
 
     Args:
         log_dir: Directory to store logs. Only used on first call.
+        repo_path: Repository path for project identification. Only used on first call.
 
     Returns:
         CommandLogger instance.
     """
     global _global_logger
     if _global_logger is None:
-        _global_logger = CommandLogger(log_dir)
+        _global_logger = CommandLogger(log_dir, repo_path)
     return _global_logger

@@ -760,8 +760,8 @@ class TestCheckRepository:
         check_repository(repo_path)
 
         captured = capsys.readouterr()
-        # Should have 3/4 components: Index, PR Index, MCP files (no agent files)
-        assert "Summary: 3/4 components configured" in captured.out
+        # Should have 3/5 components: Index, PR Index, MCP files (no agent files, no links)
+        assert "Summary: 3/5 components configured" in captured.out
 
     def test_resolves_repo_path(self, tmp_path, mock_home_dir, capsys):
         """Should resolve repository path"""
@@ -790,3 +790,257 @@ class TestCheckRepository:
         captured = capsys.readouterr()
         assert "Cicada Status" in captured.out
         assert "Config Dir:" in captured.out
+
+    def test_handles_storage_dir_exception(self, tmp_path, mock_home_dir, capsys):
+        """Should handle get_storage_dir exception gracefully (lines 296-297)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+        from cicada.utils import storage as storage_module
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        # Store the original function
+        original_get_storage_dir = storage_module.get_storage_dir
+
+        # Track call count - the first call is inside check_repository's try block
+        call_count = {"count": 0}
+
+        def selective_raiser(*args, **kwargs):
+            call_count["count"] += 1
+            # Fail on the FIRST call (the try block in check_repository at line 294)
+            if call_count["count"] == 1:
+                raise Exception("Storage error")
+            return original_get_storage_dir(*args, **kwargs)
+
+        with patch.object(storage_module, "get_storage_dir", selective_raiser):
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "Cicada Status" in captured.out
+        # Exception was caught - no crash and "Config Dir:" was not printed
+        assert "Config Dir:" not in captured.out
+
+
+class TestExceptionPaths:
+    """Tests for exception handling paths"""
+
+    def test_index_stat_oserror(self, tmp_path, mock_home_dir):
+        """Should handle OSError when getting index file stats (lines 52-53)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+        from datetime import datetime
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        # Mock datetime.fromtimestamp to raise ValueError
+        with patch("cicada.status.datetime") as mock_dt:
+            mock_dt.fromtimestamp.side_effect = ValueError("Invalid timestamp")
+            info = get_index_info(repo_path)
+
+        # Should have exists=True but gracefully handle the error
+        assert info["exists"] is True
+
+    def test_pr_index_stat_valueerror(self, tmp_path, mock_home_dir):
+        """Should handle ValueError when getting PR index file stats (lines 103-104)"""
+        from cicada.utils.storage import create_storage_dir, get_pr_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        pr_index_path = get_pr_index_path(repo_path)
+        pr_index_path.write_text('{"prs": []}')
+
+        # Mock datetime.fromtimestamp to raise ValueError
+        with patch("cicada.status.datetime") as mock_dt:
+            mock_dt.fromtimestamp.side_effect = ValueError("Invalid timestamp")
+            info = get_pr_index_info(repo_path)
+
+        assert info["exists"] is True
+
+    def test_markdown_file_read_oserror(self, tmp_path):
+        """Should handle OSError when reading markdown files (lines 166-167)"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        claude_md = repo_path / "CLAUDE.md"
+        claude_md.write_text("cicada content")
+
+        # Directly test the exception handling by mocking open at the cicada.status module level
+        with patch("cicada.status.open", side_effect=OSError("Cannot read")):
+            result = find_agent_files(repo_path)
+
+        # Should gracefully handle the error
+        assert result["total_found"] == 0
+
+    def test_check_repository_no_date_display(self, tmp_path, mock_home_dir, capsys):
+        """Should skip date display when date is None (branch 307->309)"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        index_path = get_index_path(repo_path)
+        index_path.write_text('{"modules": {}}')
+
+        with patch("cicada.status.get_index_info") as mock_info:
+            mock_info.return_value = {
+                "exists": True,
+                "path": str(index_path),
+                "date": None,  # No date
+                "file_size": None,  # No size
+                "tier": None,
+                "extraction_method": None,
+                "expansion_method": None,
+            }
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "✓ Index exists:" in captured.out
+        assert "Built:" not in captured.out
+        assert "Size:" not in captured.out
+
+    def test_check_repository_pr_index_no_date(self, tmp_path, mock_home_dir, capsys):
+        """Should skip PR index date display when date is None (branch 328->330)"""
+        from cicada.utils.storage import create_storage_dir, get_pr_index_path
+
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        create_storage_dir(repo_path)
+        pr_path = get_pr_index_path(repo_path)
+        pr_path.write_text('{"prs": []}')
+
+        with patch("cicada.status.get_pr_index_info") as mock_info:
+            mock_info.return_value = {
+                "exists": True,
+                "path": str(pr_path),
+                "date": None,
+                "file_size": None,
+            }
+            check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "✓ PR index exists:" in captured.out
+        assert captured.out.count("Built:") == 0  # No "Built:" for PR index
+
+
+class TestCheckRepositoryLinkStatus:
+    """Tests for link status section of check_repository"""
+
+    @pytest.fixture
+    def setup_repos(self, tmp_path, mock_home_dir):
+        """Setup source and target repositories for link tests"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create storage dir and index for source repo (required for linking)
+        create_storage_dir(source_repo)
+        index_path = get_index_path(source_repo)
+        with open(index_path, "w") as f:
+            json.dump({"modules": {}, "metadata": {}}, f)
+
+        return source_repo, target_repo
+
+    def test_displays_forward_link(self, setup_repos, capsys):
+        """Should display forward link info when repo is linked to source"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create forward link from target to source
+        create_link(target_repo, source_repo)
+
+        check_repository(target_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert f"This repo links to: {source_repo}" in captured.out
+        assert "Linked at:" in captured.out
+
+    def test_displays_no_forward_link(self, tmp_path, mock_home_dir, capsys):
+        """Should display message when repo is not linked to any source"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "This repo is not linked to any source repository" in captured.out
+
+    def test_displays_valid_reverse_links(self, setup_repos, capsys):
+        """Should display valid reverse links when other repos link to this one"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source (target links to source)
+        create_link(target_repo, source_repo)
+
+        # Now check the source repo - it should show target as a reverse link
+        check_repository(source_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "Repositories linking to this (1 valid)" in captured.out
+        assert str(target_repo) in captured.out
+
+    def test_displays_no_reverse_links(self, tmp_path, mock_home_dir, capsys):
+        """Should display message when no other repos link to this one"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "No other repositories link to this repo" in captured.out
+
+    def test_displays_stale_reverse_links(self, setup_repos, capsys):
+        """Should display stale reverse links when target has removed its link"""
+        import shutil
+
+        from cicada.utils.storage import create_link, get_storage_dir
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source
+        create_link(target_repo, source_repo)
+
+        # Remove target's storage (simulates deleted repo)
+        target_storage = get_storage_dir(target_repo)
+        shutil.rmtree(target_storage)
+
+        # Now check source repo - should show stale reverse link
+        check_repository(source_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "Stale reverse links (1)" in captured.out
+        assert "does not exist" in captured.out
+
+    def test_summary_with_links(self, setup_repos, capsys):
+        """Should show Links component as configured when links exist"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source
+        create_link(target_repo, source_repo)
+
+        # Check target repo (has forward link)
+        check_repository(target_repo)
+
+        captured = capsys.readouterr()
+        # Summary should show 2/5 components (Index + Links)
+        assert "2/5 components configured" in captured.out
+        # Link section should show forward link
+        assert "This repo links to:" in captured.out

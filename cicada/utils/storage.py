@@ -17,6 +17,15 @@ class LinkInfo(TypedDict):
     linked_at: str
 
 
+class LinkedFromEntry(TypedDict):
+    """Type definition for a single reverse link entry."""
+
+    target_repo_path: str
+    target_storage_dir: str
+    target_repo_hash: str
+    linked_at: str
+
+
 def get_repo_hash(repo_path: str | Path) -> str:
     """
     Generate a unique hash for a repository path.
@@ -330,6 +339,9 @@ def create_link(target_repo: str | Path, source_repo: str | Path) -> None:
     with open(link_path, "w") as f:
         yaml.dump(link_data, f, default_flow_style=False)
 
+    # Add reverse link to source repository
+    add_linked_from(source_path, target_path)
+
 
 def remove_link(repo_path: str | Path) -> bool:
     """
@@ -345,5 +357,213 @@ def remove_link(repo_path: str | Path) -> bool:
     if not link_path.exists():
         return False
 
+    # Read link info before removing (for reverse link cleanup)
+    link_info = get_link_info(repo_path)
+
+    # Remove the forward link file
     link_path.unlink()
+
+    # Best-effort cleanup of reverse link in source repo
+    # Note: Use source_repo_path (not source_storage_dir) because add_linked_from
+    # stores entries in the source repo's own storage, not the resolved storage
+    if link_info:
+        source_repo_path = link_info.get("source_repo_path")
+        if source_repo_path:
+            source_storage = get_storage_dir(source_repo_path)
+            target_hash = get_repo_hash(repo_path)
+            # Don't fail if reverse link cleanup fails
+            remove_linked_from(source_storage, target_hash)
+
     return True
+
+
+def get_linked_from_path(repo_path: str | Path) -> Path:
+    """
+    Get the path to the linked_from file for a repository.
+
+    This file tracks which repositories link TO this repository.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        Path to the linked_from.yaml file
+    """
+    storage_dir = get_storage_dir(repo_path)
+    return storage_dir / "linked_from.yaml"
+
+
+def get_linked_from_info(repo_path: str | Path) -> list[LinkedFromEntry]:
+    """
+    Get list of repositories that link TO this repository.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        List of LinkedFromEntry dicts, empty list if none or on errors
+    """
+    import yaml
+
+    linked_from_path = get_linked_from_path(repo_path)
+    if not linked_from_path.exists():
+        return []
+
+    try:
+        with open(linked_from_path) as f:
+            data = yaml.safe_load(f)
+        return data.get("linked_from", []) if data else []
+    except (yaml.YAMLError, OSError):
+        return []
+
+
+def add_linked_from(source_repo: str | Path, target_repo: str | Path) -> None:
+    """
+    Register that target_repo links to source_repo.
+
+    Creates or updates linked_from.yaml in source repo's storage.
+
+    Args:
+        source_repo: Path to the source repository (being linked TO)
+        target_repo: Path to the target repository (doing the linking)
+    """
+    from datetime import datetime, timezone
+
+    import yaml
+
+    source_path = Path(source_repo).resolve()
+    target_path = Path(target_repo).resolve()
+
+    # Ensure source storage directory exists
+    create_storage_dir(source_path)
+    target_storage = get_storage_dir(target_path)
+    target_hash = get_repo_hash(target_path)
+
+    # Get existing entries
+    existing = get_linked_from_info(source_path)
+
+    # Check if already registered (avoid duplicates) - use hash for comparison
+    if any(entry.get("target_repo_hash") == target_hash for entry in existing):
+        return  # Already registered
+
+    # Add new entry
+    new_entry: LinkedFromEntry = {
+        "target_repo_path": str(target_path),
+        "target_storage_dir": str(target_storage),
+        "target_repo_hash": target_hash,
+        "linked_at": datetime.now(timezone.utc).isoformat(),
+    }
+    existing.append(new_entry)
+
+    # Write back
+    linked_from_path = get_linked_from_path(source_path)
+    with open(linked_from_path, "w") as f:
+        yaml.dump({"linked_from": existing}, f, default_flow_style=False)
+
+
+def remove_linked_from(source_storage_dir: str | Path, target_repo_hash: str) -> bool:
+    """
+    Remove registration that target_repo links to source_repo.
+
+    Args:
+        source_storage_dir: Path to the source repo's storage directory
+        target_repo_hash: Hash of the target repository to remove
+
+    Returns:
+        True if entry was removed, False if not found
+    """
+    import yaml
+
+    source_storage = Path(source_storage_dir)
+    linked_from_path = source_storage / "linked_from.yaml"
+
+    if not linked_from_path.exists():
+        return False
+
+    try:
+        with open(linked_from_path) as f:
+            data = yaml.safe_load(f)
+    except (yaml.YAMLError, OSError):
+        return False
+
+    existing = data.get("linked_from", []) if data else []
+    original_len = len(existing)
+
+    # Remove entry by hash
+    existing = [e for e in existing if e.get("target_repo_hash") != target_repo_hash]
+
+    if len(existing) == original_len:
+        return False  # Entry not found
+
+    # Clean up file if empty, otherwise update
+    if not existing:
+        linked_from_path.unlink()
+    else:
+        with open(linked_from_path, "w") as f:
+            yaml.dump({"linked_from": existing}, f, default_flow_style=False)
+
+    return True
+
+
+def validate_linked_from(
+    repo_path: str | Path,
+) -> list[tuple[LinkedFromEntry, bool, str]]:
+    """
+    Validate all reverse links for a repository.
+
+    Checks if each target repo still exists and still links back to this source.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        List of (entry, is_valid, reason) tuples
+    """
+    import yaml
+
+    results: list[tuple[LinkedFromEntry, bool, str]] = []
+    linked_from = get_linked_from_info(repo_path)
+
+    if not linked_from:
+        return results
+
+    source_storage = get_storage_dir(repo_path)
+
+    for entry in linked_from:
+        target_storage_str = entry.get("target_storage_dir", "")
+        if not target_storage_str:
+            results.append((entry, False, "Missing target storage directory"))
+            continue
+
+        target_storage = Path(target_storage_str)
+
+        # Check if target storage exists
+        if not target_storage.exists():
+            results.append((entry, False, "Target storage directory does not exist"))
+            continue
+
+        # Check if target's link.yaml exists
+        target_link_path = target_storage / "link.yaml"
+        if not target_link_path.exists():
+            results.append((entry, False, "Target is no longer linked"))
+            continue
+
+        # Verify the link points to this source
+        try:
+            with open(target_link_path) as f:
+                link_info = yaml.safe_load(f)
+
+            if not isinstance(link_info, dict):
+                results.append((entry, False, "Invalid or empty target link file"))
+                continue
+
+            if link_info.get("source_storage_dir") != str(source_storage):
+                results.append((entry, False, "Target now links to different source"))
+                continue
+        except (yaml.YAMLError, OSError):
+            results.append((entry, False, "Could not read target's link file"))
+            continue
+
+        results.append((entry, True, "Valid"))
+
+    return results

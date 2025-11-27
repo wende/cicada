@@ -309,11 +309,9 @@ def test_git_history_filter_feedback_recent(test_server):
     assert result[0].type == "text", "Should return text content"
 
     text = result[0].text
-    # Check for helpful filter feedback messages
-    if "No commits found matching filters" in text or "since" in text.lower():
+    # Check for filter feedback message (compact format)
+    if "No commits matching" in text or "since" in text.lower():
         print("  ✓ Filter feedback message present")
-        assert "Try:" in text or "try" in text.lower(), "Should suggest alternatives"
-        print("  ✓ Helpful suggestions included")
     else:
         # If there are commits in last 1 day, that's fine too
         print("  ✓ Query executed successfully (commits may exist)")

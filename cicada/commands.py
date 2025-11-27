@@ -39,9 +39,11 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "find-dead-code",
     "clean",
     "status",
+    "stats",
     "dir",
     "link",
     "unlink",
+    "agents",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
@@ -641,6 +643,86 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Stats command
+    stats_parser = subparsers.add_parser(
+        "stats",
+        help="Show MCP tool usage statistics for this project",
+        description="Display usage statistics for MCP tool calls in this project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parser],
+        epilog="""
+Examples:
+  cicada stats                      # Summary (all time)
+  cicada stats --detailed           # Detailed breakdown
+  cicada stats --last-7-days        # Last 7 days only
+  cicada stats --tool query         # Filter by tool
+  cicada stats --time-series        # Daily view
+  cicada stats --time-series --weekly   # Weekly view
+  cicada stats --format json        # JSON output
+  cicada stats --reset --older-than 30  # Delete logs >30 days old
+        """,
+    )
+
+    stats_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
+    stats_parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Show detailed per-tool breakdown",
+    )
+    stats_parser.add_argument(
+        "--time-series",
+        action="store_true",
+        help="Show time-based aggregation",
+    )
+    stats_parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="Use weekly aggregation (requires --time-series)",
+    )
+    stats_parser.add_argument(
+        "--tool",
+        help="Filter by tool name",
+    )
+    stats_parser.add_argument(
+        "--last-7-days",
+        action="store_true",
+        help="Show last 7 days only",
+    )
+    stats_parser.add_argument(
+        "--last-30-days",
+        action="store_true",
+        help="Show last 30 days only",
+    )
+    stats_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format",
+    )
+    stats_parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete log files",
+    )
+    stats_parser.add_argument(
+        "--older-than",
+        type=int,
+        metavar="DAYS",
+        help="With --reset: only delete logs older than DAYS",
+    )
+    stats_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="With --reset: skip confirmation",
+    )
+
     dir_parser = subparsers.add_parser(
         "dir",
         help="Show the absolute path to the Cicada storage directory",
@@ -701,6 +783,16 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Agents command (MVP: install subcommand only)
+    agents_parser = subparsers.add_parser(
+        "agents",
+        help="Install Claude Code agents",
+        description="Install agents for code exploration",
+        parents=[common_parser],
+    )
+    agents_subparsers = agents_parser.add_subparsers(dest="agents_command", required=True)
+    agents_subparsers.add_parser("install", help="Install Cicada agents")
+
     return parser
 
 
@@ -728,9 +820,11 @@ def handle_command(args) -> bool:
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
+        "stats": handle_stats,
         "dir": handle_dir,
         "link": handle_link,
         "unlink": handle_unlink,
+        "agents": handle_agents,
     }
 
     if args.command is None:
@@ -1192,6 +1286,83 @@ def handle_status(args):
         sys.exit(1)
 
 
+def handle_stats(args):
+    """Show MCP tool usage statistics for the current project."""
+    from cicada.stats import StatsAnalyzer
+
+    repo_path = Path(args.repo).resolve()
+    analyzer = StatsAnalyzer(repo_path)
+
+    # Handle reset
+    if args.reset:
+        _handle_stats_reset(args, analyzer)
+        return
+
+    # Determine time filter
+    days = None
+    if args.last_7_days:
+        days = 7
+    elif args.last_30_days:
+        days = 30
+
+    # Get stats
+    try:
+        if args.time_series:
+            granularity = "weekly" if args.weekly else "daily"
+            stats = analyzer.get_stats(
+                days=days,
+                tool_filter=args.tool,
+                time_series=True,
+                granularity=granularity,
+            )
+        else:
+            stats = analyzer.get_stats(days=days, tool_filter=args.tool)
+
+        # Format output
+        if args.format == "json":
+            output = analyzer.format_json(stats)
+        elif args.time_series:
+            output = analyzer.format_time_series(stats)
+        elif args.detailed:
+            output = analyzer.format_detailed(stats)
+        else:
+            output = analyzer.format_summary(stats)
+
+        print(output)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _handle_stats_reset(args, analyzer):
+    """Handle stats reset operation."""
+    older_than = getattr(args, "older_than", None)
+    force = getattr(args, "force", False)
+
+    if older_than:
+        message = f"Delete logs older than {older_than} days?"
+        needs_confirmation = False
+    else:
+        message = "Delete ALL MCP tool logs for this project?"
+        needs_confirmation = not force
+
+    if needs_confirmation:
+        print(message)
+        print("This action cannot be undone.")
+        response = input("Continue? [y/N]: ").strip().lower()
+        if response not in ["y", "yes"]:
+            print("Aborted.")
+            sys.exit(0)
+
+    count = analyzer.reset_stats(older_than_days=older_than)
+
+    if older_than:
+        print(f"✓ Deleted {count} log file(s) older than {older_than} days")
+    else:
+        print(f"✓ Deleted {count} log file(s)")
+
+
 def handle_dir(args):
     """Show the absolute path to the Cicada storage directory."""
     import yaml
@@ -1606,3 +1777,33 @@ def _cleanup_watch_process(logger) -> None:
     except Exception as e:
         logger.exception("Error stopping watch process during cleanup")
         print(f"Warning: Error stopping watch process: {e}", file=sys.stderr)
+
+
+def handle_agents(args) -> None:
+    """Handle agents command routing.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    if args.agents_command == "install":
+        handle_agents_install()
+
+
+def handle_agents_install() -> None:
+    """Install Cicada agents to ./.claude/."""
+    from pathlib import Path
+
+    from cicada.agents.installer import install_agent
+
+    install_path = Path.cwd() / ".claude"
+    agent_name = "cicada-code-explorer.md"
+
+    print(f"\nInstalling Cicada agent: {install_path}\n")
+
+    install_agent(install_path, agent_name)
+
+    print(f"  ✓ Installed {agent_name}")
+    print("\n✓ Installation complete!")
+    print("\nNext steps:")
+    print("  1. Restart Claude Code to load the new agent")
+    print("  2. Use agent via: Task tool → select cicada-code-explorer")
