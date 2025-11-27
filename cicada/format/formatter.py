@@ -300,6 +300,17 @@ class ModuleFormatter:
                         lines.append(f"  • {sig}")
                     lines.append("")
 
+        # Add co-change files if present
+        cochange_files = data.get("cochange_files", [])
+        if cochange_files:
+            lines.extend(["", "---", "", "## Often Changed With"])
+            lines.append("")
+            for cf in cochange_files[:5]:  # Show top 5
+                module_name_display = cf.get("module") or cf["file"].split("/")[-1]
+                lines.append(f"  • {module_name_display} ({cf['count']} commits)")
+            if len(cochange_files) > 5:
+                lines.append(f"  ... and {len(cochange_files) - 5} more")
+
         return "\n".join(lines)
 
     @staticmethod

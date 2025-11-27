@@ -919,21 +919,24 @@ def handle_index_main(args) -> None:
         # Co-change analysis is enabled by default for better search results
         # Can be disabled with --no-cochange flag
         extract_cochange = not getattr(args, "no_cochange", False)
+        # Force full reindex if --force flag was used OR tier changed
+        should_force = force_enabled or tier_changed
         indexer.incremental_index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
             extract_keywords=True,
             compute_timestamps=True,
             extract_cochange=extract_cochange,
-            force_full=tier_changed,
+            force_full=should_force,
             verbose=verbose,
         )
     else:
         # Fallback to basic interface for legacy indexers
+        should_force = force_enabled or tier_changed
         indexer.index_repository(
             repo_path=str(repo_path),
             output_path=str(index_path),
-            force=tier_changed,
+            force=should_force,
             verbose=verbose,
             config_path=str(config_path),
         )

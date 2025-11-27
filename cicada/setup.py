@@ -323,13 +323,26 @@ def index_repository(
 
         # Use standard indexer interface
         indexer = LanguageRegistry.get_indexer(language)
-        indexer.index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            force=force_full,
-            verbose=verbose,
-            config_path=str(config_path),
-        )
+        # Check if indexer supports incremental_index_repository (new unified API)
+        if hasattr(indexer, "incremental_index_repository"):
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                compute_timestamps=True,
+                extract_cochange=True,  # Enable co-change analysis by default
+                force_full=force_full,
+                verbose=verbose,
+            )
+        else:
+            # Fallback to basic interface for legacy indexers
+            indexer.index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                force=force_full,
+                verbose=verbose,
+                config_path=str(config_path),
+            )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
