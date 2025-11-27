@@ -1087,6 +1087,75 @@ class TestExtractDocstringKeywords:
         assert index["modules"]["TestModule"]["keywords"]["test"] == 0.9
 
 
+class TestExpandAndUpdateKeywords:
+    """Tests for _expand_and_update_keywords helper method."""
+
+    @pytest.fixture
+    def indexer(self):
+        return PythonSCIPIndexer(verbose=False)
+
+    def test_returns_original_when_no_expander(self, indexer):
+        """Should return original keywords when expander is None."""
+        keywords = {"test": 0.5, "hello": 0.3}
+        result = indexer._expand_and_update_keywords(keywords, None)
+        assert result == keywords
+        assert result is keywords  # Returns same object when no expansion
+
+    def test_returns_original_when_empty_keywords(self, indexer):
+        """Should return empty dict when keywords is empty."""
+        from unittest.mock import MagicMock
+
+        expander = MagicMock()
+        result = indexer._expand_and_update_keywords({}, expander)
+        assert result == {}
+        expander.expand_keywords.assert_not_called()
+
+    def test_adds_expanded_keywords(self, indexer):
+        """Should add new keywords from expansion."""
+        from unittest.mock import MagicMock
+
+        keywords = {"test": 0.5}
+        expander = MagicMock()
+        expander.expand_keywords.return_value = {
+            "words": [{"word": "testing", "score": 0.4}, {"word": "exam", "score": 0.3}],
+            "simple": ["testing", "exam"],
+        }
+
+        result = indexer._expand_and_update_keywords(keywords, expander)
+
+        assert result["test"] == 0.5  # Original preserved
+        assert result["testing"] == 0.4  # New keyword added
+        assert result["exam"] == 0.3  # New keyword added
+
+    def test_updates_score_when_higher(self, indexer):
+        """Should update score when expansion returns higher score."""
+        from unittest.mock import MagicMock
+
+        keywords = {"test": 0.5}
+        expander = MagicMock()
+        expander.expand_keywords.return_value = {
+            "words": [{"word": "test", "score": 0.9}],
+            "simple": ["test"],
+        }
+
+        result = indexer._expand_and_update_keywords(keywords, expander)
+        assert result["test"] == 0.9  # Higher score wins
+
+    def test_keeps_original_score_when_higher(self, indexer):
+        """Should keep original score when it's higher than expansion."""
+        from unittest.mock import MagicMock
+
+        keywords = {"test": 0.9}
+        expander = MagicMock()
+        expander.expand_keywords.return_value = {
+            "words": [{"word": "test", "score": 0.5}],
+            "simple": ["test"],
+        }
+
+        result = indexer._expand_and_update_keywords(keywords, expander)
+        assert result["test"] == 0.9  # Original higher score preserved
+
+
 class TestIndexRepositoryErrorPaths:
     """Tests for error handling in incremental_index_repository."""
 

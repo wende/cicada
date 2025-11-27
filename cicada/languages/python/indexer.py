@@ -247,7 +247,7 @@ class PythonSCIPIndexer(BaseIndexer):
             # 5. Convert to Cicada format (without keyword extraction - that's done separately)
             try:
                 converter = SCIPConverter(
-                    extract_keywords=False,  # Don't extract during conversion - too slow
+                    extract_keywords=False,  # Extraction done separately for timing visibility
                     keyword_extractor=None,
                     verbose=self.verbose,
                 )
@@ -375,6 +375,35 @@ class PythonSCIPIndexer(BaseIndexer):
             python_files.append(py_file)
         return python_files
 
+    def _expand_and_update_keywords(
+        self, keywords: dict[str, float], keyword_expander
+    ) -> dict[str, float]:
+        """Expand keywords and update scores with expanded terms.
+
+        Args:
+            keywords: Dictionary of keyword -> score mappings
+            keyword_expander: Keyword expander instance (optional)
+
+        Returns:
+            Updated keywords dictionary with expanded terms
+        """
+        if not keyword_expander or not keywords:
+            return keywords
+
+        expansion_result = keyword_expander.expand_keywords(
+            list(keywords.keys()),
+            keyword_scores=keywords,
+        )
+
+        updated_keywords = keywords.copy()
+        for item in expansion_result["words"]:
+            word = item["word"]
+            score = item["score"]
+            if word not in updated_keywords or score > updated_keywords[word]:
+                updated_keywords[word] = score
+
+        return updated_keywords
+
     def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
         """Extract keywords from module and function docstrings.
 
@@ -421,20 +450,7 @@ class PythonSCIPIndexer(BaseIndexer):
                         keywords[keyword] = score
 
                     if keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expansion_result = keyword_expander.expand_keywords(
-                                list(keywords.keys()),
-                                keyword_scores=keywords,
-                            )
-                            # Convert expansion result to dict
-                            if isinstance(expansion_result, dict):
-                                for item in expansion_result["words"]:
-                                    word = item["word"]
-                                    score = item["score"]
-                                    if word not in keywords or score > keywords[word]:
-                                        keywords[word] = score
-
+                        keywords = self._expand_and_update_keywords(keywords, keyword_expander)
                         module_data["keywords"] = keywords
 
                 # Extract function-level keywords
@@ -447,20 +463,9 @@ class PythonSCIPIndexer(BaseIndexer):
                             func_keywords[keyword] = score
 
                         if func_keywords:
-                            # Expand keywords
-                            if keyword_expander:
-                                expansion_result = keyword_expander.expand_keywords(
-                                    list(func_keywords.keys()),
-                                    keyword_scores=func_keywords,
-                                )
-                                # Convert expansion result to dict
-                                if isinstance(expansion_result, dict):
-                                    for item in expansion_result["words"]:
-                                        word = item["word"]
-                                        score = item["score"]
-                                        if word not in func_keywords or score > func_keywords[word]:
-                                            func_keywords[word] = score
-
+                            func_keywords = self._expand_and_update_keywords(
+                                func_keywords, keyword_expander
+                            )
                             func["keywords"] = func_keywords
 
             except Exception as e:
@@ -513,20 +518,9 @@ class PythonSCIPIndexer(BaseIndexer):
                         string_keywords[keyword] = score * 1.3
 
                     if string_keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expansion_result = keyword_expander.expand_keywords(
-                                list(string_keywords.keys()),
-                                keyword_scores=string_keywords,
-                            )
-                            # Convert expansion result to dict
-                            if isinstance(expansion_result, dict):
-                                for item in expansion_result["words"]:
-                                    word = item["word"]
-                                    score = item["score"]
-                                    if word not in string_keywords or score > string_keywords[word]:
-                                        string_keywords[word] = score
-
+                        string_keywords = self._expand_and_update_keywords(
+                            string_keywords, keyword_expander
+                        )
                         module_data["string_keywords"] = string_keywords
 
             except Exception as e:
