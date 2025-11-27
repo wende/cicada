@@ -760,8 +760,8 @@ class TestCheckRepository:
         check_repository(repo_path)
 
         captured = capsys.readouterr()
-        # Should have 3/4 components: Index, PR Index, MCP files (no agent files)
-        assert "Summary: 3/4 components configured" in captured.out
+        # Should have 3/5 components: Index, PR Index, MCP files (no agent files, no links)
+        assert "Summary: 3/5 components configured" in captured.out
 
     def test_resolves_repo_path(self, tmp_path, mock_home_dir, capsys):
         """Should resolve repository path"""
@@ -790,3 +790,121 @@ class TestCheckRepository:
         captured = capsys.readouterr()
         assert "Cicada Status" in captured.out
         assert "Config Dir:" in captured.out
+
+
+class TestCheckRepositoryLinkStatus:
+    """Tests for link status section of check_repository"""
+
+    @pytest.fixture
+    def setup_repos(self, tmp_path, mock_home_dir):
+        """Setup source and target repositories for link tests"""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create storage dir and index for source repo (required for linking)
+        create_storage_dir(source_repo)
+        index_path = get_index_path(source_repo)
+        with open(index_path, "w") as f:
+            json.dump({"modules": {}, "metadata": {}}, f)
+
+        return source_repo, target_repo
+
+    def test_displays_forward_link(self, setup_repos, capsys):
+        """Should display forward link info when repo is linked to source"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create forward link from target to source
+        create_link(target_repo, source_repo)
+
+        check_repository(target_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert f"This repo links to: {source_repo}" in captured.out
+        assert "Linked at:" in captured.out
+
+    def test_displays_no_forward_link(self, tmp_path, mock_home_dir, capsys):
+        """Should display message when repo is not linked to any source"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "This repo is not linked to any source repository" in captured.out
+
+    def test_displays_valid_reverse_links(self, setup_repos, capsys):
+        """Should display valid reverse links when other repos link to this one"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source (target links to source)
+        create_link(target_repo, source_repo)
+
+        # Now check the source repo - it should show target as a reverse link
+        check_repository(source_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "Repositories linking to this (1 valid)" in captured.out
+        assert str(target_repo) in captured.out
+
+    def test_displays_no_reverse_links(self, tmp_path, mock_home_dir, capsys):
+        """Should display message when no other repos link to this one"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        check_repository(repo_path)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "No other repositories link to this repo" in captured.out
+
+    def test_displays_stale_reverse_links(self, setup_repos, capsys):
+        """Should display stale reverse links when target has removed its link"""
+        import shutil
+
+        from cicada.utils.storage import create_link, get_storage_dir
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source
+        create_link(target_repo, source_repo)
+
+        # Remove target's storage (simulates deleted repo)
+        target_storage = get_storage_dir(target_repo)
+        shutil.rmtree(target_storage)
+
+        # Now check source repo - should show stale reverse link
+        check_repository(source_repo)
+
+        captured = capsys.readouterr()
+        assert "LINK STATUS" in captured.out
+        assert "Stale reverse links (1)" in captured.out
+        assert "does not exist" in captured.out
+
+    def test_summary_with_links(self, setup_repos, capsys):
+        """Should show Links component as configured when links exist"""
+        from cicada.utils.storage import create_link
+
+        source_repo, target_repo = setup_repos
+
+        # Create link from target to source
+        create_link(target_repo, source_repo)
+
+        # Check target repo (has forward link)
+        check_repository(target_repo)
+
+        captured = capsys.readouterr()
+        # Summary should show 2/5 components (Index + Links)
+        assert "2/5 components configured" in captured.out
+        # Link section should show forward link
+        assert "This repo links to:" in captured.out

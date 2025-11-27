@@ -411,6 +411,30 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
+            name="refresh_index",
+            description=(
+                "Force refresh the code index to pick up recent file changes.\n\n"
+                "Use when auto-refresh hasn't caught recent edits, or when you need "
+                "the index to be immediately up-to-date.\n\n"
+                "By default, runs an incremental refresh (only reindexes changed files). "
+                "Use force_full=true for a complete reindex if incremental seems stale.\n\n"
+                "AI USAGE TIPS:\n"
+                "• Use after making code changes if query results seem stale\n"
+                "• Incremental refresh is fast (~1-2s for small changes)\n"
+                "• Full refresh is slower but comprehensive\n"
+                "• Returns: success status, time taken, module/function counts"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "force_full": {
+                        "type": "boolean",
+                        "description": "Force full reindex instead of incremental (slower but comprehensive). Defaults to false.",
+                    },
+                },
+            },
+        ),
+        Tool(
             name="query_jq",
             description=(
                 "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
