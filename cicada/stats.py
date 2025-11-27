@@ -9,6 +9,16 @@ from cicada.command_logger import get_logger
 from cicada.utils.storage import get_repo_hash, get_storage_dir
 
 
+def _parse_timestamp(timestamp_str: str) -> datetime:
+    """Parse ISO format timestamp string."""
+    return datetime.fromisoformat(timestamp_str)
+
+
+def _safe_divide(numerator: float, denominator: float, default: float = 0) -> float:
+    """Divide safely, returning default if denominator is zero."""
+    return numerator / denominator if denominator > 0 else default
+
+
 class StatsAnalyzer:
     """Analyzes MCP tool usage statistics for a specific project."""
 
@@ -69,8 +79,8 @@ class StatsAnalyzer:
             # Always add keyword count
             stats["keyword_count"] = len(unique_keywords)
             return stats
-        except Exception:
-            # If index reading fails, return empty stats
+        except (OSError, json.JSONDecodeError):
+            # If index file doesn't exist or is corrupt, return empty stats
             return {}
 
     def get_stats(
@@ -91,85 +101,83 @@ class StatsAnalyzer:
         Returns:
             Statistics dictionary.
         """
-        # Read all logs for this project
         logs = self.logger.read_logs(repo_hash=self.repo_hash)
+        logs = self._filter_logs(logs, days=days, tool_filter=tool_filter)
 
-        # Filter by date range if specified
+        if not logs:
+            return self._empty_stats()
+
+        return (
+            self._compute_time_series(logs, granularity)
+            if time_series
+            else self._compute_aggregate_stats(logs)
+        )
+
+    def _filter_logs(
+        self,
+        logs: list[dict],
+        days: int | None = None,
+        tool_filter: str | None = None,
+    ) -> list[dict]:
+        """Filter logs by date range and/or tool name.
+
+        Args:
+            logs: List of log entries to filter.
+            days: Only include logs from the last N days.
+            tool_filter: Only include logs for a specific tool.
+
+        Returns:
+            Filtered list of logs.
+        """
         if days:
             cutoff = datetime.now() - timedelta(days=days)
-            logs = [log for log in logs if datetime.fromisoformat(log["timestamp"]) >= cutoff]
+            logs = [log for log in logs if _parse_timestamp(log["timestamp"]) >= cutoff]
 
-        # Filter by tool if specified
         if tool_filter:
             logs = [log for log in logs if log["tool_name"] == tool_filter]
 
-        if not logs:
-            return self._empty_stats()
-
-        if time_series:
-            return self._compute_time_series(logs, granularity)
-        else:
-            return self._compute_aggregate_stats(logs)
+        return logs
 
     def _compute_aggregate_stats(self, logs: list[dict]) -> dict:
-        """Compute aggregate statistics from logs."""
+        """Orchestrate aggregate statistics computation."""
         if not logs:
             return self._empty_stats()
 
+        basic_metrics = self._aggregate_basic_metrics(logs)
+        tool_stats = self._build_and_compute_tool_stats(logs)
+        date_range = self._extract_date_range(logs)
+        project_stats = self._get_project_stats()
+
+        stats = {
+            **basic_metrics,
+            "date_range": date_range,
+            "tools": tool_stats,
+        }
+
+        if project_stats:
+            stats["project_stats"] = project_stats
+
+        return stats
+
+    def _aggregate_basic_metrics(self, logs: list[dict]) -> dict:
+        """Compute basic call metrics: counts, success rate, tokens, execution time."""
         total_calls = len(logs)
         successful = sum(1 for log in logs if log.get("success", False))
-        success_rate = (successful / total_calls * 100) if total_calls > 0 else 0
+        success_rate = _safe_divide(successful * 100, total_calls)
 
         total_exec_time = sum(log.get("execution_time_ms", 0) for log in logs)
-        avg_exec_time = total_exec_time / total_calls if total_calls > 0 else 0
+        avg_exec_time = _safe_divide(total_exec_time, total_calls)
 
         total_input_tokens = sum(log.get("input_tokens", 0) for log in logs)
         total_output_tokens = sum(log.get("output_tokens", 0) for log in logs)
 
-        # Calculate total lines (count newlines in responses)
-        total_lines = 0
-        for log in logs:
-            if log.get("success") and log.get("response"):
-                total_lines += self._count_lines(log["response"])
+        total_lines = sum(
+            self._count_lines(log["response"])
+            for log in logs
+            if log.get("success") and log.get("response")
+        )
 
-        # Compute per-tool breakdown
-        tool_stats = {}
-        for log in logs:
-            tool = log["tool_name"]
-            if tool not in tool_stats:
-                tool_stats[tool] = {
-                    "count": 0,
-                    "success_count": 0,
-                    "total_time_ms": 0,
-                    "total_lines": 0,
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                }
-
-            tool_stats[tool]["count"] += 1
-            if log.get("success"):
-                tool_stats[tool]["success_count"] += 1
-            tool_stats[tool]["total_time_ms"] += log.get("execution_time_ms", 0)
-            tool_stats[tool]["input_tokens"] += log.get("input_tokens", 0)
-            tool_stats[tool]["output_tokens"] += log.get("output_tokens", 0)
-
-            if log.get("success") and log.get("response"):
-                tool_stats[tool]["total_lines"] += self._count_lines(log["response"])
-
-        # Calculate averages
-        for tool_stat in tool_stats.values():
-            count = tool_stat["count"]
-            tool_stat["avg_time_ms"] = tool_stat["total_time_ms"] / count if count > 0 else 0
-
-        # Get date range
-        timestamps = [datetime.fromisoformat(log["timestamp"]) for log in logs]
-        date_range = {
-            "start": min(timestamps).strftime("%Y-%m-%d"),
-            "end": max(timestamps).strftime("%Y-%m-%d"),
-            "days": (max(timestamps) - min(timestamps)).days + 1,
-        }
-
-        stats = {
+        return {
             "total_calls": total_calls,
             "success_rate": round(success_rate, 1),
             "successful_calls": successful,
@@ -179,16 +187,88 @@ class StatsAnalyzer:
             "total_lines": total_lines,
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
-            "date_range": date_range,
-            "tools": tool_stats,
         }
 
-        # Add project statistics
-        project_stats = self._get_project_stats()
-        if project_stats:
-            stats["project_stats"] = project_stats
+    def _build_and_compute_tool_stats(self, logs: list[dict]) -> dict:
+        """Build per-tool stats and compute averages."""
+        tool_stats = {}
 
-        return stats
+        # Accumulate
+        for log in logs:
+            tool = log["tool_name"]
+            if tool not in tool_stats:
+                tool_stats[tool] = self._create_empty_tool_stat()
+            self._accumulate_tool_stat(tool_stats[tool], log)
+
+        # Compute averages
+        for tool_stat in tool_stats.values():
+            self._compute_tool_averages(tool_stat)
+
+        return tool_stats
+
+    def _create_empty_tool_stat(self) -> dict:
+        """Create empty tool stat dict with all required fields."""
+        return {
+            "count": 0,
+            "success_count": 0,
+            "total_time_ms": 0,
+            "total_lines": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+
+    def _accumulate_tool_stat(self, tool_stat: dict, log: dict) -> None:
+        """Add log data to tool stat accumulator.
+
+        Args:
+            tool_stat: Tool statistics dict to update (modified in place).
+            log: Individual log entry to accumulate.
+        """
+        tool_stat["count"] += 1
+        if log.get("success"):
+            tool_stat["success_count"] += 1
+        tool_stat["total_time_ms"] += log.get("execution_time_ms", 0)
+        tool_stat["input_tokens"] += log.get("input_tokens", 0)
+        tool_stat["output_tokens"] += log.get("output_tokens", 0)
+
+        if log.get("success") and log.get("response"):
+            tool_stat["total_lines"] += self._count_lines(log["response"])
+
+    def _compute_tool_averages(self, tool_stat: dict) -> None:
+        """Compute average metrics for a tool (modifies dict in place).
+
+        Args:
+            tool_stat: Tool statistics dict to update.
+        """
+        count = tool_stat["count"]
+        tool_stat["avg_time_ms"] = _safe_divide(tool_stat["total_time_ms"], count)
+        tool_stat["avg_input_tokens"] = _safe_divide(tool_stat["input_tokens"], count)
+        tool_stat["avg_output_tokens"] = _safe_divide(tool_stat["output_tokens"], count)
+        tool_stat["avg_total_tokens"] = (
+            tool_stat["avg_input_tokens"] + tool_stat["avg_output_tokens"]
+        )
+
+    def _extract_date_range(self, logs: list[dict]) -> dict | None:
+        """Extract date range from logs.
+
+        Args:
+            logs: List of log entries.
+
+        Returns:
+            Dict with start, end, and days, or None if logs is empty.
+        """
+        if not logs:
+            return None
+
+        timestamps = [_parse_timestamp(log["timestamp"]) for log in logs]
+        min_ts = min(timestamps)
+        max_ts = max(timestamps)
+
+        return {
+            "start": min_ts.strftime("%Y-%m-%d"),
+            "end": max_ts.strftime("%Y-%m-%d"),
+            "days": (max_ts - min_ts).days + 1,
+        }
 
     def _count_lines(self, response: list | dict | str) -> int:
         """Count lines in a serialized response."""
@@ -214,7 +294,7 @@ class StatsAnalyzer:
         )
 
         for log in logs:
-            timestamp = datetime.fromisoformat(log["timestamp"])
+            timestamp = _parse_timestamp(log["timestamp"])
 
             if granularity == "weekly":
                 # ISO week format: YYYY-WW
@@ -233,7 +313,7 @@ class StatsAnalyzer:
         # Convert to list and calculate success rates
         series = []
         for date_key, data in sorted(series_data.items()):
-            success_rate = data["success_count"] / data["calls"] * 100 if data["calls"] > 0 else 0
+            success_rate = _safe_divide(data["success_count"] * 100, data["calls"])
             series.append(
                 {
                     "date": date_key,
@@ -314,7 +394,11 @@ class StatsAnalyzer:
 
         in_tokens = stats["total_input_tokens"]
         out_tokens = stats["total_output_tokens"]
-        lines.append(f"Tokens:          {token_str} (in: {in_tokens:,}, out: {out_tokens:,})")
+        avg_tokens_per_call = total_tokens / stats["total_calls"] if stats["total_calls"] > 0 else 0
+        lines.append(
+            f"Tokens:          {token_str} (in: {in_tokens:,}, out: {out_tokens:,}, "
+            f"avg: {avg_tokens_per_call:.0f}/call)"
+        )
 
         # Top 3 tools
         tools = sorted(stats["tools"].items(), key=lambda x: x[1]["count"], reverse=True)[:3]
@@ -338,7 +422,8 @@ class StatsAnalyzer:
         for tool_name, tool_data in tools:
             lines.append(
                 f"\n{tool_name:20} {tool_data['count']:5} calls  "
-                f"(avg: {tool_data['avg_time_ms']:6.1f}ms)"
+                f"(avg: {tool_data['avg_time_ms']:6.1f}ms, "
+                f"{tool_data['avg_total_tokens']:.0f} tokens/call)"
             )
             lines.append(
                 f"  Output: {tool_data['total_lines']:,} lines  "
