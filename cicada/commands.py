@@ -42,6 +42,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "dir",
     "link",
     "unlink",
+    "agents",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
@@ -701,6 +702,21 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Agents command (MVP: install subcommand only)
+    agents_parser = subparsers.add_parser(
+        "agents",
+        help="Install Claude Code agents",
+        description="Install agents for code exploration",
+        parents=[common_parser],
+    )
+    agents_subparsers = agents_parser.add_subparsers(dest="agents_command")
+    install_parser_agents = agents_subparsers.add_parser("install", help="Install Cicada agents")
+    install_parser_agents.add_argument(
+        "--global",
+        action="store_true",
+        help="Install to global ~/.claude/ (default: project .claude/)",
+    )
+
     return parser
 
 
@@ -731,6 +747,7 @@ def handle_command(args) -> bool:
         "dir": handle_dir,
         "link": handle_link,
         "unlink": handle_unlink,
+        "agents": handle_agents,
     }
 
     if args.command is None:
@@ -1606,3 +1623,47 @@ def _cleanup_watch_process(logger) -> None:
     except Exception as e:
         logger.exception("Error stopping watch process during cleanup")
         print(f"Warning: Error stopping watch process: {e}", file=sys.stderr)
+
+
+def handle_agents(args) -> None:
+    """Handle agents command routing.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    if args.agents_command == "install":
+        handle_agents_install(args)
+    else:
+        print("Error: Use 'cicada agents install'", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_agents_install(args) -> None:
+    """Install Cicada agents to ./.claude/ or ~/.claude/ (with --global).
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    from pathlib import Path
+
+    from cicada.agents.installer import install_agent
+
+    # Determine install path (default: local, --global for global)
+    if getattr(args, "global", False):
+        install_path = Path.home() / ".claude"
+        scope = "global"
+    else:
+        install_path = Path.cwd() / ".claude"
+        scope = "local"
+
+    print(f"\nInstalling Cicada agent ({scope}): {install_path}\n")
+
+    install_agent(install_path)
+
+    print("  ✓ Installed cicada-code-explorer.md")
+    print("\n✓ Installation complete!")
+    print("\nNext steps:")
+    print("  1. Restart Claude Code to load the new agent")
+    print("  2. Use agent via: Task tool → select cicada-code-explorer")
+    if scope == "local":
+        print("\nAgent installed in this project's .claude/ directory")

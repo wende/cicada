@@ -74,6 +74,12 @@ cicada = "cicada.cli:main"
 [tool.setuptools.packages.find]
 include = ["cicada*"]
 
+[tool.setuptools.package-data]
+cicada = [
+    "agents/templates/agents/*.md",
+    "agents/templates/skills/**/*.md",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
