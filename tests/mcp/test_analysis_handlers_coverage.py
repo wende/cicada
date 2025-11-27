@@ -104,8 +104,8 @@ async def test_suggest_keywords_no_cooccurrence_data(mock_index_no_cooccurrence)
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "Co-occurrence data not available" in result[0].text
-    assert "cicada index --extract-keywords" in result[0].text
+    assert "No co-occurrence data" in result[0].text
+    assert "cicada index" in result[0].text
 
 
 @pytest.mark.asyncio
@@ -135,8 +135,7 @@ async def test_suggest_keywords_expand_mode_no_suggestions(mock_index_with_keywo
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keyword suggestions found" in result[0].text
-    assert "min_cooccurrence threshold is too high" in result[0].text
+    assert "No suggestions for:" in result[0].text
 
 
 @pytest.mark.asyncio
@@ -207,8 +206,7 @@ async def test_suggest_keywords_narrow_mode_no_suggestions(mock_index_with_keywo
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No narrowing keywords found" in result[0].text
-    assert "min_result_count threshold is too high" in result[0].text
+    assert "No narrowing keywords for:" in result[0].text
 
 
 # ===== query Method Tests =====
@@ -223,7 +221,7 @@ async def test_query_without_keywords(mock_index_without_keywords):
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keywords found in index" in result[0].text
+    assert "No keywords in index" in result[0].text
     assert "cicada index" in result[0].text
 
 
@@ -239,8 +237,8 @@ async def test_search_by_keywords_no_keywords_in_index(mock_index_without_keywor
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keywords found in index" in result[0].text
-    assert "cicada index --force --regular" in result[0].text
+    assert "No keywords in index" in result[0].text
+    assert "cicada index" in result[0].text
 
 
 @pytest.mark.asyncio

@@ -11,18 +11,22 @@ class GitFormatter:
     """Centralized formatter for git history data."""
 
     @staticmethod
-    def format_result(result: dict[str, Any]) -> str:
+    def format_result(result: dict[str, Any], format_opts: dict[str, Any] | None = None) -> str:
         """
         Format analysis result as markdown.
 
         Args:
             result: Result from HistoryAnalyzer.analyze() method
+            format_opts: Optional formatting options:
+                - include_pr_description: Include PR descriptions (default: False)
+                - include_review_comments: Include PR review comments (default: False)
 
         Returns:
             Formatted markdown string
         """
         result_type = result["type"]
         data = result["data"]
+        opts = format_opts or {}
 
         if data is None:
             error = result.get("error", "No data available")
@@ -35,7 +39,7 @@ class GitFormatter:
         }
 
         if result_type == "file":
-            return GitFormatter._format_file(data, result["pr_enriched"])
+            return GitFormatter._format_file(data, result["pr_enriched"], opts)
 
         formatter = formatter_map.get(result_type)
         return formatter(data) if formatter else f"**Unknown result type:** {result_type}"
@@ -325,10 +329,23 @@ class GitFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def _format_file(data: dict[str, Any], pr_enriched: bool) -> str:
-        """Format file history result."""
+    def _format_file(
+        data: dict[str, Any], pr_enriched: bool, opts: dict[str, Any] | None = None
+    ) -> str:
+        """Format file history result.
+
+        Args:
+            data: File history data
+            pr_enriched: Whether PR data was included
+            opts: Formatting options:
+                - include_pr_description: Include PR descriptions (default: False)
+                - include_review_comments: Include PR review comments (default: False)
+        """
         file_path = data["file_path"]
         lines = [f"## History for {file_path}", ""]
+        opts = opts or {}
+        include_desc = opts.get("include_pr_description", False)
+        include_comments = opts.get("include_review_comments", False)
 
         if not pr_enriched:
             commits = data.get("commits", [])
@@ -336,58 +353,50 @@ class GitFormatter:
 
             # Show helpful message if filters excluded all results
             if not commits and filter_desc:
-                lines.append(f"**No commits found matching filters:** {filter_desc}")
-                lines.append("")
-                lines.append("*Try:*")
-                lines.append("- Removing or adjusting the date filter")
-                lines.append("- Using `recent=false` to see older commits")
-                lines.append("- Omitting the `recent` parameter to see all commits")
+                lines.append(f"No commits matching: {filter_desc}")
                 return "\n".join(lines)
 
-            # Show commits normally
+            # Show commits in compact format
             for commit in commits:
-                lines.append(f"### {commit['sha']} ({commit['date'][:10]}) - {commit['author']}")
-                lines.append(f"{commit['summary']}")
-                lines.append("")
+                lines.append(
+                    f"- {commit['sha']} ({commit['date'][:10]}) @{commit['author']}: {commit['summary']}"
+                )
             return "\n".join(lines)
 
-        # PR-enriched results
+        # PR-enriched results - compact by default
         prs = data.get("prs", [])
         if not prs:
-            lines.append("**No PRs found for this file**")
+            lines.append("No PRs found for this file")
             return "\n".join(lines)
 
         for pr in prs:
-            pr_status = "merged" if pr.get("merged") else pr.get("status", "unknown")
             date = pr.get("merged_at") or pr.get("created_at", "")
-            date_str = date[:10] if date else "unknown"
+            date_str = date[:10] if date else ""
 
-            lines.append(f"### PR #{pr['number']}: {pr['title']} ({pr_status}, {date_str})")
-            lines.append(f"**Author:** @{pr['author']}")
-            lines.append(f"**URL:** {pr['url']}")
+            # Compact: PR number, title, author, date on one line
+            lines.append(f"- PR #{pr['number']} \"{pr['title']}\" @{pr['author']} {date_str}")
 
-            description = pr.get("description", "")
-            if description:
-                desc_lines = description.split("\n")
-                lines.append("")
-                lines.extend(desc_lines[:10])
-                if len(desc_lines) > 10:
-                    lines.append("*(truncated)*")
+            # Include description if requested
+            if include_desc:
+                description = pr.get("description", "")
+                if description:
+                    desc_lines = description.split("\n")
+                    for line in desc_lines[:10]:
+                        lines.append(f"  {line}")
+                    if len(desc_lines) > 10:
+                        lines.append("  *(truncated)*")
 
-            comments = pr.get("comments", [])
-            if comments:
-                lines.append("")
-                lines.append("**Review comments:**")
-                for comment in comments[:5]:  # Limit to 5 comments
-                    line_num = comment.get("line")
-                    author = comment.get("author", "unknown")
-                    body = comment.get("body", "")
-                    resolved = " (resolved)" if comment.get("resolved") else ""
-                    location = f"Line {line_num}" if line_num is not None else "PR comment"
-                    lines.append(f"> {location} ({author}{resolved}): {body[:100]}")
-
-            lines.append("")
-            lines.append("---")
-            lines.append("")
+            # Include comments if requested
+            if include_comments:
+                comments = pr.get("comments", [])
+                if comments:
+                    lines.append("  **Comments:**")
+                    for comment in comments[:5]:
+                        line_num = comment.get("line")
+                        author = comment.get("author", "unknown")
+                        body = comment.get("body", "")
+                        resolved = " ✓" if comment.get("resolved") else ""
+                        location = f"L{line_num}" if line_num is not None else "PR"
+                        lines.append(f"  > {location} @{author}{resolved}: {body[:100]}")
 
         return "\n".join(lines)

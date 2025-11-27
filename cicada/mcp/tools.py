@@ -29,9 +29,9 @@ def get_tool_definitions() -> list[Tool]:
                 "• recent: false (default) | true (last 14 days only)\\n"
                 "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n\\n"
                 "Returns:\\n"
-                "• Broad overview with code snippets (shallow but comprehensive)\\n"
+                "• Compact results with essential info (verbose=true for full details)\\n"
                 "• Smart suggestions for next steps with actual tool names to use\\n"
-                "• Match indicators: 📄 (docs), 💬 (strings), 🎯 (pattern)\\n\\n"
+                "• Match indicators: (d) docs, (s) strings, (d+s) both\\n\\n"
                 "AI USAGE TIPS:\\n"
                 "• **ALWAYS START HERE** - This replaces the need to choose between multiple tools\\n"
                 "• Don't ask users for module/function names - query will find them for you\\n"
@@ -90,6 +90,10 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Show code snippet previews with context lines (default: false). When enabled, displays actual code around each result.",
                     },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": "Enable verbose output with full documentation previews and confidence percentages. Defaults to false.",
+                    },
                 },
                 "required": ["query"],
             },
@@ -104,14 +108,14 @@ def get_tool_definitions() -> list[Tool]:
                 "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
                 "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
                 "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
-                "Returns public functions in markdown format by default.\n\n"
+                "Returns compact output by default (name/arity only). Use verbose=true for full details.\n\n"
                 "AI USAGE TIPS:\n"
                 "• After query finds modules, use this to see the full API surface\n"
                 "• Query will suggest using this tool when detailed module info is needed\n"
                 "• Don't ask user for module names - use query first to discover them\n"
                 "• Use what_calls_it=true BEFORE modifying a module to see impact (what depends on it)\n"
                 "• Use what_it_calls=true to see what this module depends on\n"
-                "• Returns: full API surface, function signatures, line numbers for navigation\n"
+                "• Returns: function list with line numbers (add verbose=true for signatures/docs)\n"
                 "• If module not found, error will suggest alternatives - try those suggestions!\n"
                 "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
                 "• Output is automatically truncated for large results to prevent token overflow"
@@ -158,6 +162,22 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "When what_it_calls is true, show which specific functions use which dependencies. Defaults to false.",
                     },
+                    "include_docs": {
+                        "type": "boolean",
+                        "description": "Include function documentation in output. Defaults to false.",
+                    },
+                    "include_specs": {
+                        "type": "boolean",
+                        "description": "Include full type signatures in output. Defaults to false.",
+                    },
+                    "include_moduledoc": {
+                        "type": "boolean",
+                        "description": "Include module documentation in output. Defaults to false.",
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": "Enable verbose output (includes docs, specs, moduledoc). Defaults to false.",
+                    },
                 },
             },
         ),
@@ -165,18 +185,17 @@ def get_tool_definitions() -> list[Tool]:
             name="search_function",
             description=(
                 "DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
-                "Provides detailed function analysis: definition, signature, documentation, and all call sites. "
+                "Provides function analysis: definition location and all call sites. "
                 "Use this when query suggests drilling into a specific function's usage.\n\n"
                 "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
                 "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
-                "Returns definition location, signature, documentation, and all call sites. "
-                "Use include_usage_examples to see actual code snippets where the function is called.\n\n"
+                "Returns compact output by default (location + call sites). Use verbose=true for signatures and documentation.\n\n"
                 "AI USAGE TIPS:\n"
                 "• After query finds functions, use this for detailed impact analysis\n"
                 "• Query will suggest this tool when you need to see where functions are called\n"
                 "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
                 "• Use usage_type='tests' to see only how functions are tested\n"
-                "• Returns: definition + ALL call sites with file:line references\n"
+                "• Returns: definition + ALL call sites with file:line references (add verbose=true for docs/specs)\n"
                 "• If you see function references in code, search them to understand what they do\n"
                 "• Call sites and line numbers are automatically truncated for popular functions (>20 sites)"
             ),
@@ -240,6 +259,18 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "When what_it_calls is true, include code snippets showing where each dependency is called. Defaults to false.",
                     },
+                    "include_docs": {
+                        "type": "boolean",
+                        "description": "Include function documentation in output. Defaults to false for compact output.",
+                    },
+                    "include_specs": {
+                        "type": "boolean",
+                        "description": "Include full type specs/signatures. Defaults to false (shows name/arity only).",
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": "Enable all optional content (docs, specs, examples). Equivalent to include_docs=true, include_specs=true.",
+                    },
                 },
                 "required": ["function_name"],
             },
@@ -254,7 +285,7 @@ def get_tool_definitions() -> list[Tool]:
                 "• function_name → function tracking with evolution metadata\n"
                 "• file_path only → file-level history (PRs preferred, commits fallback)\n\n"
                 "Automatically uses PR index when available for enriched results.\n\n"
-                "Returns context-aware formatted results based on query type.\n\n"
+                "Returns compact output by default (PR number, title, author). Use verbose=true for descriptions and comments.\n\n"
                 "AI USAGE TIPS:\n"
                 "• Single line authorship: git_history(file_path='lib/auth.ex', start_line=42)\n"
                 "• Line range blame: git_history(file_path='lib/auth.ex', start_line=40, end_line=60)\n"
@@ -303,6 +334,18 @@ def get_tool_definitions() -> list[Tool]:
                     "author": {
                         "type": "string",
                         "description": "Filter by author name (substring match, case-insensitive).",
+                    },
+                    "include_pr_description": {
+                        "type": "boolean",
+                        "description": "Include PR descriptions in output. Defaults to false.",
+                    },
+                    "include_review_comments": {
+                        "type": "boolean",
+                        "description": "Include PR review comments in output. Defaults to false.",
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": "Enable verbose output (includes PR descriptions and comments). Defaults to false.",
                     },
                 },
                 "required": ["file_path"],

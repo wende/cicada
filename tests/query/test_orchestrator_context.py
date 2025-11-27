@@ -84,20 +84,22 @@ class TestOrchestratorContextExtraction:
     """Tests for context extraction in query orchestrator output."""
 
     def test_documentation_context_in_output(self, orchestrator_with_index):
-        """Test that documentation context is included in formatted output."""
-        formatted = orchestrator_with_index.execute_query(["authentication", "credentials"])
+        """Test that documentation context is included in formatted output with verbose=True."""
+        formatted = orchestrator_with_index.execute_query(
+            ["authentication", "credentials"], verbose=True
+        )
 
-        # Should contain documentation context
+        # Should contain documentation context in verbose mode
         assert "Matched in documentation:" in formatted
         # Should highlight keywords (ANSI codes for terminal output)
         assert "authentication" in formatted.lower()
         assert "credentials" in formatted.lower()
 
     def test_string_literal_context_in_output(self, orchestrator_with_index):
-        """Test that string literal context is included in formatted output."""
-        formatted = orchestrator_with_index.execute_query(["SELECT", "users"])
+        """Test that string literal context is included in formatted output with verbose=True."""
+        formatted = orchestrator_with_index.execute_query(["SELECT", "users"], verbose=True)
 
-        # Should contain string context
+        # Should contain string context in verbose mode
         assert "Matched in strings:" in formatted
         # Should show the SQL query components (might have ANSI codes around keywords)
         assert "SELECT" in formatted
@@ -117,10 +119,8 @@ class TestOrchestratorContextExtraction:
         assert "TestModule.Database" in formatted
 
     def test_no_context_falls_back_to_simple_keywords(self, orchestrator_with_index):
-        """Test that output falls back to simple keyword list when no context available."""
+        """Test that output shows simple keyword list in compact mode."""
         # Query for a keyword that exists but has no doc/string context
-        # This is a bit tricky with our test data since we have contexts
-        # Let's verify that the fallback format still works
         index_copy = copy.deepcopy(orchestrator_with_index.index)
         auth_module = index_copy["modules"]["TestModule.Auth"]
         auth_module["moduledoc"] = None
@@ -134,18 +134,18 @@ class TestOrchestratorContextExtraction:
         # Should have some output for the function
         assert "validate_user" in formatted
 
-        # Should use the legacy-style fallback format when no contextual matches are found
-        assert "Matched keywords:" in formatted
+        # Should use the compact format with simple keyword indicators
+        assert "Matched:" in formatted
 
-        # And it should not include contextual sections when using the fallback path
+        # And it should not include verbose contextual sections
         assert "Matched in documentation:" not in formatted
         assert "Matched in strings:" not in formatted
 
     def test_long_string_truncation_in_output(self, orchestrator_with_index):
-        """Test that very long strings are truncated in the output."""
+        """Test that very long strings are truncated in verbose output."""
         # Our test data doesn't have very long strings, but we can verify
-        # that strings are displayed properly
-        formatted = orchestrator_with_index.execute_query(["INSERT"])
+        # that strings are displayed properly in verbose mode
+        formatted = orchestrator_with_index.execute_query(["INSERT"], verbose=True)
 
         # Should show components of the SQL query (might have ANSI codes)
         assert "INSERT" in formatted
@@ -168,13 +168,8 @@ class TestOrchestratorContextExtraction:
 
         # Verify the output has structure
         assert "TestModule.Auth" in formatted
-        # Should have contextual information, not just "Matched keywords: authentication"
-        # The new format should have either documentation or string context
-        assert (
-            "Matched in documentation:" in formatted
-            or "Matched in strings:" in formatted
-            or "Matched keywords:" in formatted
-        )  # Fallback
+        # In compact mode, should have simple keyword indicators
+        assert "Matched:" in formatted or "authentication" in formatted.lower()
 
     def test_format_results_with_show_snippets(self, orchestrator_with_index):
         """Test that show_snippets parameter still works with new context extraction."""

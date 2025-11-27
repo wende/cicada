@@ -209,6 +209,12 @@ class ToolRouter:
             dependency_depth = arguments.get("dependency_depth", 1)
             show_function_usage = arguments.get("show_function_usage", False)
 
+            # Get compaction parameters
+            include_docs = arguments.get("include_docs", False)
+            include_specs = arguments.get("include_specs", False)
+            include_moduledoc = arguments.get("include_moduledoc", False)
+            verbose = arguments.get("verbose", False)
+
             # Validate that at least one is provided
             if not module_name and not file_path:
                 error_msg = "Either 'module_name' or 'file_path' must be provided"
@@ -234,6 +240,13 @@ class ToolRouter:
                 staleness_info = staleness_info_callback()
 
             assert module_name is not None, "module_name must be provided"
+            # Build format options
+            format_opts = {
+                "include_docs": include_docs or verbose,
+                "include_specs": include_specs or verbose,
+                "include_moduledoc": include_moduledoc or verbose,
+            }
+
             return await self.module_handler.search_module(
                 module_name,
                 output_format,
@@ -245,6 +258,7 @@ class ToolRouter:
                 what_it_calls,
                 dependency_depth,
                 show_function_usage,
+                format_opts,
             )
 
         elif name == "search_function":
@@ -260,6 +274,15 @@ class ToolRouter:
             what_calls_it = arguments.get("what_calls_it", True)
             what_it_calls = arguments.get("what_it_calls", False)
             include_code_context = arguments.get("include_code_context", False)
+
+            # Format options for compact output
+            include_docs = arguments.get("include_docs", False)
+            include_specs = arguments.get("include_specs", False)
+            verbose = arguments.get("verbose", False)
+            format_opts = {
+                "include_docs": include_docs or verbose,
+                "include_specs": include_specs or verbose,
+            }
 
             if not function_name:
                 error_msg = "'function_name' is required"
@@ -282,6 +305,7 @@ class ToolRouter:
                 module_path,
                 what_it_calls,
                 include_code_context,
+                format_opts=format_opts,
             )
 
         elif name == "git_history":
@@ -293,6 +317,9 @@ class ToolRouter:
             max_results = arguments.get("max_results", 10)
             recent = arguments.get("recent")
             author = arguments.get("author")
+            include_pr_description = arguments.get("include_pr_description", False)
+            include_review_comments = arguments.get("include_review_comments", False)
+            verbose = arguments.get("verbose", False)
 
             if not file_path:
                 error_msg = "'file_path' is required"
@@ -307,6 +334,9 @@ class ToolRouter:
                 max_results=max_results,
                 recent=recent,
                 author=author,
+                include_pr_description=include_pr_description,
+                include_review_comments=include_review_comments,
+                verbose=verbose,
             )
 
         elif name == "query":
@@ -318,6 +348,7 @@ class ToolRouter:
             max_results = arguments.get("max_results", 10)
             path_pattern = arguments.get("path_pattern")
             show_snippets = arguments.get("show_snippets", False)
+            verbose = arguments.get("verbose", False)
 
             # Validate required argument
             if not query:
@@ -370,6 +401,7 @@ class ToolRouter:
                 max_results,
                 path_pattern,
                 show_snippets,
+                verbose,
             )
 
         elif name == "find_dead_code":
@@ -460,6 +492,7 @@ class ToolRouter:
                     return [TextContent(type="text", text=error_msg)]
 
                 # Use existing module search handler
+                # expand_result shows full details, so enable docs and specs
                 return await self.module_handler.search_module(
                     identifier,
                     output_format=output_format,
@@ -474,6 +507,11 @@ class ToolRouter:
                     what_it_calls=what_it_calls,
                     dependency_depth=dependency_depth,
                     show_function_usage=show_function_usage,
+                    format_opts={
+                        "include_moduledoc": True,
+                        "include_docs": True,
+                        "include_specs": True,
+                    },
                 )
             else:  # function
                 # Parse function reference to extract components
@@ -492,6 +530,7 @@ class ToolRouter:
                     return [TextContent(type="text", text=error_msg)]
 
                 # Use existing function search handler
+                # expand_result shows full details, so enable docs and specs
                 return await self.function_handler.search_function(
                     function_name=function_name,
                     output_format=output_format,
@@ -503,6 +542,7 @@ class ToolRouter:
                     module_path=module_path,
                     what_it_calls=what_it_calls,
                     include_code_context=include_code_context,
+                    format_opts={"include_docs": True, "include_specs": True},
                 )
 
         elif name == "refresh_index":

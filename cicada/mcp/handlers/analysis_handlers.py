@@ -92,15 +92,9 @@ class AnalysisHandler:
 
         # Check if keywords are available (cached at initialization)
         if not self.has_keywords:
-            error_msg = (
-                "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada index           # Default: reuse configured tier\n"
-                "  cicada index --force --regular   # BERT + GloVe (regular tier)\n"
-                "  cicada index --force --fast      # Fast: Token-based + lemminflect\n"
-                "  cicada index --force --max       # Max: BERT + FastText\n\n"
-                "This will extract keywords from documentation for semantic search."
-            )
-            return [TextContent(type="text", text=error_msg)]
+            return [
+                TextContent(type="text", text="No keywords in index. Run 'cicada index' to enable.")
+            ]
 
         # Perform the search with match_source filtering and co-change boosting
         searcher = KeywordSearcher(
@@ -153,14 +147,11 @@ class AnalysisHandler:
 
         # Check if co-occurrence data is available
         if not self.index.get("cooccurrences"):
-            msg = (
-                "Co-occurrence data not available in the index.\n"
-                "Co-occurrence tracking is built during indexing when keyword extraction is enabled.\n"
-                "To enable:\n"
-                "1. Run: cicada index --extract-keywords\n"
-                "2. The index will automatically include co-occurrence data"
-            )
-            return [TextContent(type="text", text=msg)]
+            return [
+                TextContent(
+                    type="text", text="No co-occurrence data. Run 'cicada index' to enable."
+                )
+            ]
 
         # Initialize searcher to get access to co-occurrence suggestions
         searcher = KeywordSearcher(self.index)
@@ -172,12 +163,7 @@ class AnalysisHandler:
             )
 
             if not suggestions:
-                msg = f"No keyword suggestions found for: {', '.join(keywords)}\n"
-                msg += "\nThis may happen if:\n"
-                msg += "• The keywords don't appear in the codebase\n"
-                msg += "• The keywords don't co-occur with other keywords\n"
-                msg += "• The min_cooccurrence threshold is too high"
-                return [TextContent(type="text", text=msg)]
+                return [TextContent(type="text", text=f"No suggestions for: {', '.join(keywords)}")]
 
             # Format suggestions for expand mode
             msg = f"Related keywords for: {', '.join(keywords)}\n\n"
@@ -205,11 +191,11 @@ class AnalysisHandler:
             )
 
             if not suggestions:
-                msg = f"No narrowing keywords found for: {', '.join(keywords)}\n"
-                msg += "\nThis may happen if:\n"
-                msg += "• The search results don't have common keywords\n"
-                msg += "• The min_result_count threshold is too high"
-                return [TextContent(type="text", text=msg)]
+                return [
+                    TextContent(
+                        type="text", text=f"No narrowing keywords for: {', '.join(keywords)}"
+                    )
+                ]
 
             # Format suggestions for narrow mode
             msg = f"Add these keywords to narrow down {len(search_results)} results:\n\n"
@@ -268,6 +254,7 @@ class AnalysisHandler:
         max_results: int = 10,
         path_pattern: str | None = None,
         show_snippets: bool = False,
+        verbose: bool = False,
     ) -> list[TextContent]:
         """
         Smart code discovery - intelligently search by keywords or patterns.
@@ -281,6 +268,7 @@ class AnalysisHandler:
             max_results: Maximum number of results to show
             path_pattern: Optional glob pattern for file paths
             show_snippets: Whether to show code snippet previews (default: False)
+            verbose: Whether to show verbose output with docs and confidence (default: False)
 
         Returns:
             TextContent with formatted query results and suggestions
@@ -289,15 +277,9 @@ class AnalysisHandler:
 
         # Check if keywords are available (if using keyword search)
         if not self.has_keywords:
-            error_msg = (
-                "No keywords found in index. Please rebuild the index with keyword extraction:\n\n"
-                "  cicada index           # Default: reuse configured tier\n"
-                "  cicada index --force --regular   # BERT + GloVe (regular tier)\n"
-                "  cicada index --force --fast      # Fast: Token-based + lemminflect\n"
-                "  cicada index --force --max       # Max: BERT + FastText\n\n"
-                "This will extract keywords from documentation for semantic search."
-            )
-            return [TextContent(type="text", text=error_msg)]
+            return [
+                TextContent(type="text", text="No keywords in index. Run 'cicada index' to enable.")
+            ]
 
         # Create orchestrator and execute query
         orchestrator = QueryOrchestrator(self.index)
@@ -311,6 +293,7 @@ class AnalysisHandler:
             max_results=max_results,
             path_pattern=path_pattern,
             show_snippets=show_snippets,
+            verbose=verbose,
         )
 
         return [TextContent(type="text", text=result)]
