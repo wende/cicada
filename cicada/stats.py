@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from cicada.command_logger import get_logger
-from cicada.utils.storage import get_repo_hash
+from cicada.utils.storage import get_repo_hash, get_storage_dir
 
 
 class StatsAnalyzer:
@@ -21,6 +21,57 @@ class StatsAnalyzer:
         self.repo_path = repo_path
         self.repo_hash = get_repo_hash(repo_path)
         self.logger = get_logger()
+
+    def _get_project_stats(self) -> dict:
+        """Get codebase statistics (modules, functions, keywords).
+
+        Returns:
+            Dictionary with module_count, function_count, keyword_count.
+        """
+        try:
+            storage_dir = get_storage_dir(self.repo_path)
+            index_file = storage_dir / "index.json"
+
+            if not index_file.exists():
+                return {}
+
+            with open(index_file, encoding="utf-8") as f:
+                index_data = json.load(f)
+
+            # Extract statistics from index metadata
+            metadata = index_data.get("metadata", {})
+            modules = index_data.get("modules", {})
+
+            # Count unique keywords from all modules
+            unique_keywords = set()
+            for module_data in modules.values():
+                keywords = module_data.get("keywords", {})
+                if keywords:
+                    unique_keywords.update(keywords.keys())
+
+            if metadata:
+                stats = {
+                    "module_count": metadata.get("total_modules", 0),
+                    "function_count": metadata.get("total_functions", 0),
+                }
+            else:
+                # Fallback: count from modules if metadata not available
+                total_functions = 0
+                for module_data in modules.values():
+                    functions = module_data.get("functions", [])
+                    total_functions += len(functions)
+
+                stats = {
+                    "module_count": len(modules),
+                    "function_count": total_functions,
+                }
+
+            # Always add keyword count
+            stats["keyword_count"] = len(unique_keywords)
+            return stats
+        except Exception:
+            # If index reading fails, return empty stats
+            return {}
 
     def get_stats(
         self,
@@ -118,7 +169,7 @@ class StatsAnalyzer:
             "days": (max(timestamps) - min(timestamps)).days + 1,
         }
 
-        return {
+        stats = {
             "total_calls": total_calls,
             "success_rate": round(success_rate, 1),
             "successful_calls": successful,
@@ -131,6 +182,13 @@ class StatsAnalyzer:
             "date_range": date_range,
             "tools": tool_stats,
         }
+
+        # Add project statistics
+        project_stats = self._get_project_stats()
+        if project_stats:
+            stats["project_stats"] = project_stats
+
+        return stats
 
     def _count_lines(self, response: list | dict | str) -> int:
         """Count lines in a serialized response."""
@@ -215,9 +273,20 @@ class StatsAnalyzer:
         lines = []
         lines.append(f"Cicada Stats (Project: {self.repo_path})")
 
+        # Project statistics
+        project_stats = stats.get("project_stats", {})
+        if project_stats:
+            modules = project_stats.get("module_count", 0)
+            functions = project_stats.get("function_count", 0)
+            keywords = project_stats.get("keyword_count", 0)
+            lines.append(
+                f"Codebase:        {modules:,} modules, {functions:,} functions, "
+                f"{keywords:,} keywords"
+            )
+
         if stats.get("date_range"):
             dr = stats["date_range"]
-            lines.append(f"Period: {dr['start']} to {dr['end']} ({dr['days']} days)")
+            lines.append(f"Period:          {dr['start']} to {dr['end']} ({dr['days']} days)")
 
         lines.append("─" * 60)
 
