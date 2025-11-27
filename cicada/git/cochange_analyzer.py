@@ -220,9 +220,7 @@ class CoChangeAnalyzer:
             )
             return 1500
 
-    def _get_all_file_changes_batch(
-        self, repo_path: Path, max_commits: int
-    ) -> dict[str, set[str]]:
+    def _get_all_file_changes_batch(self, repo_path: Path, max_commits: int) -> dict[str, set[str]]:
         """Get file changes for all commits in a single batched git call.
 
         This is 10-50x faster than querying git for each commit individually.
@@ -252,14 +250,14 @@ class CoChangeAnalyzer:
                 check=True,
             )
 
-            commits_data = {}
-            current_sha = None
+            commits_data: dict[str, set[str]] = {}
+            current_sha: str | None = None
 
             for line in result.stdout.strip().split("\n"):
                 if line.startswith("COMMIT:"):
                     current_sha = line[7:]  # Extract SHA after "COMMIT:"
                     commits_data[current_sha] = set()
-                elif line.strip() and current_sha:
+                elif line.strip() and current_sha is not None:
                     commits_data[current_sha].add(line.strip())
 
             return commits_data
@@ -300,11 +298,7 @@ class CoChangeAnalyzer:
                 cochange_counts[(file1, file2)] += 1
 
         # Filter by minimum count
-        return {
-            pair: count
-            for pair, count in cochange_counts.items()
-            if count >= min_count
-        }
+        return {pair: count for pair, count in cochange_counts.items() if count >= min_count}
 
     def _analyze_function_cochanges_sampled(
         self,
@@ -358,10 +352,7 @@ class CoChangeAnalyzer:
         # Scale up counts based on sample rate
         # If we sampled 50%, multiply counts by 2 to estimate total
         scale_factor = 1.0 / sample_rate
-        scaled_pairs = {
-            pair: int(count * scale_factor)
-            for pair, count in function_pairs.items()
-        }
+        scaled_pairs = {pair: int(count * scale_factor) for pair, count in function_pairs.items()}
 
         return scaled_pairs
 

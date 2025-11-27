@@ -188,3 +188,46 @@ def fixtures_dir():
             sample_file = fixtures_dir / "sample.ex"
     """
     return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def git_bundle_repo(tmp_path, fixtures_dir):
+    """
+    Clone git bundle into isolated tmp_path for each test.
+
+    Provides parallel-safe git repository with known co-change patterns.
+    Each test gets independent clone - safe for parallel execution.
+
+    Contains 11 commits with strategic co-change patterns:
+    - lib/auth.ex + lib/credentials.ex: 4 co-changes
+    - lib/auth.ex + lib/logger.ex: 2 co-changes
+    - Single-file commits for edge case testing
+    - Rename scenario: old_name.ex -> new_name.ex
+    - Function-level co-changes: ModuleA.func_one <-> ModuleB.func_three
+    - Date-stamped commits for filtering tests
+
+    Usage:
+        def test_something(git_bundle_repo):
+            analyzer = CoChangeAnalyzer()
+            result = analyzer.analyze_repository(str(git_bundle_repo))
+    """
+    import subprocess
+
+    bundle_path = fixtures_dir / "cochange_test_repo.bundle"
+
+    if not bundle_path.exists():
+        pytest.fail(
+            f"Git bundle not found at {bundle_path}. "
+            "Run: tests/fixtures/create_cochange_bundle.sh"
+        )
+
+    repo_path = tmp_path / "test_repo"
+
+    subprocess.run(
+        ["git", "clone", str(bundle_path), str(repo_path)],
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+
+    return repo_path
