@@ -331,3 +331,177 @@ class TestCoChangeAnalyzer:
 
             # Verify analyzed_at is a valid ISO timestamp
             datetime.fromisoformat(metadata["analyzed_at"])
+
+    def test_analyze_repository_with_since_date(self):
+        """Test that since_date is passed to git log command."""
+        analyzer = CoChangeAnalyzer()
+
+        captured_cmd = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+
+            # Match batched git log (has --format=COMMIT:%H)
+            if "--format=COMMIT:%H" in cmd:
+                captured_cmd.clear()
+                captured_cmd.extend(cmd)
+                result.stdout = SAMPLE_GIT_LOG_OUTPUT
+            elif "rev-list" in cmd and "--count" in cmd:
+                result.stdout = "7"
+            elif "show" in cmd:
+                # git show for function analysis
+                result.stdout = ""
+            else:
+                result.stdout = ""
+
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            since_date = datetime(2024, 6, 1)
+            analyzer.analyze_repository("/fake/repo", since_date=since_date)
+
+            # Verify --since flag is in the command
+            assert any("--since=2024-06-01" in arg for arg in captured_cmd)
+
+    def test_analyze_repository_with_invalid_sample_rate(self):
+        """Test that invalid sample rates don't crash the analyzer."""
+        analyzer = CoChangeAnalyzer()
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+
+            if "rev-list" in cmd and "--count" in cmd:
+                result.stdout = "7"
+            elif "--format=COMMIT:%H" in cmd:
+                result.stdout = SAMPLE_GIT_LOG_OUTPUT
+            elif "show" in cmd:
+                result.stdout = ""
+            else:
+                result.stdout = ""
+
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            # Invalid sample rates should not crash - they're logged and corrected internally
+            result = analyzer.analyze_repository("/fake/repo", function_sample_rate=-0.1)
+            # Should complete without error and return valid structure
+            assert "file_pairs" in result
+            assert "function_pairs" in result
+            assert "metadata" in result
+
+            result = analyzer.analyze_repository("/fake/repo", function_sample_rate=1.5)
+            assert "file_pairs" in result
+            assert "function_pairs" in result
+            assert "metadata" in result
+
+    def test_analyze_repository_skips_large_commits(self):
+        """Test that commits with >100 files are skipped."""
+        analyzer = CoChangeAnalyzer()
+
+        # Create a git log with one commit having >100 files
+        # We need multiple small commits to meet min_count threshold
+        large_commit_output = "COMMIT:large123\n"
+        large_commit_output += "\n".join(f"lib/file{i}.ex" for i in range(150))
+        large_commit_output += "\n\nCOMMIT:small456\nlib/auth.ex\nlib/creds.ex\n"
+        large_commit_output += "\nCOMMIT:small789\nlib/auth.ex\nlib/creds.ex\n"
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+
+            if "rev-list" in cmd and "--count" in cmd:
+                result.stdout = "3"
+            elif "--format=COMMIT:%H" in cmd:
+                result.stdout = large_commit_output
+            elif "show" in cmd:
+                result.stdout = ""
+            else:
+                result.stdout = ""
+
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = analyzer.analyze_repository("/fake/repo")
+
+            # Should only find pairs from the small commits
+            # The large commit (150 files) should be skipped
+            file_pairs = result["file_pairs"]
+            # auth.ex and creds.ex should have co-changed twice (min_count=2)
+            assert len(file_pairs) >= 1
+            assert ("lib/auth.ex", "lib/creds.ex") in file_pairs
+
+    def test_calculate_adaptive_limit_for_small_repo(self):
+        """Test adaptive limit for small repository."""
+        analyzer = CoChangeAnalyzer()
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+            result.stdout = "100"  # Small repo with 100 commits
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            from pathlib import Path
+
+            limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
+            assert limit == 100  # Should analyze all commits for small repos
+
+    def test_calculate_adaptive_limit_for_large_repo(self):
+        """Test adaptive limit for very large repository."""
+        analyzer = CoChangeAnalyzer()
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+            result.stdout = "50000"  # Large repo with 50k commits
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            from pathlib import Path
+
+            limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
+            assert limit == 1500  # Should cap at 1500 for very large repos
+
+    def test_batched_file_changes_handles_git_errors(self):
+        """Test that git errors in batched query are handled gracefully."""
+        analyzer = CoChangeAnalyzer()
+        import subprocess
+
+        def mock_subprocess_run(cmd, **kwargs):
+            if "--name-only" in cmd:
+                raise subprocess.CalledProcessError(128, "git", stderr="fatal: bad revision")
+            result = MagicMock()
+            result.returncode = 0
+            result.stdout = "100"
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            from pathlib import Path
+
+            commits_data = analyzer._get_all_file_changes_batch(Path("/fake/repo"), 100)
+            assert commits_data == {}  # Should return empty dict on error
+
+    def test_find_cochange_pairs_bidirectional_lookup(self):
+        """Test that find_cochange_pairs finds items in both positions."""
+        pairs = {
+            ("file_a.ex", "file_b.ex"): 5,
+            ("file_a.ex", "file_c.ex"): 3,
+            ("file_d.ex", "file_e.ex"): 2,
+        }
+
+        # Should find file_a in first position
+        results = CoChangeAnalyzer.find_cochange_pairs("file_a.ex", pairs)
+        assert len(results) == 2
+        assert ("file_b.ex", 5) in results
+        assert ("file_c.ex", 3) in results
+
+        # Should find file_b in second position
+        results = CoChangeAnalyzer.find_cochange_pairs("file_b.ex", pairs)
+        assert len(results) == 1
+        assert ("file_a.ex", 5) in results
+
+        # Should return empty list for non-existent file
+        results = CoChangeAnalyzer.find_cochange_pairs("file_x.ex", pairs)
+        assert results == []

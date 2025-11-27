@@ -31,6 +31,8 @@ class CoChangeAnalyzer:
 
     DEFAULT_FUNCTION_SAMPLE_RATE = 0.5
     DEFAULT_MIN_COUNT = 2
+    # Skip commits with more than this many files (likely bulk imports/refactors)
+    MAX_FILES_PER_COMMIT = 100
 
     def __init__(self, language: str = "elixir", verbose: bool = False):
         """Initialize the co-change analyzer.
@@ -109,7 +111,7 @@ class CoChangeAnalyzer:
             max_commits = self._calculate_adaptive_limit(repo_path_obj)
 
         # Step 2: Get all file changes in ONE batched git call
-        commits_data = self._get_all_file_changes_batch(repo_path_obj, max_commits)
+        commits_data = self._get_all_file_changes_batch(repo_path_obj, max_commits, since_date)
 
         if not commits_data:
             return {
@@ -220,7 +222,9 @@ class CoChangeAnalyzer:
             )
             return 1500
 
-    def _get_all_file_changes_batch(self, repo_path: Path, max_commits: int) -> dict[str, set[str]]:
+    def _get_all_file_changes_batch(
+        self, repo_path: Path, max_commits: int, since_date: datetime | None = None
+    ) -> dict[str, set[str]]:
         """Get file changes for all commits in a single batched git call.
 
         This is 10-50x faster than querying git for each commit individually.
@@ -228,6 +232,7 @@ class CoChangeAnalyzer:
         Args:
             repo_path: Path to repository
             max_commits: Maximum number of recent commits to include
+            since_date: Only include commits after this date (optional)
 
         Returns:
             Dictionary mapping commit SHA to set of changed files
@@ -240,6 +245,10 @@ class CoChangeAnalyzer:
             "--format=COMMIT:%H",
             "--no-merges",
         ]
+
+        if since_date:
+            since_str = since_date.strftime("%Y-%m-%d")
+            cmd.append(f"--since={since_str}")
 
         try:
             result = subprocess.run(
@@ -289,7 +298,7 @@ class CoChangeAnalyzer:
                 continue
 
             # Skip abnormally large commits (likely bulk imports/refactors)
-            if len(files) > 100:
+            if len(files) > self.MAX_FILES_PER_COMMIT:
                 logger.debug(f"Skipping large commit with {len(files)} files")
                 continue
 

@@ -1137,3 +1137,169 @@ def test_format_function_results_markdown_with_match_source_indicators():
     markdown = ModuleFormatter.format_function_results_markdown("query", results)
     # Should not crash when match_sources is present
     assert "MyApp.SQL.query/1" in markdown
+
+
+# ===== Co-change formatting tests =====
+
+
+def test_format_module_markdown_with_cochange_files():
+    """Test that cochange_files are displayed in module markdown."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [
+            {
+                "name": "authenticate",
+                "arity": 2,
+                "type": "def",
+                "line": 5,
+                "args": ["user", "pass"],
+            },
+        ],
+        "cochange_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+            {"file": "lib/logger.ex", "module": "Logger", "count": 5},
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should include the "Often Changed With" section
+    assert "Often Changed With" in markdown
+    assert "Credentials (10 commits)" in markdown
+    assert "Logger (5 commits)" in markdown
+
+
+def test_format_module_markdown_with_cochange_files_truncation():
+    """Test that cochange_files are truncated to top 5."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+        "cochange_files": [
+            {"file": f"lib/module{i}.ex", "module": f"Module{i}", "count": 10 - i}
+            for i in range(1, 9)  # 8 modules
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should show top 5
+    assert "Module1" in markdown
+    assert "Module5" in markdown
+    # Should show truncation message
+    assert "... and 3 more" in markdown
+
+
+def test_format_module_markdown_with_cochange_files_uses_filename_fallback():
+    """Test that cochange_files use filename when module is not present."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+        "cochange_files": [
+            {"file": "lib/some_module.ex", "count": 5},  # No module key
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should use filename
+    assert "some_module.ex (5 commits)" in markdown
+
+
+def test_format_module_markdown_without_cochange_files():
+    """Test that module markdown works when cochange_files is empty or missing."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should not include co-change section
+    assert "Often Changed With" not in markdown
+
+
+def test_format_cochange_info_with_related_files():
+    """Test _format_cochange_info with related_files."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+            {"file": "lib/logger.ex", "module": "Logger", "count": 5},
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    assert any("Often changed with" in line for line in lines)
+    assert any("Credentials" in line and "10" in line for line in lines)
+    assert any("Logger" in line and "5" in line for line in lines)
+
+
+def test_format_cochange_info_with_related_functions():
+    """Test _format_cochange_info with related_functions."""
+    cochange_info = {
+        "related_functions": [
+            {"module": "Credentials", "function": "validate", "arity": 2, "count": 8},
+            {"module": "Logger", "function": "log", "arity": 1, "count": 3},
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    assert any("Related functions" in line for line in lines)
+    assert any("Credentials.validate/2" in line and "8" in line for line in lines)
+    assert any("Logger.log/1" in line and "3" in line for line in lines)
+
+
+def test_format_cochange_info_with_both_files_and_functions():
+    """Test _format_cochange_info with both related_files and related_functions."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+        ],
+        "related_functions": [
+            {"module": "Logger", "function": "log", "arity": 1, "count": 3},
+        ],
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Both sections should be present
+    assert any("Often changed with" in line for line in lines)
+    assert any("Related functions" in line for line in lines)
+
+
+def test_format_cochange_info_empty():
+    """Test _format_cochange_info with empty data."""
+    cochange_info = {}
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Should return empty list
+    assert lines == []
+
+
+def test_format_cochange_info_uses_filename_when_no_module():
+    """Test _format_cochange_info uses filename when module is missing."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/some_file.ex", "count": 5},  # No module key
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Should use the filename (without .ex) as display name
+    assert any("some_file" in line for line in lines)
+
+
+def test_format_related_items_truncation():
+    """Test _format_related_items truncates to top_n."""
+    items = [{"name": f"item{i}", "count": 10 - i} for i in range(10)]
+
+    def format_item(item: dict) -> tuple[str, int]:
+        return item["name"], item["count"]
+
+    lines = ModuleFormatter._format_related_items(items, "Test items:", format_item, top_n=3)
+
+    # Should have header + 3 items + truncation message
+    assert any("Test items:" in line for line in lines)
+    assert any("item0" in line for line in lines)
+    assert any("item2" in line for line in lines)
+    assert any("... and 7 more" in line for line in lines)
+    # Should NOT have item3 (beyond top_n)
+    assert not any("item3" in line for line in lines)
