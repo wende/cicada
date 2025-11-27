@@ -108,39 +108,25 @@ def schema_to_argparse(
         # Check if this boolean has a True default (needs both --flag and --no-flag)
         has_true_default = default is True
 
-        if positional:
-            # Booleans are rarely positional - use flags instead
+        # Booleans are always flags, never positional. Always use kebab-case.
+        flag_name = param_name.replace("_", "-")
+
+        # Add positive flag
+        parser.add_argument(
+            f"--{flag_name}",
+            action="store_true",
+            dest=arg_dest,
+            default=default,
+            help=schema.get("description", ""),
+        )
+        # If True default, also add negative flag
+        if has_true_default:
             parser.add_argument(
-                f"--{cli_param_name}",
-                action="store_true",
+                f"--no-{flag_name}",
+                action="store_false",
                 dest=arg_dest,
-                default=default,
-                help=schema.get("description", ""),
+                help=f"Do not {schema.get('description', param_name)}",
             )
-            if has_true_default:
-                parser.add_argument(
-                    f"--no-{cli_param_name}",
-                    action="store_false",
-                    dest=arg_dest,
-                    help=f"Do not {schema.get('description', param_name)}",
-                )
-        else:
-            # Add positive flag
-            parser.add_argument(
-                f"--{cli_param_name}",
-                action="store_true",
-                dest=arg_dest,
-                default=default,
-                help=schema.get("description", ""),
-            )
-            # If True default, also add negative flag
-            if has_true_default:
-                parser.add_argument(
-                    f"--no-{cli_param_name}",
-                    action="store_false",
-                    dest=arg_dest,
-                    help=f"Do not {schema.get('description', param_name)}",
-                )
         return
 
     # Handle enum types
@@ -177,21 +163,14 @@ def schema_to_argparse(
             help=schema.get("description", ""),
         )
     else:
+        arg_kwargs: dict[str, Any] = {
+            "type": python_type,
+            "dest": arg_dest,
+            "help": schema.get("description", ""),
+        }
         if default is not None:
-            parser.add_argument(
-                f"--{cli_param_name}",
-                type=python_type,
-                default=default,
-                dest=arg_dest,
-                help=schema.get("description", ""),
-            )
-        else:
-            parser.add_argument(
-                f"--{cli_param_name}",
-                type=python_type,
-                dest=arg_dest,
-                help=schema.get("description", ""),
-            )
+            arg_kwargs["default"] = default
+        parser.add_argument(f"--{cli_param_name}", **arg_kwargs)
 
 
 def register_tool_subparsers(
@@ -284,29 +263,15 @@ def parse_cli_args_to_handler_kwargs(
         # Add to kwargs
         kwargs[key] = value
 
-    # Validate based on tool type
-    if normalized_tool_name in ("query", "search_function"):
-        # These have required "query" or "function_name" params
-        # Already validated by argparse
-        pass
-
-    elif normalized_tool_name == "search_module":
-        # Requires either module_name or file_path
-        if not kwargs.get("module_name") and not kwargs.get("file_path"):
-            raise ValueError("search-module requires either --module-name or --file-path")
-
-    elif normalized_tool_name == "git_history":
-        # Requires file_path
-        if not kwargs.get("file_path"):
-            raise ValueError("git-history requires file_path")
-
-    elif normalized_tool_name == "expand_result":
-        # Requires identifier
-        if not kwargs.get("identifier"):
-            raise ValueError("expand-result requires identifier")
-
-    elif normalized_tool_name == "query_jq" and not kwargs.get("query"):
-        # Requires query
-        raise ValueError("query-jq requires query")
+    # Tool-specific validation
+    # Note: Most required parameter validation is handled by argparse (positional args).
+    # search_module is special: neither param is required in schema, but at least one
+    # must be provided. This "at least one of" constraint can't be expressed in argparse.
+    if (
+        normalized_tool_name == "search_module"
+        and not kwargs.get("module_name")
+        and not kwargs.get("file_path")
+    ):
+        raise ValueError("search-module requires either --module-name or --file-path")
 
     return kwargs

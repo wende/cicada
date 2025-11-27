@@ -5,11 +5,52 @@ import argparse
 import pytest
 
 from cicada.cli_mapper import (
+    _parse_bool_or_none,
     parse_cli_args_to_handler_kwargs,
     register_tool_subparsers,
     schema_to_argparse,
 )
 from cicada.mcp.tools import get_tool_definitions
+
+
+class TestParseBoolOrNone:
+    """Test the nullable boolean parser."""
+
+    def test_parse_true_values(self):
+        """Test parsing true values."""
+        assert _parse_bool_or_none("true") is True
+        assert _parse_bool_or_none("True") is True
+        assert _parse_bool_or_none("TRUE") is True
+        assert _parse_bool_or_none("yes") is True
+        assert _parse_bool_or_none("1") is True
+
+    def test_parse_false_values(self):
+        """Test parsing false values."""
+        assert _parse_bool_or_none("false") is False
+        assert _parse_bool_or_none("False") is False
+        assert _parse_bool_or_none("FALSE") is False
+        assert _parse_bool_or_none("no") is False
+        assert _parse_bool_or_none("0") is False
+
+    def test_parse_null_values(self):
+        """Test parsing null/none values."""
+        assert _parse_bool_or_none("null") is None
+        assert _parse_bool_or_none("Null") is None
+        assert _parse_bool_or_none("none") is None
+        assert _parse_bool_or_none("None") is None
+        assert _parse_bool_or_none("") is None
+
+    def test_parse_invalid_value_raises_error(self):
+        """Test that invalid values raise ArgumentTypeError."""
+        with pytest.raises(argparse.ArgumentTypeError) as exc_info:
+            _parse_bool_or_none("invalid")
+        assert "Invalid boolean value" in str(exc_info.value)
+
+        with pytest.raises(argparse.ArgumentTypeError):
+            _parse_bool_or_none("maybe")
+
+        with pytest.raises(argparse.ArgumentTypeError):
+            _parse_bool_or_none("2")
 
 
 class TestSchemaToArgparse:
@@ -156,6 +197,62 @@ class TestSchemaToArgparse:
         args = parser.parse_args(["--no-what-calls-it"])
         assert args.what_calls_it is False
 
+    def test_number_parameter(self):
+        """Test converting number schema to float argument."""
+        schema = {"type": "number", "description": "Test float param"}
+        parser = argparse.ArgumentParser()
+        schema_to_argparse("threshold", schema, parser)
+        args = parser.parse_args(["--threshold", "3.14"])
+        assert args.threshold == 3.14
+
+    def test_optional_array_parameter(self):
+        """Test optional array parameter (not positional)."""
+        schema = {"type": "array", "items": {"type": "string"}, "description": "Keywords"}
+        parser = argparse.ArgumentParser()
+        schema_to_argparse("allowed_domains", schema, parser, positional=False)
+
+        # Without argument
+        args = parser.parse_args([])
+        assert args.allowed_domains is None
+
+        # With multiple values
+        args = parser.parse_args(["--allowed-domains", "example.com", "test.org"])
+        assert args.allowed_domains == ["example.com", "test.org"]
+
+    def test_anyof_string_or_array_optional(self):
+        """Test anyOf schema (string | array) as optional parameter."""
+        schema = {
+            "anyOf": [
+                {"type": "string"},
+                {"type": "array", "items": {"type": "string"}},
+            ],
+            "description": "Path pattern",
+        }
+        parser = argparse.ArgumentParser()
+        schema_to_argparse("path_pattern", schema, parser, positional=False)
+
+        # Without argument
+        args = parser.parse_args([])
+        assert args.path_pattern is None
+
+        # With single value
+        args = parser.parse_args(["--path-pattern", "lib/**/*.ex"])
+        assert args.path_pattern == ["lib/**/*.ex"]
+
+    def test_boolean_as_positional_still_uses_flag(self):
+        """Test that boolean params are flags even when marked positional."""
+        schema = {"type": "boolean", "description": "Include code"}
+        parser = argparse.ArgumentParser()
+        # Even if positional=True, booleans should still be flags with kebab-case
+        schema_to_argparse("include_code", schema, parser, positional=True, default=False)
+
+        args = parser.parse_args([])
+        assert args.include_code is False
+
+        # Booleans always use kebab-case flags (--include-code)
+        args = parser.parse_args(["--include-code"])
+        assert args.include_code is True
+
 
 class TestParseCliArgsToKwargs:
     """Test converting argparse args to handler kwargs."""
@@ -198,6 +295,34 @@ class TestParseCliArgsToKwargs:
         assert "path_pattern" not in kwargs
         # But False is a valid value (different from None)
         assert kwargs["show_snippets"] is False
+
+    def test_empty_list_values_omitted(self):
+        """Test that empty list values are omitted from kwargs."""
+        namespace = argparse.Namespace(
+            query="auth",
+            allowed_domains=[],  # Empty list should be omitted
+        )
+        kwargs = parse_cli_args_to_handler_kwargs(namespace, "query")
+
+        # Empty lists should be omitted
+        assert "allowed_domains" not in kwargs
+
+    def test_verbose_and_command_skipped(self):
+        """Test that special argparse attributes are skipped."""
+        namespace = argparse.Namespace(
+            command="run",
+            tool="query",
+            verbose=True,
+            query=["auth"],
+        )
+        kwargs = parse_cli_args_to_handler_kwargs(namespace, "query")
+
+        # Special attributes should be skipped
+        assert "command" not in kwargs
+        assert "tool" not in kwargs
+        assert "verbose" not in kwargs
+        # But regular attrs should be included
+        assert kwargs["query"] == ["auth"]
 
     def test_required_param_validation(self):
         """Test that required parameters are validated."""
