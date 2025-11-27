@@ -44,8 +44,8 @@ class CommandLogger:
             import tiktoken
 
             self.encoding = tiktoken.get_encoding("cl100k_base")
-        except Exception:
-            # If tiktoken is not available, token counting will return 0
+        except (ImportError, ValueError):
+            # If tiktoken is not available or encoding is invalid, token counting will return 0
             pass
 
     def _get_log_file_path(self, timestamp: datetime) -> Path:
@@ -76,7 +76,7 @@ class CommandLogger:
 
         try:
             return len(self.encoding.encode(text))
-        except Exception:
+        except UnicodeError:
             return 0
 
     def _serialize_for_token_counting(self, obj: Any) -> str:
@@ -90,7 +90,7 @@ class CommandLogger:
         """
         try:
             return json.dumps(obj, ensure_ascii=False)
-        except Exception:
+        except TypeError:
             return str(obj)
 
     def log_command(

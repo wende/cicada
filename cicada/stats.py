@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from cicada.command_logger import get_logger
 from cicada.utils.storage import get_repo_hash, get_storage_dir
@@ -270,14 +271,19 @@ class StatsAnalyzer:
             "days": (max_ts - min_ts).days + 1,
         }
 
-    def _count_lines(self, response: list | dict | str) -> int:
+    def _count_lines(self, response: Any) -> int:
         """Count lines in a serialized response."""
+        if isinstance(response, dict):
+            # Handle serialized TextContent structure first
+            if response.get("type") == "text" and isinstance(response.get("text"), str):
+                text = response["text"]
+                return text.count("\n") + (1 if text else 0)
+            # For other dicts, recurse on values
+            return sum(self._count_lines(v) for v in response.values())
         if isinstance(response, list):
             return sum(self._count_lines(item) for item in response)
-        elif isinstance(response, dict):
-            text = response.get("text", "")
-            return text.count("\n") + (1 if text else 0)
-        elif isinstance(response, str):
+        if isinstance(response, str):
+            # Count lines in raw strings that might be part of the response
             return response.count("\n") + (1 if response else 0)
         return 0
 

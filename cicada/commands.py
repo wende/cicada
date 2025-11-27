@@ -1325,8 +1325,8 @@ def handle_stats(args):
 
 def _handle_stats_reset(args, analyzer):
     """Handle stats reset operation."""
-    older_than = args.older_than if hasattr(args, "older_than") else None
-    force = args.force if hasattr(args, "force") else False
+    older_than = getattr(args, "older_than", None)
+    force = getattr(args, "force", False)
 
     if older_than:
         message = f"Delete logs older than {older_than} days?"
