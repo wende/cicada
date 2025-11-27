@@ -1052,3 +1052,222 @@ class TestPythonIndexerIntegration:
                             finally:
                                 if scip_file.exists():
                                     scip_file.unlink()
+
+
+class TestInterruptibleEnrichmentPhases:
+    """Test graceful interruption handling during enrichment phases."""
+
+    @pytest.fixture
+    def indexer(self):
+        """Create a PythonSCIPIndexer instance."""
+        return PythonSCIPIndexer(verbose=False)
+
+    @pytest.fixture
+    def verbose_indexer(self):
+        """Create a verbose indexer."""
+        return PythonSCIPIndexer(verbose=True)
+
+    def test_extract_string_keywords_interrupt_saves_partial(self, indexer, tmp_path):
+        """Should save partial progress when KeyboardInterrupt during string keyword extraction."""
+        # Create test modules
+        index = {
+            "modules": {
+                "module1": {"file": "file1.py"},
+                "module2": {"file": "file2.py"},
+                "module3": {"file": "file3.py"},
+            }
+        }
+
+        # Create test files
+        for i in range(1, 4):
+            (tmp_path / f"file{i}.py").write_text(f"var{i} = 'test string {i}'")
+
+        # Mock keyword extractor that raises KeyboardInterrupt on second call
+        call_count = [0]
+
+        def mock_extract(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 2:
+                raise KeyboardInterrupt()
+            return {"top_keywords": [("test", 0.9)]}
+
+        mock_extractor = Mock()
+        mock_extractor.extract_keywords = mock_extract
+
+        # Run extraction
+        processed = indexer._extract_string_keywords(index, tmp_path, mock_extractor, None)
+
+        # Should have processed at least 1 module before interrupt
+        assert processed >= 1
+        assert indexer._interrupted is True
+
+    def test_extract_string_keywords_checks_interrupted_flag(self, indexer, tmp_path):
+        """Should stop early if _interrupted flag is already set."""
+        index = {
+            "modules": {
+                "module1": {"file": "file1.py"},
+                "module2": {"file": "file2.py"},
+            }
+        }
+
+        # Set interrupted flag before starting
+        indexer._interrupted = True
+
+        mock_extractor = Mock()
+        mock_extractor.extract_keywords = Mock(return_value={"top_keywords": []})
+
+        processed = indexer._extract_string_keywords(index, tmp_path, mock_extractor, None)
+
+        # Should stop immediately without processing any modules
+        assert processed == 0
+        mock_extractor.extract_keywords.assert_not_called()
+
+    def test_enrichment_interrupt_saves_index(self, indexer, tmp_path):
+        """Should save index even when enrichment phase is interrupted."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "test.py"
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                # Mock string extraction to raise KeyboardInterrupt
+                with patch.object(
+                    indexer, "_extract_string_keywords", side_effect=KeyboardInterrupt
+                ):
+                    try:
+                        result = indexer.incremental_index_repository(
+                            repo_path=str(repo),
+                            output_path=str(output),
+                            extract_string_keywords=True,
+                            compute_timestamps=True,
+                            verbose=False,
+                        )
+
+                        # Should still succeed and save
+                        assert result["success"] is True
+                        assert result["interrupted"] is True
+                        assert "string keywords (partial)" in result["skipped_phases"]
+                        assert "timestamps" in result["skipped_phases"]
+                        assert output.exists()
+                    finally:
+                        if scip_file.exists():
+                            scip_file.unlink()
+
+    def test_enrichment_interrupt_skips_remaining_phases(self, indexer, tmp_path):
+        """Should skip remaining enrichment phases after interruption."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "test.py"
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                with patch.object(
+                    indexer, "_extract_string_keywords", side_effect=KeyboardInterrupt
+                ):
+                    with patch.object(indexer, "_compute_timestamps") as mock_ts:
+                        with patch.object(indexer, "_extract_cochange") as mock_cc:
+                            try:
+                                result = indexer.incremental_index_repository(
+                                    repo_path=str(repo),
+                                    output_path=str(output),
+                                    extract_string_keywords=True,
+                                    compute_timestamps=True,
+                                    extract_cochange=True,
+                                    verbose=False,
+                                )
+
+                                # Timestamps and cochange should NOT be called
+                                mock_ts.assert_not_called()
+                                mock_cc.assert_not_called()
+                                assert result["interrupted"] is True
+                            finally:
+                                if scip_file.exists():
+                                    scip_file.unlink()
+
+    def test_interrupted_flag_reset_on_new_run(self, indexer, tmp_path):
+        """Should reset _interrupted flag when starting new indexing run."""
+        # Set interrupted flag
+        indexer._interrupted = True
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "test.py"
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                try:
+                    result = indexer.incremental_index_repository(
+                        repo_path=str(repo),
+                        output_path=str(output),
+                        verbose=False,
+                    )
+
+                    # Flag should have been reset at start
+                    assert result["success"] is True
+                    assert result.get("interrupted", False) is False
+                finally:
+                    if scip_file.exists():
+                        scip_file.unlink()
+
+    def test_verbose_output_on_interrupt(self, verbose_indexer, tmp_path, capsys):
+        """Should print informative messages when interrupted."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        output = tmp_path / "index.json"
+
+        scip_index = scip_pb2.Index()
+        doc = scip_index.documents.add()
+        doc.relative_path = "test.py"
+
+        with patch.object(verbose_indexer, "_ensure_scip_python_installed"):
+            with patch.object(verbose_indexer, "_run_scip_python") as mock_run:
+                scip_file = tmp_path / "temp.scip"
+                with open(scip_file, "wb") as f:
+                    f.write(scip_index.SerializeToString())
+                mock_run.return_value = scip_file
+
+                with patch.object(
+                    verbose_indexer, "_compute_timestamps", side_effect=KeyboardInterrupt
+                ):
+                    try:
+                        verbose_indexer.incremental_index_repository(
+                            repo_path=str(repo),
+                            output_path=str(output),
+                            compute_timestamps=True,
+                            verbose=True,
+                        )
+
+                        captured = capsys.readouterr()
+                        assert "Interrupted during timestamp computation" in captured.out
+                        assert "Partial index saved" in captured.out
+                        assert "Skipped phases" in captured.out
+                    finally:
+                        if scip_file.exists():
+                            scip_file.unlink()
