@@ -81,8 +81,9 @@ class CicadaServer:
         # Initialize MCP server
         self.server = Server("cicada")
 
-        # Initialize command logger
-        self.logger = get_logger()
+        # Initialize command logger with repo path for per-project tracking
+        repo_path = self.config.get("repository", {}).get("path", ".")
+        self.logger = get_logger(repo_path=repo_path)
 
         # Register handlers
         _ = self.server.list_tools()(self.list_tools)

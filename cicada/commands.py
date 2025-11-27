@@ -39,6 +39,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "find-dead-code",
     "clean",
     "status",
+    "stats",
     "dir",
     "link",
     "unlink",
@@ -641,6 +642,79 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Stats command
+    stats_parser = subparsers.add_parser(
+        "stats",
+        help="Show MCP tool usage statistics for this project",
+        description="Display usage statistics for MCP tool calls in this project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parser],
+        epilog="""
+Examples:
+  cicada stats                      # Summary (all time)
+  cicada stats --detailed           # Detailed breakdown
+  cicada stats --last-7-days        # Last 7 days only
+  cicada stats --tool query         # Filter by tool
+  cicada stats --time-series        # Daily view
+  cicada stats --time-series --weekly   # Weekly view
+  cicada stats --format json        # JSON output
+  cicada stats --reset --older-than 30  # Delete logs >30 days old
+        """,
+    )
+
+    stats_parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Show detailed per-tool breakdown",
+    )
+    stats_parser.add_argument(
+        "--time-series",
+        action="store_true",
+        help="Show time-based aggregation",
+    )
+    stats_parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="Use weekly aggregation (requires --time-series)",
+    )
+    stats_parser.add_argument(
+        "--tool",
+        help="Filter by tool name",
+    )
+    stats_parser.add_argument(
+        "--last-7-days",
+        action="store_true",
+        help="Show last 7 days only",
+    )
+    stats_parser.add_argument(
+        "--last-30-days",
+        action="store_true",
+        help="Show last 30 days only",
+    )
+    stats_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format",
+    )
+    stats_parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete log files",
+    )
+    stats_parser.add_argument(
+        "--older-than",
+        type=int,
+        metavar="DAYS",
+        help="With --reset: only delete logs older than DAYS",
+    )
+    stats_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="With --reset: skip confirmation",
+    )
+
     dir_parser = subparsers.add_parser(
         "dir",
         help="Show the absolute path to the Cicada storage directory",
@@ -728,6 +802,7 @@ def handle_command(args) -> bool:
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
+        "stats": handle_stats,
         "dir": handle_dir,
         "link": handle_link,
         "unlink": handle_unlink,
@@ -1190,6 +1265,83 @@ def handle_status(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def handle_stats(args):
+    """Show MCP tool usage statistics for the current project."""
+    from cicada.stats import StatsAnalyzer
+
+    repo_path = Path(args.repo).resolve()
+    analyzer = StatsAnalyzer(repo_path)
+
+    # Handle reset
+    if args.reset:
+        _handle_stats_reset(args, analyzer)
+        return
+
+    # Determine time filter
+    days = None
+    if args.last_7_days:
+        days = 7
+    elif args.last_30_days:
+        days = 30
+
+    # Get stats
+    try:
+        if args.time_series:
+            granularity = "weekly" if args.weekly else "daily"
+            stats = analyzer.get_stats(
+                days=days,
+                tool_filter=args.tool,
+                time_series=True,
+                granularity=granularity,
+            )
+        else:
+            stats = analyzer.get_stats(days=days, tool_filter=args.tool)
+
+        # Format output
+        if args.format == "json":
+            output = analyzer.format_json(stats)
+        elif args.time_series:
+            output = analyzer.format_time_series(stats)
+        elif args.detailed:
+            output = analyzer.format_detailed(stats)
+        else:
+            output = analyzer.format_summary(stats)
+
+        print(output)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _handle_stats_reset(args, analyzer):
+    """Handle stats reset operation."""
+    older_than = args.older_than if hasattr(args, "older_than") else None
+    force = args.force if hasattr(args, "force") else False
+
+    if older_than:
+        message = f"Delete logs older than {older_than} days?"
+        needs_confirmation = False
+    else:
+        message = "Delete ALL MCP tool logs for this project?"
+        needs_confirmation = not force
+
+    if needs_confirmation:
+        print(message)
+        print("This action cannot be undone.")
+        response = input("Continue? [y/N]: ").strip().lower()
+        if response not in ["y", "yes"]:
+            print("Aborted.")
+            sys.exit(0)
+
+    count = analyzer.reset_stats(older_than_days=older_than)
+
+    if older_than:
+        print(f"✓ Deleted {count} log file(s) older than {older_than} days")
+    else:
+        print(f"✓ Deleted {count} log file(s)")
 
 
 def handle_dir(args):
