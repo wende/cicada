@@ -196,7 +196,8 @@ def git_bundle_repo(tmp_path, fixtures_dir):
     Clone git bundle into isolated tmp_path for each test.
 
     Provides parallel-safe git repository with known co-change patterns.
-    Each test gets independent clone - safe for parallel execution.
+    Tests using this fixture are automatically grouped to run serially
+    via xdist_group marker to prevent git index corruption.
 
     Contains 11 commits with strategic co-change patterns:
     - lib/auth.ex + lib/credentials.ex: 4 co-changes
@@ -223,11 +224,32 @@ def git_bundle_repo(tmp_path, fixtures_dir):
 
     repo_path = tmp_path / "test_repo"
 
+    # Clear git environment variables to prevent clone from affecting parent repo
+    # This is critical when running in a git worktree
+    clean_env = os.environ.copy()
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"]:
+        clean_env.pop(var, None)
+
     subprocess.run(
         ["git", "clone", str(bundle_path), str(repo_path)],
         check=True,
         capture_output=True,
         timeout=10,
+        env=clean_env,
     )
 
     return repo_path
+
+
+def pytest_collection_modifyitems(items):
+    """
+    Automatically mark tests using git_bundle_repo fixture to run in same xdist group.
+
+    This prevents git index corruption when multiple workers run git operations
+    simultaneously during parallel test execution.
+    """
+    for item in items:
+        # Check if this test uses the git_bundle_repo fixture
+        if "git_bundle_repo" in getattr(item, "fixturenames", []):
+            # Add xdist_group marker to run all such tests in the same worker
+            item.add_marker(pytest.mark.xdist_group(name="git_bundle_serial"))

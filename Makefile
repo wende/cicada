@@ -119,11 +119,11 @@ setup-scip-fixtures:
 
 # Run tests
 test: install generate-scip-proto setup-fixtures setup-scip-fixtures
-	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
+	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
 
 # Run tests with verbose output
 test-verbose: install generate-scip-proto setup-fixtures setup-scip-fixtures
-	@uv run pytest -n auto -v
+	@uv run pytest -n auto --dist loadgroup -v
 
 # Run tests in watch mode
 test-watch: install generate-scip-proto setup-fixtures setup-scip-fixtures
@@ -131,7 +131,7 @@ test-watch: install generate-scip-proto setup-fixtures setup-scip-fixtures
 
 # Run tests with coverage
 cover: install generate-scip-proto setup-fixtures setup-scip-fixtures
-	@uv run pytest -n auto --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
+	@uv run pytest -n auto --dist loadgroup --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
@@ -189,12 +189,12 @@ pre-commit: install
 	@$(MAKE) generate-scip-proto
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
-	@set -o pipefail; uv run pytest -n auto --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
+	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
 ci-test: install generate-scip-proto setup-fixtures setup-scip-fixtures
-	@uv run pytest -n auto -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	@uv run pytest -n auto --dist loadgroup -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
 clean:
