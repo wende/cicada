@@ -248,3 +248,161 @@ def test_stats_per_tool_breakdown():
             for tool in tools:
                 assert tool in stats["tools"]
                 assert stats["tools"][tool]["count"] == 2
+
+
+def test_stats_time_series_weekly_format():
+    """Test time-series weekly output formatting."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as temp_log:
+            repo_path = Path(tmpdir)
+            logger = CommandLogger(log_dir=temp_log, repo_path=str(repo_path))
+
+            # Create sample logs spanning multiple weeks
+            now = datetime.now()
+            for i in range(3):
+                logger.log_command(
+                    tool_name="query",
+                    arguments={"query": "test"},
+                    response=[{"type": "text", "text": "Result"}],
+                    execution_time_ms=100,
+                    timestamp=now - timedelta(days=i * 7),
+                    error=None,
+                )
+
+            analyzer = StatsAnalyzer(repo_path)
+            analyzer.logger = logger
+
+            stats = analyzer.get_stats(time_series=True, granularity="weekly")
+            output = analyzer.format_time_series(stats)
+
+            assert "Weekly" in output
+
+
+def test_stats_json_format_output():
+    """Test JSON output format directly."""
+    import json as json_module
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as temp_log:
+            repo_path = Path(tmpdir)
+            logger = CommandLogger(log_dir=temp_log, repo_path=str(repo_path))
+
+            logger.log_command(
+                tool_name="query",
+                arguments={"query": "test"},
+                response=[{"type": "text", "text": "Result"}],
+                execution_time_ms=100,
+                error=None,
+            )
+
+            analyzer = StatsAnalyzer(repo_path)
+            analyzer.logger = logger
+
+            stats = analyzer.get_stats()
+            output = analyzer.format_json(stats)
+
+            parsed = json_module.loads(output)
+            assert "total_calls" in parsed
+            assert parsed["total_calls"] == 1
+
+
+def test_stats_with_days_filter():
+    """Test stats with days filter."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as temp_log:
+            repo_path = Path(tmpdir)
+            logger = CommandLogger(log_dir=temp_log, repo_path=str(repo_path))
+
+            now = datetime.now()
+            # Log within 7 days
+            logger.log_command(
+                tool_name="query",
+                arguments={"query": "test"},
+                response=[{"type": "text", "text": "Result"}],
+                execution_time_ms=100,
+                timestamp=now - timedelta(days=2),
+                error=None,
+            )
+            # Log outside 7 days
+            logger.log_command(
+                tool_name="query",
+                arguments={"query": "old"},
+                response=[{"type": "text", "text": "Result"}],
+                execution_time_ms=100,
+                timestamp=now - timedelta(days=10),
+                error=None,
+            )
+
+            analyzer = StatsAnalyzer(repo_path)
+            analyzer.logger = logger
+
+            # Filter to last 7 days
+            stats = analyzer.get_stats(days=7)
+            assert stats["total_calls"] == 1
+
+            # Filter to last 30 days - should include both
+            stats = analyzer.get_stats(days=30)
+            assert stats["total_calls"] == 2
+
+
+def test_stats_reset_with_force(capsys):
+    """Test stats reset with force flag (no confirmation)."""
+    from cicada.commands import _handle_stats_reset
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as temp_log:
+            repo_path = Path(tmpdir)
+            logger = CommandLogger(log_dir=temp_log, repo_path=str(repo_path))
+
+            logger.log_command(
+                tool_name="query",
+                arguments={"query": "test"},
+                response=[{"type": "text", "text": "Result"}],
+                execution_time_ms=100,
+                error=None,
+            )
+
+            analyzer = StatsAnalyzer(repo_path)
+            analyzer.logger = logger
+
+            args = MagicMock()
+            args.older_than = None
+            args.force = True
+
+            _handle_stats_reset(args, analyzer)
+
+    captured = capsys.readouterr()
+    assert "Deleted" in captured.out
+
+
+def test_stats_reset_older_than(capsys):
+    """Test stats reset with older_than parameter."""
+    from cicada.commands import _handle_stats_reset
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as temp_log:
+            repo_path = Path(tmpdir)
+            logger = CommandLogger(log_dir=temp_log, repo_path=str(repo_path))
+
+            now = datetime.now()
+            # Create old log
+            logger.log_command(
+                tool_name="query",
+                arguments={"query": "test"},
+                response=[{"type": "text", "text": "Result"}],
+                execution_time_ms=100,
+                timestamp=now - timedelta(days=40),
+                error=None,
+            )
+
+            analyzer = StatsAnalyzer(repo_path)
+            analyzer.logger = logger
+
+            args = MagicMock()
+            args.older_than = 30
+            args.force = False
+
+            _handle_stats_reset(args, analyzer)
+
+    captured = capsys.readouterr()
+    assert "older than 30 days" in captured.out

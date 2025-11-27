@@ -298,3 +298,225 @@ def test_empty_stats_output(analyzer):
     output = analyzer.format_summary(stats)
 
     assert "No MCP tool calls" in output
+
+
+def test_count_lines_nested_dict(temp_log_dir):
+    """Test _count_lines with nested dict structures."""
+    logger = CommandLogger(log_dir=temp_log_dir, repo_path="/test/repo")
+
+    # Log with nested dict response (not TextContent)
+    nested_response = {
+        "wrapper": {
+            "type": "text",
+            "text": "Line 1\nLine 2\nLine 3",
+        },
+        "metadata": {"count": 3},
+    }
+    logger.log_command(
+        tool_name="query",
+        arguments={"query": "test"},
+        response=nested_response,
+        execution_time_ms=100,
+        error=None,
+    )
+
+    repo_path = Path("/test/repo")
+    analyzer = StatsAnalyzer(repo_path)
+    analyzer.logger = logger
+
+    stats = analyzer.get_stats()
+    # Should count lines from nested text content
+    assert stats["total_lines"] == 3
+
+
+def test_count_lines_raw_string(temp_log_dir):
+    """Test _count_lines with raw string response."""
+    logger = CommandLogger(log_dir=temp_log_dir, repo_path="/test/repo")
+
+    # Log with raw string response
+    logger.log_command(
+        tool_name="query",
+        arguments={"query": "test"},
+        response="Line 1\nLine 2",
+        execution_time_ms=100,
+        error=None,
+    )
+
+    repo_path = Path("/test/repo")
+    analyzer = StatsAnalyzer(repo_path)
+    analyzer.logger = logger
+
+    stats = analyzer.get_stats()
+    assert stats["total_lines"] == 2
+
+
+def test_time_series_weekly(sample_logger):
+    """Test time-series statistics with weekly granularity."""
+    repo_path = Path("/test/repo")
+    analyzer = StatsAnalyzer(repo_path)
+    analyzer.logger = sample_logger
+
+    stats = analyzer.get_stats(time_series=True, granularity="weekly")
+
+    assert stats["granularity"] == "weekly"
+    assert len(stats["series"]) > 0
+    # Weekly series should use ISO week format: YYYY-WNN
+    for entry in stats["series"]:
+        assert "date" in entry
+        assert "-W" in entry["date"]
+
+
+def test_format_large_execution_time(temp_log_dir):
+    """Test formatting when execution time exceeds 60 seconds."""
+    logger = CommandLogger(log_dir=temp_log_dir, repo_path="/test/repo")
+
+    # Log with very long execution time (2 minutes)
+    logger.log_command(
+        tool_name="query",
+        arguments={"query": "test"},
+        response=[{"type": "text", "text": "Result"}],
+        execution_time_ms=120000,  # 2 minutes
+        error=None,
+    )
+
+    repo_path = Path("/test/repo")
+    analyzer = StatsAnalyzer(repo_path)
+    analyzer.logger = logger
+
+    stats = analyzer.get_stats()
+    output = analyzer.format_summary(stats)
+
+    # Should display in minutes
+    assert "min" in output
+
+
+def test_get_project_stats_with_index(temp_log_dir):
+    """Test _get_project_stats when index file exists."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+        analyzer = StatsAnalyzer(repo_path)
+
+        # Create a mock index file
+        from cicada.utils.storage import get_storage_dir
+
+        storage_dir = get_storage_dir(repo_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        index_file = storage_dir / "index.json"
+
+        index_data = {
+            "metadata": {
+                "total_modules": 10,
+                "total_functions": 50,
+            },
+            "modules": {
+                "TestModule": {
+                    "keywords": {"keyword1": 1, "keyword2": 2},
+                    "functions": [],
+                },
+                "AnotherModule": {
+                    "keywords": {"keyword1": 1, "keyword3": 3},
+                    "functions": [],
+                },
+            },
+        }
+        with open(index_file, "w") as f:
+            json.dump(index_data, f)
+
+        project_stats = analyzer._get_project_stats()
+
+        assert project_stats["module_count"] == 10
+        assert project_stats["function_count"] == 50
+        assert project_stats["keyword_count"] == 3  # unique keywords
+
+
+def test_get_project_stats_fallback(temp_log_dir):
+    """Test _get_project_stats fallback when metadata is missing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+        analyzer = StatsAnalyzer(repo_path)
+
+        # Create index file without metadata
+        from cicada.utils.storage import get_storage_dir
+
+        storage_dir = get_storage_dir(repo_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        index_file = storage_dir / "index.json"
+
+        index_data = {
+            "modules": {
+                "TestModule": {
+                    "functions": [{"name": "func1"}, {"name": "func2"}],
+                    "keywords": {"key1": 1},
+                },
+                "AnotherModule": {
+                    "functions": [{"name": "func3"}],
+                    "keywords": {},
+                },
+            },
+        }
+        with open(index_file, "w") as f:
+            json.dump(index_data, f)
+
+        project_stats = analyzer._get_project_stats()
+
+        assert project_stats["module_count"] == 2
+        assert project_stats["function_count"] == 3
+        assert project_stats["keyword_count"] == 1
+
+
+def test_format_summary_with_project_stats(temp_log_dir):
+    """Test format_summary includes project stats when available."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+        logger = CommandLogger(log_dir=temp_log_dir, repo_path=str(repo_path))
+
+        # Create a log
+        logger.log_command(
+            tool_name="query",
+            arguments={"query": "test"},
+            response=[{"type": "text", "text": "Result"}],
+            execution_time_ms=100,
+            error=None,
+        )
+
+        analyzer = StatsAnalyzer(repo_path)
+        analyzer.logger = logger
+
+        # Create a mock index file
+        from cicada.utils.storage import get_storage_dir
+
+        storage_dir = get_storage_dir(repo_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        index_file = storage_dir / "index.json"
+
+        index_data = {
+            "metadata": {"total_modules": 5, "total_functions": 25},
+            "modules": {"Test": {"keywords": {"auth": 1}}},
+        }
+        with open(index_file, "w") as f:
+            json.dump(index_data, f)
+
+        stats = analyzer.get_stats()
+        output = analyzer.format_summary(stats)
+
+        assert "5 modules" in output
+        assert "25 functions" in output
+
+
+def test_extract_date_range_empty_logs(temp_log_dir):
+    """Test _extract_date_range returns None for empty logs."""
+    repo_path = Path("/test/repo")
+    analyzer = StatsAnalyzer(repo_path)
+    analyzer.logger = CommandLogger(log_dir=temp_log_dir, repo_path="/test/repo")
+
+    # Call private method directly
+    result = analyzer._extract_date_range([])
+    assert result is None
+
+
+def test_format_detailed_empty(analyzer):
+    """Test format_detailed with empty stats."""
+    stats = analyzer.get_stats()
+    output = analyzer.format_detailed(stats)
+
+    assert "No MCP tool calls" in output
