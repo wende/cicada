@@ -129,5 +129,6 @@ class TestQueryToolExecution:
             "max_results": 5,
             "path_pattern": "lib/**",
             "show_snippets": True,
+            "verbose": False,
         }
         assert FakeOrchestrator.last_index == test_server.index_manager.index

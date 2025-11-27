@@ -128,16 +128,22 @@ class ModuleFormatter:
         lines: list[str],
         grouped_funcs: dict[tuple[str, int], list[dict[str, Any]]],
         title: str,
+        include_specs: bool = False,
     ) -> bool:
         """Append a formatted function section. Returns True if anything was added."""
         if not grouped_funcs:
             return False
 
         lines.extend(["", f"{title}:", ""])
-        for (_, _), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
+        for (name, arity), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
             func = clauses[0]
-            func_sig = SignatureBuilder.build(func)
-            lines.append(f"{func['line']:>5}: {func_sig}")
+            if include_specs:
+                # Full signature
+                func_sig = SignatureBuilder.build(func)
+                lines.append(f"{func['line']:>5}: {func_sig}")
+            else:
+                # Compact: just name/arity
+                lines.append(f"{func['line']:>5}: {name}/{arity}")
             lines.append("")
         return True
 
@@ -164,6 +170,7 @@ class ModuleFormatter:
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
         detailed_dependencies: dict | None = None,
+        format_opts: dict | None = None,
     ) -> str:
         """
         Format module data as Markdown.
@@ -175,10 +182,15 @@ class ModuleFormatter:
             pr_info: Optional PR context (number, title, comment_count)
             staleness_info: Optional staleness info (is_stale, age_str)
             detailed_dependencies: Optional detailed dependency information
+            format_opts: Optional formatting options:
+                - include_docs: Include function documentation (default: False)
+                - include_specs: Include full type signatures (default: False)
+                - include_moduledoc: Include module documentation (default: False)
 
         Returns:
             Formatted Markdown string
         """
+        opts = format_opts or {}
         public_grouped, private_grouped = ModuleFormatter._group_functions_by_visibility(data)
 
         # Count unique functions, not function clauses
@@ -205,8 +217,8 @@ class ModuleFormatter:
         # Add PR context if available
         lines.extend(ModuleFormatter._format_pr_context(pr_info, data["file"]))
 
-        # Add moduledoc if present (first paragraph only for brevity)
-        if data.get("moduledoc"):
+        # Add moduledoc if present and requested
+        if opts.get("include_moduledoc") and data.get("moduledoc"):
             doc = data["moduledoc"].strip()
             # Get first paragraph (up to double newline or first 200 chars)
             first_para = doc.split("\n\n")[0].strip()
@@ -253,13 +265,14 @@ class ModuleFormatter:
                             lines.append(f"    {doc_preview}")
 
         private_shown = False
+        include_specs = opts.get("include_specs", False)
 
         if visibility != "private":
-            ModuleFormatter._append_function_section(lines, public_grouped, "Public")
+            ModuleFormatter._append_function_section(lines, public_grouped, "Public", include_specs)
 
         if visibility in ["all", "private"]:
             private_shown = ModuleFormatter._append_function_section(
-                lines, private_grouped, "Private"
+                lines, private_grouped, "Private", include_specs
             )
 
         if visibility == "private" and not private_shown:
@@ -643,8 +656,13 @@ class ModuleFormatter:
         single_result: bool,
         show_relationships: bool,
         language: str = "elixir",
+        format_opts: dict | None = None,
     ) -> list[str]:
         """Format a single function search result (either single or multi layout)."""
+        opts = format_opts or {}
+        include_docs = opts.get("include_docs", False)
+        include_specs = opts.get("include_specs", False)
+
         module_name = result["module"]
         func = result["function"]
         file_path = result["file"]
@@ -662,40 +680,37 @@ class ModuleFormatter:
         lines: list[str] = []
 
         if single_result:
-            lines.extend(
-                [
-                    f"{file_path}:{func['line']}",
-                    func_identifier,
-                    f"Type: {sig}",
-                ]
-            )
+            lines.append(f"{file_path}:{func['line']}")
+            lines.append(func_identifier)
+            if include_specs:
+                lines.append(f"Type: {sig}")
             lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path))
         else:
-            lines.extend(
-                [
-                    "",
-                    "---",
-                    "",
-                    func_identifier,
-                    f"{file_path}:{func['line']} • {func['type']}",
-                    "",
-                    "Signature:",
-                    f"{sig}",
-                ]
-            )
+            lines.extend(["", "---", "", func_identifier])
+            if include_specs:
+                lines.extend(
+                    [
+                        f"{file_path}:{func['line']} • {func['type']}",
+                        "",
+                        "Signature:",
+                        f"{sig}",
+                    ]
+                )
+            else:
+                lines.append(f"{file_path}:{func['line']}")
             pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
             if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
                 pr_lines[-1] = f"{pr_info['comment_count']} review comment(s) available"
             lines.extend(pr_lines)
 
-        if func.get("doc"):
+        if include_docs and func.get("doc"):
             doc_lines = ['Documentation: """', func["doc"], '"""']
             if single_result:
                 lines.extend(doc_lines)
             else:
                 lines.extend(["", *doc_lines])
 
-        if func.get("examples"):
+        if include_docs and func.get("examples"):
             lines.extend(["", "Examples:", "", func["examples"]])
 
         if func.get("guards"):
@@ -761,22 +776,6 @@ class ModuleFormatter:
         else:
             lines.append("*No call sites found*")
             lines.append("")
-            lines.append("Possible reasons:")
-            lines.append("   • Dead code → Use find_dead_code() to verify")
-            lines.append("   • Public API → Not called internally but used by clients")
-            lines.append("   • New code → Check when added with get_commit_history()")
-
-            if pr_info:
-                if pr_info.get("comment_count", 0) > 0:
-                    lines.append(
-                        f"   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")"
-                    )
-                else:
-                    lines.append(
-                        f"   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")"
-                    )
-
-            lines.append("")
 
         return lines
 
@@ -788,6 +787,7 @@ class ModuleFormatter:
         show_relationships: bool = True,
         language: str = "elixir",
         private_suggestion: str | None = None,
+        format_opts: dict | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -799,6 +799,7 @@ class ModuleFormatter:
             show_relationships: Whether to show relationship information (what this calls / what calls this)
             language: Programming language for formatting function identifiers
             private_suggestion: Optional suggestion for private function pattern
+            format_opts: Optional dict with include_docs, include_specs for compact output
 
         Returns:
             Formatted Markdown string
@@ -903,7 +904,7 @@ If this function was deleted:
         for result in consolidated_results:
             lines.extend(
                 ModuleFormatter._format_function_entry(
-                    result, single_result, show_relationships, language
+                    result, single_result, show_relationships, language, format_opts
                 )
             )
 

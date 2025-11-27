@@ -707,8 +707,8 @@ end
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query(["authentication", "login"])
 
-        # Should have "Matched keywords" section showing which keywords matched
-        assert "Matched keywords" in result
+        # Should have "Matched:" section showing which keywords matched (compact format)
+        assert "Matched:" in result
 
     def test_match_explanation_for_pattern(self, sample_index):
         """Test that pattern matches show appropriate explanation."""
@@ -723,8 +723,8 @@ end
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query(["jwt", "token"])
 
-        # Should have match source indicators in compact format: (in docs), (in strings)
-        assert "(in docs)" in result or "(in strings)" in result or "Matched keywords:" in result
+        # Should have match source indicators in compact format: (d) docs, (s) strings
+        assert "(d)" in result or "(s)" in result or "Matched:" in result
 
     # ============================================================
     # Cycle 5: Reduced Defaults & Overload Detection Tests (TDD RED phase)

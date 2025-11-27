@@ -292,6 +292,7 @@ class ModuleSearchHandler:
         what_it_calls: bool = False,
         dependency_depth: int = 1,
         show_function_usage: bool = False,
+        format_opts: dict | None = None,
     ) -> list[TextContent]:
         """
         Search for a module and return its information.
@@ -346,7 +347,9 @@ class ModuleSearchHandler:
                 elif use_compact:
                     result = ModuleFormatter.format_module_compact(mod_name, mod_data)
                 else:
-                    result = ModuleFormatter.format_module_markdown(mod_name, mod_data, visibility)
+                    result = ModuleFormatter.format_module_markdown(
+                        mod_name, mod_data, visibility, format_opts=format_opts
+                    )
                 results.append(result)
 
             # Combine results with separator for markdown, or as array for JSON
@@ -409,6 +412,7 @@ class ModuleSearchHandler:
                     pr_info,
                     staleness_info,
                     detailed_dependencies,
+                    format_opts,
                 )
                 # Append usage info for markdown
                 if usage_results:
@@ -451,6 +455,7 @@ class ModuleSearchHandler:
                 what_it_calls,
                 dependency_depth,
                 show_function_usage,
+                format_opts,
             )
 
         # Module not found - compute suggestions and provide helpful error message

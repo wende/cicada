@@ -590,9 +590,11 @@ def test_format_function_results_markdown_with_examples():
         }
     ]
 
-    markdown = ModuleFormatter.format_function_results_markdown("example_func", results)
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "example_func", results, format_opts={"include_docs": True}
+    )
 
-    # Should include examples
+    # Should include examples (when include_docs=True)
     assert "Examples:" in markdown
     assert "iex> example_func(5)" in markdown
 
@@ -987,11 +989,14 @@ def test_json_formatter_main_unexpected_error(tmp_path, monkeypatch):
 
 
 def test_format_module_markdown_long_moduledoc_truncation():
-    """Test that long moduledoc gets truncated at 200 chars."""
+    """Test that long moduledoc gets truncated at 200 chars when enabled."""
     long_doc = "A" * 300
     data = {"file": "lib/test.ex", "line": 1, "functions": [], "moduledoc": long_doc}
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data)
+    # Moduledoc is hidden by default, need to enable it
+    result = ModuleFormatter.format_module_markdown(
+        "TestModule", data, format_opts={"include_moduledoc": True}
+    )
 
     # Should truncate at 200 chars with ellipsis
     assert ("A" * 200 + "...") in result

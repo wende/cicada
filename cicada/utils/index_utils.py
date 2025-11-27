@@ -5,8 +5,11 @@ This module provides centralized functions for loading and saving
 JSON index files with consistent error handling.
 """
 
+import contextlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +71,12 @@ def save_index(
     verbose: bool = False,
 ) -> None:
     """
-    Save an index dictionary to a JSON file.
+    Save an index dictionary to a JSON file atomically.
+
+    Uses a temp file + atomic rename pattern to prevent corruption
+    during concurrent reads/writes. This is critical for background
+    refresh operations where the MCP server may be reading while
+    the indexer is writing.
 
     Args:
         index: Index dictionary to save
@@ -86,11 +94,26 @@ def save_index(
     if create_dirs:
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_file, "w") as f:
-        json.dump(index, f, indent=indent)
+    # Write to temp file first, then atomic rename
+    fd, temp_path = tempfile.mkstemp(
+        dir=output_file.parent,
+        prefix=".index_",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(index, f, indent=indent)
 
-    if verbose:
-        print(f"Index saved to: {output_path}")
+        # Atomic rename (works on POSIX, best-effort on Windows)
+        os.replace(temp_path, output_file)
+
+        if verbose:
+            print(f"Index saved to: {output_path}")
+    except Exception:
+        # Clean up temp file on failure
+        with contextlib.suppress(OSError):
+            os.unlink(temp_path)
+        raise
 
 
 def validate_index_structure(

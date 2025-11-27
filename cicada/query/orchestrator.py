@@ -533,33 +533,28 @@ class QueryOrchestrator:
         if results:
             top = results[0]
             if top.is_function() and top.function:
-                suggestions.append(
-                    f"search_function('{top.function}', module_path='{top.module}', "
-                    "include_usage_examples=true) - See how this function is used"
-                )
-            suggestions.append(f"search_module('{top.module}') - View complete {top.module} API")
+                suggestions.append(f"search_function('{top.function}', module_path='{top.module}')")
+            suggestions.append(f"search_module('{top.module}')")
 
         # Query-specific suggestions based on content
         query_text = self._normalize_query_text(query)
 
         # SQL/database keywords
         if self._is_sql_related_query(query_text):
-            suggestions.append("Try match_source='strings' to find SQL queries in code strings")
+            suggestions.append("query(..., match_source='strings')")
 
         # Many results in same module
         if self._has_multiple_results_in_same_module(results):
             common_module = self._get_most_common_module(results)
-            suggestions.append(
-                f"search_module('{common_module}', what_calls_it=True) - See where this module is used"
-            )
+            suggestions.append(f"search_module('{common_module}', what_calls_it=True)")
 
         # Results have recent changes
         if self._has_recent_changes(results):
-            suggestions.append("Try recent=true to focus on recently changed code")
+            suggestions.append("query(..., recent=true)")
 
         # Module-level results
         if self._has_many_module_results(results):
-            suggestions.append("Try filter_type='functions' to see only function-level matches")
+            suggestions.append("query(..., filter_type='functions')")
 
         return suggestions[: QueryConfig.MAX_SUGGESTIONS]
 
@@ -606,6 +601,7 @@ class QueryOrchestrator:
         max_results: int,
         query: str | list[str],
         show_snippets: bool = False,
+        verbose: bool = False,
     ) -> str:
         """
         Format final report with results and suggestions.
@@ -616,6 +612,7 @@ class QueryOrchestrator:
             max_results: Maximum number of results to show
             query: Original query
             show_snippets: Whether to show code snippet previews
+            verbose: Whether to show verbose output
 
         Returns:
             Markdown formatted report
@@ -632,7 +629,7 @@ class QueryOrchestrator:
 
         # Results
         for i, result in enumerate(results[:max_results], 1):
-            lines.append(self._format_result_snippet(result, i, show_snippets))
+            lines.append(self._format_result_snippet(result, i, show_snippets, verbose))
 
         # Suggestions
         if suggestions:
@@ -669,18 +666,19 @@ class QueryOrchestrator:
             return f"{years} year{'s' if years > 1 else ''} ago"
 
     def _format_result_snippet(
-        self, result: SearchResult, index: int, show_snippets: bool = False
+        self, result: SearchResult, index: int, show_snippets: bool = False, verbose: bool = False
     ) -> str:
         """
-        Format a single result as a snippet (compact format).
+        Format a single result as a snippet (compact by default).
 
         Args:
             result: SearchResult to format
             index: Result number (1-indexed)
             show_snippets: Whether to show code snippet previews
+            verbose: Whether to show full details (confidence %, docs, full context)
 
         Returns:
-            Compact formatted snippet
+            Formatted snippet
         """
         lines = []
 
@@ -694,34 +692,28 @@ class QueryOrchestrator:
         lines.append(" | ".join(header_parts) + "\n")
 
         # Path on second line
-        lines.append(f"{result.file}:{result.line}\n")
+        lines.append(f"   {result.file}:{result.line}\n")
 
-        # Confidence on third line (if available)
-        if result.percentile is not None:
-            lines.append(f"Confidence: {result.percentile:.1f}%\n")
+        # Confidence (only in verbose mode)
+        if verbose and result.percentile is not None:
+            lines.append(f"   Confidence: {result.percentile:.1f}%\n")
 
-        # First line of documentation (wrapped nicely)
-        if result.doc:
+        # Documentation preview (only in verbose mode)
+        if verbose and result.doc:
             doc = result.doc.strip().split("\n")[0]
-            # Wrap at ~100 characters
             if len(doc) > 100:
                 doc = doc[:100] + "..."
-            lines.append(f"{doc}\n")
+            lines.append(f"   {doc}\n")
 
-        # Last modified timestamp (if available)
+        # Last modified timestamp - always show (compact)
         if result.last_modified_at:
             try:
-                # Parse ISO format timestamp
                 dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
-                # Ensure timezone-aware datetime for consistent comparisons
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
-
-                now = datetime.now(timezone.utc)
-                delta = now - dt
+                delta = datetime.now(timezone.utc) - dt
                 time_ago = self._get_relative_time_string(delta)
 
-                # Include commit hash and PR if available
                 git_info = []
                 if result.last_modified_sha:
                     git_info.append(result.last_modified_sha)
@@ -729,41 +721,30 @@ class QueryOrchestrator:
                     git_info.append(f"#{result.last_modified_pr}")
 
                 if git_info:
-                    lines.append(f"Last modified: {time_ago} ({' '.join(git_info)})\n")
+                    lines.append(f"   Modified: {time_ago} ({' '.join(git_info)})\n")
                 else:
-                    lines.append(f"Last modified: {time_ago}\n")
+                    lines.append(f"   Modified: {time_ago}\n")
             except (ValueError, AttributeError):
                 pass
 
-        # Matched context (documentation and string excerpts with highlighted keywords)
+        # Matched keywords indicator - compact single line
         if result.matched_keywords:
-            context = format_matched_context(
-                matched_keywords=result.matched_keywords,
-                keyword_sources=result.keyword_sources,
-                doc_text=result.doc,
-                string_sources=result.string_sources,
-                use_ansi=True,  # Use ANSI colors for terminal output
-            )
+            context = None
+            if verbose:
+                # Full context in verbose mode
+                context = format_matched_context(
+                    matched_keywords=result.matched_keywords,
+                    keyword_sources=result.keyword_sources,
+                    doc_text=result.doc,
+                    string_sources=result.string_sources,
+                    use_ansi=True,
+                )
 
             if context:
                 lines.append(f"\n{context}\n")
             else:
-                # Fallback to simple keyword list if no context available
-                kw_with_sources: list[str] = []
-                source_suffixes = {
-                    "docs": " (in docs)",
-                    "strings": " (in strings)",
-                    "both": " (in docs+strings)",
-                }
-                for kw in result.matched_keywords[:5]:
-                    source = result.keyword_sources.get(kw, "")
-                    suffix = source_suffixes.get(source, "")
-                    kw_with_sources.append(kw + suffix)
-
-                matched_str = ", ".join(kw_with_sources)
-                if len(result.matched_keywords) > 5:
-                    matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-                lines.append(f"Matched keywords: {matched_str}\n")
+                # Compact: just list keywords with source indicators
+                self._append_keyword_list(lines, result)
 
         # Code snippet preview (if enabled)
         if show_snippets:
@@ -774,6 +755,20 @@ class QueryOrchestrator:
         lines.append("\n")  # Blank line between results
 
         return "".join(lines)
+
+    def _append_keyword_list(self, lines: list[str], result: SearchResult) -> None:
+        """Append compact keyword list to lines."""
+        kw_with_sources: list[str] = []
+        source_suffixes = {"docs": "(d)", "strings": "(s)", "both": "(d+s)"}
+        for kw in result.matched_keywords[:3]:
+            source = result.keyword_sources.get(kw, "")
+            suffix = source_suffixes.get(source, "")
+            kw_with_sources.append(f"*{kw}*{suffix}")
+
+        matched_str = ", ".join(kw_with_sources)
+        if len(result.matched_keywords) > 3:
+            matched_str += f" +{len(result.matched_keywords) - 3}"
+        lines.append(f"   Matched: {matched_str}\n")
 
     def _extract_code_snippet(
         self, file_path: str, line: int, context_lines: int = QueryConfig.DEFAULT_CONTEXT_LINES
@@ -964,6 +959,7 @@ class QueryOrchestrator:
         path_pattern: str | None = None,
         arity: int | None = None,
         show_snippets: bool = False,
+        verbose: bool = False,
     ) -> str:
         """
         Execute a query and return formatted results.
@@ -978,6 +974,7 @@ class QueryOrchestrator:
             path_pattern: Optional glob pattern for file paths
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
+            verbose: Whether to show verbose output (default: False)
 
         Returns:
             Markdown formatted report
@@ -1030,5 +1027,5 @@ class QueryOrchestrator:
 
         # Format report
         return self._format_report(
-            ranked_results, suggestions, options.max_results, query, options.show_snippets
+            ranked_results, suggestions, options.max_results, query, options.show_snippets, verbose
         )

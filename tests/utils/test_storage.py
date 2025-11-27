@@ -2,11 +2,13 @@
 Comprehensive tests for cicada/utils/storage.py
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
 
 from cicada.utils.storage import (
+    add_linked_from,
     create_link,
     create_storage_dir,
     get_config_path,
@@ -14,12 +16,16 @@ from cicada.utils.storage import (
     get_index_path,
     get_link_info,
     get_link_path,
+    get_linked_from_info,
+    get_linked_from_path,
     get_pr_index_path,
     get_repo_hash,
     get_storage_dir,
     is_linked,
     remove_link,
+    remove_linked_from,
     resolve_storage_dir,
+    validate_linked_from,
 )
 
 
@@ -825,3 +831,299 @@ class TestLinkResolutionEdgeCases:
 
         # Should successfully create link
         assert is_linked(repo_c)
+
+
+class TestLinkedFromFunctionality:
+    """Tests for reverse link tracking functionality (linked_from.yaml)"""
+
+    @pytest.fixture
+    def setup_repos(self, tmp_path, mock_home_dir):
+        """Setup source and target repositories for testing"""
+        source_repo = tmp_path / "source_repo"
+        source_repo.mkdir()
+        target_repo = tmp_path / "target_repo"
+        target_repo.mkdir()
+
+        # Create storage and index for source
+        source_storage = create_storage_dir(source_repo)
+        (source_storage / "index.json").write_text('{"modules": {}}')
+
+        return source_repo, target_repo
+
+    def test_get_linked_from_path(self, tmp_path, mock_home_dir):
+        """Should return correct linked_from.yaml path"""
+        repo = tmp_path / "test_repo"
+        repo.mkdir()
+
+        path = get_linked_from_path(repo)
+
+        assert path.name == "linked_from.yaml"
+        assert path.parent == get_storage_dir(repo)
+
+    def test_get_linked_from_info_empty(self, tmp_path, mock_home_dir):
+        """Should return empty list for repo with no inbound links"""
+        repo = tmp_path / "test_repo"
+        repo.mkdir()
+
+        result = get_linked_from_info(repo)
+
+        assert result == []
+
+    def test_add_linked_from_creates_file(self, setup_repos):
+        """Should create linked_from.yaml on first add"""
+        source_repo, target_repo = setup_repos
+
+        add_linked_from(source_repo, target_repo)
+
+        path = get_linked_from_path(source_repo)
+        assert path.exists()
+
+    def test_add_linked_from_stores_correct_data(self, setup_repos):
+        """Should store correct target repository information"""
+        source_repo, target_repo = setup_repos
+
+        add_linked_from(source_repo, target_repo)
+
+        entries = get_linked_from_info(source_repo)
+        assert len(entries) == 1
+        assert entries[0]["target_repo_path"] == str(target_repo.resolve())
+        assert entries[0]["target_repo_hash"] == get_repo_hash(target_repo)
+        assert "linked_at" in entries[0]
+
+    def test_add_linked_from_appends(self, setup_repos, tmp_path, mock_home_dir):
+        """Multiple targets can link to same source"""
+        source_repo, target_repo = setup_repos
+        target2 = tmp_path / "target2"
+        target2.mkdir()
+
+        add_linked_from(source_repo, target_repo)
+        add_linked_from(source_repo, target2)
+
+        entries = get_linked_from_info(source_repo)
+        assert len(entries) == 2
+
+    def test_add_linked_from_no_duplicates(self, setup_repos):
+        """Should not add duplicate entries"""
+        source_repo, target_repo = setup_repos
+
+        add_linked_from(source_repo, target_repo)
+        add_linked_from(source_repo, target_repo)  # Duplicate
+
+        entries = get_linked_from_info(source_repo)
+        assert len(entries) == 1
+
+    def test_remove_linked_from_success(self, setup_repos):
+        """Entry should be removed correctly"""
+        source_repo, target_repo = setup_repos
+
+        add_linked_from(source_repo, target_repo)
+        source_storage = get_storage_dir(source_repo)
+        target_hash = get_repo_hash(target_repo)
+
+        result = remove_linked_from(source_storage, target_hash)
+
+        assert result is True
+        assert get_linked_from_info(source_repo) == []
+
+    def test_remove_linked_from_not_found(self, setup_repos):
+        """Should return False if entry doesn't exist"""
+        source_repo, target_repo = setup_repos
+        source_storage = get_storage_dir(source_repo)
+        target_hash = get_repo_hash(target_repo)
+
+        result = remove_linked_from(source_storage, target_hash)
+
+        assert result is False
+
+    def test_remove_linked_from_cleans_empty_file(self, setup_repos):
+        """File should be deleted when list becomes empty"""
+        source_repo, target_repo = setup_repos
+
+        add_linked_from(source_repo, target_repo)
+        source_storage = get_storage_dir(source_repo)
+        target_hash = get_repo_hash(target_repo)
+        remove_linked_from(source_storage, target_hash)
+
+        path = get_linked_from_path(source_repo)
+        assert not path.exists()
+
+    def test_remove_linked_from_keeps_file_with_other_entries(
+        self, setup_repos, tmp_path, mock_home_dir
+    ):
+        """File should remain if other entries exist"""
+        source_repo, target_repo = setup_repos
+        target2 = tmp_path / "target2"
+        target2.mkdir()
+
+        add_linked_from(source_repo, target_repo)
+        add_linked_from(source_repo, target2)
+
+        source_storage = get_storage_dir(source_repo)
+        target_hash = get_repo_hash(target_repo)
+        remove_linked_from(source_storage, target_hash)
+
+        entries = get_linked_from_info(source_repo)
+        assert len(entries) == 1
+        assert entries[0]["target_repo_hash"] == get_repo_hash(target2)
+
+    def test_create_link_adds_reverse_tracking(self, setup_repos):
+        """create_link should register in source's linked_from"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+
+        entries = get_linked_from_info(source_repo)
+        assert len(entries) == 1
+        assert entries[0]["target_repo_path"] == str(target_repo.resolve())
+
+    def test_remove_link_cleans_reverse_tracking(self, setup_repos):
+        """remove_link should clean up source's linked_from"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+        remove_link(target_repo)
+
+        entries = get_linked_from_info(source_repo)
+        assert entries == []
+
+    def test_get_linked_from_handles_corrupted_yaml(self, setup_repos):
+        """Should return empty list for corrupted linked_from.yaml"""
+        source_repo, _ = setup_repos
+
+        path = get_linked_from_path(source_repo)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("invalid: yaml: [[[")
+
+        result = get_linked_from_info(source_repo)
+        assert result == []
+
+    def test_validate_linked_from_valid_link(self, setup_repos):
+        """Should mark valid links as valid"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        entry, is_valid, reason = results[0]
+        assert is_valid is True
+        assert reason == "Valid"
+
+    def test_validate_linked_from_stale_link_unlinked(self, setup_repos):
+        """Should detect when target is no longer linked"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+        # Manually remove the link file to simulate stale state
+        link_path = get_link_path(target_repo)
+        link_path.unlink()
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        entry, is_valid, reason = results[0]
+        assert is_valid is False
+        assert "no longer linked" in reason
+
+    def test_validate_linked_from_stale_link_storage_deleted(self, setup_repos):
+        """Should detect when target storage directory doesn't exist"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+        # Remove target storage directory
+        target_storage = get_storage_dir(target_repo)
+        shutil.rmtree(target_storage)
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        entry, is_valid, reason = results[0]
+        assert is_valid is False
+        assert "does not exist" in reason
+
+    def test_validate_linked_from_stale_link_empty_file(self, setup_repos):
+        """Should detect when target's link.yaml is empty"""
+        source_repo, target_repo = setup_repos
+
+        create_link(target_repo, source_repo)
+
+        # Manually empty the link file
+        link_path = get_link_path(target_repo)
+        link_path.write_text("")
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        _, is_valid, reason = results[0]
+        assert is_valid is False
+        assert "Invalid or empty target link file" in reason
+
+    def test_validate_linked_from_empty(self, tmp_path, mock_home_dir):
+        """Should return empty list for repo with no reverse links"""
+        repo = tmp_path / "test_repo"
+        repo.mkdir()
+
+        results = validate_linked_from(repo)
+        assert results == []
+
+    def test_validate_linked_from_different_source(self, setup_repos, tmp_path, mock_home_dir):
+        """Should detect when target links to a different source"""
+        source_repo, target_repo = setup_repos
+
+        # Create another source repo
+        other_source = tmp_path / "other_source"
+        other_source.mkdir()
+        other_storage = create_storage_dir(other_source)
+        (other_storage / "index.json").write_text('{"modules": {}}')
+
+        # Link target to source
+        create_link(target_repo, source_repo)
+
+        # Now manually relink target to other_source
+        remove_link(target_repo)
+        create_link(target_repo, other_source)
+
+        # But source still has old linked_from entry (we add it back manually)
+        add_linked_from(source_repo, target_repo)
+
+        results = validate_linked_from(source_repo)
+        assert len(results) == 1
+        entry, is_valid, reason = results[0]
+        assert is_valid is False
+        assert "different source" in reason
+
+    def test_remove_link_cleans_reverse_in_chained_scenario(self, tmp_path, mock_home_dir):
+        """Should clean reverse link from source's own storage, not resolved storage.
+
+        Scenario: A links to B, B links to C
+        When A unlinks from B, the reverse link should be removed from B's storage,
+        not from C's storage (which is the resolved storage for B).
+        """
+        # Create three repos: A -> B -> C
+        repo_a = tmp_path / "repo_a"
+        repo_b = tmp_path / "repo_b"
+        repo_c = tmp_path / "repo_c"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        repo_c.mkdir()
+
+        # Setup C (root source)
+        create_storage_dir(repo_c)
+        (get_storage_dir(repo_c) / "index.json").write_text('{"modules": {}}')
+
+        # Setup B and link to C
+        create_storage_dir(repo_b)
+        (get_storage_dir(repo_b) / "index.json").write_text('{"modules": {}}')
+        create_link(repo_b, repo_c)
+
+        # Link A to B
+        create_link(repo_a, repo_b)
+
+        # Verify reverse link was added to B's storage (not C's)
+        b_linked_from = get_linked_from_info(repo_b)
+        assert len(b_linked_from) == 1
+        assert b_linked_from[0]["target_repo_hash"] == get_repo_hash(repo_a)
+
+        # Now unlink A from B
+        remove_link(repo_a)
+
+        # Verify reverse link was removed from B's storage
+        b_linked_from_after = get_linked_from_info(repo_b)
+        assert len(b_linked_from_after) == 0

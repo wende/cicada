@@ -8,11 +8,241 @@ import json
 import os
 import random
 import sys
+import threading
+import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from cicada.utils import get_pr_index_path, load_index
+
+# Type hint for IndexManager is forward-referenced with string annotation below
+
+
+class BackgroundRefreshManager:
+    """
+    Manages background index refreshing with debouncing.
+
+    This class handles automatic index refreshing when source files change.
+    It provides:
+    - Debouncing to coalesce rapid file changes
+    - Minimum refresh interval (cooldown) to prevent excessive refreshes
+    - Thread-safe background execution
+    - Graceful shutdown support
+    """
+
+    DEBOUNCE_SECONDS = 2.0  # Wait for rapid edits to settle
+    MIN_REFRESH_INTERVAL = 15.0  # Cooldown between refreshes (user choice)
+
+    def __init__(
+        self,
+        index_manager: "IndexManager",
+        repo_path: Path,
+        index_path: Path,
+        config: dict[str, Any],
+        on_refresh_complete: Callable[[], None] | None = None,
+    ):
+        """
+        Initialize the background refresh manager.
+
+        Args:
+            index_manager: The IndexManager instance to refresh
+            repo_path: Path to the repository
+            index_path: Path to the index file
+            config: Configuration dictionary
+            on_refresh_complete: Optional callback when refresh completes
+        """
+        self.index_manager = index_manager
+        self.repo_path = repo_path
+        self.index_path = index_path
+        self.config = config
+        self.on_refresh_complete = on_refresh_complete
+
+        self._refresh_in_progress = False
+        self._refresh_lock = threading.Lock()
+        self._last_refresh_time = 0.0
+        self._pending_refresh = False
+        self._debounce_timer: threading.Timer | None = None
+        self._stopped = False
+
+    def request_refresh_if_stale(self) -> bool:
+        """
+        Check if refresh needed and schedule if so. Non-blocking.
+
+        Returns:
+            True if a refresh was scheduled, False otherwise
+        """
+        # Acquire lock to safely read shared state
+        with self._refresh_lock:
+            if self._stopped:
+                return False
+
+            if self._refresh_in_progress:
+                return False
+
+            now = time.time()
+            if now - self._last_refresh_time < self.MIN_REFRESH_INTERVAL:
+                return False
+
+        # Staleness check doesn't need lock (reads from index_manager)
+        staleness = self.index_manager.check_staleness()
+        if not staleness or not staleness.get("is_stale"):
+            return False
+
+        self._schedule_refresh()
+        return True
+
+    def _schedule_refresh(self) -> None:
+        """Schedule a debounced refresh."""
+        with self._refresh_lock:
+            if self._stopped:
+                return
+            if self._debounce_timer:
+                self._debounce_timer.cancel()
+
+            self._debounce_timer = threading.Timer(
+                self.DEBOUNCE_SECONDS,
+                self._execute_refresh,
+            )
+            self._debounce_timer.daemon = True
+            self._debounce_timer.start()
+
+    def _execute_refresh(self) -> None:
+        """Execute the actual refresh in background."""
+        with self._refresh_lock:
+            if self._stopped:
+                return
+            if self._refresh_in_progress:
+                self._pending_refresh = True
+                return
+            self._refresh_in_progress = True
+
+        try:
+            self._run_incremental_index()
+            self._last_refresh_time = time.time()
+
+            if self.on_refresh_complete:
+                self.on_refresh_complete()
+        except Exception as e:
+            print(f"Background refresh failed: {e}", file=sys.stderr)
+        finally:
+            with self._refresh_lock:
+                self._refresh_in_progress = False
+                if self._pending_refresh and not self._stopped:
+                    self._pending_refresh = False
+                    self._schedule_refresh()
+
+    def _run_incremental_index(self) -> None:
+        """Run incremental indexing."""
+        from cicada.languages import LanguageRegistry
+        from cicada.setup import detect_project_language
+
+        language = detect_project_language(self.repo_path)
+        # Cast to Any - concrete indexers have methods not in BaseIndexer
+        indexer: Any = cast(Any, LanguageRegistry.get_indexer(language))
+
+        # Get indexing options from config (match original index settings)
+        indexing_config = self.config.get("indexing", {})
+        extract_keywords = indexing_config.get("extract_keywords", False)
+        extract_string_keywords = indexing_config.get("extract_string_keywords", False)
+
+        indexer.incremental_index_repository(
+            repo_path=str(self.repo_path),
+            output_path=str(self.index_path),
+            extract_keywords=extract_keywords,
+            extract_string_keywords=extract_string_keywords,
+            force_full=False,
+            verbose=False,
+        )
+
+    def force_refresh(self, force_full: bool = False) -> dict[str, Any]:
+        """
+        Force an immediate refresh (synchronous).
+
+        This bypasses debouncing and cooldown. Used by the refresh_index tool.
+
+        Args:
+            force_full: If True, force a full reindex instead of incremental
+
+        Returns:
+            Dictionary with refresh status and stats
+        """
+        # Thread-safe: check and acquire refresh lock
+        with self._refresh_lock:
+            if self._refresh_in_progress:
+                return {
+                    "success": False,
+                    "error": "A refresh is already in progress. Please try again shortly.",
+                    "elapsed_seconds": 0,
+                }
+            self._refresh_in_progress = True
+
+        try:
+            from cicada.languages import LanguageRegistry
+            from cicada.setup import detect_project_language
+
+            start_time = time.time()
+
+            try:
+                language = detect_project_language(self.repo_path)
+                # Cast to Any - concrete indexers have methods not in BaseIndexer
+                indexer: Any = cast(Any, LanguageRegistry.get_indexer(language))
+
+                # Get indexing options from config
+                indexing_config = self.config.get("indexing", {})
+                extract_keywords = indexing_config.get("extract_keywords", False)
+                extract_string_keywords = indexing_config.get("extract_string_keywords", False)
+
+                if force_full:
+                    result = indexer.index_repository(
+                        repo_path=str(self.repo_path),
+                        output_path=str(self.index_path),
+                        extract_keywords=extract_keywords,
+                        extract_string_keywords=extract_string_keywords,
+                        verbose=False,
+                    )
+                else:
+                    result = indexer.incremental_index_repository(
+                        repo_path=str(self.repo_path),
+                        output_path=str(self.index_path),
+                        extract_keywords=extract_keywords,
+                        extract_string_keywords=extract_string_keywords,
+                        force_full=False,
+                        verbose=False,
+                    )
+
+                elapsed = time.time() - start_time
+                with self._refresh_lock:
+                    self._last_refresh_time = time.time()
+
+                # Extract stats from result
+                metadata = result.get("metadata", {}) if result else {}
+                return {
+                    "success": True,
+                    "elapsed_seconds": round(elapsed, 2),
+                    "total_modules": metadata.get("total_modules", 0),
+                    "total_functions": metadata.get("total_functions", 0),
+                    "mode": "full" if force_full else "incremental",
+                }
+            except Exception as e:
+                elapsed = time.time() - start_time
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "elapsed_seconds": round(elapsed, 2),
+                }
+        finally:
+            with self._refresh_lock:
+                self._refresh_in_progress = False
+
+    def stop(self) -> None:
+        """Stop any pending refresh operations."""
+        with self._refresh_lock:
+            self._stopped = True
+            if self._debounce_timer:
+                self._debounce_timer.cancel()
+                self._debounce_timer = None
 
 
 class IndexManager:
@@ -37,6 +267,63 @@ class IndexManager:
         self._index_mtime = self._get_index_mtime()
         self._pr_index: dict | None = None  # Lazy load PR index
         self._has_keywords = self._check_keywords_available()
+
+        # Initialize background refresh manager
+        repo_path = Path(self.config.get("repository", {}).get("path", "."))
+        index_path = self._get_index_path()
+
+        self._refresh_manager = BackgroundRefreshManager(
+            index_manager=self,
+            repo_path=repo_path,
+            index_path=index_path,
+            config=config,
+            on_refresh_complete=self._on_background_refresh_complete,
+        )
+
+    def _get_index_path(self) -> Path:
+        """Get the index file path from config."""
+        if "storage" in self.config and "index_path" in self.config["storage"]:
+            return Path(self.config["storage"]["index_path"])
+        repo_path = Path(self.config.get("repository", {}).get("path", "."))
+        from cicada.utils.storage import get_index_path
+
+        return get_index_path(repo_path)
+
+    def _on_background_refresh_complete(self) -> None:
+        """Callback when background refresh completes.
+
+        The reload_if_changed() method will pick up the new mtime
+        on the next tool call, so nothing special needed here.
+        """
+
+    def request_background_refresh_if_stale(self) -> bool:
+        """
+        Request background refresh if stale. Non-blocking.
+
+        Returns:
+            True if a refresh was scheduled, False otherwise
+        """
+        return self._refresh_manager.request_refresh_if_stale()
+
+    def force_refresh(self, force_full: bool = False) -> dict[str, Any]:
+        """
+        Force an immediate index refresh (synchronous).
+
+        Args:
+            force_full: If True, force a full reindex instead of incremental
+
+        Returns:
+            Dictionary with refresh status and stats
+        """
+        result = self._refresh_manager.force_refresh(force_full)
+        # Reload the index after forced refresh
+        if result.get("success"):
+            self.reload_if_changed()
+        return result
+
+    def stop_background_refresh(self) -> None:
+        """Stop any pending background refresh operations."""
+        self._refresh_manager.stop()
 
     @property
     def index(self) -> dict[str, Any]:

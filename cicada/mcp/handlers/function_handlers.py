@@ -617,6 +617,7 @@ class FunctionSearchHandler:
         module_path: str | None = None,
         what_it_calls: bool = False,
         include_code_context: bool = False,
+        format_opts: dict | None = None,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -754,7 +755,13 @@ class FunctionSearchHandler:
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, what_it_calls, language, private_suggestion
+                function_name,
+                results,
+                staleness_info,
+                what_it_calls,
+                language,
+                private_suggestion,
+                format_opts=format_opts,
             )
 
         return [TextContent(type="text", text=result)]
