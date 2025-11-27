@@ -14,7 +14,7 @@ class TestAgentsInstall:
     def test_agents_install_calls_installer(self, mock_install):
         """Test that agents install handler calls install_agent."""
         # Create minimal args object
-        args = type("Args", (), {"agents_command": "install", "global": False})()
+        args = type("Args", (), {"agents_command": "install"})()
 
         # Call the install handler
         handle_agents_install(args)
@@ -28,7 +28,7 @@ class TestAgentsInstall:
         monkeypatch.chdir(tmp_path)
 
         # Create args and call handler
-        args = type("Args", (), {"agents_command": "install", "global": False})()
+        args = type("Args", (), {"agents_command": "install"})()
 
         handle_agents_install(args)
 
@@ -48,12 +48,12 @@ class TestAgentsInstall:
         assert args.agents_command == "install"
 
     def test_agents_install_local_by_default(self, tmp_path, capsys, monkeypatch):
-        """Test that default installation is local to project."""
+        """Test that installation is local to project."""
         # Change to temp directory
         monkeypatch.chdir(tmp_path)
 
-        # Create args without global flag
-        args = type("Args", (), {"agents_command": "install", "global": False})()
+        # Create args
+        args = type("Args", (), {"agents_command": "install"})()
 
         # Call handler
         handle_agents_install(args)
@@ -62,21 +62,6 @@ class TestAgentsInstall:
         agent_file = tmp_path / ".claude" / "agents" / "cicada-code-explorer.md"
         assert agent_file.exists()
 
-        # Verify output mentions "local"
+        # Verify success message
         captured = capsys.readouterr()
-        assert "local" in captured.out
-        assert "project" in captured.out
-
-    def test_agents_install_global_flag(self, tmp_path, capsys, monkeypatch):
-        """Test that --global flag installs to home directory."""
-        monkeypatch.setenv("HOME", str(tmp_path))
-
-        # Create args with global flag
-        args = type("Args", (), {"agents_command": "install", "global": True})()
-
-        # Call handler
-        handle_agents_install(args)
-
-        # Verify output mentions "global"
-        captured = capsys.readouterr()
-        assert "global" in captured.out
+        assert "Installation complete" in captured.out

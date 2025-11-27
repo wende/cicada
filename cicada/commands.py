@@ -710,12 +710,7 @@ Examples:
         parents=[common_parser],
     )
     agents_subparsers = agents_parser.add_subparsers(dest="agents_command")
-    install_parser_agents = agents_subparsers.add_parser("install", help="Install Cicada agents")
-    install_parser_agents.add_argument(
-        "--global",
-        action="store_true",
-        help="Install to global ~/.claude/ (default: project .claude/)",
-    )
+    agents_subparsers.add_parser("install", help="Install Cicada agents")
 
     return parser
 
@@ -1639,7 +1634,7 @@ def handle_agents(args) -> None:
 
 
 def handle_agents_install(args) -> None:
-    """Install Cicada agents to ./.claude/ or ~/.claude/ (with --global).
+    """Install Cicada agents to ./.claude/.
 
     Args:
         args: Parsed command-line arguments
@@ -1648,15 +1643,8 @@ def handle_agents_install(args) -> None:
 
     from cicada.agents.installer import install_agent
 
-    # Determine install path (default: local, --global for global)
-    if getattr(args, "global", False):
-        install_path = Path.home() / ".claude"
-        scope = "global"
-    else:
-        install_path = Path.cwd() / ".claude"
-        scope = "local"
-
-    print(f"\nInstalling Cicada agent ({scope}): {install_path}\n")
+    install_path = Path.cwd() / ".claude"
+    print(f"\nInstalling Cicada agent: {install_path}\n")
 
     install_agent(install_path)
 
@@ -1665,5 +1653,3 @@ def handle_agents_install(args) -> None:
     print("\nNext steps:")
     print("  1. Restart Claude Code to load the new agent")
     print("  2. Use agent via: Task tool → select cicada-code-explorer")
-    if scope == "local":
-        print("\nAgent installed in this project's .claude/ directory")
