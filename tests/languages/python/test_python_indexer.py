@@ -1156,6 +1156,143 @@ class TestExpandAndUpdateKeywords:
         assert result["test"] == 0.9  # Original higher score preserved
 
 
+class TestExtractKeywordsFromText:
+    """Tests for _extract_keywords_from_text helper method."""
+
+    @pytest.fixture
+    def indexer(self):
+        return PythonSCIPIndexer(verbose=False)
+
+    def test_returns_none_for_empty_text(self, indexer):
+        """Should return None when text is empty."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        result = indexer._extract_keywords_from_text("", extractor, None)
+        assert result is None
+        extractor.extract_keywords.assert_not_called()
+
+    def test_returns_none_for_no_keywords(self, indexer):
+        """Should return None when extractor returns no keywords."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": []}
+
+        result = indexer._extract_keywords_from_text("some text", extractor, None)
+        assert result is None
+
+    def test_extracts_and_returns_keywords(self, indexer):
+        """Should extract keywords and return as dict."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": [("auth", 0.8), ("login", 0.6)]}
+
+        result = indexer._extract_keywords_from_text("authentication login", extractor, None)
+
+        assert result == {"auth": 0.8, "login": 0.6}
+        extractor.extract_keywords.assert_called_once_with("authentication login", top_n=10)
+
+    def test_respects_top_n_parameter(self, indexer):
+        """Should pass top_n to extractor."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": [("test", 0.5)]}
+
+        indexer._extract_keywords_from_text("text", extractor, None, top_n=5)
+
+        extractor.extract_keywords.assert_called_once_with("text", top_n=5)
+
+    def test_expands_keywords_when_expander_provided(self, indexer):
+        """Should expand keywords when expander is provided."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": [("auth", 0.8)]}
+
+        expander = MagicMock()
+        expander.expand_keywords.return_value = {
+            "words": [{"word": "auth", "score": 0.8}, {"word": "authentication", "score": 0.7}],
+            "simple": ["auth", "authentication"],
+        }
+
+        result = indexer._extract_keywords_from_text("auth text", extractor, expander)
+
+        assert "auth" in result
+        assert "authentication" in result
+
+
+class TestExtractModuleKeywords:
+    """Tests for _extract_module_keywords helper method."""
+
+    @pytest.fixture
+    def indexer(self):
+        return PythonSCIPIndexer(verbose=False)
+
+    def test_extracts_module_level_keywords(self, indexer):
+        """Should extract keywords from moduledoc and function docs combined."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": [("user", 0.9), ("auth", 0.7)]}
+
+        module_data = {
+            "moduledoc": "User authentication module",
+            "functions": [{"name": "login", "doc": "Login function"}],
+        }
+
+        indexer._extract_module_keywords(module_data, extractor, None)
+
+        assert "keywords" in module_data
+        assert module_data["keywords"] == {"user": 0.9, "auth": 0.7}
+
+    def test_extracts_function_level_keywords(self, indexer):
+        """Should extract keywords for each function with docs."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.side_effect = [
+            {"top_keywords": [("module", 0.8)]},  # Module-level
+            {"top_keywords": [("login", 0.9)]},  # Function 1
+            {"top_keywords": []},  # Function 2 - no keywords
+        ]
+
+        module_data = {
+            "moduledoc": "Module doc",
+            "functions": [
+                {"name": "func1", "doc": "Login function"},
+                {"name": "func2", "doc": "Another function"},
+            ],
+        }
+
+        indexer._extract_module_keywords(module_data, extractor, None)
+
+        assert module_data["functions"][0].get("keywords") == {"login": 0.9}
+        assert "keywords" not in module_data["functions"][1]  # No keywords extracted
+
+    def test_skips_functions_without_docs(self, indexer):
+        """Should skip functions without documentation."""
+        from unittest.mock import MagicMock
+
+        extractor = MagicMock()
+        extractor.extract_keywords.return_value = {"top_keywords": [("test", 0.5)]}
+
+        module_data = {
+            "moduledoc": "Module doc",
+            "functions": [
+                {"name": "func1", "doc": ""},  # Empty doc
+                {"name": "func2"},  # No doc key
+            ],
+        }
+
+        indexer._extract_module_keywords(module_data, extractor, None)
+
+        # Only module-level extraction should happen
+        assert extractor.extract_keywords.call_count == 1
+
+
 class TestIndexRepositoryErrorPaths:
     """Tests for error handling in incremental_index_repository."""
 

@@ -404,70 +404,70 @@ class PythonSCIPIndexer(BaseIndexer):
 
         return updated_keywords
 
-    def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
-        """Extract keywords from module and function docstrings.
+    def _extract_keywords_from_text(
+        self, text: str, keyword_extractor, keyword_expander, top_n: int = 10
+    ) -> dict[str, float] | None:
+        """Extract and expand keywords from text. Returns None if no keywords."""
+        if not text:
+            return None
 
-        Args:
-            index: The Cicada index to update
-            keyword_extractor: Keyword extractor instance
-            keyword_expander: Keyword expander instance
-        """
+        result = keyword_extractor.extract_keywords(text, top_n=top_n)
+        keywords = dict(result.get("top_keywords", []))
+
+        if not keywords:
+            return None
+
+        return self._expand_and_update_keywords(keywords, keyword_expander)
+
+    def _extract_module_keywords(
+        self, module_data: dict, keyword_extractor, keyword_expander
+    ) -> None:
+        """Extract keywords for a single module and its functions."""
+        # Module-level: combine moduledoc + all function docs
+        module_doc = module_data.get("moduledoc", "")
+        functions = module_data.get("functions", [])
+        func_docs = " ".join(f.get("doc", "") for f in functions)
+        combined_text = f"{module_doc} {func_docs}".strip()
+
+        keywords = self._extract_keywords_from_text(
+            combined_text, keyword_extractor, keyword_expander, top_n=10
+        )
+        if keywords:
+            module_data["keywords"] = keywords
+
+        # Function-level keywords
+        for func in functions:
+            func_keywords = self._extract_keywords_from_text(
+                func.get("doc", ""), keyword_extractor, keyword_expander, top_n=5
+            )
+            if func_keywords:
+                func["keywords"] = func_keywords
+
+    def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
+        """Extract keywords from module and function docstrings."""
         if self.verbose:
             print("  Extracting keywords from docstrings...")
 
         modules = index.get("modules", {})
-
-        # Defensive check: ensure modules is a dict
         if not isinstance(modules, dict):
             if self.verbose:
                 print(
-                    f"    Warning: modules is not a dict (got {type(modules).__name__}), skipping keyword extraction"
+                    f"    Warning: modules is not a dict (got {type(modules).__name__}), skipping"
                 )
             return
 
         total = len(modules)
-
         for idx, (module_name, module_data) in enumerate(modules.items(), 1):
-            # Defensive check: ensure module_data is a dict
             if not isinstance(module_data, dict):
                 if self.verbose:
                     print(f"    Warning: module_data for {module_name} is not a dict, skipping")
                 continue
+
             if self.verbose and idx % 50 == 0:
                 print(f"    Processed {idx}/{total} modules...")
 
             try:
-                # Extract module-level keywords from moduledoc + function docs
-                module_doc = module_data.get("moduledoc", "")
-                functions = module_data.get("functions", [])
-                func_docs = " ".join(f.get("doc", "") for f in functions)
-                combined_text = f"{module_doc} {func_docs}".strip()
-
-                if combined_text:
-                    result = keyword_extractor.extract_keywords(combined_text, top_n=10)
-                    keywords = {}
-                    for keyword, score in result.get("top_keywords", []):
-                        keywords[keyword] = score
-
-                    if keywords:
-                        keywords = self._expand_and_update_keywords(keywords, keyword_expander)
-                        module_data["keywords"] = keywords
-
-                # Extract function-level keywords
-                for func in functions:
-                    func_doc = func.get("doc", "")
-                    if func_doc:
-                        result = keyword_extractor.extract_keywords(func_doc, top_n=5)
-                        func_keywords = {}
-                        for keyword, score in result.get("top_keywords", []):
-                            func_keywords[keyword] = score
-
-                        if func_keywords:
-                            func_keywords = self._expand_and_update_keywords(
-                                func_keywords, keyword_expander
-                            )
-                            func["keywords"] = func_keywords
-
+                self._extract_module_keywords(module_data, keyword_extractor, keyword_expander)
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
