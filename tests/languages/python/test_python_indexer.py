@@ -507,7 +507,11 @@ class TestPythonIndexerHelperMethods:
         }
 
         keyword_expander = MagicMock()
-        keyword_expander.expand_keywords.return_value = {"database": 0.7}
+        # Return new dict format with words and simple keys
+        keyword_expander.expand_keywords.return_value = {
+            "words": [{"word": "database", "score": 0.7}],
+            "simple": ["database"],
+        }
 
         verbose_indexer._extract_string_keywords(index, repo, keyword_extractor, keyword_expander)
 

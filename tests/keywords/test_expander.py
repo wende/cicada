@@ -140,10 +140,12 @@ class TestKeywordExpansion:
         expander = KeywordExpander(expansion_type="fasttext", verbose=False)
         result = expander.expand_keywords(keywords=["database"])
 
-        # Should return sorted list of strings
-        assert isinstance(result, list)
-        assert all(isinstance(w, str) for w in result)
-        assert "database" in result
+        # Should return dict with 'words' and 'simple' keys
+        assert isinstance(result, dict)
+        assert "words" in result
+        assert "simple" in result
+        assert all(isinstance(w, str) for w in result["simple"])
+        assert "database" in result["simple"]
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
     def test_threshold_filtering(self, mock_load):
@@ -160,9 +162,9 @@ class TestKeywordExpansion:
         result = expander.expand_keywords(keywords=["test"], top_n=10, threshold=0.7)
 
         # Only high_sim and medium_sim should be included (>= 0.7)
-        assert "high_sim" in result
-        assert "medium_sim" in result
-        assert "low_sim" not in result
+        assert "high_sim" in result["simple"]
+        assert "medium_sim" in result["simple"]
+        assert "low_sim" not in result["simple"]
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
     def test_top_n_limiting(self, mock_load):
@@ -176,9 +178,9 @@ class TestKeywordExpansion:
         result = expander.expand_keywords(keywords=["test"], top_n=5, threshold=0.0)
 
         # Should include top_n similar words plus the keyword itself
-        assert "test" in result
+        assert "test" in result["simple"]
         # Other words should be there but limited by top_n
-        similar_words = [w for w in result if w.startswith("similar")]
+        similar_words = [w for w in result["simple"] if w.startswith("similar")]
         assert len(similar_words) <= 5
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
@@ -200,10 +202,10 @@ class TestKeywordExpansion:
         result = expander.expand_keywords(keywords=["database", "cache"], top_n=3, threshold=0.7)
 
         # Should include both original keywords and similar words
-        assert "database" in result
-        assert "cache" in result
-        assert "postgresql" in result
-        assert "redis" in result
+        assert "database" in result["simple"]
+        assert "cache" in result["simple"]
+        assert "postgresql" in result["simple"]
+        assert "redis" in result["simple"]
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
     def test_out_of_vocabulary_keyword(self, mock_load):
@@ -216,8 +218,9 @@ class TestKeywordExpansion:
         # Should not raise, just skip OOV words silently
         result = expander.expand_keywords(keywords=["zzz_nonexistent"], top_n=3, threshold=0.7)
 
-        # Should still include the keyword itself
-        assert isinstance(result, list)
+        # Should return dict format
+        assert isinstance(result, dict)
+        assert "simple" in result
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
     def test_empty_keyword_list(self, mock_load):
@@ -225,7 +228,7 @@ class TestKeywordExpansion:
         expander = KeywordExpander(expansion_type="fasttext", verbose=False)
         result = expander.expand_keywords(keywords=[], top_n=3, threshold=0.7)
 
-        assert result == []
+        assert result == {"simple": [], "words": []}
 
     @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
     def test_case_insensitive_expansion(self, mock_load):
@@ -237,9 +240,9 @@ class TestKeywordExpansion:
         expander = KeywordExpander(expansion_type="fasttext", verbose=False)
         result = expander.expand_keywords(keywords=["DATABASE"], top_n=3, threshold=0.7)
 
-        # Should lowercase the keyword
-        assert "database" in result
-        assert "DATABASE" not in result
+        # Should include lowercase version of keyword
+        assert "database" in result["simple"]
+        assert "DATABASE" not in result["simple"]
 
 
 class TestGetModelInfo:

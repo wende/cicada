@@ -244,17 +244,28 @@ class PythonSCIPIndexer(BaseIndexer):
                     keyword_extractor = None
                     keyword_expander = None
 
-            # 5. Convert to Cicada format with optional keyword extraction
+            # 5. Convert to Cicada format (without keyword extraction - that's done separately)
             try:
                 converter = SCIPConverter(
-                    extract_keywords=extract_keywords,
-                    keyword_extractor=keyword_extractor,
+                    extract_keywords=False,  # Don't extract during conversion - too slow
+                    keyword_extractor=None,
                     verbose=self.verbose,
                 )
                 cicada_index = converter.convert(scip_index, repo_path_obj)
                 log_timing("SCIP to Cicada conversion")
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
+
+            # 5.5. Extract keywords from docstrings if requested (separate phase for performance)
+            if extract_keywords and keyword_extractor:
+                try:
+                    self._extract_docstring_keywords(
+                        cicada_index, keyword_extractor, keyword_expander
+                    )
+                    log_timing("Docstring keyword extraction")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    Warning: Docstring keyword extraction failed: {e}")
 
             # 6. Extract string keywords if requested
             if extract_string_keywords and keyword_extractor:
@@ -364,6 +375,98 @@ class PythonSCIPIndexer(BaseIndexer):
             python_files.append(py_file)
         return python_files
 
+    def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
+        """Extract keywords from module and function docstrings.
+
+        Args:
+            index: The Cicada index to update
+            keyword_extractor: Keyword extractor instance
+            keyword_expander: Keyword expander instance
+        """
+        if self.verbose:
+            print("  Extracting keywords from docstrings...")
+
+        modules = index.get("modules", {})
+
+        # Defensive check: ensure modules is a dict
+        if not isinstance(modules, dict):
+            if self.verbose:
+                print(
+                    f"    Warning: modules is not a dict (got {type(modules).__name__}), skipping keyword extraction"
+                )
+            return
+
+        total = len(modules)
+
+        for idx, (module_name, module_data) in enumerate(modules.items(), 1):
+            # Defensive check: ensure module_data is a dict
+            if not isinstance(module_data, dict):
+                if self.verbose:
+                    print(f"    Warning: module_data for {module_name} is not a dict, skipping")
+                continue
+            if self.verbose and idx % 50 == 0:
+                print(f"    Processed {idx}/{total} modules...")
+
+            try:
+                # Extract module-level keywords from moduledoc + function docs
+                module_doc = module_data.get("moduledoc", "")
+                functions = module_data.get("functions", [])
+                func_docs = " ".join(f.get("doc", "") for f in functions)
+                combined_text = f"{module_doc} {func_docs}".strip()
+
+                if combined_text:
+                    result = keyword_extractor.extract_keywords(combined_text, top_n=10)
+                    keywords = {}
+                    for keyword, score in result.get("top_keywords", []):
+                        keywords[keyword] = score
+
+                    if keywords:
+                        # Expand keywords
+                        if keyword_expander:
+                            expansion_result = keyword_expander.expand_keywords(
+                                list(keywords.keys()),
+                                keyword_scores=keywords,
+                            )
+                            # Convert expansion result to dict
+                            if isinstance(expansion_result, dict):
+                                for item in expansion_result["words"]:
+                                    word = item["word"]
+                                    score = item["score"]
+                                    if word not in keywords or score > keywords[word]:
+                                        keywords[word] = score
+
+                        module_data["keywords"] = keywords
+
+                # Extract function-level keywords
+                for func in functions:
+                    func_doc = func.get("doc", "")
+                    if func_doc:
+                        result = keyword_extractor.extract_keywords(func_doc, top_n=5)
+                        func_keywords = {}
+                        for keyword, score in result.get("top_keywords", []):
+                            func_keywords[keyword] = score
+
+                        if func_keywords:
+                            # Expand keywords
+                            if keyword_expander:
+                                expansion_result = keyword_expander.expand_keywords(
+                                    list(func_keywords.keys()),
+                                    keyword_scores=func_keywords,
+                                )
+                                # Convert expansion result to dict
+                                if isinstance(expansion_result, dict):
+                                    for item in expansion_result["words"]:
+                                        word = item["word"]
+                                        score = item["score"]
+                                        if word not in func_keywords or score > func_keywords[word]:
+                                            func_keywords[word] = score
+
+                            func["keywords"] = func_keywords
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
+
     def _extract_string_keywords(
         self, index: dict, repo_path: Path, keyword_extractor, keyword_expander
     ) -> None:
@@ -412,12 +515,17 @@ class PythonSCIPIndexer(BaseIndexer):
                     if string_keywords:
                         # Expand keywords
                         if keyword_expander:
-                            expanded = keyword_expander.expand_keywords(
-                                list(string_keywords.keys())
+                            expansion_result = keyword_expander.expand_keywords(
+                                list(string_keywords.keys()),
+                                keyword_scores=string_keywords,
                             )
-                            for kw, score in expanded.items():
-                                if kw not in string_keywords:
-                                    string_keywords[kw] = score * 0.5
+                            # Convert expansion result to dict
+                            if isinstance(expansion_result, dict):
+                                for item in expansion_result["words"]:
+                                    word = item["word"]
+                                    score = item["score"]
+                                    if word not in string_keywords or score > string_keywords[word]:
+                                        string_keywords[word] = score
 
                         module_data["string_keywords"] = string_keywords
 
@@ -645,7 +753,7 @@ class PythonSCIPIndexer(BaseIndexer):
         ]
 
         if self.verbose:
-            print(f"  Running: {' '.join(cmd)}")
+            print("  Running SCIP")
             print("  (This may take several minutes for large projects...)")
 
         try:
