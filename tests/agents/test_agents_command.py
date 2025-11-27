@@ -13,11 +13,8 @@ class TestAgentsInstall:
     @patch("cicada.agents.installer.install_agent")
     def test_agents_install_calls_installer(self, mock_install):
         """Test that agents install handler calls install_agent."""
-        # Create minimal args object
-        args = type("Args", (), {"agents_command": "install"})()
-
         # Call the install handler
-        handle_agents_install(args)
+        handle_agents_install()
 
         # Verify install_agent was called
         mock_install.assert_called_once()
@@ -27,10 +24,7 @@ class TestAgentsInstall:
         # Mock current directory to temp path
         monkeypatch.chdir(tmp_path)
 
-        # Create args and call handler
-        args = type("Args", (), {"agents_command": "install"})()
-
-        handle_agents_install(args)
+        handle_agents_install()
 
         # Capture output
         captured = capsys.readouterr()
@@ -52,11 +46,8 @@ class TestAgentsInstall:
         # Change to temp directory
         monkeypatch.chdir(tmp_path)
 
-        # Create args
-        args = type("Args", (), {"agents_command": "install"})()
-
         # Call handler
-        handle_agents_install(args)
+        handle_agents_install()
 
         # Verify installation in project .claude
         agent_file = tmp_path / ".claude" / "agents" / "cicada-code-explorer.md"

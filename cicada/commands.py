@@ -709,7 +709,7 @@ Examples:
         description="Install agents for code exploration",
         parents=[common_parser],
     )
-    agents_subparsers = agents_parser.add_subparsers(dest="agents_command")
+    agents_subparsers = agents_parser.add_subparsers(dest="agents_command", required=True)
     agents_subparsers.add_parser("install", help="Install Cicada agents")
 
     return parser
@@ -1627,28 +1627,23 @@ def handle_agents(args) -> None:
         args: Parsed command-line arguments
     """
     if args.agents_command == "install":
-        handle_agents_install(args)
-    else:
-        print("Error: Use 'cicada agents install'", file=sys.stderr)
-        sys.exit(1)
+        handle_agents_install()
 
 
-def handle_agents_install(args) -> None:
-    """Install Cicada agents to ./.claude/.
-
-    Args:
-        args: Parsed command-line arguments
-    """
+def handle_agents_install() -> None:
+    """Install Cicada agents to ./.claude/."""
     from pathlib import Path
 
     from cicada.agents.installer import install_agent
 
     install_path = Path.cwd() / ".claude"
+    agent_name = "cicada-code-explorer.md"
+
     print(f"\nInstalling Cicada agent: {install_path}\n")
 
-    install_agent(install_path)
+    install_agent(install_path, agent_name)
 
-    print("  ✓ Installed cicada-code-explorer.md")
+    print(f"  ✓ Installed {agent_name}")
     print("\n✓ Installation complete!")
     print("\nNext steps:")
     print("  1. Restart Claude Code to load the new agent")
