@@ -663,6 +663,13 @@ Examples:
     )
 
     stats_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
+    stats_parser.add_argument(
         "--detailed",
         action="store_true",
         help="Show detailed per-tool breakdown",
