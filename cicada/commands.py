@@ -1038,7 +1038,9 @@ def handle_index_main(args) -> None:
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
-        # Elixir indexer saves partial progress; Python indexer does not (uses external scip-python)
+        # Handle interrupt during the initial, non-enrichment phase of indexing.
+        # For Python, an interrupt during the external `scip-python` call means no index is saved.
+        # Other indexers, like Elixir's, may save partial progress even at this stage.
         if language == "elixir":
             print("Partial index saved. Run again to continue indexing remaining files.")
         else:

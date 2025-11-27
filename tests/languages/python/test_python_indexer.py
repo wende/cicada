@@ -1156,7 +1156,7 @@ class TestInterruptibleEnrichmentPhases:
                         assert result["success"] is True
                         assert result["interrupted"] is True
                         assert "string keywords (partial)" in result["skipped_phases"]
-                        assert "timestamps" in result["skipped_phases"]
+                        assert "timestamp computation" in result["skipped_phases"]
                         assert output.exists()
                     finally:
                         if scip_file.exists():
@@ -1271,3 +1271,39 @@ class TestInterruptibleEnrichmentPhases:
                     finally:
                         if scip_file.exists():
                             scip_file.unlink()
+
+    def test_run_interruptible_phase_handles_exception(self, indexer):
+        """Test that _run_interruptible_phase handles generic exceptions."""
+        skipped_phases = []
+
+        def failing_phase():
+            raise ValueError("Test error")
+
+        # Should return False but not set _interrupted
+        result = indexer._run_interruptible_phase(
+            "test phase",
+            failing_phase,
+            skipped_phases,
+        )
+
+        assert result is False
+        assert indexer._interrupted is False
+        assert skipped_phases == []
+
+    def test_run_interruptible_phase_handles_exception_verbose(self, indexer, capsys):
+        """Test exception handling in verbose mode."""
+        indexer.verbose = True
+        skipped_phases = []
+
+        def failing_phase():
+            raise RuntimeError("Something went wrong")
+
+        result = indexer._run_interruptible_phase(
+            "timestamp computation",
+            failing_phase,
+            skipped_phases,
+        )
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "Warning: Timestamp computation failed: Something went wrong" in captured.out

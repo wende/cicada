@@ -8,7 +8,9 @@ import json
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
 from cicada.git.helper import GitHelper
@@ -66,6 +68,42 @@ class PythonSCIPIndexer(BaseIndexer):
     def get_excluded_dirs(self) -> list[str]:
         """Return directories to exclude from indexing."""
         return list(self.excluded_dirs)
+
+    def _run_interruptible_phase(
+        self,
+        phase_name: str,
+        phase_func: Callable[[], Any],
+        skipped_phases: list[str],
+        partial_suffix: str = "",
+    ) -> bool:
+        """Run an enrichment phase that can be interrupted.
+
+        Args:
+            phase_name: Human-readable name of the phase (e.g., "string keywords")
+            phase_func: Callable that performs the phase work
+            skipped_phases: List to append skipped phase names to
+            partial_suffix: Suffix to add if interrupted mid-phase (e.g., " (partial)")
+
+        Returns:
+            True if the phase completed successfully, False otherwise
+        """
+        if self._interrupted:
+            skipped_phases.append(phase_name)
+            return False
+
+        try:
+            phase_func()
+            return True
+        except KeyboardInterrupt:
+            self._interrupted = True
+            skipped_phases.append(f"{phase_name}{partial_suffix}")
+            if self.verbose:
+                print(f"\n  ⚠️  Interrupted during {phase_name}")
+            return False
+        except Exception as e:
+            if self.verbose:
+                print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            return False
 
     def index_repository(
         self,
@@ -264,52 +302,35 @@ class PythonSCIPIndexer(BaseIndexer):
             skipped_phases = []
 
             # 6. Extract string keywords if requested
-            if extract_string_keywords and keyword_extractor and not self._interrupted:
-                try:
-                    self._extract_string_keywords(
+            if (
+                extract_string_keywords
+                and keyword_extractor
+                and self._run_interruptible_phase(
+                    "string keywords",
+                    lambda: self._extract_string_keywords(
                         cicada_index, repo_path_obj, keyword_extractor, keyword_expander
-                    )
-                    log_timing("String keyword extraction")
-                except KeyboardInterrupt:
-                    self._interrupted = True
-                    skipped_phases.append("string keywords (partial)")
-                    if self.verbose:
-                        print("\n  ⚠️  Interrupted during string keyword extraction")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: String keyword extraction failed: {e}")
+                    ),
+                    skipped_phases,
+                    partial_suffix=" (partial)",
+                )
+            ):
+                log_timing("String keyword extraction")
 
             # 7. Compute timestamps if requested
-            if compute_timestamps and not self._interrupted:
-                try:
-                    self._compute_timestamps(cicada_index, repo_path_obj)
-                    log_timing("Timestamp computation")
-                except KeyboardInterrupt:
-                    self._interrupted = True
-                    skipped_phases.append("timestamps")
-                    if self.verbose:
-                        print("\n  ⚠️  Interrupted during timestamp computation")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Timestamp computation failed: {e}")
-            elif compute_timestamps and self._interrupted:
-                skipped_phases.append("timestamps")
+            if compute_timestamps and self._run_interruptible_phase(
+                "timestamp computation",
+                lambda: self._compute_timestamps(cicada_index, repo_path_obj),
+                skipped_phases,
+            ):
+                log_timing("Timestamp computation")
 
             # 8. Extract co-change relationships if requested
-            if extract_cochange and not self._interrupted:
-                try:
-                    self._extract_cochange(cicada_index, repo_path_obj)
-                    log_timing("Co-change analysis")
-                except KeyboardInterrupt:
-                    self._interrupted = True
-                    skipped_phases.append("co-change analysis")
-                    if self.verbose:
-                        print("\n  ⚠️  Interrupted during co-change analysis")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Co-change analysis failed: {e}")
-            elif extract_cochange and self._interrupted:
-                skipped_phases.append("co-change analysis")
+            if extract_cochange and self._run_interruptible_phase(
+                "co-change analysis",
+                lambda: self._extract_cochange(cicada_index, repo_path_obj),
+                skipped_phases,
+            ):
+                log_timing("Co-change analysis")
 
             # 9. Save index (always attempt, even if interrupted)
             try:
