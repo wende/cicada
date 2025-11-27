@@ -1,8 +1,6 @@
 """Tests for co-change analysis from git history."""
 
 import pytest
-import subprocess
-from pathlib import Path
 from datetime import datetime, timedelta
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
 
@@ -10,20 +8,18 @@ from cicada.git.cochange_analyzer import CoChangeAnalyzer
 class TestCoChangeAnalyzer:
     """Test suite for CoChangeAnalyzer."""
 
-    def test_analyze_repository_returns_empty_for_no_commits(self, tmp_path):
-        """Test that analyzing a repo with no commits returns empty results."""
-        # Arrange: Create empty git repo
-        repo_path = tmp_path / "empty_repo"
+    def test_analyze_repository_returns_empty_for_non_git_directory(self, tmp_path):
+        """Test that analyzing a non-git directory returns empty results."""
+        # Arrange: Create a regular directory (not a git repo)
+        repo_path = tmp_path / "non_git_dir"
         repo_path.mkdir()
-
-        subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
 
         analyzer = CoChangeAnalyzer()
 
         # Act
         result = analyzer.analyze_repository(str(repo_path))
 
-        # Assert
+        # Assert - should handle gracefully with empty results
         assert result["file_pairs"] == {}
         assert result["function_pairs"] == {}
         assert result["metadata"]["commit_count"] == 0
