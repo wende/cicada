@@ -729,6 +729,7 @@ class QueryOrchestrator:
 
         # Matched keywords indicator - compact single line
         if result.matched_keywords:
+            context = None
             if verbose:
                 # Full context in verbose mode
                 context = format_matched_context(
@@ -738,10 +739,9 @@ class QueryOrchestrator:
                     string_sources=result.string_sources,
                     use_ansi=True,
                 )
-                if context:
-                    lines.append(f"\n{context}\n")
-                else:
-                    self._append_keyword_list(lines, result)
+
+            if context:
+                lines.append(f"\n{context}\n")
             else:
                 # Compact: just list keywords with source indicators
                 self._append_keyword_list(lines, result)
