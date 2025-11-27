@@ -488,7 +488,7 @@ class TestVerboseFlag:
         assert hasattr(args, "verbose")
         assert args.verbose is False
 
-    @pytest.mark.parametrize("command", ["index", "watch", "query authentication"])
+    @pytest.mark.parametrize("command", ["index", "watch"])
     def test_verbose_flag_on_all_commands(self, command):
         """Test that verbose flag works with all commands."""
         parser = get_argument_parser()
@@ -589,69 +589,6 @@ class TestVerboseFlag:
 # ============================================================================
 # SECTION 14: Test Command Handlers
 # ============================================================================
-
-
-class TestHandleQuery:
-    """Test handle_query command."""
-
-    @patch("cicada.utils.load_index")
-    @patch("cicada.utils.get_index_path")
-    def test_query_no_index(self, mock_get_path, mock_load, capsys):
-        """Test query fails when index doesn't exist."""
-        from cicada.commands import handle_query
-
-        mock_path = MagicMock()
-        mock_path.exists.return_value = False
-        mock_get_path.return_value = mock_path
-
-        parser = get_argument_parser()
-        args = parser.parse_args(["query", "test"])
-
-        with pytest.raises(SystemExit) as exc:
-            handle_query(args)
-        assert exc.value.code == 1
-
-    @patch("cicada.query.QueryOrchestrator")
-    @patch("cicada.utils.load_index")
-    @patch("cicada.utils.get_index_path")
-    def test_query_no_keywords(self, mock_get_path, mock_load, mock_orch, capsys):
-        """Test query fails when index has no keywords."""
-        from cicada.commands import handle_query
-
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_get_path.return_value = mock_path
-        mock_load.return_value = {"modules": {"TestMod": {}}}  # No keywords
-
-        parser = get_argument_parser()
-        args = parser.parse_args(["query", "test"])
-
-        with pytest.raises(SystemExit) as exc:
-            handle_query(args)
-        assert exc.value.code == 1
-
-    @patch("cicada.query.QueryOrchestrator")
-    @patch("cicada.utils.load_index")
-    @patch("cicada.utils.get_index_path")
-    def test_query_success(self, mock_get_path, mock_load, mock_orch, capsys):
-        """Test successful query execution."""
-        from cicada.commands import handle_query
-
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_get_path.return_value = mock_path
-        mock_load.return_value = {"modules": {"TestMod": {"keywords": {"test": 1.0}}}}
-
-        mock_instance = MagicMock()
-        mock_instance.execute_query.return_value = "Results found"
-        mock_orch.return_value = mock_instance
-
-        parser = get_argument_parser()
-        args = parser.parse_args(["query", "test"])
-        handle_query(args)
-
-        captured = capsys.readouterr()
-        assert "Results found" in captured.out
 
 
 class TestHandleClean:
@@ -1216,49 +1153,3 @@ class TestHandleUnlinkErrors:
 
         captured = capsys.readouterr()
         assert "Unexpected error" in captured.err
-
-
-class TestHandleQueryExtended:
-    """Extended tests for handle_query."""
-
-    @patch("cicada.query.QueryOrchestrator")
-    @patch("cicada.utils.load_index")
-    @patch("cicada.utils.get_index_path")
-    def test_query_load_error(self, mock_get_path, mock_load, mock_orch, capsys):
-        """Test query with index load error."""
-        from cicada.commands import handle_query
-
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_get_path.return_value = mock_path
-        mock_load.side_effect = Exception("Corrupted index")
-
-        parser = get_argument_parser()
-        args = parser.parse_args(["query", "test"])
-
-        with pytest.raises(SystemExit) as exc:
-            handle_query(args)
-        assert exc.value.code == 1
-
-    @patch("cicada.query.QueryOrchestrator")
-    @patch("cicada.utils.load_index")
-    @patch("cicada.utils.get_index_path")
-    def test_query_json_format(self, mock_get_path, mock_load, mock_orch, capsys):
-        """Test query with JSON format output."""
-        from cicada.commands import handle_query
-
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_get_path.return_value = mock_path
-        mock_load.return_value = {"modules": {"TestMod": {"keywords": {"test": 1.0}}}}
-
-        mock_instance = MagicMock()
-        mock_instance.execute_query.return_value = '{"results": []}'
-        mock_orch.return_value = mock_instance
-
-        parser = get_argument_parser()
-        args = parser.parse_args(["query", "--format", "json", "test"])
-        handle_query(args)
-
-        captured = capsys.readouterr()
-        assert '{"results": []}' in captured.out

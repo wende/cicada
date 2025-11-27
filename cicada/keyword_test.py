@@ -193,7 +193,6 @@ def run_expansion_interactive(
                     extracted_keywords,
                     top_n=3,
                     threshold=expansion_threshold,
-                    return_scores=True,
                     keyword_scores=extraction_scores,
                     min_score=min_score,
                     code_identifiers=results.get("code_identifiers", []),

@@ -10,9 +10,6 @@ import argparse
 import sys
 from pathlib import Path
 
-# Import logging utilities
-from cicada.logging_utils import get_verbose_flag
-
 # Import tier resolution functions from centralized module
 from cicada.tier import (
     determine_tier,
@@ -35,7 +32,6 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "watch",
     "index",
     "index-pr",
-    "query",
     "find-dead-code",
     "clean",
     "status",
@@ -44,6 +40,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "link",
     "unlink",
     "agents",
+    "run",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
@@ -79,11 +76,12 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
         sys.exit(2)
 
     # Create and start watcher
+    # Use --quiet flag for background processes, otherwise show progress
     try:
         watcher = FileWatcher(
             repo_path=str(repo_path),
             debounce_seconds=getattr(args, "debounce", DEFAULT_WATCH_DEBOUNCE),
-            verbose=get_verbose_flag(args),
+            verbose=not getattr(args, "quiet", False),
             tier=tier,
         )
         watcher.start_watching()
@@ -379,6 +377,11 @@ def get_argument_parser():
         action="store_true",
         help="Max tier: KeyBERT large + FastText expansion",
     )
+    watch_parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress output (used internally for background watch processes)",
+    )
 
     index_parser = subparsers.add_parser(
         "index",
@@ -483,81 +486,6 @@ def get_argument_parser():
         "--clean",
         action="store_true",
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
-    )
-
-    query_parser = subparsers.add_parser(
-        "query",
-        help="Smart code discovery - search by keywords or patterns",
-        description="Smart code discovery - the 'Google for code'. Searches by keywords OR patterns automatically, provides broad overview with suggestions.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parser],
-        epilog="""
-Examples:
-  cicada query authentication                          # Keyword search
-  cicada query jwt token verify                        # Multiple keywords
-  cicada query "MyApp.Auth.verify*"                    # Pattern search
-  cicada query authentication --recent                 # Recent changes only
-  cicada query "create*" --filter-type functions       # Functions only
-  cicada query "SELECT" --match-source strings         # Search string literals
-  cicada query login --path-pattern "lib/auth/**"      # Specific directory
-  cicada query user --scope public --path-pattern "!**/test/**"  # Public API, no tests
-  cicada query auth --max-results 10                   # Limit results
-        """,
-    )
-    query_parser.add_argument(
-        "query",
-        nargs="+",
-        help="Keywords or patterns to search for (e.g., 'authentication login' or 'MyApp.User.create*')",
-    )
-    query_parser.add_argument(
-        "--scope",
-        choices=["all", "public", "private"],
-        default="all",
-        help="Filter scope: 'all' (default), 'public' (public only), 'private' (private only)",
-    )
-    query_parser.add_argument(
-        "--recent",
-        action="store_true",
-        help="Filter to recently changed code only (last 14 days)",
-    )
-    query_parser.add_argument(
-        "--filter-type",
-        choices=["all", "modules", "functions"],
-        default="all",
-        help="Result type filter: 'all' (default), 'modules', 'functions'",
-    )
-    query_parser.add_argument(
-        "--match-source",
-        choices=["all", "docs", "strings"],
-        default="all",
-        help="Where to search: 'all' (default), 'docs' (documentation only), 'strings' (string literals only)",
-    )
-    query_parser.add_argument(
-        "--max-results",
-        type=int,
-        default=10,
-        help="Maximum number of results to show (default: 10)",
-    )
-    query_parser.add_argument(
-        "--path-pattern",
-        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '!**/test/**')",
-    )
-    query_parser.add_argument(
-        "--show-snippets",
-        action="store_true",
-        help="Show code snippet previews with context lines",
-    )
-    query_parser.add_argument(
-        "--min-tier",
-        type=int,
-        choices=[1, 2, 3, 4, 5],
-        help="Minimum tier rank to show (1=exceptional, 2=highly relevant, 3=above average, 4=below average, 5=poor)",
-    )
-    query_parser.add_argument(
-        "--format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format (default: text)",
     )
 
     dead_code_parser = subparsers.add_parser(
@@ -821,7 +749,6 @@ def handle_command(args) -> bool:
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
-        "query": handle_query,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
@@ -1006,7 +933,8 @@ def handle_index_main(args) -> None:
     # Perform indexing using unified interface
     # If tier changed, force full reindex to ensure index consistency with new config
     indexer = LanguageRegistry.get_indexer(language)
-    verbose = get_verbose_flag(args)
+    # CLI commands always show progress (only MCP server should be silent)
+    verbose = True
 
     # Check if indexer supports incremental_index_repository (new unified API)
     if hasattr(indexer, "incremental_index_repository"):
@@ -1152,68 +1080,6 @@ def handle_index_pr(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def handle_query(args):
-    """Handle query command for smart code discovery."""
-    from cicada.query import QueryOrchestrator
-    from cicada.utils import get_index_path, load_index
-
-    index_path = get_index_path(".")
-
-    if not index_path.exists():
-        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        index = load_index(index_path, raise_on_error=True)
-    except Exception as e:
-        print(f"Error loading index: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    assert index is not None, "Index should not be None after successful load"
-
-    # Check if keywords are available
-    has_keywords = any(
-        module_data.get("keywords") or module_data.get("string_keywords")
-        for module_data in index.get("modules", {}).values()
-    )
-
-    if not has_keywords:
-        print("Error: No keywords found in index.", file=sys.stderr)
-        print("\nPlease rebuild the index with keyword extraction:", file=sys.stderr)
-        print("  cicada index           # Default: reuse configured tier", file=sys.stderr)
-        print("  cicada index --force --regular   # BERT + GloVe (regular tier)", file=sys.stderr)
-        print(
-            "  cicada index --force --fast      # Fast: Token-based + lemminflect", file=sys.stderr
-        )
-        print("  cicada index --force --max       # Max: BERT + FastText", file=sys.stderr)
-        sys.exit(1)
-
-    # Create orchestrator and execute query
-    orchestrator = QueryOrchestrator(index)
-
-    # Convert query list to the format expected by orchestrator
-    query = args.query if len(args.query) > 1 else args.query[0]
-
-    result = orchestrator.execute_query(
-        query=query,
-        scope=args.scope,
-        recent=getattr(args, "recent", False),
-        filter_type=getattr(args, "filter_type", "all"),
-        match_source=getattr(args, "match_source", "all"),
-        max_results=args.max_results,
-        path_pattern=args.path_pattern,
-        show_snippets=args.show_snippets,
-    )
-
-    if args.format == "json":
-        # Parse the result text and convert to JSON
-        # For now, just print the text result since orchestrator returns formatted text
-        print(result)
-    else:
-        print(result)
 
 
 def handle_find_dead_code(args):

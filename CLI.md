@@ -122,12 +122,16 @@ cicada cursor --fast              # Same for Cursor
 cicada vs --max                   # Same for VS Code
 ```
 
-### 5. Other Commands (Unchanged)
+### 5. Other Commands
 
 ```bash
 cicada index [path]               # Index repository (use -f/--force with --fast/--regular/--max)
 cicada index-pr [path]            # Index GitHub PRs
 cicada find-dead-code             # Find unused functions
+cicada status                     # Show diagnostic information (index, PR index, links, agents)
+cicada stats [path]               # Display usage statistics (tool calls, tokens, execution times)
+cicada run [tool]                 # Execute MCP tools from CLI
+cicada agents install             # Install Claude Code agents
 cicada clean                      # Clean up configs and indexes
 cicada clean --all                # Clean all projects
 ```

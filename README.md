@@ -8,7 +8,8 @@
 
 **Context compaction for AI code assistants** – Give your AI structured, token-efficient access to Elixir and Python codebases.
 
-> **Python support: 6/7 tools functional** – Full code intelligence with automatic language detection. TypeScript support coming soon.
+> [**Up to 50% less waiting · Up to 70% less tokens · Up to 99% less explanations to do**](https://cicada-mcp.vercel.app/#benchmark-section)
+> **Tighter context = Better Quality**
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -29,9 +30,7 @@
 
 ## Why CICADA?
 
-**The core problem:** AI code assistants waste context on blind searches. Grep dumps entire files when you only need a function signature, leaving less room for actual reasoning.
-
-> 📺 **See it in action:** [Context Compaction for AI Agents](https://www.youtube.com/live/xmbSQz-PNMM?t=2402) – How structured code intelligence reduces token waste.
+**The core problem:** AI code assistants [waste context on blind searches](https://www.youtube.com/live/xmbSQz-PNMM?t=2402). Grep dumps entire files when you only need a function signature, leaving less room for actual reasoning.
 
 ### The Context Compaction Approach
 
@@ -93,10 +92,14 @@ Uses your editor's built-in MCP management to install CICADA.
 **Available commands after installation:**
 - `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command interactive setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
+- `cicada status` - Show index status, PR index, link status, agent files, MCP configs
+- `cicada stats [repo]` - Display usage statistics (tool calls, tokens, execution times)
 - `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
+- `cicada run [tool]` - Execute any of the 7 MCP tools directly from CLI
+- `cicada agents install` - Install Claude Code agents to `./.claude/` directory
 - `cicada link [parent_dir]` - Links current repository to an existing index
 - `cicada clean` - Completely removes cicada integration from your folder as well as all settings
 
@@ -188,6 +191,8 @@ When watch mode is enabled:
 | Command | Purpose | Run When |
 |---------|---------|---------|
 | `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
+| `cicada status` | Check index health, link status, agent files | After setup, troubleshooting |
+| `cicada stats` | View usage statistics and token metrics | Monthly reviews, optimization |
 | `cicada watch` | Monitor files and auto-reindex on changes | During active development |
 | `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
@@ -421,6 +426,8 @@ Detailed parameters + output formats: [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFEREN
 ### Token-Friendly Responses
 
 All tools return structured Markdown/JSON snippets (signatures, call sites, PR metadata) instead of full files, keeping prompts lean.
+
+**New in v0.5.1:** All tools now use compact output by default to minimize token usage. Use `verbose=true` for detailed output with full docs and specs.
 
 ---
 

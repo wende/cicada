@@ -156,9 +156,10 @@ class FileWatcher:
             logger.warning("Watcher is already running")
             return
 
-        print(f"Initializing watch mode for {self.repo_path}")
-        print(f"Debounce interval: {self.debounce_seconds}s")
-        print()
+        if self.verbose:
+            print(f"Initializing watch mode for {self.repo_path}")
+            print(f"Debounce interval: {self.debounce_seconds}s")
+            print()
 
         # Ensure storage directory exists
         create_storage_dir(self.repo_path)
@@ -172,7 +173,8 @@ class FileWatcher:
         self.indexer = ElixirIndexer(verbose=self.verbose)
 
         # Run initial index
-        print("Running initial index...")
+        if self.verbose:
+            print("Running initial index...")
         try:
             self.indexer.incremental_index_repository(
                 repo_path=str(self.repo_path),
@@ -180,8 +182,9 @@ class FileWatcher:
                 extract_keywords=True,
                 force_full=False,
             )
-            print("\nInitial indexing complete!")
-            print()
+            if self.verbose:
+                print("\nInitial indexing complete!")
+                print()
         except KeyboardInterrupt:
             print("\n\nInitial indexing interrupted. Exiting...")
             return
@@ -361,10 +364,11 @@ class FileWatcher:
         with self.timer_lock:
             self.debounce_timer = None
 
-        print("\n" + "=" * 70)
-        print("File changes detected - reindexing...")
-        print("=" * 70)
-        print()
+        if self.verbose:
+            print("\n" + "=" * 70)
+            print("File changes detected - reindexing...")
+            print("=" * 70)
+            print()
 
         try:
             if self.indexer is not None:
@@ -377,11 +381,12 @@ class FileWatcher:
                     extract_keywords=True,
                     force_full=False,
                 )
-                print()
-                print("=" * 70)
-                print("Reindexing complete!")
-                print("=" * 70)
-                print()
+                if self.verbose:
+                    print()
+                    print("=" * 70)
+                    print("Reindexing complete!")
+                    print("=" * 70)
+                    print()
 
                 # Reset failure counter on success
                 self._consecutive_failures = 0

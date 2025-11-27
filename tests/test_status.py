@@ -927,6 +927,7 @@ class TestExceptionPaths:
         assert "✓ PR index exists:" in captured.out
         assert captured.out.count("Built:") == 0  # No "Built:" for PR index
 
+
 class TestCheckRepositoryLinkStatus:
     """Tests for link status section of check_repository"""
 
