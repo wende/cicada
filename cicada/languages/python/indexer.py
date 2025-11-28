@@ -52,6 +52,7 @@ class PythonSCIPIndexer(BaseIndexer):
             verbose: If True, print detailed progress information
         """
         self.verbose = verbose
+        self._interrupted = False
         self.excluded_dirs = {
             "__pycache__",
             ".venv",
@@ -454,6 +455,74 @@ class PythonSCIPIndexer(BaseIndexer):
             if self.verbose:
                 print(f"    Warning: {phase_name.capitalize()} failed: {e}")
             return False
+
+    def _expand_and_update_keywords(
+        self, keywords: dict[str, float], keyword_expander
+    ) -> dict[str, float]:
+        """Expand keywords and update scores with expanded terms.
+
+        Args:
+            keywords: Dictionary of keyword -> score mappings
+            keyword_expander: Keyword expander instance (optional)
+
+        Returns:
+            Updated keywords dictionary with expanded terms
+        """
+        if not keyword_expander or not keywords:
+            return keywords
+
+        expansion_result = keyword_expander.expand_keywords(
+            list(keywords.keys()),
+            keyword_scores=keywords,
+        )
+
+        updated_keywords = keywords.copy()
+        for item in expansion_result["words"]:
+            word = item["word"]
+            score = item["score"]
+            if word not in updated_keywords or score > updated_keywords[word]:
+                updated_keywords[word] = score
+
+        return updated_keywords
+
+    def _extract_keywords_from_text(
+        self, text: str, keyword_extractor, keyword_expander, top_n: int = 10
+    ) -> dict[str, float] | None:
+        """Extract and expand keywords from text. Returns None if no keywords."""
+        if not text:
+            return None
+
+        result = keyword_extractor.extract_keywords(text, top_n=top_n)
+        keywords = dict(result.get("top_keywords", []))
+
+        if not keywords:
+            return None
+
+        return self._expand_and_update_keywords(keywords, keyword_expander)
+
+    def _extract_module_keywords(
+        self, module_data: dict, keyword_extractor, keyword_expander
+    ) -> None:
+        """Extract keywords for a single module and its functions."""
+        # Module-level: combine moduledoc + all function docs
+        module_doc = module_data.get("moduledoc", "")
+        functions = module_data.get("functions", [])
+        func_docs = " ".join(f.get("doc", "") for f in functions)
+        combined_text = f"{module_doc} {func_docs}".strip()
+
+        keywords = self._extract_keywords_from_text(
+            combined_text, keyword_extractor, keyword_expander, top_n=10
+        )
+        if keywords:
+            module_data["keywords"] = keywords
+
+        # Function-level keywords
+        for func in functions:
+            func_keywords = self._extract_keywords_from_text(
+                func.get("doc", ""), keyword_extractor, keyword_expander, top_n=5
+            )
+            if func_keywords:
+                func["keywords"] = func_keywords
 
     def _extract_docstring_keywords(
         self, index: dict, keyword_extractor, pipeline: "StreamingExpansionPipeline"
