@@ -1081,28 +1081,22 @@ class TestExtractDocstringKeywords:
 
         captured = capsys.readouterr()
         assert "Failed to extract keywords" in captured.out
-        assert "Processed 50/55 modules" in captured.out
+        # Progress logging requires a pipeline (not None), so it won't appear here
 
     def test_works_without_expander_and_with_higher_score(self, indexer):
-        """Should work without expander and update score when expander returns higher."""
+        """Should work without expander (pipeline=None)."""
         from unittest.mock import MagicMock
 
         index = {"modules": {"TestModule": {"moduledoc": "Test module.", "functions": []}}}
         keyword_extractor = MagicMock()
         keyword_extractor.extract_keywords.return_value = {"top_keywords": [("test", 0.5)]}
 
-        # Without expander
+        # Without pipeline (no expansion)
         indexer._extract_docstring_keywords(index, keyword_extractor, None)
         assert index["modules"]["TestModule"]["keywords"]["test"] == 0.5
 
-        # With expander returning higher score
-        keyword_expander = MagicMock()
-        keyword_expander.expand_keywords.return_value = {
-            "words": [{"word": "test", "score": 0.9}],
-            "simple": ["test"],
-        }
-        indexer._extract_docstring_keywords(index, keyword_extractor, keyword_expander)
-        assert index["modules"]["TestModule"]["keywords"]["test"] == 0.9
+        # Score updating with expansion is now handled through the streaming pipeline
+        # and tested via integration tests instead of unit tests
 
 
 class TestExpandAndUpdateKeywords:
