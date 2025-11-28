@@ -204,6 +204,9 @@ class QueryConfig:
     # Snippet extraction
     DEFAULT_CONTEXT_LINES = 2  # Lines of context around target line
 
+    # Display limits for compact output
+    MAX_KEYWORDS_TO_SHOW = 3  # Maximum matched keywords to show before truncating
+
     # Module clustering
     MIN_RESULTS_FOR_CLUSTERING = 3  # Minimum results to consider clustering
     MIN_SAME_MODULE_FOR_SUGGESTION = (

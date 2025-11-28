@@ -755,14 +755,14 @@ class QueryOrchestrator:
         """Append compact keyword list to lines."""
         kw_with_sources: list[str] = []
         source_suffixes = {"docs": "(d)", "strings": "(s)", "both": "(d+s)"}
-        for kw in result.matched_keywords[:3]:
+        for kw in result.matched_keywords[: QueryConfig.MAX_KEYWORDS_TO_SHOW]:
             source = result.keyword_sources.get(kw, "")
             suffix = source_suffixes.get(source, "")
             kw_with_sources.append(f"{kw}{suffix}")
 
         matched_str = ", ".join(kw_with_sources)
-        if len(result.matched_keywords) > 3:
-            matched_str += f" +{len(result.matched_keywords) - 3}"
+        if len(result.matched_keywords) > QueryConfig.MAX_KEYWORDS_TO_SHOW:
+            matched_str += f" +{len(result.matched_keywords) - QueryConfig.MAX_KEYWORDS_TO_SHOW}"
         lines.append(f"   {matched_str}\n")
 
     def _extract_code_snippet(

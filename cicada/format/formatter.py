@@ -22,6 +22,9 @@ from cicada.utils import (
 )
 from cicada.utils.truncation import TruncationHelper
 
+# Display limits for compact output
+MAX_COCHANGE_FILES = 3  # Maximum co-change files to show before truncating
+
 
 class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
@@ -322,11 +325,11 @@ class ModuleFormatter:
         if cochange_files:
             lines.extend(["", "---", "", "## Often Changed With"])
             lines.append("")
-            for cf in cochange_files[:3]:  # Show top 3 for compactness
+            for cf in cochange_files[:MAX_COCHANGE_FILES]:
                 module_name_display = cf.get("module") or cf["file"].split("/")[-1]
                 lines.append(f"  • {module_name_display} ({cf['count']} commits)")
-            if len(cochange_files) > 3:
-                lines.append(f"  ... and {len(cochange_files) - 3} more")
+            if len(cochange_files) > MAX_COCHANGE_FILES:
+                lines.append(f"  ... and {len(cochange_files) - MAX_COCHANGE_FILES} more")
 
         return "\n".join(lines)
 
