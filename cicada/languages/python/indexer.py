@@ -103,6 +103,7 @@ class PythonSCIPIndexer(BaseIndexer):
         except Exception as e:
             if self.verbose:
                 print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            skipped_phases.append(phase_name)
             return False
 
     def index_repository(
@@ -397,7 +398,7 @@ class PythonSCIPIndexer(BaseIndexer):
                 "files_indexed": len(scip_index.documents),
                 "errors": [],
                 "interrupted": self._interrupted,
-                "skipped_phases": skipped_phases if self._interrupted else [],
+                "skipped_phases": skipped_phases,
             }
 
         except Exception as e:
@@ -604,11 +605,6 @@ class PythonSCIPIndexer(BaseIndexer):
                 if self.verbose and processed % 50 == 0:
                     print(f"    Processed {processed}/{total_modules} modules...")
 
-            except KeyboardInterrupt:
-                self._interrupted = True
-                if self.verbose:
-                    print(f"\n    Interrupted at {processed}/{total_modules} modules")
-                break
             except Exception as e:
                 processed += 1
                 if self.verbose:

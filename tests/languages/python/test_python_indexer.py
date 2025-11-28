@@ -1657,8 +1657,8 @@ class TestInterruptibleEnrichmentPhases:
         """Create a verbose indexer."""
         return PythonSCIPIndexer(verbose=True)
 
-    def test_extract_string_keywords_interrupt_saves_partial(self, indexer, tmp_path):
-        """Should save partial progress when KeyboardInterrupt during string keyword extraction."""
+    def test_extract_string_keywords_interrupt_propagates(self, indexer, tmp_path):
+        """KeyboardInterrupt should propagate up to _run_interruptible_phase wrapper."""
         # Create test modules
         index = {
             "modules": {
@@ -1684,12 +1684,12 @@ class TestInterruptibleEnrichmentPhases:
         mock_extractor = Mock()
         mock_extractor.extract_keywords = mock_extract
 
-        # Run extraction
-        processed = indexer._extract_string_keywords(index, tmp_path, mock_extractor, None)
+        # KeyboardInterrupt should propagate up (to be caught by _run_interruptible_phase)
+        with pytest.raises(KeyboardInterrupt):
+            indexer._extract_string_keywords(index, tmp_path, mock_extractor, None)
 
-        # Should have processed at least 1 module before interrupt
-        assert processed >= 1
-        assert indexer._interrupted is True
+        # First module should have been processed before interrupt
+        assert "string_keywords" in index["modules"]["module1"]
 
     def test_extract_string_keywords_checks_interrupted_flag(self, indexer, tmp_path):
         """Should stop early if _interrupted flag is already set."""
@@ -1869,7 +1869,7 @@ class TestInterruptibleEnrichmentPhases:
         def failing_phase():
             raise ValueError("Test error")
 
-        # Should return False but not set _interrupted
+        # Should return False, not set _interrupted, and add phase to skipped list
         result = indexer._run_interruptible_phase(
             "test phase",
             failing_phase,
@@ -1878,7 +1878,8 @@ class TestInterruptibleEnrichmentPhases:
 
         assert result is False
         assert indexer._interrupted is False
-        assert skipped_phases == []
+        # Failed phases are added to skipped_phases for reporting
+        assert skipped_phases == ["test phase"]
 
     def test_run_interruptible_phase_handles_exception_verbose(self, indexer, capsys):
         """Test exception handling in verbose mode."""
