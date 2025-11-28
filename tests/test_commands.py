@@ -973,6 +973,50 @@ class TestHandleIndexMain:
 
             mock_indexer.index_repository.assert_called_once()
 
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_main_keyboard_interrupt_graceful_shutdown(self, mock_get_indexer):
+        """Test that KeyboardInterrupt during indexing exits gracefully with code 130."""
+        from cicada.commands import handle_index_main
+
+        mock_indexer = MagicMock()
+        mock_indexer.incremental_index_repository = MagicMock(side_effect=KeyboardInterrupt)
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()
+
+            parser = get_argument_parser()
+            args = parser.parse_args(["index", "--force", "--fast", tmpdir])
+
+            with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                with pytest.raises(SystemExit) as exc_info:
+                    handle_index_main(args)
+
+            assert exc_info.value.code == 130
+
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_main_keyboard_interrupt_legacy_indexer(self, mock_get_indexer):
+        """Test KeyboardInterrupt with legacy indexer (no incremental_index_repository)."""
+        from cicada.commands import handle_index_main
+
+        mock_indexer = MagicMock(spec=[])  # No incremental_index_repository
+        mock_indexer.index_repository = MagicMock(side_effect=KeyboardInterrupt)
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()
+
+            parser = get_argument_parser()
+            args = parser.parse_args(["index", "--force", "--fast", tmpdir])
+
+            with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                with pytest.raises(SystemExit) as exc_info:
+                    handle_index_main(args)
+
+            assert exc_info.value.code == 130
+
 
 class TestHandleServerHelpers:
     """Test server helper functions."""

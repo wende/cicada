@@ -936,32 +936,44 @@ def handle_index_main(args) -> None:
     # CLI commands always show progress (only MCP server should be silent)
     verbose = True
 
-    # Check if indexer supports incremental_index_repository (new unified API)
-    if hasattr(indexer, "incremental_index_repository"):
-        # Co-change analysis is enabled by default for better search results
-        # Can be disabled with --no-cochange flag
-        extract_cochange = not getattr(args, "no_cochange", False)
-        # Force full reindex if --force flag was used OR tier changed
-        should_force = force_enabled or tier_changed
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            compute_timestamps=True,
-            extract_cochange=extract_cochange,
-            force_full=should_force,
-            verbose=verbose,
-        )
-    else:
-        # Fallback to basic interface for legacy indexers
-        should_force = force_enabled or tier_changed
-        indexer.index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            force=should_force,
-            verbose=verbose,
-            config_path=str(config_path),
-        )
+    try:
+        # Check if indexer supports incremental_index_repository (new unified API)
+        if hasattr(indexer, "incremental_index_repository"):
+            # Co-change analysis is enabled by default for better search results
+            # Can be disabled with --no-cochange flag
+            extract_cochange = not getattr(args, "no_cochange", False)
+            # Force full reindex if --force flag was used OR tier changed
+            should_force = force_enabled or tier_changed
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                compute_timestamps=True,
+                extract_cochange=extract_cochange,
+                force_full=should_force,
+                verbose=verbose,
+            )
+        else:
+            # Fallback to basic interface for legacy indexers
+            should_force = force_enabled or tier_changed
+            indexer.index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                force=should_force,
+                verbose=verbose,
+                config_path=str(config_path),
+            )
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Indexing interrupted by user.")
+        # Handle interrupt during the initial, non-enrichment phase of indexing.
+        # For Python, an interrupt during the external `scip-python` call means no index is saved.
+        # Other indexers, like Elixir's, may save partial progress even at this stage.
+        if language == "elixir":
+            print("Partial index saved. Run again to continue indexing remaining files.")
+        else:
+            print("Run again to restart indexing.")
+        sys.exit(130)
 
 
 def _handle_index_config_update(

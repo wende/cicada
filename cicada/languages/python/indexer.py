@@ -8,6 +8,7 @@ import json
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -245,10 +246,7 @@ class PythonSCIPIndexer(BaseIndexer):
                         keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
                     # Initialize parallel keyword expander with streaming pipeline
-                    from cicada.parallel_expander import (
-                        ParallelKeywordExpander,
-                        StreamingExpansionPipeline,
-                    )
+                    from cicada.parallel_expander import ParallelKeywordExpander
 
                     keyword_expander = ParallelKeywordExpander(
                         expansion_type=expansion_method, verbose=self.verbose
@@ -272,20 +270,27 @@ class PythonSCIPIndexer(BaseIndexer):
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
-            # 5.5. Extract and expand keywords using streaming pipeline
+            # 5.5-8. Optional enrichment phases (interruptible - will save partial progress)
+            # These phases can be interrupted and we'll still save what we have
+            skipped_phases = []
+
+            # 5.5-6. Extract and expand keywords using streaming pipeline (interruptible)
             # Expansion happens in parallel as extraction proceeds sequentially
             if (
                 (extract_keywords or extract_string_keywords)
                 and keyword_extractor
                 and keyword_expander
             ):
-                if self.verbose:
-                    print(
-                        f"\n  Extracting and expanding keywords "
-                        f"(streaming, {keyword_expander.max_workers} workers)..."
-                    )
 
-                try:
+                def extract_and_expand_keywords() -> None:
+                    """Extract and expand keywords with streaming pipeline."""
+                    assert keyword_expander is not None  # Type narrowing for closure
+                    if self.verbose:
+                        print(
+                            f"\n  Extracting and expanding keywords "
+                            f"(streaming, {keyword_expander.max_workers} workers)..."
+                        )
+
                     from cicada.parallel_expander import StreamingExpansionPipeline
 
                     with StreamingExpansionPipeline(
@@ -296,14 +301,12 @@ class PythonSCIPIndexer(BaseIndexer):
                             self._extract_docstring_keywords(
                                 cicada_index, keyword_extractor, pipeline
                             )
-                            log_timing("Docstring keyword extraction")
 
                         # Extract string keywords (sequential) with streaming expansion
                         if extract_string_keywords:
                             self._extract_string_keywords(
                                 cicada_index, repo_path_obj, keyword_extractor, pipeline
                             )
-                            log_timing("String keyword extraction")
 
                         # Finish remaining expansions
                         for callback, result in pipeline.finish():
@@ -313,28 +316,29 @@ class PythonSCIPIndexer(BaseIndexer):
                             stats = pipeline.stats
                             print(f"    ✓ Expanded {stats['completed']} keyword sets")
 
-                    log_timing("Keyword expansion (streaming)")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Keyword extraction/expansion failed: {e}")
+                if self._run_interruptible_phase(
+                    "keyword extraction/expansion",
+                    extract_and_expand_keywords,
+                    skipped_phases,
+                    partial_suffix=" (partial)",
+                ):
+                    log_timing("Keyword extraction/expansion (streaming)")
 
             # 7. Compute timestamps if requested
-            if compute_timestamps:
-                try:
-                    self._compute_timestamps(cicada_index, repo_path_obj)
-                    log_timing("Timestamp computation")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Timestamp computation failed: {e}")
+            if compute_timestamps and self._run_interruptible_phase(
+                "timestamp computation",
+                lambda: self._compute_timestamps(cicada_index, repo_path_obj),
+                skipped_phases,
+            ):
+                log_timing("Timestamp computation")
 
             # 8. Extract co-change relationships if requested
-            if extract_cochange:
-                try:
-                    self._extract_cochange(cicada_index, repo_path_obj)
-                    log_timing("Co-change analysis")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Co-change analysis failed: {e}")
+            if extract_cochange and self._run_interruptible_phase(
+                "co-change analysis",
+                lambda: self._extract_cochange(cicada_index, repo_path_obj),
+                skipped_phases,
+            ):
+                log_timing("Co-change analysis")
 
             # 9. Save index
             try:
@@ -414,6 +418,42 @@ class PythonSCIPIndexer(BaseIndexer):
                 continue
             python_files.append(py_file)
         return python_files
+
+    def _run_interruptible_phase(
+        self,
+        phase_name: str,
+        phase_func: Callable[[], Any],
+        skipped_phases: list[str],
+        partial_suffix: str = "",
+    ) -> bool:
+        """Run an enrichment phase that can be interrupted.
+
+        Args:
+            phase_name: Human-readable name of the phase (e.g., "string keywords")
+            phase_func: Callable that performs the phase work
+            skipped_phases: List to append skipped phase names to
+            partial_suffix: Suffix to add if interrupted mid-phase (e.g., " (partial)")
+
+        Returns:
+            True if the phase completed successfully, False otherwise
+        """
+        if self._interrupted:
+            skipped_phases.append(phase_name)
+            return False
+
+        try:
+            phase_func()
+            return True
+        except KeyboardInterrupt:
+            self._interrupted = True
+            skipped_phases.append(f"{phase_name}{partial_suffix}")
+            if self.verbose:
+                print(f"\n  ⚠️  Interrupted during {phase_name}")
+            return False
+        except Exception as e:
+            if self.verbose:
+                print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            return False
 
     def _extract_docstring_keywords(
         self, index: dict, keyword_extractor, pipeline: "StreamingExpansionPipeline"

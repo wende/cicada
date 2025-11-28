@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improvements
 
+**Co-change Analysis Optimization (#190)**
+- 15-20x faster co-change analysis (60-120s → ~1s for typical repos)
+- Now enabled by default during indexing
+- Add `--no-cochange` CLI flag to disable if needed
+- Display "Often Changed With" section in module search output
+
 **Compact Output Mode (#186)**
 - Add compact output mode for all MCP tools to reduce token usage
 - `query`: Compact keyword indicators (d)/(s)/(d+s), confidence only in verbose mode
@@ -49,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `git_history`: Compact PR output (single line), descriptions only when requested
 - `expand_result`: Auto-enables verbose mode for full details
 
+**CLI Progress Reporting**
+- CLI index/watch commands now show progress by default
+- Add `--quiet` flag for background watch processes
+- Separate keyword extraction phase for better timing visibility
 ## [0.5.0] - 2025-11-25
 
 ### Added
