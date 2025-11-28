@@ -285,11 +285,11 @@ class PythonSCIPIndexer(BaseIndexer):
                     keyword_extractor = None
                     keyword_expander = None
 
-            # 5. Convert to Cicada format with optional keyword extraction
+            # 5. Convert to Cicada format (without keyword extraction - that's done separately)
             try:
                 converter = SCIPConverter(
-                    extract_keywords=extract_keywords,
-                    keyword_extractor=keyword_extractor,
+                    extract_keywords=False,  # Extraction done separately for timing visibility
+                    keyword_extractor=None,
                     verbose=self.verbose,
                 )
                 cicada_index = converter.convert(scip_index, repo_path_obj)
@@ -297,9 +297,23 @@ class PythonSCIPIndexer(BaseIndexer):
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
-            # 6-8. Optional enrichment phases (interruptible - will save partial progress)
+            # 5.5-8. Optional enrichment phases (interruptible - will save partial progress)
             # These phases can be interrupted and we'll still save what we have
             skipped_phases = []
+
+            # 5.5. Extract keywords from docstrings if requested
+            if (
+                extract_keywords
+                and keyword_extractor
+                and self._run_interruptible_phase(
+                    "docstring keywords",
+                    lambda: self._extract_docstring_keywords(
+                        cicada_index, keyword_extractor, keyword_expander
+                    ),
+                    skipped_phases,
+                )
+            ):
+                log_timing("Docstring keyword extraction")
 
             # 6. Extract string keywords if requested
             if (
@@ -422,6 +436,103 @@ class PythonSCIPIndexer(BaseIndexer):
             python_files.append(py_file)
         return python_files
 
+    def _expand_and_update_keywords(
+        self, keywords: dict[str, float], keyword_expander
+    ) -> dict[str, float]:
+        """Expand keywords and update scores with expanded terms.
+
+        Args:
+            keywords: Dictionary of keyword -> score mappings
+            keyword_expander: Keyword expander instance (optional)
+
+        Returns:
+            Updated keywords dictionary with expanded terms
+        """
+        if not keyword_expander or not keywords:
+            return keywords
+
+        expansion_result = keyword_expander.expand_keywords(
+            list(keywords.keys()),
+            keyword_scores=keywords,
+        )
+
+        updated_keywords = keywords.copy()
+        for item in expansion_result["words"]:
+            word = item["word"]
+            score = item["score"]
+            if word not in updated_keywords or score > updated_keywords[word]:
+                updated_keywords[word] = score
+
+        return updated_keywords
+
+    def _extract_keywords_from_text(
+        self, text: str, keyword_extractor, keyword_expander, top_n: int = 10
+    ) -> dict[str, float] | None:
+        """Extract and expand keywords from text. Returns None if no keywords."""
+        if not text:
+            return None
+
+        result = keyword_extractor.extract_keywords(text, top_n=top_n)
+        keywords = dict(result.get("top_keywords", []))
+
+        if not keywords:
+            return None
+
+        return self._expand_and_update_keywords(keywords, keyword_expander)
+
+    def _extract_module_keywords(
+        self, module_data: dict, keyword_extractor, keyword_expander
+    ) -> None:
+        """Extract keywords for a single module and its functions."""
+        # Module-level: combine moduledoc + all function docs
+        module_doc = module_data.get("moduledoc", "")
+        functions = module_data.get("functions", [])
+        func_docs = " ".join(f.get("doc", "") for f in functions)
+        combined_text = f"{module_doc} {func_docs}".strip()
+
+        keywords = self._extract_keywords_from_text(
+            combined_text, keyword_extractor, keyword_expander, top_n=10
+        )
+        if keywords:
+            module_data["keywords"] = keywords
+
+        # Function-level keywords
+        for func in functions:
+            func_keywords = self._extract_keywords_from_text(
+                func.get("doc", ""), keyword_extractor, keyword_expander, top_n=5
+            )
+            if func_keywords:
+                func["keywords"] = func_keywords
+
+    def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
+        """Extract keywords from module and function docstrings."""
+        if self.verbose:
+            print("  Extracting keywords from docstrings...")
+
+        modules = index.get("modules", {})
+        if not isinstance(modules, dict):
+            if self.verbose:
+                print(
+                    f"    Warning: modules is not a dict (got {type(modules).__name__}), skipping"
+                )
+            return
+
+        total = len(modules)
+        for idx, (module_name, module_data) in enumerate(modules.items(), 1):
+            if not isinstance(module_data, dict):
+                if self.verbose:
+                    print(f"    Warning: module_data for {module_name} is not a dict, skipping")
+                continue
+
+            if self.verbose and idx % 50 == 0:
+                print(f"    Processed {idx}/{total} modules...")
+
+            try:
+                self._extract_module_keywords(module_data, keyword_extractor, keyword_expander)
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
+
     def _extract_string_keywords(
         self, index: dict, repo_path: Path, keyword_extractor, keyword_expander
     ) -> int:
@@ -482,15 +593,9 @@ class PythonSCIPIndexer(BaseIndexer):
                         string_keywords[keyword] = score * 1.3
 
                     if string_keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expanded = keyword_expander.expand_keywords(
-                                list(string_keywords.keys())
-                            )
-                            for kw, score in expanded.items():
-                                if kw not in string_keywords:
-                                    string_keywords[kw] = score * 0.5
-
+                        string_keywords = self._expand_and_update_keywords(
+                            string_keywords, keyword_expander
+                        )
                         module_data["string_keywords"] = string_keywords
 
                 processed += 1
@@ -731,7 +836,7 @@ class PythonSCIPIndexer(BaseIndexer):
         ]
 
         if self.verbose:
-            print(f"  Running: {' '.join(cmd)}")
+            print("  Running SCIP")
             print("  (This may take several minutes for large projects...)")
 
         try:

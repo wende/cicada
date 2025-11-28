@@ -69,6 +69,7 @@ class WatchProcessManager:
                 str(self.repo_path),
                 "--debounce",
                 str(self.debounce),
+                "--quiet",  # Suppress progress output for background process
             ]
 
             # Add tier flag
