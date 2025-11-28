@@ -8,8 +8,10 @@ import argparse
 import os
 import signal
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from cicada.cooccurrence import CooccurrenceAnalyzer
 from cicada.git import GitHelper
@@ -34,6 +36,18 @@ from cicada.utils.hash_utils import (
     save_file_hashes,
 )
 from cicada.version_check import get_version_string, version_mismatch
+
+
+@dataclass
+class ExpansionTask:
+    """Represents a deferred keyword expansion task."""
+
+    extracted_keywords: list[str]
+    keyword_scores: dict[str, float]
+    target: dict[str, Any]  # The module/function dict to update
+    target_key: str  # "keywords" or "string_keywords"
+    # For tracking extracted keywords (pre-expansion)
+    extracted_key: str | None = None
 
 
 class ElixirIndexer(BaseIndexer):
@@ -457,10 +471,10 @@ class ElixirIndexer(BaseIndexer):
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
-                # Initialize expansion method
-                from cicada.keyword_expander import KeywordExpander
+                # Initialize expansion method (parallel for better performance)
+                from cicada.parallel_expander import ParallelKeywordExpander
 
-                keyword_expander = KeywordExpander(
+                keyword_expander = ParallelKeywordExpander(
                     expansion_type=expansion_method, verbose=self.verbose
                 )
 
@@ -513,6 +527,9 @@ class ElixirIndexer(BaseIndexer):
         keyword_extraction_failures = 0
         timestamps_computed = 0
 
+        # Deferred keyword expansion tasks (for parallel batch processing)
+        expansion_tasks: list[ExpansionTask] = []
+
         # Multi-line progress tracking (2 lines: files + timestamps)
         progress_lines_active = False
 
@@ -529,12 +546,12 @@ class ElixirIndexer(BaseIndexer):
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
 
-                        # Extract and expand keywords if enabled
-                        module_keywords = None
+                        # Extract keywords if enabled (expansion is deferred for parallel batch)
                         module_extracted_keywords = None
+                        module_keyword_data: tuple[list[str], dict[str, float]] | None = None
                         if keyword_extractor and module_data.get("moduledoc"):
                             try:
-                                # Step 1: Extract keywords with scores
+                                # Extract keywords with scores
                                 extraction_result = keyword_extractor.extract_keywords(
                                     module_data["moduledoc"], top_n=10
                                 )
@@ -549,29 +566,9 @@ class ElixirIndexer(BaseIndexer):
                                 # Store extracted keywords (pre-expansion) for co-occurrence tracking
                                 module_extracted_keywords = keyword_scores
 
-                                # Step 2: Expand keywords with scores
+                                # Save for deferred expansion (will be batched later)
                                 if keyword_expander and extracted_keywords:
-                                    expansion_result = keyword_expander.expand_keywords(
-                                        extracted_keywords,
-                                        top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                        threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                        keyword_scores=keyword_scores,
-                                    )
-                                    # Convert to dict: word -> max_score
-                                    module_keywords = {}
-                                    # When  expansion_result is a dict
-                                    if not isinstance(expansion_result, dict):
-                                        raise TypeError("expand_keywords always returns dict")
-                                    for item in expansion_result["words"]:
-                                        word = item["word"]
-                                        score = item["score"]
-                                        if (
-                                            word not in module_keywords
-                                            or score > module_keywords[word]
-                                        ):
-                                            module_keywords[word] = score
-                                else:
-                                    module_keywords = keyword_scores
+                                    module_keyword_data = (extracted_keywords, keyword_scores)
                             except Exception as e:
                                 keyword_extraction_failures += 1
                                 if self.verbose:
@@ -584,14 +581,13 @@ class ElixirIndexer(BaseIndexer):
                         for func in functions:
                             func_name = func.get("name", "")
 
-                            # Extract and expand keywords from function docs or test descriptions
+                            # Extract keywords from function docs (expansion deferred for parallel batch)
                             doc_text = func.get("doc") or func.get("test_description")
                             if keyword_extractor and doc_text:
                                 try:
                                     # Include function name in text for keyword extraction
                                     # This ensures the function name identifier gets 10x weight
                                     text_for_keywords = f"{func_name} {doc_text}"
-                                    # Step 1: Extract keywords with scores
                                     extraction_result = keyword_extractor.extract_keywords(
                                         text_for_keywords, top_n=10
                                     )
@@ -606,32 +602,19 @@ class ElixirIndexer(BaseIndexer):
                                     # Store extracted keywords (pre-expansion) for co-occurrence tracking
                                     func["extracted_keywords"] = keyword_scores
 
-                                    # Step 2: Expand keywords with scores
+                                    # Queue expansion task (deferred for parallel batch)
                                     if keyword_expander and extracted_keywords:
-                                        expansion_result = keyword_expander.expand_keywords(
-                                            extracted_keywords,
-                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                            keyword_scores=keyword_scores,
+                                        expansion_tasks.append(
+                                            ExpansionTask(
+                                                extracted_keywords=extracted_keywords,
+                                                keyword_scores=keyword_scores,
+                                                target=func,
+                                                target_key="keywords",
+                                            )
                                         )
-                                        # Convert to dict: word -> max_score
-                                        func_keywords = {}
-                                        # When  expansion_result is a dict
-                                        if not isinstance(expansion_result, dict):
-                                            raise TypeError("expand_keywords always returns dict")
-                                        for item in expansion_result["words"]:
-                                            word = item["word"]
-                                            score = item["score"]
-                                            if (
-                                                word not in func_keywords
-                                                or score > func_keywords[word]
-                                            ):
-                                                func_keywords[word] = score
                                     else:
-                                        func_keywords = keyword_scores
-
-                                    if func_keywords:
-                                        func["keywords"] = func_keywords
+                                        # No expander - use raw scores
+                                        func["keywords"] = keyword_scores
                                 except Exception as e:
                                     keyword_extraction_failures += 1
                                     if self.verbose:
@@ -684,6 +667,7 @@ class ElixirIndexer(BaseIndexer):
 
                         # Extract string keywords if enabled
                         module_string_keywords = None
+                        module_string_keyword_data: tuple[list[str], dict[str, float]] | None = None
                         module_extracted_string_keywords = None
                         module_string_sources = []
                         if string_extractor and keyword_extractor:
@@ -758,26 +742,12 @@ class ElixirIndexer(BaseIndexer):
                                                         keyword_scores
                                                     )
 
-                                                    # Expand keywords
+                                                    # Save for deferred expansion (will be batched later)
                                                     if keyword_expander and extracted_keywords:
-                                                        expansion_result = keyword_expander.expand_keywords(
+                                                        module_string_keyword_data = (
                                                             extracted_keywords,
-                                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                            keyword_scores=keyword_scores,
+                                                            keyword_scores,
                                                         )
-                                                        module_string_keywords = {}
-                                                        # Type assertion: expansion_result is always dict
-                                                        assert isinstance(expansion_result, dict)
-                                                        for item in expansion_result["words"]:
-                                                            word = item["word"]
-                                                            score = item["score"]
-                                                            if (
-                                                                word not in module_string_keywords
-                                                                or score
-                                                                > module_string_keywords[word]
-                                                            ):
-                                                                module_string_keywords[word] = score
                                                     else:
                                                         module_string_keywords = keyword_scores
 
@@ -819,38 +789,19 @@ class ElixirIndexer(BaseIndexer):
                                                             keyword_scores
                                                         )
 
-                                                        # Expand keywords
+                                                        # Queue expansion task (deferred for parallel batch)
                                                         if keyword_expander and extracted_keywords:
-                                                            expansion_result = keyword_expander.expand_keywords(
-                                                                extracted_keywords,
-                                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                                keyword_scores=keyword_scores,
+                                                            expansion_tasks.append(
+                                                                ExpansionTask(
+                                                                    extracted_keywords=extracted_keywords,
+                                                                    keyword_scores=keyword_scores,
+                                                                    target=func,
+                                                                    target_key="string_keywords",
+                                                                )
                                                             )
-                                                            func_string_keywords = {}
-                                                            # Type assertion: expansion_result is always dict
-                                                            assert isinstance(
-                                                                expansion_result, dict
-                                                            )
-                                                            for item in expansion_result["words"]:
-                                                                word = item["word"]
-                                                                score = item["score"]
-                                                                if (
-                                                                    word not in func_string_keywords
-                                                                    or score
-                                                                    > func_string_keywords[word]
-                                                                ):
-                                                                    func_string_keywords[word] = (
-                                                                        score
-                                                                    )
                                                         else:
-                                                            func_string_keywords = keyword_scores
+                                                            func["string_keywords"] = keyword_scores
 
-                                                        # Store in function
-                                                        if func_string_keywords:
-                                                            func["string_keywords"] = (
-                                                                func_string_keywords
-                                                            )
                                                         func["string_sources"] = func_string_list
 
                                             break
@@ -889,16 +840,34 @@ class ElixirIndexer(BaseIndexer):
                             ],
                         }
 
-                        # Add module keywords if extracted
-                        if module_keywords:
-                            module_info["keywords"] = module_keywords
+                        # Queue module keyword expansion task (deferred for parallel batch)
+                        if module_keyword_data:
+                            extracted_keywords, keyword_scores = module_keyword_data
+                            expansion_tasks.append(
+                                ExpansionTask(
+                                    extracted_keywords=extracted_keywords,
+                                    keyword_scores=keyword_scores,
+                                    target=module_info,
+                                    target_key="keywords",
+                                )
+                            )
 
                         # Add module extracted keywords (pre-expansion) for co-occurrence tracking
                         if module_extracted_keywords:
                             module_info["extracted_keywords"] = module_extracted_keywords
 
-                        # Add module string keywords and sources if extracted
-                        if module_string_keywords:
+                        # Queue module string keyword expansion task (deferred for parallel batch)
+                        if module_string_keyword_data:
+                            extracted_keywords, keyword_scores = module_string_keyword_data
+                            expansion_tasks.append(
+                                ExpansionTask(
+                                    extracted_keywords=extracted_keywords,
+                                    keyword_scores=keyword_scores,
+                                    target=module_info,
+                                    target_key="string_keywords",
+                                )
+                            )
+                        elif module_string_keywords:
                             module_info["string_keywords"] = module_string_keywords
                         if module_extracted_string_keywords:
                             module_info["extracted_string_keywords"] = (
@@ -947,6 +916,52 @@ class ElixirIndexer(BaseIndexer):
                 if self._check_and_report_interruption(files_processed, total_files):
                     break
                 continue
+
+        # Batch expand all keywords in parallel
+        if expansion_tasks and keyword_expander:
+            if self.verbose:
+                print(
+                    f"\nExpanding keywords for {len(expansion_tasks)} items (parallel, {keyword_expander.max_workers} workers)..."
+                )
+
+            try:
+                # Extract (keywords, scores) tuples for batch expansion
+                keyword_tasks = [
+                    (task.extracted_keywords, task.keyword_scores) for task in expansion_tasks
+                ]
+
+                # Batch expand in parallel with per-task scores
+                expansion_results = keyword_expander.expand_keywords_parallel_with_scores(
+                    keyword_tasks,
+                    top_n=self.DEFAULT_EXPANSION_TOP_N,
+                    threshold=self.DEFAULT_EXPANSION_THRESHOLD,
+                )
+
+                # Apply results to targets
+                for task, result in zip(expansion_tasks, expansion_results, strict=True):
+                    if isinstance(result, dict) and "words" in result:
+                        # Convert expansion result to dict: word -> max_score
+                        keywords_dict: dict[str, float] = {}
+                        for item in result["words"]:
+                            word = item["word"]
+                            score = item["score"]
+                            if word not in keywords_dict or score > keywords_dict[word]:
+                                keywords_dict[word] = score
+                        if keywords_dict:
+                            task.target[task.target_key] = keywords_dict
+                    else:
+                        # Fallback: use raw keyword scores
+                        task.target[task.target_key] = task.keyword_scores
+
+                if self.verbose:
+                    print(f"  ✓ Expanded {len(expansion_tasks)} keyword sets")
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Batch keyword expansion failed: {e}", file=sys.stderr)
+                # Fallback: apply raw keyword scores
+                for task in expansion_tasks:
+                    task.target[task.target_key] = task.keyword_scores
 
         # Build final index
         index = {
@@ -1211,10 +1226,10 @@ class ElixirIndexer(BaseIndexer):
 
                     keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
-                # Initialize expansion method
-                from cicada.keyword_expander import KeywordExpander
+                # Initialize expansion method (parallel for better performance)
+                from cicada.parallel_expander import ParallelKeywordExpander
 
-                keyword_expander = KeywordExpander(
+                keyword_expander = ParallelKeywordExpander(
                     expansion_type=expansion_method, verbose=self.verbose
                 )
 

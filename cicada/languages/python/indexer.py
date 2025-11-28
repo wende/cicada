@@ -8,7 +8,12 @@ import json
 import subprocess
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from cicada.parallel_expander import StreamingExpansionPipeline
 
 from cicada.git.cochange_analyzer import CoChangeAnalyzer
 from cicada.git.helper import GitHelper
@@ -25,6 +30,14 @@ from cicada.utils.hash_utils import (
 )
 from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils.storage import get_hashes_path
+
+
+@dataclass
+class ExpansionCallback:
+    """Callback data for streaming expansion pipeline."""
+
+    target: dict[str, Any]  # The module/function dict to update
+    target_key: str  # "keywords" or "string_keywords"
 
 
 class PythonSCIPIndexer(BaseIndexer):
@@ -231,10 +244,13 @@ class PythonSCIPIndexer(BaseIndexer):
 
                         keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
-                    # Initialize keyword expander
-                    from cicada.keyword_expander import KeywordExpander
+                    # Initialize parallel keyword expander with streaming pipeline
+                    from cicada.parallel_expander import (
+                        ParallelKeywordExpander,
+                        StreamingExpansionPipeline,
+                    )
 
-                    keyword_expander = KeywordExpander(
+                    keyword_expander = ParallelKeywordExpander(
                         expansion_type=expansion_method, verbose=self.verbose
                     )
                     log_timing("Keyword extractor initialization")
@@ -256,27 +272,51 @@ class PythonSCIPIndexer(BaseIndexer):
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
-            # 5.5. Extract keywords from docstrings if requested (separate phase for performance)
-            if extract_keywords and keyword_extractor:
-                try:
-                    self._extract_docstring_keywords(
-                        cicada_index, keyword_extractor, keyword_expander
+            # 5.5. Extract and expand keywords using streaming pipeline
+            # Expansion happens in parallel as extraction proceeds sequentially
+            if (
+                (extract_keywords or extract_string_keywords)
+                and keyword_extractor
+                and keyword_expander
+            ):
+                if self.verbose:
+                    print(
+                        f"\n  Extracting and expanding keywords "
+                        f"(streaming, {keyword_expander.max_workers} workers)..."
                     )
-                    log_timing("Docstring keyword extraction")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Docstring keyword extraction failed: {e}")
 
-            # 6. Extract string keywords if requested
-            if extract_string_keywords and keyword_extractor:
                 try:
-                    self._extract_string_keywords(
-                        cicada_index, repo_path_obj, keyword_extractor, keyword_expander
-                    )
-                    log_timing("String keyword extraction")
+                    from cicada.parallel_expander import StreamingExpansionPipeline
+
+                    with StreamingExpansionPipeline(
+                        keyword_expander, max_pending=100, verbose=self.verbose
+                    ) as pipeline:
+                        # Extract docstring keywords (sequential) with streaming expansion
+                        if extract_keywords:
+                            self._extract_docstring_keywords(
+                                cicada_index, keyword_extractor, pipeline
+                            )
+                            log_timing("Docstring keyword extraction")
+
+                        # Extract string keywords (sequential) with streaming expansion
+                        if extract_string_keywords:
+                            self._extract_string_keywords(
+                                cicada_index, repo_path_obj, keyword_extractor, pipeline
+                            )
+                            log_timing("String keyword extraction")
+
+                        # Finish remaining expansions
+                        for callback, result in pipeline.finish():
+                            self._apply_expansion_result(callback, result)
+
+                        if self.verbose:
+                            stats = pipeline.stats
+                            print(f"    ✓ Expanded {stats['completed']} keyword sets")
+
+                    log_timing("Keyword expansion (streaming)")
                 except Exception as e:
                     if self.verbose:
-                        print(f"    Warning: String keyword extraction failed: {e}")
+                        print(f"    Warning: Keyword extraction/expansion failed: {e}")
 
             # 7. Compute timestamps if requested
             if compute_timestamps:
@@ -375,13 +415,17 @@ class PythonSCIPIndexer(BaseIndexer):
             python_files.append(py_file)
         return python_files
 
-    def _extract_docstring_keywords(self, index: dict, keyword_extractor, keyword_expander) -> None:
+    def _extract_docstring_keywords(
+        self, index: dict, keyword_extractor, pipeline: "StreamingExpansionPipeline"
+    ) -> None:
         """Extract keywords from module and function docstrings.
+
+        Extraction is sequential, expansion is submitted to streaming pipeline.
 
         Args:
             index: The Cicada index to update
             keyword_extractor: Keyword extractor instance
-            keyword_expander: Keyword expander instance
+            pipeline: Streaming expansion pipeline for parallel expansion
         """
         if self.verbose:
             print("  Extracting keywords from docstrings...")
@@ -405,7 +449,9 @@ class PythonSCIPIndexer(BaseIndexer):
                     print(f"    Warning: module_data for {module_name} is not a dict, skipping")
                 continue
             if self.verbose and idx % 50 == 0:
-                print(f"    Processed {idx}/{total} modules...")
+                print(
+                    f"    Processed {idx}/{total} modules (Keywords: {pipeline.stats['submitted']})"
+                )
 
             try:
                 # Extract module-level keywords from moduledoc + function docs
@@ -421,21 +467,13 @@ class PythonSCIPIndexer(BaseIndexer):
                         keywords[keyword] = score
 
                     if keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expansion_result = keyword_expander.expand_keywords(
-                                list(keywords.keys()),
-                                keyword_scores=keywords,
-                            )
-                            # Convert expansion result to dict
-                            if isinstance(expansion_result, dict):
-                                for item in expansion_result["words"]:
-                                    word = item["word"]
-                                    score = item["score"]
-                                    if word not in keywords or score > keywords[word]:
-                                        keywords[word] = score
-
-                        module_data["keywords"] = keywords
+                        # Store extracted keywords and submit expansion
+                        module_data["keywords"] = keywords.copy()
+                        callback = ExpansionCallback(target=module_data, target_key="keywords")
+                        for cb, res in pipeline.submit(
+                            list(keywords.keys()), keywords, callback, top_n=3, threshold=0.2
+                        ):
+                            self._apply_expansion_result(cb, res)
 
                 # Extract function-level keywords
                 for func in functions:
@@ -447,36 +485,38 @@ class PythonSCIPIndexer(BaseIndexer):
                             func_keywords[keyword] = score
 
                         if func_keywords:
-                            # Expand keywords
-                            if keyword_expander:
-                                expansion_result = keyword_expander.expand_keywords(
-                                    list(func_keywords.keys()),
-                                    keyword_scores=func_keywords,
-                                )
-                                # Convert expansion result to dict
-                                if isinstance(expansion_result, dict):
-                                    for item in expansion_result["words"]:
-                                        word = item["word"]
-                                        score = item["score"]
-                                        if word not in func_keywords or score > func_keywords[word]:
-                                            func_keywords[word] = score
-
-                            func["keywords"] = func_keywords
+                            # Store extracted keywords and submit expansion
+                            func["keywords"] = func_keywords.copy()
+                            callback = ExpansionCallback(target=func, target_key="keywords")
+                            for cb, res in pipeline.submit(
+                                list(func_keywords.keys()),
+                                func_keywords,
+                                callback,
+                                top_n=3,
+                                threshold=0.2,
+                            ):
+                                self._apply_expansion_result(cb, res)
 
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
 
     def _extract_string_keywords(
-        self, index: dict, repo_path: Path, keyword_extractor, keyword_expander
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor,
+        pipeline: "StreamingExpansionPipeline",
     ) -> None:
         """Extract keywords from string literals in Python files.
+
+        Extraction is sequential, expansion is submitted to streaming pipeline.
 
         Args:
             index: The Cicada index to update
             repo_path: Repository root path
             keyword_extractor: Keyword extractor instance
-            keyword_expander: Keyword expander instance
+            pipeline: Streaming expansion pipeline for parallel expansion
         """
         if self.verbose:
             print("  Extracting string keywords...")
@@ -513,25 +553,41 @@ class PythonSCIPIndexer(BaseIndexer):
                         string_keywords[keyword] = score * 1.3
 
                     if string_keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expansion_result = keyword_expander.expand_keywords(
-                                list(string_keywords.keys()),
-                                keyword_scores=string_keywords,
-                            )
-                            # Convert expansion result to dict
-                            if isinstance(expansion_result, dict):
-                                for item in expansion_result["words"]:
-                                    word = item["word"]
-                                    score = item["score"]
-                                    if word not in string_keywords or score > string_keywords[word]:
-                                        string_keywords[word] = score
-
-                        module_data["string_keywords"] = string_keywords
+                        # Store extracted keywords and submit expansion
+                        module_data["string_keywords"] = string_keywords.copy()
+                        callback = ExpansionCallback(
+                            target=module_data, target_key="string_keywords"
+                        )
+                        for cb, res in pipeline.submit(
+                            list(string_keywords.keys()),
+                            string_keywords,
+                            callback,
+                            top_n=3,
+                            threshold=0.2,
+                        ):
+                            self._apply_expansion_result(cb, res)
 
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to extract strings from {file_path}: {e}")
+
+    def _apply_expansion_result(self, callback: ExpansionCallback, result: dict[str, Any]) -> None:
+        """Apply expansion result to target dict.
+
+        Args:
+            callback: ExpansionCallback with target and key
+            result: Expansion result dict with 'words' list
+        """
+        if isinstance(result, dict) and "words" in result:
+            # Convert expansion result to dict: word -> max_score
+            keywords_dict: dict[str, float] = {}
+            for item in result["words"]:
+                word = item["word"]
+                score = item["score"]
+                if word not in keywords_dict or score > keywords_dict[word]:
+                    keywords_dict[word] = score
+            if keywords_dict:
+                callback.target[callback.target_key] = keywords_dict
 
     def _compute_timestamps(self, index: dict, repo_path: Path) -> None:
         """Compute git timestamps for functions.
@@ -753,8 +809,7 @@ class PythonSCIPIndexer(BaseIndexer):
         ]
 
         if self.verbose:
-            print("  Running SCIP")
-            print("  (This may take several minutes for large projects...)")
+            print("  Running SCIP (This may take several minutes for large projects...)")
 
         try:
             result = subprocess.run(
