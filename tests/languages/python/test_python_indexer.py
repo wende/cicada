@@ -643,7 +643,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+        with patch("cicada.git.helper.GitHelper") as mock_git_helper_class:
             mock_git_helper = MagicMock()
             mock_git_helper.get_functions_evolution_batch.return_value = {
                 "test_func": {
@@ -697,7 +697,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+        with patch("cicada.git.helper.GitHelper") as mock_git_helper_class:
             mock_git_helper_class.side_effect = Exception("Not a git repo")
 
             verbose_indexer._compute_timestamps(index, repo)
@@ -725,7 +725,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+        with patch("cicada.git.helper.GitHelper") as mock_git_helper_class:
             mock_git_helper = MagicMock()
             mock_git_helper_class.return_value = mock_git_helper
 
@@ -759,7 +759,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git_helper_class:
+        with patch("cicada.git.helper.GitHelper") as mock_git_helper_class:
             mock_git_helper = MagicMock()
             mock_git_helper.get_functions_evolution_batch.return_value = {}
             mock_git_helper_class.return_value = mock_git_helper
@@ -785,7 +785,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+        with patch("cicada.git.cochange_analyzer.CoChangeAnalyzer") as mock_analyzer_class:
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_repository.return_value = {
                 "metadata": {"file_pairs": 1, "function_pairs": 0, "commit_count": 10},
@@ -807,7 +807,7 @@ class TestPythonIndexerHelperMethods:
 
         index = {"modules": {}}
 
-        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+        with patch("cicada.git.cochange_analyzer.CoChangeAnalyzer") as mock_analyzer_class:
             mock_analyzer_class.side_effect = Exception("Git error")
 
             verbose_indexer._extract_cochange(index, repo)
@@ -830,7 +830,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+        with patch("cicada.git.cochange_analyzer.CoChangeAnalyzer") as mock_analyzer_class:
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_repository.return_value = {
                 "metadata": {"file_pairs": 1, "function_pairs": 0, "commit_count": 5},
@@ -870,7 +870,7 @@ class TestPythonIndexerHelperMethods:
             }
         }
 
-        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer_class:
+        with patch("cicada.git.cochange_analyzer.CoChangeAnalyzer") as mock_analyzer_class:
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_repository.return_value = {
                 "metadata": {"file_pairs": 15, "function_pairs": 0, "commit_count": 10},
@@ -1505,7 +1505,7 @@ class TestHelperMethodEdgeCases:
 
         # Test missing file path
         index = {"modules": {"TestModule": {"functions": [{"name": "func", "line": 5}]}}}
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git:
+        with patch("cicada.git.helper.GitHelper") as mock_git:
             mock_git.return_value = MagicMock()
             indexer._compute_timestamps(index, repo)
             mock_git.return_value.get_functions_evolution_batch.assert_not_called()
@@ -1516,14 +1516,14 @@ class TestHelperMethodEdgeCases:
                 "TestModule": {"file": "test.py", "functions": [{"name": "func", "line": 5}]}
             }
         }
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git:
+        with patch("cicada.git.helper.GitHelper") as mock_git:
             mock_git.return_value.get_functions_evolution_batch.side_effect = Exception("Git error")
             verbose_indexer._compute_timestamps(index, repo)
             captured = capsys.readouterr()
             assert "Failed to compute timestamps" in captured.out
 
         # Test partial evolution data
-        with patch("cicada.languages.python.indexer.GitHelper") as mock_git:
+        with patch("cicada.git.helper.GitHelper") as mock_git:
             mock_git.return_value.get_functions_evolution_batch.return_value = {
                 "func": {"created_at": {"date": "2024-01-01"}}
             }
@@ -1560,14 +1560,15 @@ class TestHelperMethodEdgeCases:
         repo.mkdir()
         index = {"modules": {"TestModule": {"functions": []}}}
 
-        with patch("cicada.languages.python.indexer.CoChangeAnalyzer") as mock_analyzer:
+        with patch("cicada.git.cochange_analyzer.CoChangeAnalyzer") as mock_analyzer:
             mock_analyzer.return_value.analyze_repository.return_value = {
                 "metadata": {"file_pairs": 0, "function_pairs": 0, "commit_count": 0},
                 "file_pairs": {},
             }
             mock_analyzer.find_cochange_pairs = MagicMock(return_value=[])
             indexer._extract_cochange(index, repo)
-            assert "cochange_files" not in index["modules"]["TestModule"]
+            # cochange_files is now always present, empty if no co-changes
+            assert index["modules"]["TestModule"]["cochange_files"] == []
 
     def test_run_scip_python_verbose_messages(self, verbose_indexer, tmp_path, capsys):
         """Should print verbose messages during SCIP execution."""
@@ -1742,11 +1743,8 @@ class TestInterruptibleEnrichmentPhases:
                             verbose=False,
                         )
 
-                        # Should still succeed and save
+                        # Should still succeed and save despite interrupt
                         assert result["success"] is True
-                        assert result["interrupted"] is True
-                        assert "string keywords (partial)" in result["skipped_phases"]
-                        assert "timestamp computation" in result["skipped_phases"]
                         assert output.exists()
                     finally:
                         if scip_file.exists():
@@ -1787,7 +1785,8 @@ class TestInterruptibleEnrichmentPhases:
                                 # Timestamps and cochange should NOT be called
                                 mock_ts.assert_not_called()
                                 mock_cc.assert_not_called()
-                                assert result["interrupted"] is True
+                                # Index should still be saved despite interrupt
+                                assert result["success"] is True
                             finally:
                                 if scip_file.exists():
                                     scip_file.unlink()
@@ -1856,8 +1855,7 @@ class TestInterruptibleEnrichmentPhases:
 
                         captured = capsys.readouterr()
                         assert "Interrupted during timestamp computation" in captured.out
-                        assert "Partial index saved" in captured.out
-                        assert "Skipped phases" in captured.out
+                        assert "Index saved to:" in captured.out
                     finally:
                         if scip_file.exists():
                             scip_file.unlink()

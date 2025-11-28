@@ -127,9 +127,9 @@ class KeywordExpander:
             total = KeywordExpander._total_workers
 
             if total is not None:
-                print(f"✓ keyword expander loaded ({worker_num}/{total})")
+                print(f"\r✓ keyword expander loaded ({worker_num}/{total})", end="", flush=True)
             else:
-                print(f"✓ keyword expander loaded ({worker_num})")
+                print(f"\r✓ keyword expander loaded ({worker_num})", end="", flush=True)
 
     def _load_embedding_model(self) -> Any:
         """

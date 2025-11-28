@@ -194,7 +194,7 @@ def test_index_repository_git_helper_init_failure(temp_repo, capsys):
     """Test index_repository when git helper initialization fails."""
     indexer = ElixirIndexer(verbose=True)
 
-    with patch("cicada.indexer.GitHelper", side_effect=RuntimeError("No git")):
+    with patch("cicada.git.helper.GitHelper", side_effect=RuntimeError("No git")):
         indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
@@ -215,7 +215,7 @@ def test_index_repository_timestamp_computation_error(temp_repo):
     mock_git_helper = MagicMock()
     mock_git_helper.get_functions_evolution_batch.side_effect = RuntimeError("Git error")
 
-    with patch("cicada.indexer.GitHelper", return_value=mock_git_helper):
+    with patch("cicada.git.helper.GitHelper", return_value=mock_git_helper):
         result = indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
@@ -282,7 +282,7 @@ end
     mock_git_helper = MagicMock()
     mock_git_helper.get_functions_evolution_batch.return_value = {}
 
-    with patch("cicada.indexer.GitHelper", return_value=mock_git_helper):
+    with patch("cicada.git.helper.GitHelper", return_value=mock_git_helper):
         indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
