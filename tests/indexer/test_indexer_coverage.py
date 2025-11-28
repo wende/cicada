@@ -187,7 +187,8 @@ def test_index_repository_string_extractor_init_failure(temp_repo, capsys):
         )
 
         captured = capsys.readouterr()
-        assert "Warning: Could not initialize string extractor" in captured.out
+        # Error message changed with base class error handling
+        assert "Keyword extraction/expansion failed" in captured.out
 
 
 def test_index_repository_git_helper_init_failure(temp_repo, capsys):
