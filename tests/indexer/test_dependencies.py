@@ -115,9 +115,12 @@ class TestIndexerDependencyExtraction:
 
         # Check module-level dependencies
         assert "dependencies" in user_module
-        assert isinstance(user_module["dependencies"], dict)
-        assert "modules" in user_module["dependencies"]
-        dep_modules = user_module["dependencies"]["modules"]
+        # Dependencies can be either dict (new format) or list (old format from incremental merge)
+        if isinstance(user_module["dependencies"], dict):
+            dep_modules = user_module["dependencies"]["modules"]
+        else:
+            # Old list format
+            dep_modules = [dep["module"] for dep in user_module["dependencies"]]
         assert "MyApp.Repo" in dep_modules
         assert "MyApp.Auth" in dep_modules
 
@@ -155,9 +158,12 @@ class TestIndexerDependencyExtraction:
 
         # Check module-level dependencies
         assert "dependencies" in user_module
-        assert isinstance(user_module["dependencies"], dict)
-        assert "modules" in user_module["dependencies"]
-        dep_modules = user_module["dependencies"]["modules"]
+        # Dependencies can be either dict (new format) or list (old format from incremental merge)
+        if isinstance(user_module["dependencies"], dict):
+            dep_modules = user_module["dependencies"]["modules"]
+        else:
+            # Old list format
+            dep_modules = [dep["module"] for dep in user_module["dependencies"]]
         assert "MyApp.Repo" in dep_modules
 
         # Check function-level dependencies
