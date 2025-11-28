@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add debouncing (2s) and cooldown (15s) to prevent excessive refreshes
 - Add graceful shutdown to stop pending refresh operations
 
+**Graceful Ctrl+C Shutdown (#191)**
+- Ctrl+C during indexing now exits cleanly instead of crashing
+- Python indexer saves partial progress when interrupted during enrichment phases
+- Elixir saves partial progress, Python saves after SCIP conversion completes
+
 ### Improvements
 
 **Co-change Analysis Optimization (#190)**

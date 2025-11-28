@@ -51,11 +51,8 @@ def _format_tier(
     lines = []
     count = len(candidates_list)
 
-    # Header
-    label = f" {tier_label} ({count} function{'s' if count != 1 else ''}) "
-    bar_length = 80
-    padding = (bar_length - len(label)) // 2
-    lines.append(f"\n{'═' * padding}{label}{'═' * (bar_length - padding - len(label))}")
+    # Markdown header (replaces ASCII box-drawing)
+    lines.append(f"\n## {tier_label} ({count} function{'s' if count != 1 else ''})")
     lines.append(f"{description}\n")
 
     # Truncate if needed
@@ -78,9 +75,16 @@ def _format_tier(
 
         lines.append("")
 
-        # List functions
+        # List functions with call counts
         for func in funcs:
-            lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']}")
+            reason = func.get("reason", "no_usage_found")
+            if reason == "module_passed_as_value":
+                call_info = "(0 calls, module passed as value)"
+            elif reason == "module_has_behaviors_or_uses":
+                call_info = "(0 calls, has behaviors/uses)"
+            else:
+                call_info = "(0 calls)"
+            lines.append(f"- `{func['function']}/{func['arity']}` :{func['line']} {call_info}")
         lines.append("")
 
     # Truncation message

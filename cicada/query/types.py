@@ -194,7 +194,7 @@ class QueryConfig:
 
     # Search limits
     INTERNAL_SEARCH_LIMIT = 100  # Fetch this many from search, then filter/rank
-    MAX_SUGGESTIONS = 5  # Maximum suggestions to show
+    MAX_SUGGESTIONS = 2  # Maximum suggestions to show (keep focused)
     MAX_QUERY_VARIANTS = 3  # Maximum case/format variants to generate
 
     # Similarity thresholds
