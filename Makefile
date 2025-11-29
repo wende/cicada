@@ -189,7 +189,7 @@ pre-commit: install
 	@$(MAKE) generate-scip-proto
 	@echo "Running tests with coverage..."
 	@bash tests/setup_fixtures.sh
-	@set -o pipefail; uv run pytest -n 4 --dist loadgroup --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
+	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=line --no-header -q --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80 2>&1 | tail -20
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment

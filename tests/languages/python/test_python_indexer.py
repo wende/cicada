@@ -1747,6 +1747,9 @@ class TestInterruptibleEnrichmentPhases:
 
                         # Should still succeed and save despite interrupt
                         assert result["success"] is True
+                        assert result["interrupted"] is True
+                        assert "keyword extraction/expansion (partial)" in result["skipped_phases"]
+                        assert "timestamp computation" in result["skipped_phases"]
                         assert output.exists()
                     finally:
                         if scip_file.exists():
@@ -1789,6 +1792,7 @@ class TestInterruptibleEnrichmentPhases:
                                 mock_cc.assert_not_called()
                                 # Index should still be saved despite interrupt
                                 assert result["success"] is True
+                                assert result["interrupted"] is True
                             finally:
                                 if scip_file.exists():
                                     scip_file.unlink()

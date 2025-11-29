@@ -205,6 +205,7 @@ class BaseIndexer(ABC):
         except Exception as e:
             if self.verbose:
                 print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            skipped_phases.append(phase_name)
             return False
 
     def _run_enrichment_pipeline(
@@ -588,10 +589,11 @@ class BaseIndexer(ABC):
                 print(f"    Warning: Failed to analyze co-changes: {e}")
 
     def _build_function_signature(self, module_name: str, func: dict) -> str | None:
-        """Build function signature string for co-change lookups (language-specific).
+        """Build function signature string for co-change lookups.
 
-        Default implementation builds Elixir-style signatures: "Module.function/arity"
-        Override this method for other languages if needed.
+        Builds signatures in universal "Module.function/arity" format.
+        This format is used by both Elixir and Python signature extractors.
+        Override this method only if a new language needs a different format.
 
         Args:
             module_name: Name of the module containing the function
@@ -607,10 +609,11 @@ class BaseIndexer(ABC):
         return None
 
     def _parse_function_signature(self, func_sig: str) -> dict | None:
-        """Parse function signature into components (language-specific).
+        """Parse function signature into components.
 
-        Default implementation parses Elixir-style signatures: "Module.function/arity"
-        Override this method for other languages if needed.
+        Parses universal "Module.function/arity" format used by all languages.
+        This format is used by both Elixir and Python signature extractors.
+        Override this method only if a new language needs a different format.
 
         Args:
             func_sig: Function signature string (e.g., "MyApp.Auth.validate_user/2")
