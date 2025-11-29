@@ -344,7 +344,7 @@ class BaseIndexer(ABC):
         repo_path: Path,
         keyword_extractor: Any,
         pipeline: "StreamingExpansionPipeline",
-    ) -> None:
+    ) -> int:
         """Extract keywords from string literals in source files (language-specific).
 
         This method should be overridden by indexers that use the streaming pipeline.
@@ -355,9 +355,13 @@ class BaseIndexer(ABC):
             repo_path: Repository root path
             keyword_extractor: Keyword extractor instance
             pipeline: Streaming expansion pipeline for parallel expansion
+
+        Returns:
+            Number of items processed (0 if not implemented)
         """
         if self.verbose:
             print("    Warning: String keyword extraction not implemented for this language")
+        return 0
 
     def _apply_expansion_result(self, callback: Any, result: dict[str, Any]) -> None:
         """Apply expansion result to target dict.

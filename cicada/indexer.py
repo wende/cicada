@@ -168,7 +168,7 @@ class ElixirIndexer(BaseIndexer):
         repo_path: Path,
         keyword_extractor: Any,
         pipeline: Any,
-    ) -> None:
+    ) -> int:
         """Extract keywords from string literals in Elixir files (Elixir-specific).
 
         Args:
@@ -176,6 +176,9 @@ class ElixirIndexer(BaseIndexer):
             repo_path: Repository root path
             keyword_extractor: Keyword extractor instance
             pipeline: Streaming expansion pipeline for parallel expansion
+
+        Returns:
+            Number of modules processed
         """
         from cicada.languages.elixir.extractors import StringExtractor, extract_modules
 
@@ -183,6 +186,7 @@ class ElixirIndexer(BaseIndexer):
             print("  Extracting string keywords...")
 
         string_extractor = StringExtractor(min_length=3)
+        processed = 0
 
         for module_name, module_data in index.get("modules", {}).items():
             file_path_str = module_data.get("file")
@@ -276,11 +280,14 @@ class ElixirIndexer(BaseIndexer):
                             ):
                                 self._apply_expansion_result(cb, res)
 
+                    processed += 1
                     break  # Found the module, no need to check other parsed modules
 
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to extract strings from {file_path_str}: {e}")
+
+        return processed
 
     # ====================================================================================
     # Legacy methods
@@ -727,6 +734,14 @@ class ElixirIndexer(BaseIndexer):
                             "function_dependencies": func_level_deps,
                             "public_count": public_count,
                             "private_count": private_count,
+                            # Module usage tracking fields (for what_calls_it)
+                            "aliases": module_data.get("aliases", {}),
+                            "imports": module_data.get("imports", []),
+                            "requires": module_data.get("requires", []),
+                            "uses": module_data.get("uses", []),
+                            "behaviours": module_data.get("behaviours", []),
+                            "value_mentions": module_data.get("value_mentions", []),
+                            "calls": module_data.get("calls", []),
                         }
 
                         # Add moduledoc if present

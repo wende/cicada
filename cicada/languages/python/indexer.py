@@ -509,7 +509,7 @@ class PythonSCIPIndexer(BaseIndexer):
         repo_path: Path,
         keyword_extractor,
         pipeline: "StreamingExpansionPipeline",
-    ) -> None:
+    ) -> int:
         """Extract keywords from string literals in Python files.
 
         Extraction is sequential, expansion is submitted to streaming pipeline.
@@ -519,59 +519,85 @@ class PythonSCIPIndexer(BaseIndexer):
             repo_path: Repository root path
             keyword_extractor: Keyword extractor instance
             pipeline: Streaming expansion pipeline for parallel expansion
+
+        Returns:
+            Number of modules processed
         """
+        # Check if interrupted before starting
+        if self._interrupted:
+            return 0
+
         if self.verbose:
             print("  Extracting string keywords...")
 
         string_extractor = PythonStringExtractor(min_length=3)
+        processed = 0
 
-        for _module_name, module_data in index.get("modules", {}).items():
-            file_path = module_data.get("file")
-            if not file_path:
-                continue
+        try:
+            for _module_name, module_data in index.get("modules", {}).items():
+                # Check for interrupt
+                if self._interrupted:
+                    break
 
-            full_path = repo_path / file_path
-            if not full_path.exists():
-                continue
-
-            try:
-                source_code = full_path.read_text(encoding="utf-8")
-                strings = string_extractor.extract_from_source(source_code)
-
-                if not strings:
+                file_path = module_data.get("file")
+                if not file_path:
                     continue
 
-                # Store string sources
-                module_data["string_sources"] = strings
+                full_path = repo_path / file_path
+                if not full_path.exists():
+                    continue
 
-                # Extract keywords from all strings
-                all_string_text = " ".join(s["string"] for s in strings)
-                if all_string_text.strip():
-                    keywords_result = keyword_extractor.extract_keywords(all_string_text, top_n=15)
+                try:
+                    source_code = full_path.read_text(encoding="utf-8")
+                    strings = string_extractor.extract_from_source(source_code)
 
-                    # Apply string keyword boost (1.3x)
-                    string_keywords = {}
-                    for keyword, score in keywords_result.get("top_keywords", []):
-                        string_keywords[keyword] = score * 1.3
+                    if not strings:
+                        processed += 1
+                        continue
 
-                    if string_keywords:
-                        # Store extracted keywords and submit expansion
-                        module_data["string_keywords"] = string_keywords.copy()
-                        callback = ExpansionCallback(
-                            target=module_data, target_key="string_keywords"
+                    # Store string sources
+                    module_data["string_sources"] = strings
+
+                    # Extract keywords from all strings
+                    all_string_text = " ".join(s["string"] for s in strings)
+                    if all_string_text.strip():
+                        keywords_result = keyword_extractor.extract_keywords(
+                            all_string_text, top_n=15
                         )
-                        for cb, res in pipeline.submit(
-                            list(string_keywords.keys()),
-                            string_keywords,
-                            callback,
-                            top_n=3,
-                            threshold=0.2,
-                        ):
-                            self._apply_expansion_result(cb, res)
 
-            except Exception as e:
-                if self.verbose:
-                    print(f"    Warning: Failed to extract strings from {file_path}: {e}")
+                        # Apply string keyword boost (1.3x)
+                        string_keywords = {}
+                        for keyword, score in keywords_result.get("top_keywords", []):
+                            string_keywords[keyword] = score * 1.3
+
+                        if string_keywords:
+                            # Store extracted keywords and submit expansion
+                            module_data["string_keywords"] = string_keywords.copy()
+                            callback = ExpansionCallback(
+                                target=module_data, target_key="string_keywords"
+                            )
+                            if pipeline:
+                                for cb, res in pipeline.submit(
+                                    list(string_keywords.keys()),
+                                    string_keywords,
+                                    callback,
+                                    top_n=3,
+                                    threshold=0.2,
+                                ):
+                                    self._apply_expansion_result(cb, res)
+
+                    processed += 1
+
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    Warning: Failed to extract strings from {file_path}: {e}")
+
+        except KeyboardInterrupt:
+            self._interrupted = True
+            if self.verbose:
+                print("\n    Keyboard interrupt - saving partial results...")
+
+        return processed
 
     def _ensure_scip_python_installed(self):
         """
