@@ -20,7 +20,7 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
 
     Legacy tier mapping to new format:
     - tier: 'fast'     → regular + lemmi
-    - tier: 'regular'  → bert + glove
+    - tier: 'regular'  → regular + glove
     - tier: 'max'      → bert + fasttext
 
     Args:
@@ -54,7 +54,7 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
                 # Legacy config uses tier to determine both extraction and expansion methods
                 tier_mapping = {
                     "fast": ("regular", "lemmi"),
-                    "regular": ("bert", "glove"),
+                    "regular": ("regular", "glove"),
                     "max": ("bert", "fasttext"),
                 }
                 if tier in tier_mapping:

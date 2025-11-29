@@ -266,8 +266,8 @@ def _determine_tier(extraction_method: str, expansion_method: str) -> str:
     if extraction_method == "regular" and expansion_method == "lemmi":
         return "fast"
 
-    # Regular tier: bert_small extraction + glove expansion
-    if extraction_method == "bert_small" and expansion_method == "glove":
+    # Regular tier: regular extraction + glove expansion
+    if extraction_method == "regular" and expansion_method == "glove":
         return "regular"
 
     # Max tier: bert_large extraction + fasttext expansion

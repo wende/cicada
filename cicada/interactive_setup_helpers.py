@@ -20,8 +20,8 @@ NotElixirProjectError = UnsupportedProjectError
 # Tier configuration data
 _TIER_OPTIONS = (
     ("Fast - Term frequency + inflections (no downloads)", ("regular", "lemmi")),
-    ("Balanced - KeyBERT + GloVe semantic expansion (261MB)", ("bert", "glove")),
-    ("Maximum - KeyBERT + FastText expansion (1091MB)", ("bert", "fasttext")),
+    ("Balanced - TF-IDF + GloVe semantic expansion (128MB)", ("regular", "glove")),
+    ("Maximum - KeyBERT + FastText expansion (958MB)", ("bert", "fasttext")),
 )
 
 TIER_ITEMS = [label for label, _ in _TIER_OPTIONS]

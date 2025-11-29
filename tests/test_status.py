@@ -87,7 +87,7 @@ class TestGetIndexInfo:
         # Create config file with tier info
         config_path = get_config_path(repo_path)
         config_data = {
-            "keyword_extraction": {"method": "bert_small"},
+            "keyword_extraction": {"method": "regular"},
             "keyword_expansion": {"method": "glove"},
         }
         with open(config_path, "w") as f:
@@ -99,7 +99,7 @@ class TestGetIndexInfo:
         assert info["date"] is not None
         assert info["file_size"] is not None
         assert info["tier"] == "regular"
-        assert info["extraction_method"] == "bert_small"
+        assert info["extraction_method"] == "regular"
         assert info["expansion_method"] == "glove"
 
     def test_index_with_invalid_config(self, tmp_path, mock_home_dir):
@@ -590,7 +590,7 @@ class TestDetermineTier:
 
     def test_regular_tier(self):
         """Should identify regular tier correctly"""
-        tier = _determine_tier("bert_small", "glove")
+        tier = _determine_tier("regular", "glove")
         assert tier == "regular"
 
     def test_max_tier(self):
@@ -605,11 +605,13 @@ class TestDetermineTier:
 
     def test_partial_match_not_tier(self):
         """Should not match tiers with partial method matches"""
-        tier = _determine_tier("regular", "glove")
-        assert tier == "regular/glove"
-
+        # bert_small + lemmi is not a standard tier
         tier = _determine_tier("bert_small", "lemmi")
         assert tier == "bert_small/lemmi"
+
+        # bert_small + glove is not a standard tier (regular tier uses 'regular' extraction now)
+        tier = _determine_tier("bert_small", "glove")
+        assert tier == "bert_small/glove"
 
 
 class TestCheckRepository:

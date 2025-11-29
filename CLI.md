@@ -50,7 +50,7 @@ cicada install --claude           # Skip editor selection, use Claude
 cicada install --cursor           # Skip editor selection, use Cursor
 cicada install --vs               # Skip editor selection, use VS Code
 cicada install --fast             # Fast tier: Regular extraction + lemminflect (no downloads)
-cicada install --regular          # Regular tier: KeyBERT small + GloVe (128MB, default)
+cicada install --regular          # Regular tier: TF-IDF + GloVe (128MB, default)
 cicada install --max              # Max tier: KeyBERT large + FastText (958MB+)
 cicada install --claude --fast    # Combine: Claude + fast tier
 ```
@@ -116,7 +116,7 @@ cicada cursor /path/to/project    # Setup for Cursor in specified dir
 **Options:**
 ```bash
 cicada claude --fast              # Fast tier: Regular extraction + lemminflect
-cicada claude --regular           # Regular tier: KeyBERT small + GloVe (default)
+cicada claude --regular           # Regular tier: TF-IDF + GloVe (default)
 cicada claude --max               # Max tier: KeyBERT large + FastText
 cicada cursor --fast              # Same for Cursor
 cicada vs --max                   # Same for VS Code
@@ -288,7 +288,7 @@ cicada server                     # Error: Same (exits gracefully)
 
 ### Missing Dependencies
 ```bash
-cicada install --regular          # Downloads KeyBERT + GloVe if needed (128MB)
+cicada install --regular          # Downloads GloVe if needed (128MB)
 cicada server --max               # Downloads KeyBERT + FastText silently (958MB+)
 ```
 

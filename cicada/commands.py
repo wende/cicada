@@ -162,7 +162,7 @@ def get_argument_parser():
     install_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (128MB, default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (128MB, default)",
     )
     install_parser.add_argument(
         "--max",
@@ -220,7 +220,7 @@ def get_argument_parser():
     server_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (if reindexing needed)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (if reindexing needed)",
     )
     server_parser.add_argument(
         "--max",
@@ -247,7 +247,7 @@ def get_argument_parser():
     claude_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     claude_parser.add_argument(
         "--max",
@@ -269,7 +269,7 @@ def get_argument_parser():
     cursor_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     cursor_parser.add_argument(
         "--max",
@@ -291,7 +291,7 @@ def get_argument_parser():
     vs_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     vs_parser.add_argument(
         "--max",
@@ -313,7 +313,7 @@ def get_argument_parser():
     gemini_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     gemini_parser.add_argument(
         "--max",
@@ -335,7 +335,7 @@ def get_argument_parser():
     codex_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     codex_parser.add_argument(
         "--max",
@@ -370,7 +370,7 @@ def get_argument_parser():
     watch_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     watch_parser.add_argument(
         "--max",
@@ -403,7 +403,7 @@ def get_argument_parser():
     index_parser.add_argument(
         "--regular",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+        help="Regular tier: TF-IDF extraction + GloVe expansion (default)",
     )
     index_parser.add_argument(
         "--max",
@@ -1028,7 +1028,7 @@ def _print_tier_requirement_error() -> None:
         file=sys.stderr,
     )
     print(
-        "  cicada index --force --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
+        "  cicada index --force --regular   Regular tier: TF-IDF extraction + GloVe expansion (default)",
         file=sys.stderr,
     )
     print(
