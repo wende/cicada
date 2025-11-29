@@ -208,6 +208,7 @@ class TestFileWatcher:
     def test_trigger_reindex_calls_indexer(self, mock_get_indexer, elixir_repo):
         """Test that _trigger_reindex calls the incremental indexer"""
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
         mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
         mock_get_indexer.return_value = mock_indexer
@@ -227,9 +228,33 @@ class TestFileWatcher:
         assert "output_path" in call_kwargs
 
     @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_trigger_reindex_falls_back_to_basic_indexer(self, mock_get_indexer, elixir_repo):
+        """Test that _trigger_reindex falls back to index_repository for non-incremental indexers"""
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = False  # Non-incremental indexer
+        mock_indexer.get_file_extensions.return_value = [".py"]
+        mock_indexer.get_excluded_dirs.return_value = ["__pycache__", ".venv", ".git"]
+        mock_get_indexer.return_value = mock_indexer
+
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+        watcher.indexer = mock_indexer
+
+        # Trigger reindex
+        watcher._trigger_reindex()
+
+        # Verify index_repository was called instead of incremental_index_repository
+        assert mock_indexer.index_repository.called
+        assert not mock_indexer.incremental_index_repository.called
+        call_kwargs = mock_indexer.index_repository.call_args.kwargs
+        assert call_kwargs["repo_path"] == str(elixir_repo)
+        assert call_kwargs["force"] is False
+        assert "output_path" in call_kwargs
+
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
     def test_trigger_reindex_handles_errors_gracefully(self, mock_get_indexer, elixir_repo):
         """Test that errors during reindexing don't crash the watcher"""
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("Test error")
         mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
         mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
@@ -371,6 +396,7 @@ class TestFileWatcherIntegration:
 
         # Mock the indexer
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
         mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
         mock_get_indexer.return_value = mock_indexer
@@ -465,6 +491,7 @@ class TestFileWatcherIntegration:
 
         # Mock the indexer
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
         mock_indexer.get_excluded_dirs.return_value = ["_build", "deps", ".git"]
         mock_get_indexer.return_value = mock_indexer
@@ -540,6 +567,7 @@ class TestFileWatcherEdgeCases:
     ):
         mock_sleep.side_effect = KeyboardInterrupt()
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
         mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
         mock_get_indexer.return_value = mock_indexer
@@ -587,6 +615,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = MemoryError("OOM")
         watcher.indexer = mock_indexer
 
@@ -599,6 +628,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = KeyboardInterrupt()
         watcher.indexer = mock_indexer
 
@@ -610,6 +640,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("boom")
         watcher.indexer = mock_indexer
 
@@ -634,6 +665,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = OSError("disk full")
         watcher.indexer = mock_indexer
 

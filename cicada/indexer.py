@@ -59,6 +59,9 @@ class ExpansionTask:
 class ElixirIndexer(BaseIndexer):
     """Indexes Elixir repositories to extract module and function information."""
 
+    # ElixirIndexer supports incremental indexing
+    supports_incremental: bool = True
+
     # Progress reporting interval - report every N files processed
     PROGRESS_REPORT_INTERVAL = 10
 
@@ -927,7 +930,7 @@ class ElixirIndexer(BaseIndexer):
             current_version = get_version_string()
             if version_mismatch(stored_version, current_version) and self.verbose:
                 print(
-                    f"⚠️  Warning: Cicada version mismatch. "
+                    f"WARNING: Cicada version mismatch. "
                     f"Index was built with {stored_version}, current version is {current_version}."
                 )
 

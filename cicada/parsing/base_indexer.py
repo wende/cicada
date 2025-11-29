@@ -26,6 +26,9 @@ class BaseIndexer(ABC):
     5. Saving the index to disk
     """
 
+    # Override this in subclasses that support incremental indexing
+    supports_incremental: bool = False
+
     def __init__(self, verbose: bool = False):
         """Initialize base indexer with common state."""
         self.verbose = verbose
@@ -89,6 +92,47 @@ class BaseIndexer(ABC):
                     "errors": list[str]
                 }
         """
+
+    def incremental_index_repository(
+        self,
+        repo_path: str,
+        output_path: str,
+        extract_keywords: bool = False,
+        extract_string_keywords: bool = False,
+        compute_timestamps: bool = True,
+        extract_cochange: bool = True,
+        force_full: bool = False,
+        verbose: bool = True,
+    ) -> dict:
+        """
+        Incrementally index a repository using file hashing.
+
+        This method is optional - only indexers that support incremental indexing
+        (supports_incremental = True) need to implement this.
+
+        Default implementation raises NotImplementedError. Subclasses that support
+        incremental indexing should override this method and set supports_incremental = True.
+
+        Args:
+            repo_path: Path to the repository root
+            output_path: Path where the index JSON file will be saved
+            extract_keywords: If True, extract keywords from documentation using NLP
+            extract_string_keywords: If True, extract keywords from string literals
+            compute_timestamps: If True, compute git history timestamps for functions
+            extract_cochange: If True, analyze git history for co-change patterns
+            force_full: If True, ignore existing hashes and do full reindex
+            verbose: If True, print detailed progress information
+
+        Returns:
+            Dictionary containing the index data
+
+        Raises:
+            NotImplementedError: If the indexer does not support incremental indexing
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support incremental indexing. "
+            f"Use index_repository() instead."
+        )
 
     def _find_source_files(self, repo_path: Path) -> list[Path]:
         """

@@ -192,21 +192,7 @@ class FileWatcher:
         if self.verbose:
             print("Running initial index...")
         try:
-            # Use incremental indexing if available, otherwise fall back to basic
-            if hasattr(self.indexer, "incremental_index_repository"):
-                self.indexer.incremental_index_repository(
-                    repo_path=str(self.repo_path),
-                    output_path=str(index_path),
-                    extract_keywords=True,
-                    force_full=False,
-                )
-            else:
-                self.indexer.index_repository(
-                    repo_path=str(self.repo_path),
-                    output_path=str(index_path),
-                    force=False,
-                    verbose=self.verbose,
-                )
+            self._run_indexer(index_path)
             if self.verbose:
                 print("\nInitial indexing complete!")
                 print()
@@ -347,6 +333,35 @@ class FileWatcher:
             logger.error(f"Existing index corrupted: {load_error}")
             sys.exit(1)
 
+    def _run_indexer(self, index_path: Path) -> None:
+        """Run the appropriate indexing process (incremental or full).
+
+        Uses the indexer's supports_incremental flag to determine which
+        method to call. Falls back to basic indexing if incremental is
+        not supported.
+
+        Args:
+            index_path: Path to the index file
+        """
+        if self.indexer is None:
+            return
+
+        # Use incremental indexing if supported, otherwise fall back to basic
+        if self.indexer.supports_incremental:
+            self.indexer.incremental_index_repository(
+                repo_path=str(self.repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                force_full=False,
+            )
+        else:
+            self.indexer.index_repository(
+                repo_path=str(self.repo_path),
+                output_path=str(index_path),
+                force=False,
+                verbose=self.verbose,
+            )
+
     def _on_file_change(self, event: FileSystemEvent) -> None:
         """
         Handle file change events with debouncing.
@@ -403,21 +418,7 @@ class FileWatcher:
                 from cicada.utils.storage import get_index_path
 
                 index_path = get_index_path(self.repo_path)
-                # Use incremental indexing if available, otherwise fall back to basic
-                if hasattr(self.indexer, "incremental_index_repository"):
-                    self.indexer.incremental_index_repository(
-                        repo_path=str(self.repo_path),
-                        output_path=str(index_path),
-                        extract_keywords=True,
-                        force_full=False,
-                    )
-                else:
-                    self.indexer.index_repository(
-                        repo_path=str(self.repo_path),
-                        output_path=str(index_path),
-                        force=False,
-                        verbose=self.verbose,
-                    )
+                self._run_indexer(index_path)
                 if self.verbose:
                     print()
                     print("=" * 70)
