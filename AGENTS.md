@@ -174,11 +174,12 @@ Enable string keyword extraction when building the index:
 
 ```python
 from cicada.indexer import ElixirIndexer
+from cicada.utils.storage import get_index_path
 
 indexer = ElixirIndexer(verbose=True)
 indexer.index_repository(
     repo_path="/path/to/repo",
-    output_path=".cicada/index.json",
+    output_path=str(get_index_path("/path/to/repo")),  # ~/.cicada/projects/<hash>/index.json
     extract_keywords=True,          # Extract doc keywords
     extract_string_keywords=True     # NEW: Extract string keywords
 )
@@ -346,11 +347,12 @@ Co-occurrence data is automatically built during indexing when keyword extractio
 
 ```python
 from cicada.indexer import ElixirIndexer
+from cicada.utils.storage import get_index_path
 
 indexer = ElixirIndexer(verbose=True)
 indexer.index_repository(
     repo_path="/path/to/repo",
-    output_path=".cicada/index.json",
+    output_path=str(get_index_path("/path/to/repo")),  # ~/.cicada/projects/<hash>/index.json
     extract_keywords=True,          # Co-occurrence tracking enabled automatically
     extract_string_keywords=True     # String keywords also tracked
 )
@@ -525,11 +527,12 @@ cicada index --extract-keywords --extract-cochange
 ```python
 # Python API
 from cicada.indexer import ElixirIndexer
+from cicada.utils.storage import get_index_path
 
 indexer = ElixirIndexer(verbose=True)
 indexer.index_repository(
     repo_path="/path/to/repo",
-    output_path=".cicada/index.json",
+    output_path=str(get_index_path("/path/to/repo")),  # ~/.cicada/projects/<hash>/index.json
     extract_keywords=True,
     extract_cochange=True  # Enable co-change extraction
 )
