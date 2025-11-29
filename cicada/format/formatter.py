@@ -853,7 +853,8 @@ class ModuleFormatter:
                 keywords_str = ", ".join(f"'{k}'" for k in keywords)
                 query_suggestion = f"query([{keywords_str}])"
             else:
-                query_suggestion = f"query(['{func_only.lower()}'])"
+                # Single keyword: use processed keyword for consistency with splitting logic
+                query_suggestion = f"query(['{keywords[0] if keywords else func_only.lower()}'])"
 
             # Build error message
             error_parts = []
@@ -912,13 +913,13 @@ class ModuleFormatter:
             lines.append("---")
             # Add fallback note if present (even for single result)
             if fallback_note:
-                lines.append(fallback_note)
+                lines.append(f"({fallback_note})")
                 lines.append("")
         else:
             # Add fallback note to the found count line if present
             found_line = f"Found {len(consolidated_results)} match(es):"
             if fallback_note:
-                found_line = f"Found {len(consolidated_results)} match(es) {fallback_note}:"
+                found_line = f"Found {len(consolidated_results)} match(es) ({fallback_note}):"
             lines.extend(
                 [
                     f"Functions matching {function_name}",

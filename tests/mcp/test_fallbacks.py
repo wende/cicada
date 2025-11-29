@@ -168,6 +168,30 @@ class TestApplyFallbacks:
         # but not the module fallback
         assert call_count[0] >= 0  # Just verify it runs without error
 
+    def test_accumulates_notes_from_failed_strategies(self):
+        """Notes should accumulate from all tried strategies, not just the successful one."""
+        patterns = [FunctionPattern(module="*.MyApp", name="create", arity=2)]
+        mock_results = [{"module": "OtherApp", "function": {"name": "_create"}}]
+        attempts = []
+
+        def search_fn(p):
+            # Track what was attempted
+            attempts.append(
+                ("no_module" if p[0].module is None else "module", p[0].arity, p[0].name)
+            )
+            # Only succeed on private function fallback
+            if p[0].name == "_create":
+                return mock_results
+            return []
+
+        result = apply_fallbacks(patterns, search_fn)
+        assert result.results == mock_results
+        # Note should contain info about all failed strategies + the successful one
+        assert result.note is not None
+        # Should mention both the module fallback and private fallback
+        assert "no matches in" in result.note
+        assert "private" in result.note
+
 
 class TestFallbackResult:
     """Tests for FallbackResult dataclass."""

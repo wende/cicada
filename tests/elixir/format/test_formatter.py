@@ -1311,3 +1311,173 @@ def test_format_related_items_truncation():
     assert any("... and 7 more" in line for line in lines)
     # Should NOT have item3 (beyond top_n)
     assert not any("item3" in line for line in lines)
+
+
+# Tests for fallback note rendering and keyword splitting
+
+
+def test_split_function_name_to_keywords_snake_case():
+    """Test keyword splitting for snake_case function names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("create_user")
+    assert keywords == ["create", "user"]
+
+
+def test_split_function_name_to_keywords_leading_underscore():
+    """Test keyword splitting strips leading underscores."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("_extract_cochange")
+    assert keywords == ["extract", "cochange"]
+
+
+def test_split_function_name_to_keywords_camel_case():
+    """Test keyword splitting for camelCase function names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("getUserData")
+    assert keywords == ["get", "user", "data"]
+
+
+def test_split_function_name_to_keywords_single_word():
+    """Test keyword splitting returns single keyword for simple names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("create")
+    assert keywords == ["create"]
+
+
+def test_split_function_name_to_keywords_mixed_case_underscore():
+    """Test keyword splitting for mixed naming conventions."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("get_UserData")
+    assert keywords == ["get", "user", "data"]
+
+
+def test_fallback_note_rendered_for_single_result():
+    """Ensure fallback_note is rendered when there is a single result."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create_user",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+                "doc": "Creates a user.",
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        }
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create_user",
+        results,
+        fallback_note="no matches in `SomeModule`",
+    )
+
+    # Fallback note should be rendered with parentheses
+    assert "(no matches in `SomeModule`)" in markdown
+    # Result should still be rendered
+    assert "MyApp.Module.create_user/1" in markdown
+
+
+def test_fallback_note_rendered_for_multiple_results():
+    """Ensure fallback_note is rendered when there are multiple results."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+        {
+            "module": "OtherApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 2,
+                "type": "def",
+                "line": 10,
+            },
+            "file": "lib/other_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        results,
+        fallback_note="no matches with arity /3",
+    )
+
+    # Fallback note should be in the "Found X match(es)" line with parentheses
+    assert "(no matches with arity /3)" in markdown
+    assert "Found 2 match(es)" in markdown
+    # Both results should be rendered
+    assert "MyApp.Module.create/1" in markdown
+    assert "OtherApp.Module.create/2" in markdown
+
+
+def test_query_suggestion_uses_split_keywords():
+    """Verify query suggestion uses split keywords in not-found message."""
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "_extract_cochange",
+        [],  # No results
+    )
+
+    # Should suggest query with split keywords
+    assert "query(['extract', 'cochange'])" in markdown
+    assert "Not found" in markdown
+
+
+def test_query_suggestion_single_keyword():
+    """Verify query suggestion works for single-word function names."""
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        [],  # No results
+    )
+
+    # Should suggest query with single keyword
+    assert "query(['create'])" in markdown
+
+
+def test_fallback_note_not_rendered_when_none():
+    """Ensure no fallback note is rendered when None."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        results,
+        fallback_note=None,
+    )
+
+    # No parentheses should appear for fallback note
+    assert "no matches" not in markdown.lower()
+    # Result should still be rendered
+    assert "MyApp.Module.create/1" in markdown

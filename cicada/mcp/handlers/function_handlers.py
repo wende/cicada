@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from mcp.types import TextContent
 
+from cicada.mcp.filter_utils import filter_by_file_type
 from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
 
 
@@ -647,8 +648,6 @@ class FunctionSearchHandler:
                             target_arity=func["arity"],
                         )
                         if usage_type != "all":
-                            from cicada.mcp.filter_utils import filter_by_file_type
-
                             call_sites = filter_by_file_type(call_sites, usage_type)
 
                     results.append(
@@ -760,8 +759,6 @@ class FunctionSearchHandler:
 
                         # Filter call sites by file type if not 'all'
                         if usage_type != "all":
-                            from cicada.mcp.filter_utils import filter_by_file_type
-
                             call_sites = filter_by_file_type(call_sites, usage_type)
 
                         # Optionally include usage examples (actual code lines)

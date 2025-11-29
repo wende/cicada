@@ -52,9 +52,10 @@ class WithoutModuleFallback(FallbackStrategy):
         ]
 
     def get_note(self, patterns: list[FunctionPattern]) -> str:
-        orig_module = patterns[0].module or ""
+        # Find first pattern with a non-None module
+        orig_module = next((p.module for p in patterns if p.module), "")
         orig_module = orig_module.replace("*.", "")  # Remove wildcard prefix
-        return f"no matches in `{orig_module}`"
+        return f"no matches in `{orig_module}`" if orig_module else "no matches with module"
 
 
 class WithoutArityFallback(FallbackStrategy):
@@ -132,9 +133,10 @@ def apply_fallbacks(
             continue
 
         results = search_fn(fallback_patterns)
+        # Record note for this attempt (whether successful or not)
+        notes.append(strategy.get_note(patterns))
         if results:
-            notes.append(strategy.get_note(patterns))
-            combined_note = f"({', '.join(notes)})" if notes else None
-            return FallbackResult(results=results, note=combined_note)
+            # Return results with accumulated notes from all tried strategies
+            return FallbackResult(results=results, note=", ".join(notes))
 
     return FallbackResult(results=[], note=None)
