@@ -267,3 +267,192 @@ class TestThreadSafety:
         # No errors should have occurred
         assert len(errors) == 0, f"Thread errors: {errors}"
         assert len(results) == 50
+
+
+# ============================================================================
+# ParallelKeywordExpander Additional Coverage Tests
+# ============================================================================
+
+
+class TestParallelKeywordExpanderEdgeCases:
+    """Test edge cases and additional methods for coverage."""
+
+    def test_empty_batches_returns_empty_list(self):
+        """Test that empty batches return empty results."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi")
+
+        result = expander.expand_keywords_parallel([])
+        assert result == []
+
+    def test_expand_keywords_single_batch(self):
+        """Test single keyword expansion (convenience method)."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi")
+
+        result = expander.expand_keywords(["run", "walk"])
+        assert isinstance(result, dict)
+        assert "words" in result
+        assert "simple" in result
+
+    def test_get_expansion_info(self):
+        """Test get_expansion_info returns proper structure."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=4)
+
+        info = expander.get_expansion_info()
+        assert isinstance(info, dict)
+        assert info["parallel"] is True
+        assert info["max_workers"] == 4
+        assert "type" in info
+        assert info["type"] == "lemmi"
+
+    def test_shutdown_no_op(self):
+        """Test shutdown method completes without error."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi")
+        # Should not raise
+        expander.shutdown()
+
+    def test_expand_keywords_parallel_with_scores(self):
+        """Test parallel expansion with per-task scores."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=2)
+
+        tasks = [
+            (["authentication", "login"], {"authentication": 0.9, "login": 0.8}),
+            (["database", "query"], {"database": 0.85, "query": 0.75}),
+            (["cache", "memory"], {"cache": 0.7, "memory": 0.65}),
+        ]
+
+        results = expander.expand_keywords_parallel_with_scores(tasks, top_n=3, threshold=0.5)
+
+        assert len(results) == 3
+        for result in results:
+            assert isinstance(result, dict)
+            assert "words" in result
+
+    def test_expand_keywords_parallel_with_scores_empty(self):
+        """Test parallel expansion with scores handles empty tasks."""
+        expander = ParallelKeywordExpander(expansion_type="lemmi")
+
+        results = expander.expand_keywords_parallel_with_scores([])
+        assert results == []
+
+
+# ============================================================================
+# StreamingExpansionPipeline Tests
+# ============================================================================
+
+
+class TestStreamingExpansionPipeline:
+    """Test StreamingExpansionPipeline for coverage."""
+
+    def test_pipeline_context_manager(self):
+        """Test pipeline as context manager."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=2)
+
+        with StreamingExpansionPipeline(expander, max_pending=10) as pipeline:
+            assert pipeline._executor is not None
+            assert pipeline.pending_count == 0
+            stats = pipeline.stats
+            assert stats["submitted"] == 0
+            assert stats["completed"] == 0
+            assert stats["pending"] == 0
+
+        # After exit, executor should be None
+        assert pipeline._executor is None
+
+    def test_pipeline_submit_and_finish(self):
+        """Test submitting tasks and finishing."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=2)
+
+        collected_results = []
+
+        with StreamingExpansionPipeline(expander, max_pending=10) as pipeline:
+            # Submit a few tasks
+            for i in range(3):
+                keywords = ["test", "run"]
+                scores = {"test": 0.9, "run": 0.8}
+                callback_data = {"id": i}
+                completed = pipeline.submit(keywords, scores, callback_data, top_n=3)
+                collected_results.extend(completed)
+
+            # Finish remaining
+            remaining = pipeline.finish()
+            collected_results.extend(remaining)
+
+        # Should have results for all 3 submissions
+        assert len(collected_results) == 3
+        ids = {r[0]["id"] for r in collected_results}
+        assert ids == {0, 1, 2}
+
+    def test_pipeline_submit_without_context_raises(self):
+        """Test that submitting without context raises RuntimeError."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi")
+        pipeline = StreamingExpansionPipeline(expander)
+
+        with pytest.raises(RuntimeError, match="Pipeline not started"):
+            pipeline.submit(["test"], {"test": 0.9}, {"id": 1})
+
+    def test_pipeline_max_pending_blocks(self):
+        """Test that pipeline blocks when at max capacity."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+        import time
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=1)
+
+        with StreamingExpansionPipeline(expander, max_pending=2) as pipeline:
+            collected = []
+
+            # Submit more tasks than max_pending to trigger blocking
+            for i in range(5):
+                keywords = ["test", "keyword"]
+                scores = {"test": 0.9, "keyword": 0.8}
+                completed = pipeline.submit(keywords, scores, {"id": i}, top_n=2)
+                collected.extend(completed)
+
+            # Finish remaining
+            remaining = pipeline.finish()
+            collected.extend(remaining)
+
+            # All 5 should complete
+            assert len(collected) == 5
+
+    def test_pipeline_collect_completed(self):
+        """Test collect_completed method returns proper type."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=2)
+
+        with StreamingExpansionPipeline(expander, max_pending=10) as pipeline:
+            # Collect completed on empty pipeline should return empty list
+            completed = pipeline.collect_completed()
+            assert isinstance(completed, list)
+            assert completed == []
+
+            # Submit a task
+            pipeline.submit(["test"], {"test": 0.9}, {"id": 1}, top_n=2)
+
+            # Verify stats updated
+            assert pipeline.stats["submitted"] == 1
+
+            # Finish to clean up
+            pipeline.finish()
+
+    def test_pipeline_pending_count(self):
+        """Test pending_count property."""
+        from cicada.parallel_expander import StreamingExpansionPipeline
+
+        expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=1)
+
+        with StreamingExpansionPipeline(expander, max_pending=10) as pipeline:
+            initial_count = pipeline.pending_count
+            assert initial_count == 0
+
+            # Submit a task
+            pipeline.submit(["test"], {"test": 0.9}, {"id": 1}, top_n=2)
+
+            # Pending count should be >= 0 (task may have already completed)
+            assert pipeline.pending_count >= 0
