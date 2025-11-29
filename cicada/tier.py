@@ -14,7 +14,7 @@ from pathlib import Path
 # Tier to methods mapping
 TIER_METHODS = {
     "fast": ("regular", "lemmi"),
-    "regular": ("bert", "glove"),
+    "regular": ("regular", "glove"),
     "max": ("bert", "fasttext"),
 }
 
@@ -103,7 +103,7 @@ def tier_to_methods(tier: str) -> tuple[str, str]:
 
     Tier mappings:
         - fast: regular extraction + lemmi expansion
-        - regular: bert extraction + glove expansion
+        - regular: regular extraction + glove expansion
         - max: bert extraction + fasttext expansion
     """
     return TIER_METHODS.get(tier, DEFAULT_METHODS)
@@ -128,12 +128,12 @@ def methods_to_tier(extraction_method: str, expansion_method: str) -> str:
 
     # Fallback logic for partial matches
     if extraction_method == "regular":
-        return "fast"
+        if expansion_method == "lemmi":
+            return "fast"
+        return "regular"  # regular extraction with non-lemmi = regular tier
 
     if extraction_method == "bert":
-        if expansion_method == "fasttext":
-            return "max"
-        return "regular"
+        return "max"  # bert extraction = max tier
 
     # Default to regular for unknown combinations
     return "regular"

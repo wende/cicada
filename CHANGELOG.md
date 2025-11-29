@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add debouncing (2s) and cooldown (15s) to prevent excessive refreshes
 - Add graceful shutdown to stop pending refresh operations
 
+**Graceful Ctrl+C Shutdown (#191)**
+- Ctrl+C during indexing now exits cleanly instead of crashing
+- Python indexer saves partial progress when interrupted during enrichment phases
+- Elixir saves partial progress, Python saves after SCIP conversion completes
+
 ### Improvements
 
 **Co-change Analysis Optimization (#190)**
@@ -59,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI index/watch commands now show progress by default
 - Add `--quiet` flag for background watch processes
 - Separate keyword extraction phase for better timing visibility
+
+**Output Verbosity Reduction (#194)**
+- Replace verbose relevance labels with percentages (labels in verbose mode)
+- Compact match indicators: `auth(d)`, `login(s)` instead of `"Matched: *auth*, *login*"`
+- Convert ASCII box-drawing tier headers to markdown in dead code output
+- Shorten error messages to one-liners with actionable suggestions
+- Add return types to function listings (full specs in verbose mode)
+- Reduce suggestions from 5 to 2, co-change entries from 5 to 3
+- Change timestamp format from "Modified: X ago" to "X old"
 
 ### Fixed
 

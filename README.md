@@ -17,8 +17,8 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
 [![Elixir Support](https://img.shields.io/badge/Elixir-✓_Production-blueviolet.svg)](https://elixir-lang.org/)
-[![Python Support](https://img.shields.io/badge/Python-6/7_Tools-orange.svg)](https://www.python.org/)
-[![TypeScript Support](https://img.shields.io/badge/TypeScript-Coming_Soon-lightgrey.svg)](https://www.typescriptlang.org/)
+[![Python Support](https://img.shields.io/badge/Python-Beta-orange.svg)](https://www.python.org/)
+[![TypeScript Support](https://img.shields.io/badge/TypeScript-Experimental-lightgrey.svg)](https://www.typescriptlang.org/)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
@@ -450,8 +450,8 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 ### Current Status
 
 - ✅ **Elixir** - Production ready with full feature support
-- 🚧 **Python** - 6/7 tools functional via SCIP integration
-- 🔜 **TypeScript** - Coming soon
+- 🚧 **Python** - Beta
+- 🧪 **TypeScript** - Experimental
 
 ### What's Next
 

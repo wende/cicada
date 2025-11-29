@@ -256,8 +256,8 @@ class TestHandleEditorSetup:
             assert call_kwargs["extraction_method"] == "regular"
             assert call_kwargs["expansion_method"] == "lemmi"
 
-    def test_regular_flag_sets_bert_glove(self, mock_elixir_repo):
-        """--regular should set extraction to bert + glove expansion"""
+    def test_regular_flag_sets_regular_glove(self, mock_elixir_repo):
+        """--regular should set extraction to regular + glove expansion"""
         args = make_index_args(regular=True)
 
         with (
@@ -266,9 +266,9 @@ class TestHandleEditorSetup:
         ):
             handle_editor_setup(args, "claude")
 
-            # Check that setup was called with bert + glove
+            # Check that setup was called with regular + glove
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["extraction_method"] == "regular"
             assert call_kwargs["expansion_method"] == "glove"
 
     def test_max_flag_sets_bert_fasttext(self, mock_elixir_repo):
@@ -374,8 +374,8 @@ class TestHandleIndex:
             assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
             assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
 
-    def test_regular_flag_creates_config_with_bert_glove(self, mock_repo):
-        """--regular should create config with bert extraction and glove expansion"""
+    def test_regular_flag_creates_config_with_regular_glove(self, mock_repo):
+        """--regular should create config with regular extraction and glove expansion"""
         args = make_index_args(regular=True, force=True, repo=str(mock_repo))
 
         with (
@@ -394,10 +394,10 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with bert + glove
+            # Verify config was created with regular + glove
             mock_create_config.assert_called()
             call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
+            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
             assert call_args[3] == "glove"  # expansion_method is 4th positional arg
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
@@ -490,11 +490,11 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was updated with new tier (bert + glove)
+            # Verify config was updated with new tier (regular + glove)
             mock_create_config.assert_called_once()
             # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
             call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method
+            assert call_args[2] == "regular"  # extraction_method
             assert call_args[3] == "glove"  # expansion_method
 
             # Verify indexing proceeded normally

@@ -45,7 +45,7 @@ class TestInteractiveSetup:
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")
     @patch("cicada.interactive_setup.TerminalMenu")
     def test_balanced_tier_with_pr_indexing(self, mock_menu_class, mock_ascii):
-        """Test selecting Balanced tier (KeyBERT + GloVe), index PRs, and add to CLAUDE.md"""
+        """Test selecting Balanced tier (TF-IDF + GloVe), index PRs, and add to CLAUDE.md"""
         from cicada.interactive_setup import show_first_time_setup
 
         mock_ascii.return_value = "ASCII ART"
@@ -61,7 +61,7 @@ class TestInteractiveSetup:
 
         extraction, expansion, index_prs, add_to_claude_md = show_first_time_setup()
 
-        assert extraction == "bert"
+        assert extraction == "regular"
         assert expansion == "glove"
         assert index_prs is True
         assert add_to_claude_md is True
@@ -403,7 +403,7 @@ class TestInteractiveSetup:
         # Test all tier indices
         test_cases = [
             (0, "regular", "lemmi"),  # Fast tier
-            (1, "bert", "glove"),  # Balanced tier
+            (1, "regular", "glove"),  # Balanced tier
             (2, "bert", "fasttext"),  # Maximum tier
         ]
 
@@ -438,7 +438,7 @@ class TestInteractiveSetup:
 
         extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
-        assert extraction_method == "bert"
+        assert extraction_method == "regular"
         assert expansion_method == "glove"
         assert index_prs is False
         assert add_to_claude_md is True
@@ -485,7 +485,7 @@ class TestTextBasedSetup:
 
         extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
-        assert extraction == "bert"
+        assert extraction == "regular"
         assert expansion == "glove"
         assert index_prs is False
         assert add_to_claude_md is False
@@ -532,7 +532,7 @@ class TestTextBasedSetup:
 
         extraction, expansion, index_prs, add_to_claude_md = _text_based_setup()
 
-        assert extraction == "bert"
+        assert extraction == "regular"
         assert expansion == "glove"
         assert index_prs is True
         assert add_to_claude_md is False
@@ -700,7 +700,7 @@ class TestFallbackScenarios:
 
         extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
-        assert extraction_method == "bert"
+        assert extraction_method == "regular"
         assert expansion_method == "glove"
         assert index_prs is False
         assert add_to_claude_md is False
@@ -747,7 +747,7 @@ class TestFallbackScenarios:
 
         extraction_method, expansion_method, index_prs, add_to_claude_md = show_first_time_setup()
 
-        assert extraction_method == "bert"
+        assert extraction_method == "regular"
         assert expansion_method == "glove"
         assert index_prs is True
         assert add_to_claude_md is True
@@ -1032,7 +1032,7 @@ class TestShowFullInteractiveSetup:
         call_args = mock_setup.call_args[0]
         call_kwargs = mock_setup.call_args[1]
         assert call_args[0] == "cursor"
-        assert call_kwargs["extraction_method"] == "bert"
+        assert call_kwargs["extraction_method"] == "regular"
         assert call_kwargs["expansion_method"] == "glove"
 
     @patch("cicada.interactive_setup.generate_gradient_ascii_art")

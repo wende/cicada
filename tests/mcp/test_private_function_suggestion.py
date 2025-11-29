@@ -123,10 +123,10 @@ async def test_private_function_suggestion_comprehensive():
     assert len(result) == 1
     text = result[0].text
 
-    # No public functions found, but should suggest private version
-    assert "Function Not Found" in text or "No functions found" in text
+    # No public functions found, but should suggest private version (compact format)
+    assert "Not found:" in text
     assert "_create*" in text  # Suggestion for private pattern
-    assert "Did you mean private functions?" in text
+    assert "(private)" in text  # Indicates it's a private function suggestion
 
     # Test case 2: Module-qualified pattern
     # Should find: MyApp.User._create* pattern
@@ -275,7 +275,7 @@ async def test_private_function_suggestion_respects_file_scope():
     # Should NOT suggest private functions because:
     # - No _create* functions exist in lib/foo.ex
     # - The _create_bar function is in lib/bar.ex (different file)
-    assert "Did you mean private functions?" not in text
+    assert "(private)" not in text  # No private suggestion
     assert "_create*" not in text
 
     # Now test the opposite: file with private functions
@@ -288,5 +288,5 @@ async def test_private_function_suggestion_respects_file_scope():
     text = result[0].text
 
     # SHOULD suggest private functions because _create_bar exists in lib/bar.ex
-    assert "Did you mean private functions?" in text
+    assert "(private)" in text  # Has private suggestion (compact format)
     assert "lib/bar.ex:_create*" in text  # Suggestion should preserve file scope

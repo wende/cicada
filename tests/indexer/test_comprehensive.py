@@ -1182,11 +1182,11 @@ end
         mock_git_helper.get_functions_evolution_batch = Mock(side_effect=mock_batch_evolution)
         mock_git_helper.repo_path = tmp_path
 
-        # Patch initialize_git_helper to return our mock
-        def mock_init_git_helper(repo_path, verbose=False):
+        # Patch GitHelper to return our mock
+        def mock_git_helper_init(repo_path):
             return mock_git_helper
 
-        monkeypatch.setattr("cicada.indexer.initialize_git_helper", mock_init_git_helper)
+        monkeypatch.setattr("cicada.git.helper.GitHelper", mock_git_helper_init)
 
         # Create indexer and run with compute_timestamps=True
         indexer = ElixirIndexer(verbose=False)
@@ -1264,10 +1264,10 @@ end
         mock_git_helper.get_functions_evolution_batch = mock_batch_error
         mock_git_helper.repo_path = tmp_path
 
-        def mock_init_git_helper(repo_path, verbose=False):
+        def mock_git_helper_init(repo_path):
             return mock_git_helper
 
-        monkeypatch.setattr("cicada.indexer.initialize_git_helper", mock_init_git_helper)
+        monkeypatch.setattr("cicada.git.helper.GitHelper", mock_git_helper_init)
 
         # Create indexer and run
         indexer = ElixirIndexer(verbose=True)

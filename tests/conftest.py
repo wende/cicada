@@ -243,13 +243,23 @@ def git_bundle_repo(tmp_path, fixtures_dir):
 
 def pytest_collection_modifyitems(items):
     """
-    Automatically mark tests using git_bundle_repo fixture to run in same xdist group.
+    Automatically mark certain tests to run in same xdist group.
 
-    This prevents git index corruption when multiple workers run git operations
-    simultaneously during parallel test execution.
+    This prevents issues when multiple workers run tests that share state
+    or resources during parallel test execution.
     """
     for item in items:
         # Check if this test uses the git_bundle_repo fixture
         if "git_bundle_repo" in getattr(item, "fixturenames", []):
             # Add xdist_group marker to run all such tests in the same worker
             item.add_marker(pytest.mark.xdist_group(name="git_bundle_serial"))
+
+        # Group all incremental indexing and keyword extraction tests to run serially
+        # These tests have shared state issues (keyword extractor global state)
+        # when run in parallel
+        if "incremental" in item.name.lower() or "keyword" in item.name.lower():
+            item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))
+
+        # Also group tests in test_keybert.py (they all use the keyword extractor)
+        if "test_keybert" in str(item.fspath):
+            item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))

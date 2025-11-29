@@ -15,6 +15,7 @@ Example:
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 
@@ -31,6 +32,10 @@ class KeywordExpander:
     # Class-level cache for loaded models
     _model_cache: dict[str, Any] = {}
     _lemminflect_cache: Any = None
+    _worker_init_lock = threading.Lock()
+    _initialized_workers: set[int] = set()  # Thread IDs that have been initialized
+    _worker_counter = 0
+    _total_workers: int | None = None
 
     # Model configurations for word embeddings
     EMBEDDING_MODELS = {
@@ -92,14 +97,39 @@ class KeywordExpander:
             import lemminflect
 
             KeywordExpander._lemminflect_cache = lemminflect
-            if self.verbose:
-                print("✓ lemminflect loaded")
             return lemminflect
         except ImportError as e:
             raise ImportError(
                 "lemminflect is required for keyword expansion. "
                 "Install with: pip install lemminflect"
             ) from e
+
+    def _maybe_print_worker_init(self) -> None:
+        """Print worker initialization message once per thread (if verbose)."""
+        if not self.verbose:
+            return
+
+        thread_id = threading.get_ident()
+
+        # Check if this thread has already been initialized
+        if thread_id in KeywordExpander._initialized_workers:
+            return
+
+        # Register this worker and print initialization message
+        with KeywordExpander._worker_init_lock:
+            # Double-check after acquiring lock
+            if thread_id in KeywordExpander._initialized_workers:
+                return
+
+            KeywordExpander._initialized_workers.add(thread_id)
+            KeywordExpander._worker_counter += 1
+            worker_num = KeywordExpander._worker_counter
+            total = KeywordExpander._total_workers
+
+            if total is not None:
+                print(f"\r✓ keyword expander loaded ({worker_num}/{total})", end="", flush=True)
+            else:
+                print(f"\r✓ keyword expander loaded ({worker_num})", end="", flush=True)
 
     def _load_embedding_model(self) -> Any:
         """
@@ -231,6 +261,9 @@ class KeywordExpander:
             >>>   'simple': ['run', 'running', ...]
             >>> }
         """
+        # Print worker initialization message (once per thread)
+        self._maybe_print_worker_init()
+
         from cicada.utils import split_camel_snake_case
 
         # Default all keyword scores to 1.0 if not provided

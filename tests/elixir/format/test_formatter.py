@@ -1175,7 +1175,7 @@ def test_format_module_markdown_with_cochange_files():
 
 
 def test_format_module_markdown_with_cochange_files_truncation():
-    """Test that cochange_files are truncated to top 5."""
+    """Test that cochange_files are truncated to top 3 for compactness."""
     data = {
         "file": "lib/auth.ex",
         "line": 1,
@@ -1187,11 +1187,14 @@ def test_format_module_markdown_with_cochange_files_truncation():
     }
     markdown = ModuleFormatter.format_module_markdown("Auth", data)
 
-    # Should show top 5
+    # Should show top 3
     assert "Module1" in markdown
-    assert "Module5" in markdown
+    assert "Module2" in markdown
+    assert "Module3" in markdown
+    # Module4 should NOT be in output (limited to 3)
+    assert "Module4" not in markdown
     # Should show truncation message
-    assert "... and 3 more" in markdown
+    assert "... and 5 more" in markdown
 
 
 def test_format_module_markdown_with_cochange_files_uses_filename_fallback():
