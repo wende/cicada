@@ -4,7 +4,7 @@ Complete documentation of CICADA's Model Context Protocol tools for code intelli
 
 ## Overview
 
-CICADA provides 7 specialized MCP tools for deep code analysis and search capabilities across Elixir projects.
+CICADA provides 8 specialized MCP tools for deep code analysis and search capabilities across Elixir and Python projects.
 
 ---
 
@@ -29,6 +29,7 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 - Function signature display
 - Support for both public and private functions with filtering options
 - Available in Markdown and JSON formats
+- Compact output by default; use `verbose=true` for full docs and specs
 
 **Pattern Examples:**
 - `MyApp.User` - Exact match for a single module
@@ -59,6 +60,7 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 - Usage example extraction with code snippets
 - Test file filtering capability
 - Markdown and JSON output formats
+- Compact output by default; use `verbose=true` for full docs and specs
 
 **Pattern Examples:**
 - `create_user` - Exact match for function name
@@ -88,6 +90,7 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 - Author filtering for focused history
 - Evolution metadata (creation date, modification frequency)
 - Fallback to git commands when PR index unavailable
+- Compact output by default; use `verbose=true` for full PR descriptions
 
 **Parameters:**
 - `file_path` (required) - Path to file relative to repo root
@@ -251,6 +254,7 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 - Smart suggestions when results are too many or too few
 - Code snippets with highlighted matches
 - Relevance scoring with confidence indicators
+- Compact output by default; use `verbose=true` for detailed confidence scores
 
 **Parameters:**
 - `query` (required) - String or list of keywords/patterns to search for
@@ -298,6 +302,33 @@ CICADA provides 7 specialized MCP tools for deep code analysis and search capabi
 
 ---
 
+### 8. refresh_index
+
+**Purpose:** Force a refresh of the code index to pick up recent file changes.
+
+**What it does:**
+- Triggers an immediate re-index of the codebase
+- Picks up new, modified, or deleted files since last index
+- Useful when automatic background refresh hasn't caught recent changes
+
+**Key Features:**
+- Incremental indexing (only changed files)
+- Returns summary of what was updated
+- Safe to call frequently (debounced internally)
+
+**Parameters:**
+- None required
+
+**When to Use:**
+- After making significant code changes
+- When search results seem stale
+- After switching branches
+- When automatic refresh hasn't picked up changes yet
+
+**Note:** When the MCP server runs with `--watch` flag, indexing happens automatically. Use this tool only when you need immediate refresh.
+
+---
+
 ## Deprecated Tools
 
 The following tools have been removed or consolidated in v0.4. All functionality is preserved through the updated tool set with cleaner, more intuitive parameters.
@@ -336,5 +367,6 @@ All tools support flexible output formats:
 | `find_dead_code` | Confidence level | Unused functions report | Identify potentially dead code for cleanup |
 | `expand_result` | Module/function identifier | Complete details | Drill down from query results |
 | `query_jq` | jq expression | JSON data | Advanced index queries and custom analysis |
+| `refresh_index` | None | Update summary | Force re-index to pick up recent changes |
 
 **Note:** All deprecated tools (search_module_usage, get_*_dependencies, find_pr_for_line, get_file_pr_history, get_commit_history, get_blame, search_by_keywords) have been consolidated into the tools above. See the Deprecated Tools section for migration guidance.

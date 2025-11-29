@@ -113,3 +113,16 @@ class SignatureBuilder:
                 formatted_args.append(arg["name"])
 
         return ", ".join(formatted_args)
+
+    @staticmethod
+    def get_return_type(func: dict[str, Any]) -> str | None:
+        """
+        Extract just the return type from a function.
+
+        Args:
+            func: Function dictionary
+
+        Returns:
+            Return type string or None if not available
+        """
+        return func.get("return_type")

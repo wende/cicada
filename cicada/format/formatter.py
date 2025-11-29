@@ -22,6 +22,9 @@ from cicada.utils import (
 )
 from cicada.utils.truncation import TruncationHelper
 
+# Display limits for compact output
+MAX_COCHANGE_FILES = 3  # Maximum co-change files to show before truncating
+
 
 class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
@@ -138,12 +141,16 @@ class ModuleFormatter:
         for (name, arity), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
             func = clauses[0]
             if include_specs:
-                # Full signature
+                # Full signature in verbose mode
                 func_sig = SignatureBuilder.build(func)
                 lines.append(f"{func['line']:>5}: {func_sig}")
             else:
-                # Compact: just name/arity
-                lines.append(f"{func['line']:>5}: {name}/{arity}")
+                # Compact: name/arity with return type if available
+                return_type = SignatureBuilder.get_return_type(func)
+                if return_type:
+                    lines.append(f"{func['line']:>5}: {name}/{arity} → {return_type}")
+                else:
+                    lines.append(f"{func['line']:>5}: {name}/{arity}")
             lines.append("")
         return True
 
@@ -313,16 +320,16 @@ class ModuleFormatter:
                         lines.append(f"  • {sig}")
                     lines.append("")
 
-        # Add co-change files if present
+        # Add co-change files if present (show top 3 for compactness)
         cochange_files = data.get("cochange_files", [])
         if cochange_files:
             lines.extend(["", "---", "", "## Often Changed With"])
             lines.append("")
-            for cf in cochange_files[:5]:  # Show top 5
+            for cf in cochange_files[:MAX_COCHANGE_FILES]:
                 module_name_display = cf.get("module") or cf["file"].split("/")[-1]
                 lines.append(f"  • {module_name_display} ({cf['count']} commits)")
-            if len(cochange_files) > 5:
-                lines.append(f"  ... and {len(cochange_files) - 5} more")
+            if len(cochange_files) > MAX_COCHANGE_FILES:
+                lines.append(f"  ... and {len(cochange_files) - MAX_COCHANGE_FILES} more")
 
         return "\n".join(lines)
 
@@ -829,44 +836,15 @@ class ModuleFormatter:
                     f"   Please ask the user to run: cicada index\n"
                 )
 
-            error_parts.append(
-                f"""Function Not Found
-
-**Query:** `{function_name}`
-"""
-            )
-
+            # Compact one-liner error with actionable suggestions
             if private_suggestion:
                 error_parts.append(
-                    f"""## Did you mean private functions?
-
-  • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
-
-No public functions match this pattern, but private functions do.
-"""
+                    f"Not found: `{function_name}`. Try: `{private_suggestion}` (private) | `*{func_only}*` | query(['{func_only.lower()}'])"
                 )
-
-            suggestions_header = "## Other suggestions:" if private_suggestion else "## Try:"
-
-            error_parts.append(
-                f"""{suggestions_header}
-
-  • Search without arity: `{func_only}` (if you used /{'{arity}'})
-  • Search without module: `{func_only}` (searches all modules)
-  • Wildcard search: `*{func_only}*` or `{func_only}*`
-  • Semantic search: query(['{func_only.lower()}'])
-  • Check spelling (function names are case-sensitive)
-
-Tip: If you're exploring code, try query first to discover functions by what they do.
-
-## Was this function recently removed?
-
-If this function was deleted:
-  • Check recent PRs: get_file_pr_history("<file_path>")
-  • Search git history for the function name
-  • Find what replaced it: query(['<concept>'])
-"""
-            )
+            else:
+                error_parts.append(
+                    f"Not found: `{function_name}`. Try: `*{func_only}*` | query(['{func_only.lower()}'])"
+                )
 
             return "\n".join(error_parts)
 

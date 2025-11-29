@@ -707,8 +707,8 @@ end
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query(["authentication", "login"])
 
-        # Should have "Matched:" section showing which keywords matched (compact format)
-        assert "Matched:" in result
+        # Should show matched keywords in compact format: keyword(d) without "Matched:" prefix
+        assert "authentication(d)" in result or "login(d)" in result
 
     def test_match_explanation_for_pattern(self, sample_index):
         """Test that pattern matches show appropriate explanation."""

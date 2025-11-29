@@ -520,12 +520,14 @@ class QueryOrchestrator:
         """
         Generate smart next-step suggestions based on results.
 
+        Prioritizes contextual, actionable suggestions over generic fillers.
+
         Args:
             query: Original query
             results: Search results
 
         Returns:
-            List of suggestion strings
+            List of suggestion strings (max 2)
         """
         suggestions = []
 
@@ -536,25 +538,21 @@ class QueryOrchestrator:
                 suggestions.append(f"search_function('{top.function}', module_path='{top.module}')")
             suggestions.append(f"search_module('{top.module}')")
 
-        # Query-specific suggestions based on content
-        query_text = self._normalize_query_text(query)
-
-        # SQL/database keywords
-        if self._is_sql_related_query(query_text):
-            suggestions.append("query(..., match_source='strings')")
-
-        # Many results in same module
-        if self._has_multiple_results_in_same_module(results):
+        # Contextual suggestion: many results in same module
+        if len(
+            suggestions
+        ) < QueryConfig.MAX_SUGGESTIONS and self._has_multiple_results_in_same_module(results):
             common_module = self._get_most_common_module(results)
             suggestions.append(f"search_module('{common_module}', what_calls_it=True)")
 
-        # Results have recent changes
-        if self._has_recent_changes(results):
-            suggestions.append("query(..., recent=true)")
+        # Contextual suggestion: SQL/database keywords warrant string search
+        query_text = self._normalize_query_text(query)
+        if len(suggestions) < QueryConfig.MAX_SUGGESTIONS and self._is_sql_related_query(
+            query_text
+        ):
+            suggestions.append("query(..., match_source='strings')")
 
-        # Module-level results
-        if self._has_many_module_results(results):
-            suggestions.append("query(..., filter_type='functions')")
+        # Skip generic fillers like "query(..., recent=true)" and "query(..., filter_type='functions')"
 
         return suggestions[: QueryConfig.MAX_SUGGESTIONS]
 
@@ -682,21 +680,20 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Compact header: number, name, and tier on first line
+        # Compact header: number, name, and confidence on first line
         header_parts = [f"{index}. {result.name}"]
 
-        # Add tier label if available
-        if result.tier_label:
-            header_parts.append(f"[{result.tier_label}]")
+        # Add confidence % by default, include tier label in verbose mode
+        if result.percentile is not None:
+            if verbose and result.tier_label:
+                header_parts.append(f"({result.percentile:.0f}%) [{result.tier_label}]")
+            else:
+                header_parts.append(f"({result.percentile:.0f}%)")
 
         lines.append(" | ".join(header_parts) + "\n")
 
         # Path on second line
         lines.append(f"   {result.file}:{result.line}\n")
-
-        # Confidence (only in verbose mode)
-        if verbose and result.percentile is not None:
-            lines.append(f"   Confidence: {result.percentile:.1f}%\n")
 
         # Documentation preview (only in verbose mode)
         if verbose and result.doc:
@@ -705,7 +702,7 @@ class QueryOrchestrator:
                 doc = doc[:100] + "..."
             lines.append(f"   {doc}\n")
 
-        # Last modified timestamp - always show (compact)
+        # Last modified timestamp - compact format
         if result.last_modified_at:
             try:
                 dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
@@ -715,15 +712,13 @@ class QueryOrchestrator:
                 time_ago = self._get_relative_time_string(delta)
 
                 git_info = []
-                if result.last_modified_sha:
-                    git_info.append(result.last_modified_sha)
                 if result.last_modified_pr:
                     git_info.append(f"#{result.last_modified_pr}")
 
                 if git_info:
-                    lines.append(f"   Modified: {time_ago} ({' '.join(git_info)})\n")
+                    lines.append(f"   {time_ago} old ({' '.join(git_info)})\n")
                 else:
-                    lines.append(f"   Modified: {time_ago}\n")
+                    lines.append(f"   {time_ago} old\n")
             except (ValueError, AttributeError):
                 pass
 
@@ -760,15 +755,15 @@ class QueryOrchestrator:
         """Append compact keyword list to lines."""
         kw_with_sources: list[str] = []
         source_suffixes = {"docs": "(d)", "strings": "(s)", "both": "(d+s)"}
-        for kw in result.matched_keywords[:3]:
+        for kw in result.matched_keywords[: QueryConfig.MAX_KEYWORDS_TO_SHOW]:
             source = result.keyword_sources.get(kw, "")
             suffix = source_suffixes.get(source, "")
-            kw_with_sources.append(f"*{kw}*{suffix}")
+            kw_with_sources.append(f"{kw}{suffix}")
 
         matched_str = ", ".join(kw_with_sources)
-        if len(result.matched_keywords) > 3:
-            matched_str += f" +{len(result.matched_keywords) - 3}"
-        lines.append(f"   Matched: {matched_str}\n")
+        if len(result.matched_keywords) > QueryConfig.MAX_KEYWORDS_TO_SHOW:
+            matched_str += f" +{len(result.matched_keywords) - QueryConfig.MAX_KEYWORDS_TO_SHOW}"
+        lines.append(f"   {matched_str}\n")
 
     def _extract_code_snippet(
         self, file_path: str, line: int, context_lines: int = QueryConfig.DEFAULT_CONTEXT_LINES

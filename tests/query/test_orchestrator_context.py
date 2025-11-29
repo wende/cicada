@@ -134,8 +134,8 @@ class TestOrchestratorContextExtraction:
         # Should have some output for the function
         assert "validate_user" in formatted
 
-        # Should use the compact format with simple keyword indicators
-        assert "Matched:" in formatted
+        # Should use compact format: keyword(d) without "Matched:" prefix
+        assert "validate(d)" in formatted
 
         # And it should not include verbose contextual sections
         assert "Matched in documentation:" not in formatted
