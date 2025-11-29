@@ -4,11 +4,15 @@ import pytest
 
 from cicada.mcp.fallbacks import (
     DEFAULT_FUNCTION_FALLBACKS,
+    DEFAULT_MODULE_FALLBACKS,
     FallbackResult,
+    LastSegmentFallback,
+    ModuleFallbackResult,
     PrivateFunctionFallback,
     WithoutArityFallback,
     WithoutModuleFallback,
     apply_fallbacks,
+    apply_module_fallbacks,
 )
 from cicada.mcp.pattern_utils import FunctionPattern
 
@@ -203,3 +207,86 @@ class TestFallbackResult:
     def test_can_set_note(self):
         result = FallbackResult(results=[], note="test note")
         assert result.note == "test note"
+
+
+# =============================================================================
+# Module Fallback Tests
+# =============================================================================
+
+
+class TestLastSegmentFallback:
+    """Tests for LastSegmentFallback strategy."""
+
+    def test_should_try_when_module_has_dots(self):
+        strategy = LastSegmentFallback()
+        assert strategy.should_try("A.B.C.D", {}) is True
+        assert strategy.should_try("MyApp.User", {}) is True
+
+    def test_should_try_for_single_segment(self):
+        """Single segment modules also get fallback to find nested modules."""
+        strategy = LastSegmentFallback()
+        assert strategy.should_try("User", {}) is True
+        assert strategy.should_try("SomeModule", {}) is True
+
+    def test_transform_extracts_last_segment(self):
+        strategy = LastSegmentFallback()
+        assert strategy.transform_pattern("A.B.C.D") == "*.D"
+        assert strategy.transform_pattern("MyApp.User") == "*.User"
+        assert strategy.transform_pattern("MyProject.Context.User") == "*.User"
+
+    def test_get_note_includes_original_and_fallback(self):
+        strategy = LastSegmentFallback()
+        note = strategy.get_note("WrongProject.User")
+        assert "WrongProject.User" in note
+        assert "User" in note
+
+
+class TestApplyModuleFallbacks:
+    """Tests for the apply_module_fallbacks function."""
+
+    def test_returns_empty_when_no_fallback_matches(self):
+        def search_fn(pattern):
+            return []
+
+        result = apply_module_fallbacks("SomeModule", search_fn)
+        assert result.results == []
+        assert result.note is None
+
+    def test_tries_single_segment_module(self):
+        """Single segment modules also get fallback to find nested modules."""
+        call_count = [0]
+        patterns_searched = []
+
+        def search_fn(pattern):
+            call_count[0] += 1
+            patterns_searched.append(pattern)
+            return []
+
+        # Single segment module should also trigger fallback
+        apply_module_fallbacks("User", search_fn)
+        assert call_count[0] == 1  # Fallback attempted
+        assert "*.User" in patterns_searched
+
+    def test_returns_results_from_fallback(self):
+        mock_results = [("MyProject.User", {"file": "lib/user.ex"})]
+
+        def search_fn(pattern):
+            if pattern == "*.User":
+                return mock_results
+            return []
+
+        result = apply_module_fallbacks("WrongProject.User", search_fn)
+        assert result.results == mock_results
+        assert result.note is not None
+        assert "User" in result.note
+
+    def test_fallback_uses_last_segment_only(self):
+        patterns_searched = []
+
+        def search_fn(pattern):
+            patterns_searched.append(pattern)
+            return [("Found.Module", {})] if "*.D" in pattern else []
+
+        result = apply_module_fallbacks("A.B.C.D", search_fn)
+        assert "*.D" in patterns_searched
+        assert result.results is not None

@@ -21,6 +21,11 @@ class FallbackResult:
     note: str | None = None
 
 
+# =============================================================================
+# Function Fallback Strategies
+# =============================================================================
+
+
 class FallbackStrategy:
     """Base class for fallback search strategies."""
 
@@ -140,3 +145,103 @@ def apply_fallbacks(
             return FallbackResult(results=results, note=", ".join(notes))
 
     return FallbackResult(results=[], note=None)
+
+
+# =============================================================================
+# Module Fallback Strategies
+# =============================================================================
+
+
+class ModuleFallbackStrategy:
+    """Base class for module fallback search strategies."""
+
+    def should_try(self, module_name: str, context: dict[str, Any]) -> bool:
+        """Return True if this fallback should be attempted."""
+        raise NotImplementedError
+
+    def transform_pattern(self, module_name: str) -> str:
+        """Transform module pattern for fallback search."""
+        raise NotImplementedError
+
+    def get_note(self, module_name: str) -> str:
+        """Return a note describing what fallback was used."""
+        raise NotImplementedError
+
+
+class LastSegmentFallback(ModuleFallbackStrategy):
+    """Try searching with just the last segment when A.B.C.D not found.
+
+    For single-segment modules like "User", tries *.User to find nested modules.
+    For multi-segment modules like "A.B.C.User", extracts just "User" and tries *.User.
+    """
+
+    def should_try(self, module_name: str, context: dict[str, Any]) -> bool:
+        # Always try - works for both single and multi-segment modules
+        return True
+
+    def transform_pattern(self, module_name: str) -> str:
+        # Extract last segment and add wildcard prefix
+        last_segment = module_name.rsplit(".", 1)[-1]
+        return f"*.{last_segment}"
+
+    def get_note(self, module_name: str) -> str:
+        last_segment = module_name.rsplit(".", 1)[-1]
+        if "." in module_name:
+            return (
+                f"no exact match for `{module_name}`, showing modules ending with `{last_segment}`"
+            )
+        return f"showing modules ending with `{last_segment}`"
+
+
+# Default module fallback strategies in priority order
+DEFAULT_MODULE_FALLBACKS: list[ModuleFallbackStrategy] = [
+    LastSegmentFallback(),
+]
+
+
+@dataclass
+class ModuleFallbackResult:
+    """Result of a module fallback search attempt."""
+
+    results: list[tuple[str, dict[str, Any]]]
+    note: str | None = None
+
+
+def apply_module_fallbacks(
+    module_name: str,
+    search_fn: Callable[[str], list[tuple[str, dict[str, Any]]]],
+    context: dict[str, Any] | None = None,
+    strategies: list[ModuleFallbackStrategy] | None = None,
+) -> ModuleFallbackResult:
+    """
+    Apply module fallback strategies until results are found or all strategies exhausted.
+
+    Args:
+        module_name: Original module name that returned no results
+        search_fn: Function that executes a search with given pattern, returns list of (module_name, data) tuples
+        context: Optional context dict
+        strategies: List of fallback strategies to try (defaults to DEFAULT_MODULE_FALLBACKS)
+
+    Returns:
+        ModuleFallbackResult with any found results and combined notes
+    """
+    if strategies is None:
+        strategies = DEFAULT_MODULE_FALLBACKS
+    if context is None:
+        context = {}
+
+    notes: list[str] = []
+
+    for strategy in strategies:
+        if not strategy.should_try(module_name, context):
+            continue
+
+        fallback_pattern = strategy.transform_pattern(module_name)
+        results = search_fn(fallback_pattern)
+        # Record note for this attempt (whether successful or not)
+        notes.append(strategy.get_note(module_name))
+        if results:
+            # Return results with accumulated notes from all tried strategies
+            return ModuleFallbackResult(results=results, note=", ".join(notes))
+
+    return ModuleFallbackResult(results=[], note=None)

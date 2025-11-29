@@ -434,16 +434,23 @@ class ModuleSearchHandler:
 
             return [TextContent(type="text", text=result)]
 
-        # Module not found - try with wildcard prefix to match partial names
-        # This allows "SomeModule" to match "MyProject.SomeModule"
-        wildcard_pattern = f"*.{module_name}"
-        matching_modules = [
-            mod_name
-            for mod_name in self.index["modules"]
-            if match_any_pattern([wildcard_pattern], mod_name)
-        ]
-        if matching_modules:
-            # Retry with wildcard pattern
+        # Module not found - try fallback searches
+        from cicada.mcp.fallbacks import apply_module_fallbacks
+
+        def search_with_pattern(pattern: str) -> list[tuple[str, dict]]:
+            """Search for modules matching the pattern."""
+            return [
+                (mod_name, mod_data)
+                for mod_name, mod_data in self.index["modules"].items()
+                if match_any_pattern([pattern], mod_name)
+            ]
+
+        fallback_result = apply_module_fallbacks(module_name, search_with_pattern)
+        if fallback_result.results:
+            # Get the pattern that was used for the fallback
+            last_segment = module_name.rsplit(".", 1)[-1]
+            wildcard_pattern = f"*.{last_segment}"
+            # Retry with the wildcard pattern (which formats results nicely)
             return await self.search_module(
                 wildcard_pattern,
                 output_format,
