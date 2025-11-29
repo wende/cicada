@@ -1661,6 +1661,8 @@ def main():
     # Check for updates (non-blocking, fails silently)
     check_for_updates()
 
+    from cicada.utils.storage import get_index_path
+
     parser = argparse.ArgumentParser(
         description="Index current Elixir repository to extract modules and functions"
     )
@@ -1672,8 +1674,8 @@ def main():
     )
     _ = parser.add_argument(
         "--output",
-        default=".cicada/index.json",
-        help="Output path for the index file (default: .cicada/index.json)",
+        default=None,
+        help="Output path for the index file (default: ~/.cicada/projects/<hash>/index.json)",
     )
     parser.add_argument(
         "--full",
@@ -1683,12 +1685,15 @@ def main():
 
     args = parser.parse_args()
 
+    # Use centralized storage by default
+    output_path = args.output if args.output else str(get_index_path(args.repo))
+
     indexer = ElixirIndexer()
 
     # Use incremental indexing by default (unless --full flag is set)
     indexer.incremental_index_repository(
         args.repo,
-        args.output,
+        output_path,
         extract_keywords=True,
         force_full=args.full,
     )
