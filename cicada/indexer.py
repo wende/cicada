@@ -120,20 +120,36 @@ class ElixirIndexer(BaseIndexer):
                 )
 
             try:
+                # Always extract keywords from module name (for discoverability)
+                name_text = module_name.replace(".", " ")
+                name_result = keyword_extractor.extract_keywords(name_text, top_n=5)
+                name_keywords = dict(name_result.get("top_keywords", []))
+
+                # Boost name-derived keywords (1.5x factor)
+                for kw in name_keywords:
+                    name_keywords[kw] = name_keywords[kw] * 1.5
+
                 # Extract module-level keywords from moduledoc
+                doc_keywords = {}
                 moduledoc = module_data.get("moduledoc")
                 if moduledoc:
                     result = keyword_extractor.extract_keywords(moduledoc, top_n=10)
-                    keywords = dict(result.get("top_keywords", []))
+                    doc_keywords = dict(result.get("top_keywords", []))
 
-                    if keywords:
-                        # Store extracted keywords and submit expansion
-                        module_data["keywords"] = keywords.copy()
-                        callback = ExpansionCallback(target=module_data, target_key="keywords")
-                        for cb, res in pipeline.submit(
-                            list(keywords.keys()), keywords, callback, top_n=3, threshold=0.2
-                        ):
-                            self._apply_expansion_result(cb, res)
+                # Merge name and doc keywords (take max score for duplicates)
+                keywords = dict(name_keywords)
+                for word, score in doc_keywords.items():
+                    if word not in keywords or score > keywords[word]:
+                        keywords[word] = score
+
+                if keywords:
+                    # Store extracted keywords and submit expansion
+                    module_data["keywords"] = keywords.copy()
+                    callback = ExpansionCallback(target=module_data, target_key="keywords")
+                    for cb, res in pipeline.submit(
+                        list(keywords.keys()), keywords, callback, top_n=3, threshold=0.2
+                    ):
+                        self._apply_expansion_result(cb, res)
 
                 # Extract function-level keywords
                 for func in module_data.get("functions", []):
@@ -1012,50 +1028,10 @@ class ElixirIndexer(BaseIndexer):
                 extract_keywords = False
                 extract_string_keywords = False
 
-        # Note: String keyword extraction not yet implemented for incremental mode
-        if extract_string_keywords and self.verbose:
-            print("Warning: String keyword extraction not supported in incremental mode")
-            extract_string_keywords = False
-
-        # Initialize git helper if timestamp computation is enabled
-        git_helper = None
-        if compute_timestamps:
-            try:
-                from cicada.git.helper import GitHelper
-
-                git_helper = GitHelper(str(repo_path_obj))
-                if self.verbose:
-                    print("Git history tracking enabled - computing function timestamps")
-            except Exception as e:
-                if self.verbose:
-                    print(f"Warning: Could not initialize git helper: {e}")
-                    print("Continuing without timestamp computation...")
-                compute_timestamps = False
-
-        # Initialize git helper if timestamp computation is enabled
-        git_helper = None
-        if compute_timestamps:
-            try:
-                from cicada.git.helper import GitHelper
-
-                git_helper = GitHelper(str(repo_path_obj))
-                if self.verbose:
-                    print("Git history tracking enabled - computing function timestamps")
-            except Exception as e:
-                if self.verbose:
-                    print(f"Warning: Could not initialize git helper: {e}")
-                    print("Continuing without timestamp computation...")
-                compute_timestamps = False
-
-        # Process changed files
+        # Process changed files (basic parsing only - enrichment runs separately)
         all_modules = {}
         total_functions = 0
         files_processed = 0
-        keyword_extraction_failures = 0
-        timestamps_computed = 0
-
-        # Multi-line progress tracking (2 lines: files + timestamps)
-        progress_lines_active = False
 
         for relative_file in files_to_process:
             file_path = repo_path_obj / relative_file
@@ -1071,184 +1047,21 @@ class ElixirIndexer(BaseIndexer):
                         public_count = sum(1 for f in functions if f["type"] == "def")
                         private_count = sum(1 for f in functions if f["type"] == "defp")
 
-                        # Extract and expand keywords if enabled
-                        module_keywords = None
-                        module_extracted_keywords = None  # For co-occurrence tracking
-                        if keyword_extractor:
-                            try:
-                                # Always extract keywords from module name
-                                name_keywords = self._extract_name_keywords(
-                                    module_name, keyword_extractor, keyword_expander
-                                )
-
-                                # Extract keywords from documentation if available
-                                doc_keywords = {}
-                                doc_extracted_keywords = {}  # Pre-expansion for co-occurrence
-                                if module_data.get("moduledoc"):
-                                    # Step 1: Extract keywords with scores
-                                    extraction_result = keyword_extractor.extract_keywords(
-                                        module_data["moduledoc"], top_n=10
-                                    )
-                                    extracted_keywords = [
-                                        kw for kw, _ in extraction_result["top_keywords"]
-                                    ]
-                                    keyword_scores = {
-                                        kw.lower(): score
-                                        for kw, score in extraction_result["top_keywords"]
-                                    }
-
-                                    # Store pre-expansion doc keywords for co-occurrence tracking
-                                    doc_extracted_keywords = keyword_scores.copy()
-
-                                    # Step 2: Expand keywords with scores
-                                    if keyword_expander and extracted_keywords:
-                                        expansion_result = keyword_expander.expand_keywords(
-                                            extracted_keywords,
-                                            top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                            threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                            keyword_scores=keyword_scores,
-                                        )
-                                        # Convert to dict: word -> max_score
-                                        # When  expansion_result is a dict
-                                        if not isinstance(expansion_result, dict):
-                                            raise TypeError("expand_keywords always returns dict")
-                                        for item in expansion_result["words"]:
-                                            word = item["word"]
-                                            score = item["score"]
-                                            if (
-                                                word not in doc_keywords
-                                                or score > doc_keywords[word]
-                                            ):
-                                                doc_keywords[word] = score
-                                    else:
-                                        doc_keywords = keyword_scores
-
-                                # Merge name and doc keywords (take max score for duplicates)
-                                module_keywords = dict(name_keywords)  # Start with name keywords
-                                for word, score in doc_keywords.items():
-                                    if word not in module_keywords or score > module_keywords[word]:
-                                        module_keywords[word] = score
-
-                                # Store extracted keywords (pre-expansion) for co-occurrence tracking
-                                module_extracted_keywords = dict(
-                                    name_keywords
-                                )  # Start with name keywords
-                                for word, score in doc_extracted_keywords.items():
-                                    if (
-                                        word not in module_extracted_keywords
-                                        or score > module_extracted_keywords[word]
-                                    ):
-                                        module_extracted_keywords[word] = score
-
-                            except Exception:
-                                keyword_extraction_failures += 1
-
-                        # Extract and expand keywords from function docs
-                        if keyword_extractor:
-                            for func in functions:
-                                if func.get("doc"):
-                                    try:
-                                        func_name = func.get("name", "")
-                                        text_for_keywords = f"{func_name} {func['doc']}"
-                                        # Step 1: Extract keywords with scores
-                                        extraction_result = keyword_extractor.extract_keywords(
-                                            text_for_keywords, top_n=10
-                                        )
-                                        extracted_keywords = [
-                                            kw for kw, _ in extraction_result["top_keywords"]
-                                        ]
-                                        keyword_scores = {
-                                            kw.lower(): score
-                                            for kw, score in extraction_result["top_keywords"]
-                                        }
-
-                                        # Step 2: Expand keywords with scores
-                                        if keyword_expander and extracted_keywords:
-                                            expansion_result = keyword_expander.expand_keywords(
-                                                extracted_keywords,
-                                                top_n=self.DEFAULT_EXPANSION_TOP_N,
-                                                threshold=self.DEFAULT_EXPANSION_THRESHOLD,
-                                                keyword_scores=keyword_scores,
-                                            )
-                                            # Convert to dict: word -> max_score
-                                            func_keywords = {}
-                                            # When  expansion_result is a dict
-                                            if not isinstance(expansion_result, dict):
-                                                raise TypeError(
-                                                    "expand_keywords always returns dict"
-                                                )
-                                            for item in expansion_result["words"]:
-                                                word = item["word"]
-                                                score = item["score"]
-                                                if (
-                                                    word not in func_keywords
-                                                    or score > func_keywords[word]
-                                                ):
-                                                    func_keywords[word] = score
-                                        else:
-                                            func_keywords = keyword_scores
-
-                                        if func_keywords:
-                                            func["keywords"] = func_keywords
-                                    except Exception:
-                                        keyword_extraction_failures += 1
-
-                        # Compute git history timestamps if enabled (BATCHED by file for speed)
-                        if git_helper and functions:
-                            timestamps_computed += len(functions)
-                            if self.verbose and timestamps_computed % 50 == 0:
-                                # Update timestamp progress on second line (current cursor position)
-                                print(
-                                    f"\r\033[K  Computing timestamps: {timestamps_computed} functions...",
-                                    end="",
-                                    flush=True,
-                                )
-
-                            try:
-                                # Batch query all functions in this file at once (10x faster)
-                                evolutions = git_helper.get_functions_evolution_batch(
-                                    file_path=relative_file,
-                                    functions=functions,
-                                )
-
-                                # Apply evolution data to each function
-                                for func in functions:
-                                    func_name = func.get("name")
-                                    if func_name and func_name in evolutions:
-                                        evolution = evolutions[func_name]
-                                        if evolution:
-                                            func["created_at"] = evolution["created_at"]["date"]
-                                            func["last_modified_at"] = evolution["last_modified"][
-                                                "date"
-                                            ]
-                                            func["last_modified_sha"] = evolution["last_modified"][
-                                                "sha"
-                                            ]
-                                            if evolution["last_modified"].get("pr"):
-                                                func["last_modified_pr"] = evolution[
-                                                    "last_modified"
-                                                ]["pr"]
-                                            func["modification_count"] = evolution[
-                                                "total_modifications"
-                                            ]
-                            except Exception:
-                                # Silently skip timestamp computation errors for this file
-                                pass
-
                         # Extract dependencies
-                        module_dependencies, functions = self._extract_dependencies(
+                        module_deps, func_level_deps = self._extract_dependencies(
                             module_data, functions
                         )
 
-                        # Store module info
+                        # Build module info (basic structure - enrichment happens in pipeline)
                         module_info = {
                             "file": relative_file,
-                            "line": module_data["line"],
-                            "moduledoc": module_data.get("moduledoc"),
+                            "line": module_data.get("line", 1),
                             "functions": functions,
-                            "total_functions": len(functions),
-                            "public_functions": public_count,
-                            "private_functions": private_count,
+                            "dependencies": module_deps,
+                            "function_dependencies": func_level_deps,
+                            "public_count": public_count,
+                            "private_count": private_count,
+                            # Module usage tracking fields (for what_calls_it)
                             "aliases": module_data.get("aliases", {}),
                             "imports": module_data.get("imports", []),
                             "requires": module_data.get("requires", []),
@@ -1256,46 +1069,24 @@ class ElixirIndexer(BaseIndexer):
                             "behaviours": module_data.get("behaviours", []),
                             "value_mentions": module_data.get("value_mentions", []),
                             "calls": module_data.get("calls", []),
-                            "dependencies": [
-                                {"module": mod} for mod in sorted(module_dependencies["modules"])
-                            ],
                         }
 
-                        # Add module keywords if extracted
-                        if module_keywords:
-                            module_info["keywords"] = module_keywords
-
-                        # Add module extracted keywords (pre-expansion) for co-occurrence tracking
-                        if module_extracted_keywords:
-                            module_info["extracted_keywords"] = module_extracted_keywords
+                        # Add moduledoc if present
+                        if module_data.get("moduledoc"):
+                            module_info["moduledoc"] = module_data["moduledoc"]
 
                         all_modules[module_name] = module_info
                         total_functions += len(functions)
 
                 files_processed += 1
 
-                # Progress reporting (in-place update with multi-line support)
+                # Progress reporting
                 if self.verbose and files_processed % self.PROGRESS_REPORT_INTERVAL == 0:
-                    # Initialize multi-line display if timestamps are being computed
-                    if git_helper and not progress_lines_active:
-                        print()  # Reserve line for timestamp progress
-                        progress_lines_active = True
-
-                    if progress_lines_active:
-                        # Update file progress on first line
-                        print(
-                            f"\033[1A\r\033[K  Processed {files_processed}/{len(files_to_process)} files...",
-                            end="",
-                            flush=True,
-                        )
-                        print()  # Move back to second line
-                    else:
-                        # Simple single-line update
-                        print(
-                            f"\r  Processed {files_processed}/{len(files_to_process)} files...",
-                            end="",
-                            flush=True,
-                        )
+                    print(
+                        f"\r  Processed {files_processed}/{len(files_to_process)} files...",
+                        end="",
+                        flush=True,
+                    )
 
                 # Check for interruption after each file
                 if self._check_and_report_interruption(files_processed, len(files_to_process)):
@@ -1308,6 +1099,9 @@ class ElixirIndexer(BaseIndexer):
                     break
                 continue
 
+        if self.verbose and files_processed > 0:
+            print()  # New line after progress reporting
+
         # Build index for changed files
         new_index = {
             "modules": all_modules,
@@ -1318,16 +1112,24 @@ class ElixirIndexer(BaseIndexer):
             },
         }
 
-        # Merge with existing index
+        # Run enrichment pipeline on new modules (keywords, timestamps, co-change)
+        # This uses the streaming parallel expansion for keywords
+        if all_modules:
+            _skipped_phases = self._run_enrichment_pipeline(
+                new_index,
+                repo_path_obj,
+                extract_keywords=extract_keywords,
+                extract_string_keywords=extract_string_keywords,
+                compute_timestamps=compute_timestamps,
+                extract_cochange=extract_cochange,
+                keyword_extractor=keyword_extractor,
+                keyword_expander=keyword_expander,
+            )
+
+        # Merge enriched new_index with existing index
         if self.verbose:
-            print("\nMerging with existing index...")
+            print("Merging with existing index...")
         merged_index = merge_indexes_incremental(existing_index, new_index, deleted_files)
-
-        # Co-occurrence matrix already built by _run_enrichment_pipeline()
-        # (no need to rebuild here)
-
-        # Co-change analysis already done by _run_enrichment_pipeline()
-        # (no need to reanalyze here)
 
         # Update hashes for all current files
         if self.verbose:

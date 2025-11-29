@@ -837,7 +837,7 @@ def test_extract_docstring_keywords_with_pipeline(temp_repo, capsys):
 
 
 def test_extract_docstring_keywords_module_without_doc(temp_repo):
-    """Test _extract_docstring_keywords skips modules without docs."""
+    """Test _extract_docstring_keywords extracts name keywords even without docs."""
     indexer = ElixirIndexer(verbose=False)
 
     index = {
@@ -850,6 +850,10 @@ def test_extract_docstring_keywords_module_without_doc(temp_repo):
     }
 
     mock_extractor = MagicMock()
+    # Return mock keywords from name extraction
+    mock_extractor.extract_keywords.return_value = {
+        "top_keywords": [("test", 0.5), ("module", 0.4)]
+    }
     mock_pipeline = MagicMock()
     mock_pipeline.stats = {"submitted": 0}
     mock_pipeline.submit.return_value = []
@@ -857,8 +861,8 @@ def test_extract_docstring_keywords_module_without_doc(temp_repo):
     # Should not raise
     indexer._extract_docstring_keywords(index, mock_extractor, mock_pipeline)
 
-    # Extractor should not be called since no docs
-    mock_extractor.extract_keywords.assert_not_called()
+    # Extractor should be called for name extraction (converts "TestModule" -> "TestModule")
+    mock_extractor.extract_keywords.assert_called_once_with("TestModule", top_n=5)
 
 
 def test_extract_docstring_keywords_error_handling(temp_repo, capsys):
