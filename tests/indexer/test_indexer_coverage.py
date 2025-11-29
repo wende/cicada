@@ -752,7 +752,7 @@ def test_find_elixir_files_excludes_dirs(temp_repo):
 
 
 def test_incremental_index_version_mismatch(temp_repo, capsys):
-    """Test incremental index detects version mismatch and does full reindex."""
+    """Test incremental index detects version mismatch and shows warning."""
     indexer = ElixirIndexer(verbose=True)
 
     # Create initial index
@@ -768,14 +768,16 @@ def test_incremental_index_version_mismatch(temp_repo, capsys):
     with open(index_path, "w") as f:
         json.dump(index, f)
 
-    # Run incremental - should detect mismatch
+    # Run incremental - should detect mismatch and warn but continue incrementally
     indexer.incremental_index_repository(
         str(temp_repo),
         str(index_path),
     )
 
     captured = capsys.readouterr()
-    assert "version mismatch" in captured.out or "full reindex" in captured.out.lower()
+    assert "version mismatch" in captured.out.lower()
+    # Should NOT trigger full reindex anymore
+    assert "Performing full reindex" not in captured.out
 
 
 # ===== No Changes Detected Test =====

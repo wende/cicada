@@ -921,19 +921,15 @@ class ElixirIndexer(BaseIndexer):
                     )
                 existing_index = None
 
-        # Check for version mismatch - if cicada version differs, force full reindex
+        # Check for version mismatch - warn but continue with incremental indexing
         if existing_index:
             stored_version = existing_index.get("metadata", {}).get("cicada_version")
             current_version = get_version_string()
-            if version_mismatch(stored_version, current_version):
-                if self.verbose:
-                    print(
-                        f"Warning: Cicada version mismatch. "
-                        f"Index was built with {stored_version}, current version is {current_version}. "
-                        f"Performing full reindex..."
-                    )
-                existing_index = None
-                existing_hashes = {}
+            if version_mismatch(stored_version, current_version) and self.verbose:
+                print(
+                    f"⚠️  Warning: Cicada version mismatch. "
+                    f"Index was built with {stored_version}, current version is {current_version}."
+                )
 
         # If no existing data, do full index
         if not existing_index or not existing_hashes:
