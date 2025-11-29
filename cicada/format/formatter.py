@@ -798,6 +798,25 @@ class ModuleFormatter:
         return lines
 
     @staticmethod
+    def _split_function_name_to_keywords(func_name: str) -> list[str]:
+        """
+        Split a function name into keywords for semantic search.
+
+        Examples:
+            _extract_cochange -> ['extract', 'cochange']
+            getUserData -> ['get', 'user', 'data']
+            create_user -> ['create', 'user']
+        """
+        import re
+
+        # Remove leading underscores
+        name = func_name.lstrip("_")
+        # Split on underscores and camelCase boundaries
+        parts = re.split(r"_|(?<=[a-z])(?=[A-Z])", name)
+        # Filter empty strings and lowercase all parts
+        return [p.lower() for p in parts if p]
+
+    @staticmethod
     def format_function_results_markdown(
         function_name: str,
         results: list[dict[str, Any]],
@@ -806,6 +825,7 @@ class ModuleFormatter:
         language: str = "elixir",
         private_suggestion: str | None = None,
         format_opts: dict | None = None,
+        fallback_note: str | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -818,6 +838,7 @@ class ModuleFormatter:
             language: Programming language for formatting function identifiers
             private_suggestion: Optional suggestion for private function pattern
             format_opts: Optional dict with include_docs, include_specs for compact output
+            fallback_note: Optional note about fallback search (e.g., "No matches in X, showing all")
 
         Returns:
             Formatted Markdown string
@@ -825,6 +846,14 @@ class ModuleFormatter:
         if not results:
             # Extract just the function name without module/arity for suggestions
             func_only = function_name.split(".")[-1].split("/")[0]
+
+            # Split function name into keywords for semantic search
+            keywords = ModuleFormatter._split_function_name_to_keywords(func_only)
+            if len(keywords) > 1:
+                keywords_str = ", ".join(f"'{k}'" for k in keywords)
+                query_suggestion = f"query([{keywords_str}])"
+            else:
+                query_suggestion = f"query(['{func_only.lower()}'])"
 
             # Build error message
             error_parts = []
@@ -839,11 +868,11 @@ class ModuleFormatter:
             # Compact one-liner error with actionable suggestions
             if private_suggestion:
                 error_parts.append(
-                    f"Not found: `{function_name}`. Try: `{private_suggestion}` (private) | `*{func_only}*` | query(['{func_only.lower()}'])"
+                    f"Not found: `{function_name}`. Try: `{private_suggestion}` (private) | `*{func_only}*` | {query_suggestion}"
                 )
             else:
                 error_parts.append(
-                    f"Not found: `{function_name}`. Try: `*{func_only}*` | query(['{func_only.lower()}'])"
+                    f"Not found: `{function_name}`. Try: `*{func_only}*` | {query_suggestion}"
                 )
 
             return "\n".join(error_parts)
@@ -881,12 +910,20 @@ class ModuleFormatter:
         # For single results (e.g., MFA search), use simpler header
         if single_result:
             lines.append("---")
+            # Add fallback note if present (even for single result)
+            if fallback_note:
+                lines.append(fallback_note)
+                lines.append("")
         else:
+            # Add fallback note to the found count line if present
+            found_line = f"Found {len(consolidated_results)} match(es):"
+            if fallback_note:
+                found_line = f"Found {len(consolidated_results)} match(es) {fallback_note}:"
             lines.extend(
                 [
                     f"Functions matching {function_name}",
                     "",
-                    f"Found {len(consolidated_results)} match(es):",
+                    found_line,
                 ]
             )
 

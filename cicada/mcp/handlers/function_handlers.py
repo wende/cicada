@@ -605,6 +605,66 @@ class FunctionSearchHandler:
 
         return None
 
+    def _search_with_patterns(
+        self,
+        patterns: list[FunctionPattern],
+        seen_functions: set[tuple[str, str, int]],
+        cutoff_date: datetime | None,
+        what_calls_it: bool,
+        usage_type: str,
+    ) -> list[dict]:
+        """
+        Execute a search with the given patterns, returning matching results.
+
+        This helper method encapsulates the core search loop for reuse in fallback searches.
+        """
+        results = []
+        for module_name, module_data in self.index["modules"].items():
+            for func in module_data["functions"]:
+                if any(p.matches(module_name, module_data["file"], func) for p in patterns):
+                    # Apply cutoff_date filter
+                    if cutoff_date:
+                        func_modified = func.get("last_modified_at")
+                        if not func_modified:
+                            continue
+                        func_modified_dt = datetime.fromisoformat(func_modified)
+                        if func_modified_dt.tzinfo is None:
+                            func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+                        if func_modified_dt < cutoff_date:
+                            continue
+
+                    key = (module_name, func["name"], func["arity"])
+                    if key in seen_functions:
+                        continue
+                    seen_functions.add(key)
+
+                    # Find call sites if what_calls_it is enabled
+                    call_sites = []
+                    if what_calls_it:
+                        call_sites = self._find_call_sites(
+                            target_module=module_name,
+                            target_function=func["name"],
+                            target_arity=func["arity"],
+                        )
+                        if usage_type != "all":
+                            from cicada.mcp.filter_utils import filter_by_file_type
+
+                            call_sites = filter_by_file_type(call_sites, usage_type)
+
+                    results.append(
+                        {
+                            "module": module_name,
+                            "moduledoc": module_data.get("moduledoc"),
+                            "function": func,
+                            "file": module_data["file"],
+                            "call_sites": call_sites,
+                            "call_sites_with_examples": [],
+                            "pr_info": None,
+                            "detailed_dependencies": None,
+                        }
+                    )
+        return results
+
     async def search_function(
         self,
         function_name: str,
@@ -744,7 +804,25 @@ class FunctionSearchHandler:
         # For now, we'll skip this or pass it from server
         staleness_info = None
 
-        # If no results found, check if there are private functions that match
+        # Apply automatic fallback searches when no results found
+        fallback_note = None
+        if not results:
+            from cicada.mcp.fallbacks import apply_fallbacks
+
+            def search_fn(patterns: list[FunctionPattern]) -> list[dict]:
+                return self._search_with_patterns(
+                    patterns, seen_functions, cutoff_date, what_calls_it, usage_type
+                )
+
+            fallback_result = apply_fallbacks(
+                parsed_patterns,
+                search_fn,
+                context={"module_path": module_path},
+            )
+            results = fallback_result.results
+            fallback_note = fallback_result.note
+
+        # If still no results, generate suggestion for private function (for display only)
         private_suggestion = self._suggest_private_function(results, parsed_patterns, cutoff_date)
 
         # Get language from index metadata
@@ -762,6 +840,7 @@ class FunctionSearchHandler:
                 language,
                 private_suggestion,
                 format_opts=format_opts,
+                fallback_note=fallback_note,
             )
 
         return [TextContent(type="text", text=result)]
