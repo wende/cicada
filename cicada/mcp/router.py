@@ -414,7 +414,6 @@ class ToolRouter:
 
         # Boolean validation
         for name, value in [
-            ("include_code", arguments.get("include_code", True)),
             ("what_calls_it", what_calls_it),
             ("what_it_calls", what_it_calls),
         ]:

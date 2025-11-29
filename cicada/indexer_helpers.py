@@ -185,7 +185,6 @@ def compute_function_timestamps(
     git_helper: GitHelper,
     file_path: str,
     functions: list[dict],
-    repo_path: Path,
 ) -> int:
     """
     Compute and apply git timestamps to functions in-place.
@@ -194,7 +193,6 @@ def compute_function_timestamps(
         git_helper: GitHelper instance
         file_path: Relative path to the file
         functions: List of function dictionaries to update
-        repo_path: Path to the repository root
 
     Returns:
         Count of functions that had timestamps applied

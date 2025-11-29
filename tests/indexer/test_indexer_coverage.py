@@ -195,9 +195,9 @@ def test_index_repository_git_helper_init_failure(temp_repo, capsys):
 
     def mock_init_git_helper(repo_path, verbose=False):
         # Simulate failure by printing warning and returning None
-        if verbose:
-            print(f"Warning: Could not initialize git helper: {repo_path}")
-            print("Continuing without timestamp computation...")
+        # Note: Test always uses verbose=True, so we print unconditionally
+        print(f"Warning: Could not initialize git helper: {repo_path}")
+        print("Continuing without timestamp computation...")
         return None
 
     with patch("cicada.indexer.initialize_git_helper", mock_init_git_helper):
@@ -360,9 +360,9 @@ end
 
     def mock_init_git_helper(repo_path, verbose=False):
         # Simulate failure by printing warning and returning None
-        if verbose:
-            print(f"Warning: Could not initialize git helper: {repo_path}")
-            print("Continuing without timestamp computation...")
+        # Note: Test always uses verbose=True, so we print unconditionally
+        print(f"Warning: Could not initialize git helper: {repo_path}")
+        print("Continuing without timestamp computation...")
         return None
 
     with patch("cicada.indexer.initialize_git_helper", mock_init_git_helper):

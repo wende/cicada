@@ -540,7 +540,6 @@ class ElixirIndexer(BaseIndexer):
                                 git_helper,
                                 str(file_path.relative_to(repo_path_obj)),
                                 functions,
-                                repo_path_obj,
                             )
 
                         # Extract string keywords if enabled
@@ -1049,7 +1048,6 @@ class ElixirIndexer(BaseIndexer):
                                 git_helper,
                                 relative_file,
                                 functions,
-                                repo_path_obj,
                             )
 
                         # Extract dependencies
