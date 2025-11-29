@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-11-28
+
+### Features
+
+**Stats and Usage Tracking (#189)**
+- Add `cicada stats` command to display per-project usage statistics
+- Track all MCP tool executions with accurate token counting
+- Support multiple output formats: summary (default), detailed, time-series, JSON
+- Add filtering by tool, date range, and time period
+- Include project statistics (modules, functions, keywords) in output
+- Add reset functionality to manage log files
+
+**CLI Tool Execution (#187)**
+- Add `cicada run [tool]` command to execute all 7 MCP tools from CLI
+- Tools can be run identically to their MCP behavior directly from command line
+
+**Agent Installation (#188)**
+- Add `cicada agents install` command to programmatically install Claude Code agents
+- Installs agents locally to `./.claude/` directory (project-scoped)
+- Starts with cicada-code-explorer agent
+
+**Link Status Tracking (#182)**
+- Add bidirectional link tracking: `cicada link` now registers reverse links
+- Add "LINK STATUS" section to `cicada status` showing:
+  - Forward links (repos this one links to)
+  - Reverse links (repos linking to this one)
+  - Stale link detection with reasons
+
+**Automatic Index Refresh (#185)**
+- Add automatic background index refresh for MCP server
+- Add `refresh_index` tool for manual index refresh
+- Add debouncing (2s) and cooldown (15s) to prevent excessive refreshes
+- Add graceful shutdown to stop pending refresh operations
+
+**Graceful Ctrl+C Shutdown (#191)**
+- Ctrl+C during indexing now exits cleanly instead of crashing
+- Python indexer saves partial progress when interrupted during enrichment phases
+- Elixir saves partial progress, Python saves after SCIP conversion completes
+
+### Improvements
+
+**Co-change Analysis Optimization (#190)**
+- 15-20x faster co-change analysis (60-120s → ~1s for typical repos)
+- Now enabled by default during indexing
+- Add `--no-cochange` CLI flag to disable if needed
+- Display "Often Changed With" section in module search output
+
+**Compact Output Mode (#186)**
+- Add compact output mode for all MCP tools to reduce token usage
+- `query`: Compact keyword indicators (d)/(s)/(d+s), confidence only in verbose mode
+- `search_module`: Hide moduledoc and specs by default, add verbose parameter
+- `search_function`: Hide docs and specs by default, add verbose parameter
+- `git_history`: Compact PR output (single line), descriptions only when requested
+- `expand_result`: Auto-enables verbose mode for full details
+
+**CLI Progress Reporting (#192)**
+- CLI index/watch commands now show progress by default
+- Add `--quiet` flag for background watch processes
+- Separate keyword extraction phase for better timing visibility
+
+**Output Verbosity Reduction (#194)**
+- Replace verbose relevance labels with percentages (labels in verbose mode)
+- Compact match indicators: `auth(d)`, `login(s)` instead of `"Matched: *auth*, *login*"`
+- Convert ASCII box-drawing tier headers to markdown in dead code output
+- Shorten error messages to one-liners with actionable suggestions
+- Add return types to function listings (full specs in verbose mode)
+- Reduce suggestions from 5 to 2, co-change entries from 5 to 3
+- Change timestamp format from "Modified: X ago" to "X old"
+
+### Fixed
+
+**Graceful Shutdown for Ctrl+C (#191)**
+- Add KeyboardInterrupt handling in CLI commands for clean exit (code 130)
+- Python indexer now saves partial progress when interrupted during enrichment phases
+- Add interruptible enrichment phases helper for consistent interrupt handling
+
 ## [0.5.0] - 2025-11-25
 
 ### Added
@@ -675,7 +751,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/wende/cicada/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/wende/cicada/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/wende/cicada/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/wende/cicada/compare/v0.3.2...v0.4.0
