@@ -415,6 +415,12 @@ class BaseIndexer(ABC):
                     keywords_dict[word] = score
             if keywords_dict:
                 callback.target[callback.target_key] = keywords_dict
+        else:
+            if self.verbose:
+                print(
+                    f"    Warning: Expansion result is not a dict with 'words' key: "
+                    f"got {type(result).__name__}"
+                )
 
     def _compute_timestamps(self, index: dict, repo_path: Path) -> None:
         """Compute git timestamps for functions.

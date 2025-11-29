@@ -808,7 +808,7 @@ class ElixirIndexer(BaseIndexer):
         }
 
         # Run universal enrichment pipeline (keywords, timestamps, co-change, co-occurrence)
-        _skipped_phases = self._run_enrichment_pipeline(
+        self._run_enrichment_pipeline(
             index,
             repo_path_obj,
             extract_keywords=extract_keywords,
@@ -1115,7 +1115,7 @@ class ElixirIndexer(BaseIndexer):
         # Run enrichment pipeline on new modules (keywords, timestamps, co-change)
         # This uses the streaming parallel expansion for keywords
         if all_modules:
-            _skipped_phases = self._run_enrichment_pipeline(
+            self._run_enrichment_pipeline(
                 new_index,
                 repo_path_obj,
                 extract_keywords=extract_keywords,

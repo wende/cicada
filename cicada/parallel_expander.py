@@ -17,8 +17,8 @@ from cicada.keyword_expander import KeywordExpander
 
 
 def get_default_workers() -> int:
-    """Get default number of workers (CPU count * 2)."""
-    return (os.cpu_count() or 4) * 2
+    """Get default number of workers (CPU count, or 4 if undetectable)."""
+    return os.cpu_count() or 4
 
 
 class ParallelKeywordExpander:

@@ -655,7 +655,7 @@ def test_index_repository_sets_verbose(temp_repo):
     indexer = ElixirIndexer(verbose=False)
 
     # Call with verbose=True
-    result = indexer.index_repository(
+    indexer.index_repository(
         str(temp_repo),
         str(temp_repo / "index.json"),
         verbose=True,
@@ -769,7 +769,7 @@ def test_incremental_index_version_mismatch(temp_repo, capsys):
         json.dump(index, f)
 
     # Run incremental - should detect mismatch
-    result = indexer.incremental_index_repository(
+    indexer.incremental_index_repository(
         str(temp_repo),
         str(index_path),
     )
@@ -790,7 +790,7 @@ def test_incremental_index_no_changes(temp_repo, capsys):
     indexer.index_repository(str(temp_repo), str(index_path))
 
     # Run incremental again without changes
-    result = indexer.incremental_index_repository(
+    indexer.incremental_index_repository(
         str(temp_repo),
         str(index_path),
     )
