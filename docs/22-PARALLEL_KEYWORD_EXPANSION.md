@@ -91,7 +91,7 @@ keyword_expansion:
 
 Tier mappings:
 - `--fast`: regular + lemmi
-- `--regular`: bert + glove (or regular + glove for testing)
+- `--regular`: regular + glove
 - `--max`: bert + fasttext
 
 ## Current State (as of implementation)
@@ -102,17 +102,6 @@ Tier mappings:
 - `cicada/languages/python/indexer.py` - Two-phase deferred expansion
 - `cicada/indexer.py` - Elixir indexer also uses ParallelKeywordExpander
 - Verified working: 4704 items, 10 workers, ~800% CPU, 49s expansion time
-
-### ⚠️ Temporary Changes (MUST REVERT)
-
-**`cicada/tier.py:17`** - Regular tier temporarily uses regex extraction instead of KeyBERT:
-```python
-# Current (for testing):
-"regular": ("regular", "glove"),  # TODO: revert to ("bert", "glove") after testing
-
-# Should be reverted to:
-"regular": ("bert", "glove"),
-```
 
 ### 🔄 Not Yet Done
 

@@ -305,3 +305,83 @@ class StreamingExpansionPipeline:
             "completed": self._completed,
             "pending": len(self._pending),
         }
+
+
+class NoOpExpansionPipeline:
+    """No-op pipeline for extraction-only mode (when expander is unavailable).
+
+    Provides the same interface as StreamingExpansionPipeline but doesn't
+    perform any expansion. Keywords are stored as-is during extraction.
+
+    This enables graceful fallback when the keyword expander fails to
+    initialize (e.g., missing embeddings), allowing search to work with
+    raw extracted keywords instead of failing entirely.
+
+    Example:
+        >>> with NoOpExpansionPipeline() as pipeline:
+        ...     for item in items:
+        ...         keywords, scores = extract(item)
+        ...         item["keywords"] = scores  # Store raw keywords
+        ...         # Submit returns empty (no expansion results)
+        ...         for data, result in pipeline.submit(keywords, scores, callback):
+        ...             pass  # Never reached
+        ...     # finish() also returns empty
+        ...     for data, result in pipeline.finish():
+        ...         pass
+    """
+
+    def __init__(self, verbose: bool = False):
+        """Initialize no-op pipeline.
+
+        Args:
+            verbose: Whether to print progress messages
+        """
+        self.verbose = verbose
+        self._submitted = 0
+
+    def __enter__(self) -> "NoOpExpansionPipeline":
+        self._submitted = 0
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        pass
+
+    def submit(
+        self,
+        keywords: list[str],
+        scores: dict[str, float],
+        callback_data: Any,
+        **kwargs: Any,
+    ) -> list[tuple[Any, dict[str, Any]]]:
+        """No-op submit: just track count, return empty.
+
+        Keywords should already be stored on the target by the caller
+        before calling submit(). This method just tracks the count.
+
+        Returns:
+            Empty list (no expansion results)
+        """
+        self._submitted += 1
+        return []
+
+    def collect_completed(self) -> list[tuple[Any, dict[str, Any]]]:
+        """No-op: return empty."""
+        return []
+
+    def finish(self) -> list[tuple[Any, dict[str, Any]]]:
+        """No-op: return empty."""
+        return []
+
+    @property
+    def pending_count(self) -> int:
+        """Always 0 (no pending tasks)."""
+        return 0
+
+    @property
+    def stats(self) -> dict[str, int]:
+        """Get pipeline statistics."""
+        return {
+            "submitted": self._submitted,
+            "completed": 0,
+            "pending": 0,
+        }

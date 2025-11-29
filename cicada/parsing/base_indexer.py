@@ -8,10 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from cicada.parallel_expander import StreamingExpansionPipeline
+from typing import Any
 
 
 class BaseIndexer(ABC):
@@ -245,46 +242,83 @@ class BaseIndexer(ABC):
         skipped_phases: list[str] = []
 
         # Phase 1: Extract and expand keywords using streaming pipeline (interruptible)
-        if (extract_keywords or extract_string_keywords) and keyword_extractor and keyword_expander:
+        # Requires extractor; expander is optional (falls back to extraction-only)
+        if (extract_keywords or extract_string_keywords) and keyword_extractor:
 
-            def extract_and_expand_keywords() -> None:
-                """Extract and expand keywords with streaming pipeline."""
-                assert keyword_expander is not None  # Type narrowing for closure
-                if self.verbose:
-                    print(
-                        f"\n  Extracting and expanding keywords "
-                        f"(streaming, {keyword_expander.max_workers} workers)..."
-                    )
+            if keyword_expander:
+                # Full extraction + expansion with streaming pipeline
 
-                from cicada.parallel_expander import StreamingExpansionPipeline
-
-                with StreamingExpansionPipeline(
-                    keyword_expander, max_pending=100, verbose=self.verbose
-                ) as pipeline:
-                    # Extract docstring keywords (sequential) with streaming expansion
-                    if extract_keywords:
-                        self._extract_docstring_keywords(index, keyword_extractor, pipeline)
-
-                    # Extract string keywords (sequential) with streaming expansion
-                    if extract_string_keywords:
-                        self._extract_string_keywords(index, repo_path, keyword_extractor, pipeline)
-
-                    # Finish remaining expansions
-                    for callback, result in pipeline.finish():
-                        self._apply_expansion_result(callback, result)
-
+                def extract_and_expand_keywords() -> None:
+                    """Extract and expand keywords with streaming pipeline."""
+                    assert keyword_expander is not None  # Type narrowing for closure
                     if self.verbose:
-                        print()  # New line after progress updates
-                        stats = pipeline.stats
-                        print(f"    ✓ Expanded {stats['completed']} keyword sets")
+                        print(
+                            f"\n  Extracting and expanding keywords "
+                            f"(streaming, {keyword_expander.max_workers} workers)..."
+                        )
 
-            if self._run_interruptible_phase(
-                "keyword extraction/expansion",
-                extract_and_expand_keywords,
-                skipped_phases,
-                partial_suffix=" (partial)",
-            ):
-                self._log_timing("Keyword extraction/expansion (streaming)")
+                    from cicada.parallel_expander import StreamingExpansionPipeline
+
+                    with StreamingExpansionPipeline(
+                        keyword_expander, max_pending=100, verbose=self.verbose
+                    ) as pipeline:
+                        # Extract docstring keywords (sequential) with streaming expansion
+                        if extract_keywords:
+                            self._extract_docstring_keywords(index, keyword_extractor, pipeline)
+
+                        # Extract string keywords (sequential) with streaming expansion
+                        if extract_string_keywords:
+                            self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        # Finish remaining expansions
+                        for callback, result in pipeline.finish():
+                            self._apply_expansion_result(callback, result)
+
+                        if self.verbose:
+                            print()  # New line after progress updates
+                            stats = pipeline.stats
+                            print(f"    ✓ Expanded {stats['completed']} keyword sets")
+
+                if self._run_interruptible_phase(
+                    "keyword extraction/expansion",
+                    extract_and_expand_keywords,
+                    skipped_phases,
+                    partial_suffix=" (partial)",
+                ):
+                    self._log_timing("Keyword extraction/expansion (streaming)")
+
+            else:
+                # Extraction-only fallback when expander is unavailable
+
+                def extract_keywords_only() -> None:
+                    """Extract keywords without expansion (fallback mode)."""
+                    if self.verbose:
+                        print("\n  Extracting keywords (no expansion - expander unavailable)...")
+
+                    from cicada.parallel_expander import NoOpExpansionPipeline
+
+                    # Use no-op pipeline that stores keywords without expansion
+                    with NoOpExpansionPipeline() as pipeline:
+                        if extract_keywords:
+                            self._extract_docstring_keywords(index, keyword_extractor, pipeline)
+
+                        if extract_string_keywords:
+                            self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        if self.verbose:
+                            print(f"    ✓ Extracted {pipeline.stats['submitted']} keyword sets")
+
+                if self._run_interruptible_phase(
+                    "keyword extraction",
+                    extract_keywords_only,
+                    skipped_phases,
+                    partial_suffix=" (partial)",
+                ):
+                    self._log_timing("Keyword extraction (no expansion)")
 
         # Phase 2: Compute timestamps if requested (interruptible)
         if compute_timestamps and self._run_interruptible_phase(
@@ -323,7 +357,7 @@ class BaseIndexer(ABC):
         return skipped_phases
 
     def _extract_docstring_keywords(
-        self, index: dict, keyword_extractor: Any, pipeline: "StreamingExpansionPipeline"
+        self, index: dict, keyword_extractor: Any, pipeline: Any
     ) -> None:
         """Extract keywords from module and function docstrings (language-specific).
 
@@ -343,7 +377,7 @@ class BaseIndexer(ABC):
         index: dict,
         repo_path: Path,
         keyword_extractor: Any,
-        pipeline: "StreamingExpansionPipeline",
+        pipeline: Any,
     ) -> int:
         """Extract keywords from string literals in source files (language-specific).
 
