@@ -7,48 +7,189 @@ for the Cicada MCP server without any implementation logic.
 
 from mcp.types import Tool
 
+# =============================================================================
+# Tool Descriptions
+# =============================================================================
+
+QUERY_DESCRIPTION = (
+    "YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
+    "The 'Google for code' - this is your FIRST STOP for any code search task. "
+    "Intelligently searches by keywords OR patterns, combines results, "
+    "and suggests exactly which specialized tools to use next.\\n\\n"
+    "Smart Auto-Detection:\\n"
+    "• Keywords: ['authentication', 'login'] → semantic search\\n"
+    "• Patterns: 'MyApp.User.create*' → pattern matching\\n"
+    "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\\n\\n"
+    "Power Filters:\\n"
+    "• scope: 'all' (default) | 'public' | 'private'\\n"
+    "• filter_type: 'all' | 'modules' | 'functions'\\n"
+    "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\\n"
+    "• recent: false (default) | true (last 14 days only)\\n"
+    "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n\\n"
+    "Returns:\\n"
+    "• Compact results with essential info (verbose=true for full details)\\n"
+    "• Smart suggestions for next steps with actual tool names to use\\n"
+    "• Match indicators: (d) docs, (s) strings, (d+s) both\\n\\n"
+    "AI USAGE TIPS:\\n"
+    "• **ALWAYS START HERE** - This replaces the need to choose between multiple tools\\n"
+    "• Don't ask users for module/function names - query will find them for you\\n"
+    "• Start broad: query('authentication') then follow the tool suggestions\\n"
+    "• Try patterns when you know structure: query('MyApp.*.create*')\\n"
+    "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\\n"
+    "• The results include smart suggestions - follow them to drill deeper\\n"
+    "• Only skip this tool if you already have exact module.function/arity identifiers\\n\\n"
+    "Example Workflow:\\n"
+    "1. query(['jwt', 'authentication']) → discovers relevant code + suggests next steps\\n"
+    "2. Follow suggestion → search_function('verify_token') → see detailed usage\\n"
+    "3. Follow suggestion → search_module('MyApp.Auth') → see complete API\\n\\n"
+    "When NOT to use:\\n"
+    "• You already have exact identifiers like 'MyApp.User.create_user/2'\\n"
+    "• Analyzing git history for known file paths (use history tools directly)\\n"
+    "• Targeted operations on specific, already-identified code"
+)
+
+SEARCH_MODULE_DESCRIPTION = (
+    "DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query.\n\n"
+    "Shows full module details: functions with arity, signatures, docs, typespecs, and line numbers. "
+    "Analyze both what this module depends on (what_it_calls) and what depends on it (what_calls_it). "
+    "Use this when query suggests drilling into a specific module.\n\n"
+    "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
+    "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
+    "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
+    "Returns compact output by default (name/arity only). Use verbose=true for full details.\n\n"
+    "AI USAGE TIPS:\n"
+    "• After query finds modules, use this to see the full API surface\n"
+    "• Query will suggest using this tool when detailed module info is needed\n"
+    "• Don't ask user for module names - use query first to discover them\n"
+    "• Use what_calls_it=true BEFORE modifying a module to see impact (what depends on it)\n"
+    "• Use what_it_calls=true to see what this module depends on\n"
+    "• Returns: function list with line numbers (add verbose=true for signatures/docs)\n"
+    "• If module not found, error will suggest alternatives - try those suggestions!\n"
+    "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
+    "• Output is automatically truncated for large results to prevent token overflow"
+)
+
+SEARCH_FUNCTION_DESCRIPTION = (
+    "DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
+    "Provides function analysis: definition location and all call sites. "
+    "Use this when query suggests drilling into a specific function's usage.\n\n"
+    "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
+    "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
+    "Returns compact output by default (location + call sites). Use verbose=true for signatures and documentation.\n\n"
+    "AI USAGE TIPS:\n"
+    "• After query finds functions, use this for detailed impact analysis\n"
+    "• Query will suggest this tool when you need to see where functions are called\n"
+    "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
+    "• Use usage_type='tests' to see only how functions are tested\n"
+    "• Returns: definition + ALL call sites with file:line references (add verbose=true for docs/specs)\n"
+    "• If you see function references in code, search them to understand what they do\n"
+    "• Call sites and line numbers are automatically truncated for popular functions (>20 sites)"
+)
+
+GIT_HISTORY_DESCRIPTION = (
+    "UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
+    "Smart routing based on parameters:\n"
+    "• start_line only → single line blame + find PR\n"
+    "• start_line + end_line → line range blame with PR enrichment\n"
+    "• function_name → function tracking with evolution metadata\n"
+    "• file_path only → file-level history (PRs preferred, commits fallback)\n\n"
+    "Automatically uses PR index when available for enriched results.\n\n"
+    "Returns compact output by default (PR number, title, author). Use verbose=true for descriptions and comments.\n\n"
+    "AI USAGE TIPS:\n"
+    "• Single line authorship: git_history(file_path='lib/auth.ex', start_line=42)\n"
+    "• Line range blame: git_history(file_path='lib/auth.ex', start_line=40, end_line=60)\n"
+    "• Function evolution: git_history(file_path='lib/auth.ex', function_name='create_user', show_evolution=true)\n"
+    "• File PR history: git_history(file_path='lib/auth.ex')\n"
+    "• Recent changes only: git_history(file_path='lib/auth.ex', recent=true)\n"
+    "• Older changes: git_history(file_path='lib/auth.ex', recent=false)\n"
+    "• All time: git_history(file_path='lib/auth.ex', recent=null)\n"
+    "• By author: git_history(file_path='lib/auth.ex', author='john')"
+)
+
+FIND_DEAD_CODE_DESCRIPTION = (
+    "ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
+    "Analyzes the entire codebase to identify public functions that may not be used. "
+    "Use this for codebase maintenance and cleanup efforts. "
+    "Returns results categorized by confidence level (high, medium, low).\n\n"
+    "Note: Results are best-effort - some unused functions may be part of the public API, "
+    "used dynamically via atom introspection, or used in external packages.\n"
+    "**Important:** Python support is currently experimental/WIP. Dynamic method calls and "
+    "implicit dependencies may cause false positives (functions reported as unused when they are used).\n\n"
+    "AI USAGE TIPS:\n"
+    '• Use for codebase cleanup: "What code can potentially be removed?"\n'
+    "• Start with min_confidence='high' to find most likely unused code\n"
+    "• VERIFY before deleting - may be public API, dynamic calls, or external usage\n"
+    "• Results show: function signature, location, confidence level, reasons\n"
+    "• Consider using search_function on results to verify they're truly unused"
+)
+
+EXPAND_RESULT_DESCRIPTION = (
+    "DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
+    "After discovering modules or functions with query, use this tool to explore a specific result in depth. "
+    "Query results often suggest using this tool to get more details. "
+    "Automatically determines whether you're expanding a module or function.\n\n"
+    "For modules: Shows all functions, documentation, and structure.\n"
+    "For functions: Shows definition, documentation, call sites, and relationships.\n\n"
+    "AI USAGE TIPS:\n"
+    "• **Primary use case:** Follow query's suggestions to expand interesting results\n"
+    "• Copy the identifier directly from query results (e.g., 'MyApp.Auth.verify_token/2')\n"
+    "• Type detection is automatic - no need to specify module vs function\n"
+    "• Perfect for understanding what a result does before modifying it\n"
+    "• Shows: full code context, relationships, usage examples\n"
+    "• Convenience wrapper - calls search_module or search_function automatically"
+)
+
+REFRESH_INDEX_DESCRIPTION = (
+    "Force refresh the code index to pick up recent file changes.\n\n"
+    "Use when auto-refresh hasn't caught recent edits, or when you need "
+    "the index to be immediately up-to-date.\n\n"
+    "By default, runs an incremental refresh (only reindexes changed files). "
+    "Use force_full=true for a complete reindex if incremental seems stale.\n\n"
+    "AI USAGE TIPS:\n"
+    "• Use after making code changes if query results seem stale\n"
+    "• Incremental refresh is fast (~1-2s for small changes)\n"
+    "• Full refresh is slower but comprehensive\n"
+    "• Returns: success status, time taken, module/function counts"
+)
+
+QUERY_JQ_DESCRIPTION = (
+    "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
+    "Provides direct access to the raw index structure using jq query syntax. "
+    "Ideal for custom analysis, debugging index contents, and exploring data not covered by specialized tools.\n\n"
+    "Index structure: {modules: {<name>: {file, line, functions[], keywords, ...}}, metadata: {...}}\n\n"
+    "Quick Examples:\n"
+    "  • List all modules: '.modules | keys'\n"
+    "  • Count functions per module: '.modules[].functions | length'\n"
+    "  • Find test files: '.modules | to_entries | map(select(.value.file | test(\"test\")))'\n"
+    "  • Get metadata: '.metadata'\n"
+    "  • Find functions by arity: '.modules[].functions[] | select(.arity == 2)'\n\n"
+    "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
+    "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
+    "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
+    "NEW FEATURES:\n"
+    "• Schema Discovery: Append '| schema' to any query to see available fields\n"
+    "  Examples: '.modules | schema' or '.modules[].functions | schema'\n"
+    "• Sample Mode: Set 'sample: true' to auto-limit results to first 5 items\n"
+    "  Great for previewing large datasets without writing complex jq\n"
+    "• Early Size Warning: Get warned before processing huge results (>500KB)\n"
+    "  with specific suggestions for limiting data\n\n"
+    "AI USAGE TIPS:\n"
+    "• Use for custom analysis NOT covered by specialized tools\n"
+    "• Great for exploring index structure and debugging\n"
+    "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
+    "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
+    "• Results are truncated at 1MB - use filters or 'sample: true' to limit data\n"
+    "• If query fails, error includes syntax help with line/column pointer\n"
+    "• See CLAUDE.md for complete schema reference and advanced examples"
+)
+
 
 def get_tool_definitions() -> list[Tool]:
     """Return all tool definitions for the Cicada MCP server."""
     return [
         Tool(
             name="query",
-            description=(
-                "YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery.\\n\\n"
-                "The 'Google for code' - this is your FIRST STOP for any code search task. "
-                "Intelligently searches by keywords OR patterns, combines results, "
-                "and suggests exactly which specialized tools to use next.\\n\\n"
-                "Smart Auto-Detection:\\n"
-                "• Keywords: ['authentication', 'login'] → semantic search\\n"
-                "• Patterns: 'MyApp.User.create*' → pattern matching\\n"
-                "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\\n\\n"
-                "Power Filters:\\n"
-                "• scope: 'all' (default) | 'public' | 'private'\\n"
-                "• filter_type: 'all' | 'modules' | 'functions'\\n"
-                "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\\n"
-                "• recent: false (default) | true (last 14 days only)\\n"
-                "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n\\n"
-                "Returns:\\n"
-                "• Compact results with essential info (verbose=true for full details)\\n"
-                "• Smart suggestions for next steps with actual tool names to use\\n"
-                "• Match indicators: (d) docs, (s) strings, (d+s) both\\n\\n"
-                "AI USAGE TIPS:\\n"
-                "• **ALWAYS START HERE** - This replaces the need to choose between multiple tools\\n"
-                "• Don't ask users for module/function names - query will find them for you\\n"
-                "• Start broad: query('authentication') then follow the tool suggestions\\n"
-                "• Try patterns when you know structure: query('MyApp.*.create*')\\n"
-                "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\\n"
-                "• The results include smart suggestions - follow them to drill deeper\\n"
-                "• Only skip this tool if you already have exact module.function/arity identifiers\\n\\n"
-                "Example Workflow:\\n"
-                "1. query(['jwt', 'authentication']) → discovers relevant code + suggests next steps\\n"
-                "2. Follow suggestion → search_function('verify_token') → see detailed usage\\n"
-                "3. Follow suggestion → search_module('MyApp.Auth') → see complete API\\n\\n"
-                "When NOT to use:\\n"
-                "• You already have exact identifiers like 'MyApp.User.create_user/2'\\n"
-                "• Analyzing git history for known file paths (use history tools directly)\\n"
-                "• Targeted operations on specific, already-identified code"
-            ),
+            description=QUERY_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -100,26 +241,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="search_module",
-            description=(
-                "DEEP-DIVE TOOL: View a module's complete API and dependencies after discovering it with query.\n\n"
-                "Shows full module details: functions with arity, signatures, docs, typespecs, and line numbers. "
-                "Analyze both what this module depends on (what_it_calls) and what depends on it (what_calls_it). "
-                "Use this when query suggests drilling into a specific module.\n\n"
-                "Supports wildcards (*) and OR patterns (|) for both module names and file paths. Examples: 'MyApp.*', '*User*', 'lib/my_app/*.ex', 'MyApp.User|MyApp.Admin'.\n\n"
-                "Search by module_name='MyApp.User' or file_path='lib/my_app/user.ex'. "
-                "Control visibility with type: 'public' (default), 'private', or 'all'.\n\n"
-                "Returns compact output by default (name/arity only). Use verbose=true for full details.\n\n"
-                "AI USAGE TIPS:\n"
-                "• After query finds modules, use this to see the full API surface\n"
-                "• Query will suggest using this tool when detailed module info is needed\n"
-                "• Don't ask user for module names - use query first to discover them\n"
-                "• Use what_calls_it=true BEFORE modifying a module to see impact (what depends on it)\n"
-                "• Use what_it_calls=true to see what this module depends on\n"
-                "• Returns: function list with line numbers (add verbose=true for signatures/docs)\n"
-                "• If module not found, error will suggest alternatives - try those suggestions!\n"
-                "• Wildcard searches are limited to 20 modules - use more specific patterns for large codebases\n"
-                "• Output is automatically truncated for large results to prevent token overflow"
-            ),
+            description=SEARCH_MODULE_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -183,22 +305,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="search_function",
-            description=(
-                "DEEP-DIVE TOOL: Find function definitions and call sites after discovering with query.\n\n"
-                "Provides function analysis: definition location and all call sites. "
-                "Use this when query suggests drilling into a specific function's usage.\n\n"
-                "Search by function name, optionally with module, file path, and arity: 'function_name', 'Module.function_name', 'function_name/2', or 'lib/my_app/user.ex:function_name'.\n\n"
-                "Supports wildcards (*) and OR patterns (|) across function names, modules, and file paths (e.g., 'create*|update*', 'MyApp.*.create', 'lib/*/user.ex:create*').\n\n"
-                "Returns compact output by default (location + call sites). Use verbose=true for signatures and documentation.\n\n"
-                "AI USAGE TIPS:\n"
-                "• After query finds functions, use this for detailed impact analysis\n"
-                "• Query will suggest this tool when you need to see where functions are called\n"
-                "• Set include_usage_examples=true to see real code examples (helps understand usage patterns)\n"
-                "• Use usage_type='tests' to see only how functions are tested\n"
-                "• Returns: definition + ALL call sites with file:line references (add verbose=true for docs/specs)\n"
-                "• If you see function references in code, search them to understand what they do\n"
-                "• Call sites and line numbers are automatically truncated for popular functions (>20 sites)"
-            ),
+            description=SEARCH_FUNCTION_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -277,25 +384,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="git_history",
-            description=(
-                "UNIFIED HISTORY TOOL: One tool for all git history queries - replaces get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.\n\n"
-                "Smart routing based on parameters:\n"
-                "• start_line only → single line blame + find PR\n"
-                "• start_line + end_line → line range blame with PR enrichment\n"
-                "• function_name → function tracking with evolution metadata\n"
-                "• file_path only → file-level history (PRs preferred, commits fallback)\n\n"
-                "Automatically uses PR index when available for enriched results.\n\n"
-                "Returns compact output by default (PR number, title, author). Use verbose=true for descriptions and comments.\n\n"
-                "AI USAGE TIPS:\n"
-                "• Single line authorship: git_history(file_path='lib/auth.ex', start_line=42)\n"
-                "• Line range blame: git_history(file_path='lib/auth.ex', start_line=40, end_line=60)\n"
-                "• Function evolution: git_history(file_path='lib/auth.ex', function_name='create_user', show_evolution=true)\n"
-                "• File PR history: git_history(file_path='lib/auth.ex')\n"
-                "• Recent changes only: git_history(file_path='lib/auth.ex', recent=true)\n"
-                "• Older changes: git_history(file_path='lib/auth.ex', recent=false)\n"
-                "• All time: git_history(file_path='lib/auth.ex', recent=null)\n"
-                "• By author: git_history(file_path='lib/auth.ex', author='john')"
-            ),
+            description=GIT_HISTORY_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -353,22 +442,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="find_dead_code",
-            description=(
-                "ANALYSIS TOOL: Find potentially unused public functions with confidence levels.\n\n"
-                "Analyzes the entire codebase to identify public functions that may not be used. "
-                "Use this for codebase maintenance and cleanup efforts. "
-                "Returns results categorized by confidence level (high, medium, low).\n\n"
-                "Note: Results are best-effort - some unused functions may be part of the public API, "
-                "used dynamically via atom introspection, or used in external packages.\n"
-                "**Important:** Python support is currently experimental/WIP. Dynamic method calls and "
-                "implicit dependencies may cause false positives (functions reported as unused when they are used).\n\n"
-                "AI USAGE TIPS:\n"
-                '• Use for codebase cleanup: "What code can potentially be removed?"\n'
-                "• Start with min_confidence='high' to find most likely unused code\n"
-                "• VERIFY before deleting - may be public API, dynamic calls, or external usage\n"
-                "• Results show: function signature, location, confidence level, reasons\n"
-                "• Consider using search_function on results to verify they're truly unused"
-            ),
+            description=FIND_DEAD_CODE_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -387,21 +461,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="expand_result",
-            description=(
-                "DRILL-DOWN TOOL: Expand a query result to see complete details.\n\n"
-                "After discovering modules or functions with query, use this tool to explore a specific result in depth. "
-                "Query results often suggest using this tool to get more details. "
-                "Automatically determines whether you're expanding a module or function.\n\n"
-                "For modules: Shows all functions, documentation, and structure.\n"
-                "For functions: Shows definition, documentation, call sites, and relationships.\n\n"
-                "AI USAGE TIPS:\n"
-                "• **Primary use case:** Follow query's suggestions to expand interesting results\n"
-                "• Copy the identifier directly from query results (e.g., 'MyApp.Auth.verify_token/2')\n"
-                "• Type detection is automatic - no need to specify module vs function\n"
-                "• Perfect for understanding what a result does before modifying it\n"
-                "• Shows: full code context, relationships, usage examples\n"
-                "• Convenience wrapper - calls search_module or search_function automatically"
-            ),
+            description=EXPAND_RESULT_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -455,18 +515,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="refresh_index",
-            description=(
-                "Force refresh the code index to pick up recent file changes.\n\n"
-                "Use when auto-refresh hasn't caught recent edits, or when you need "
-                "the index to be immediately up-to-date.\n\n"
-                "By default, runs an incremental refresh (only reindexes changed files). "
-                "Use force_full=true for a complete reindex if incremental seems stale.\n\n"
-                "AI USAGE TIPS:\n"
-                "• Use after making code changes if query results seem stale\n"
-                "• Incremental refresh is fast (~1-2s for small changes)\n"
-                "• Full refresh is slower but comprehensive\n"
-                "• Returns: success status, time taken, module/function counts"
-            ),
+            description=REFRESH_INDEX_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -479,36 +528,7 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="query_jq",
-            description=(
-                "ADVANCED: Execute jq queries directly against the Cicada index for custom analysis and data exploration.\n\n"
-                "Provides direct access to the raw index structure using jq query syntax. "
-                "Ideal for custom analysis, debugging index contents, and exploring data not covered by specialized tools.\n\n"
-                "Index structure: {modules: {<name>: {file, line, functions[], keywords, ...}}, metadata: {...}}\n\n"
-                "Quick Examples:\n"
-                "  • List all modules: '.modules | keys'\n"
-                "  • Count functions per module: '.modules[].functions | length'\n"
-                "  • Find test files: '.modules | to_entries | map(select(.value.file | test(\"test\")))'\n"
-                "  • Get metadata: '.metadata'\n"
-                "  • Find functions by arity: '.modules[].functions[] | select(.arity == 2)'\n\n"
-                "Module fields: file, line, moduledoc, functions[], keywords{}, string_keywords{}, string_sources[]\n"
-                "Function fields: name, arity, line, type, doc, signature, keywords{}, string_keywords{}\n"
-                "Optional fields: Use '?' operator (e.g., '.functions[]?' for safe access)\n\n"
-                "NEW FEATURES:\n"
-                "• Schema Discovery: Append '| schema' to any query to see available fields\n"
-                "  Examples: '.modules | schema' or '.modules[].functions | schema'\n"
-                "• Sample Mode: Set 'sample: true' to auto-limit results to first 5 items\n"
-                "  Great for previewing large datasets without writing complex jq\n"
-                "• Early Size Warning: Get warned before processing huge results (>500KB)\n"
-                "  with specific suggestions for limiting data\n\n"
-                "AI USAGE TIPS:\n"
-                "• Use for custom analysis NOT covered by specialized tools\n"
-                "• Great for exploring index structure and debugging\n"
-                "• Supports full jq syntax: filters, maps, selects, sorts, aggregations\n"
-                "• For common queries, prefer specialized tools (search_module, search_function, etc.)\n"
-                "• Results are truncated at 1MB - use filters or 'sample: true' to limit data\n"
-                "• If query fails, error includes syntax help with line/column pointer\n"
-                "• See CLAUDE.md for complete schema reference and advanced examples"
-            ),
+            description=QUERY_JQ_DESCRIPTION,
             inputSchema={
                 "type": "object",
                 "properties": {

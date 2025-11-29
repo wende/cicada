@@ -93,6 +93,76 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
         sys.exit(1)
 
 
+def _add_tier_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add --fast, --regular, --max tier selection arguments."""
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
+
+def _add_editor_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add editor selection arguments."""
+    parser.add_argument(
+        "--claude",
+        action="store_true",
+        help="Skip editor selection, use Claude Code",
+    )
+    parser.add_argument(
+        "--cursor",
+        action="store_true",
+        help="Skip editor selection, use Cursor",
+    )
+    parser.add_argument(
+        "--vs",
+        action="store_true",
+        help="Skip editor selection, use VS Code",
+    )
+    parser.add_argument(
+        "--gemini",
+        action="store_true",
+        help="Skip editor selection, use Gemini CLI",
+    )
+    parser.add_argument(
+        "--codex",
+        action="store_true",
+        help="Skip editor selection, use Codex",
+    )
+
+
+def _create_editor_subparser(
+    subparsers, name: str, common_parser: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """Create an editor-specific subparser (claude, cursor, vs, gemini, codex)."""
+    editor_display_names = {
+        "claude": "Claude Code",
+        "cursor": "Cursor",
+        "vs": "VS Code",
+        "gemini": "Gemini CLI",
+        "codex": "Codex",
+    }
+    display_name = editor_display_names.get(name, name.title())
+    parser = subparsers.add_parser(
+        name,
+        help=f"Setup Cicada for {display_name} editor",
+        description=f"One-command setup for {display_name} with keyword extraction",
+        parents=[common_parser],
+    )
+    _add_tier_arguments(parser)
+    return parser
+
+
 def get_argument_parser():
     # Create a parent parser with common arguments to share across all subcommands
     common_parser = argparse.ArgumentParser(add_help=False)
@@ -129,46 +199,8 @@ def get_argument_parser():
         default=None,
         help="Path to project repository (default: current directory)",
     )
-    install_parser.add_argument(
-        "--claude",
-        action="store_true",
-        help="Skip editor selection, use Claude Code",
-    )
-    install_parser.add_argument(
-        "--cursor",
-        action="store_true",
-        help="Skip editor selection, use Cursor",
-    )
-    install_parser.add_argument(
-        "--vs",
-        action="store_true",
-        help="Skip editor selection, use VS Code",
-    )
-    install_parser.add_argument(
-        "--gemini",
-        action="store_true",
-        help="Skip editor selection, use Gemini CLI",
-    )
-    install_parser.add_argument(
-        "--codex",
-        action="store_true",
-        help="Skip editor selection, use Codex",
-    )
-    install_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion (no downloads)",
-    )
-    install_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (128MB, default)",
-    )
-    install_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion (958MB+)",
-    )
+    _add_editor_arguments(install_parser)
+    _add_tier_arguments(install_parser)
     install_parser.add_argument(
         "--default",
         action="store_true",
@@ -187,161 +219,17 @@ def get_argument_parser():
         default=None,
         help="Path to project repository (default: current directory)",
     )
-    server_parser.add_argument(
-        "--claude",
-        action="store_true",
-        help="Create Claude Code config before starting server",
-    )
-    server_parser.add_argument(
-        "--cursor",
-        action="store_true",
-        help="Create Cursor config before starting server",
-    )
-    server_parser.add_argument(
-        "--vs",
-        action="store_true",
-        help="Create VS Code config before starting server",
-    )
-    server_parser.add_argument(
-        "--gemini",
-        action="store_true",
-        help="Create Gemini CLI config before starting server",
-    )
-    server_parser.add_argument(
-        "--codex",
-        action="store_true",
-        help="Create Codex config before starting server",
-    )
-    server_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion (if reindexing needed)",
-    )
-    server_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (if reindexing needed)",
-    )
-    server_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion (if reindexing needed)",
-    )
+    _add_editor_arguments(server_parser)
+    _add_tier_arguments(server_parser)
     server_parser.add_argument(
         "--watch",
         action="store_true",
         help="Start file watcher in a linked process for automatic reindexing",
     )
 
-    claude_parser = subparsers.add_parser(
-        "claude",
-        help="Setup Cicada for Claude Code editor",
-        description="One-command setup for Claude Code with keyword extraction",
-        parents=[common_parser],
-    )
-    claude_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    claude_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    claude_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    cursor_parser = subparsers.add_parser(
-        "cursor",
-        help="Setup Cicada for Cursor editor",
-        description="One-command setup for Cursor with keyword extraction",
-        parents=[common_parser],
-    )
-    cursor_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    cursor_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    cursor_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    vs_parser = subparsers.add_parser(
-        "vs",
-        help="Setup Cicada for VS Code editor",
-        description="One-command setup for VS Code with keyword extraction",
-        parents=[common_parser],
-    )
-    vs_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    vs_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    vs_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    gemini_parser = subparsers.add_parser(
-        "gemini",
-        help="Setup Cicada for Gemini CLI",
-        description="One-command setup for Gemini CLI with keyword extraction",
-        parents=[common_parser],
-    )
-    gemini_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    gemini_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    gemini_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    codex_parser = subparsers.add_parser(
-        "codex",
-        help="Setup Cicada for Codex editor",
-        description="One-command setup for Codex with keyword extraction",
-        parents=[common_parser],
-    )
-    codex_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    codex_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    codex_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
+    # Editor-specific subparsers (all have identical structure with tier args)
+    for editor in ["claude", "cursor", "vs", "gemini", "codex"]:
+        _create_editor_subparser(subparsers, editor, common_parser)
 
     watch_parser = subparsers.add_parser(
         "watch",
@@ -362,21 +250,7 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds to wait after file changes before reindexing (default: 2.0)",
     )
-    watch_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    watch_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    watch_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
+    _add_tier_arguments(watch_parser)
     watch_parser.add_argument(
         "--quiet",
         action="store_true",
@@ -395,21 +269,7 @@ def get_argument_parser():
         default=".",
         help="Path to the project repository to index (default: current directory)",
     )
-    index_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    index_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    index_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
+    _add_tier_arguments(index_parser)
     index_parser.add_argument(
         "-f",
         "--force",
