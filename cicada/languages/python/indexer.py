@@ -7,6 +7,7 @@ type-aware semantic indexes of Python codebases.
 import json
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -76,6 +77,43 @@ class PythonSCIPIndexer(BaseIndexer):
         """Return directories to exclude from indexing."""
         return list(self.excluded_dirs)
 
+    def _run_interruptible_phase(
+        self,
+        phase_name: str,
+        phase_func: Callable[[], Any],
+        skipped_phases: list[str],
+        partial_suffix: str = "",
+    ) -> bool:
+        """Run an enrichment phase that can be interrupted.
+
+        Args:
+            phase_name: Human-readable name of the phase (e.g., "string keywords")
+            phase_func: Callable that performs the phase work
+            skipped_phases: List to append skipped phase names to
+            partial_suffix: Suffix to add if interrupted mid-phase (e.g., " (partial)")
+
+        Returns:
+            True if the phase completed successfully, False otherwise
+        """
+        if self._interrupted:
+            skipped_phases.append(phase_name)
+            return False
+
+        try:
+            phase_func()
+            return True
+        except KeyboardInterrupt:
+            self._interrupted = True
+            skipped_phases.append(f"{phase_name}{partial_suffix}")
+            if self.verbose:
+                print(f"\n  ⚠️  Interrupted during {phase_name}")
+            return False
+        except Exception as e:
+            if self.verbose:
+                print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            skipped_phases.append(phase_name)
+            return False
+
     def index_repository(
         self,
         repo_path: str | Path,
@@ -139,6 +177,9 @@ class PythonSCIPIndexer(BaseIndexer):
         """
         # Update verbosity setting from parameter
         self.verbose = verbose
+
+        # Reset interrupted flag at start of new run
+        self._interrupted = False
 
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path).resolve()
@@ -257,7 +298,7 @@ class PythonSCIPIndexer(BaseIndexer):
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
             # 5-8. Run universal enrichment pipeline (shared across all languages)
-            _skipped_phases = self._run_enrichment_pipeline(
+            skipped_phases = self._run_enrichment_pipeline(
                 cicada_index,
                 repo_path_obj,
                 extract_keywords=extract_keywords,
@@ -309,6 +350,8 @@ class PythonSCIPIndexer(BaseIndexer):
                 "functions_count": functions_count,
                 "files_indexed": len(scip_index.documents),
                 "errors": [],
+                "interrupted": self._interrupted,
+                "skipped_phases": skipped_phases,
             }
 
         except Exception as e:
