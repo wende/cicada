@@ -1675,7 +1675,7 @@ def main():
     _ = parser.add_argument(
         "--output",
         default=None,
-        help="Output path for the index file (default: ~/.cicada/projects/<hash>/index.json)",
+        help="Output path for the index file. If omitted, uses centralized storage at ~/.cicada/projects/<hash>/index.json",
     )
     parser.add_argument(
         "--full",
@@ -1686,7 +1686,7 @@ def main():
     args = parser.parse_args()
 
     # Use centralized storage by default
-    output_path = args.output if args.output else str(get_index_path(args.repo))
+    output_path = args.output or str(get_index_path(args.repo))
 
     indexer = ElixirIndexer()
 
