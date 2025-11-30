@@ -798,7 +798,7 @@ def handle_index_main(args) -> None:
 
     try:
         # Check if indexer supports incremental_index_repository (new unified API)
-        if hasattr(indexer, "incremental_index_repository"):
+        if indexer.supports_incremental:
             # Co-change analysis is enabled by default for better search results
             # Can be disabled with --no-cochange flag
             extract_cochange = not getattr(args, "no_cochange", False)
