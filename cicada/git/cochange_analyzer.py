@@ -33,6 +33,9 @@ class CoChangeAnalyzer:
     DEFAULT_MIN_COUNT = 2
     # Skip commits with more than this many files (likely bulk imports/refactors)
     MAX_FILES_PER_COMMIT = 100
+    # Skip function analysis for commits with too many functions (combinatorial explosion)
+    # 200 functions = 19,900 pairs, 500 functions = 124,750 pairs
+    MAX_FUNCTIONS_PER_COMMIT = 200
 
     def __init__(self, language: str = "elixir", verbose: bool = False):
         """Initialize the co-change analyzer.
@@ -320,6 +323,12 @@ class CoChangeAnalyzer:
         Instead of analyzing every commit, sample every Nth commit for detailed
         function analysis. Scale up counts by inverse sample rate to estimate totals.
 
+        Optimization: Uses current file content to extract function signatures instead
+        of fetching historical content at each commit. This is valid because:
+        - We only care about functions that exist NOW in the codebase
+        - Deleted functions won't be in the index anyway
+        - This reduces subprocess calls from O(commits * files) to O(unique_files)
+
         Trade-off: 2x speedup for ~5-10% variance in results (acceptable for search boosting).
 
         Args:
@@ -346,12 +355,28 @@ class CoChangeAnalyzer:
             f"Sampling {len(sampled_shas)}/{len(commit_shas)} commits for function analysis"
         )
 
+        # Pre-cache function signatures from CURRENT files (not historical)
+        # This is the key optimization: O(unique_files) instead of O(commits * files)
+        function_cache = self._build_function_cache(repo_path, commits_data)
+
         function_pairs = defaultdict(int)
 
         for sha in sampled_shas:
-            functions = self._get_functions_in_commit(repo_path, sha)
+            # Use commits_data directly instead of calling _get_files_in_commit
+            files = commits_data.get(sha, set())
+            language_files = self.signature_extractor.filter_files(list(files))
+
+            # Look up functions from cache
+            functions = set().union(
+                *(function_cache.get(file_path, set()) for file_path in language_files)
+            )
 
             if len(functions) < 2:
+                continue
+
+            # Skip commits with too many functions (combinatorial explosion)
+            if len(functions) > self.MAX_FUNCTIONS_PER_COMMIT:
+                logger.debug(f"Skipping commit with {len(functions)} functions")
                 continue
 
             # Generate pairs
@@ -364,6 +389,59 @@ class CoChangeAnalyzer:
         scaled_pairs = {pair: int(count * scale_factor) for pair, count in function_pairs.items()}
 
         return scaled_pairs
+
+    def _build_function_cache(
+        self, repo_path: Path, commits_data: dict[str, set[str]]
+    ) -> dict[str, set[str]]:
+        """Build a cache of function signatures from current file content.
+
+        Reads each unique file ONCE from disk (current version) and extracts
+        function signatures. This is much faster than fetching historical
+        content via git show for each commit.
+
+        Args:
+            repo_path: Path to repository
+            commits_data: Dictionary mapping commit SHAs to sets of changed files
+
+        Returns:
+            Dictionary mapping file paths to sets of function signatures
+        """
+        if self.signature_extractor is None:
+            return {}
+
+        # Collect all unique files across all commits
+        all_files: set[str] = set().union(*commits_data.values()) if commits_data else set()
+
+        # Filter to language-specific files
+        language_files = self.signature_extractor.filter_files(list(all_files))
+
+        logger.debug(f"Building function cache for {len(language_files)} files")
+
+        cache: dict[str, set[str]] = {}
+        for file_path in language_files:
+            full_path = repo_path / file_path
+            if not full_path.exists():
+                # File was deleted, skip it
+                continue
+
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+                module_name = self.signature_extractor.extract_module_name(content, file_path)
+                if not module_name:
+                    continue
+
+                functions = self.signature_extractor.extract_function_signatures(
+                    content, module_name
+                )
+                cache[file_path] = functions
+            except OSError as e:
+                logger.debug(f"Failed to read {file_path}: {e}")
+                continue
+
+        logger.debug(
+            f"Cached {sum(len(f) for f in cache.values())} functions from {len(cache)} files"
+        )
+        return cache
 
     def _analyze_cochanges(
         self,
