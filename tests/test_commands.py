@@ -840,6 +840,7 @@ class TestHandleIndexMain:
         from cicada.commands import handle_index_main
 
         mock_indexer = MagicMock(spec=[])  # No incremental_index_repository
+        mock_indexer.supports_incremental = False  # Legacy indexer
         mock_indexer.index_repository = MagicMock()
         mock_get_indexer.return_value = mock_indexer
 
@@ -860,6 +861,7 @@ class TestHandleIndexMain:
 
         if use_legacy:
             mock_indexer = MagicMock(spec=[])
+            mock_indexer.supports_incremental = False
             mock_indexer.index_repository = MagicMock(side_effect=KeyboardInterrupt)
         else:
             mock_indexer = MagicMock()

@@ -349,7 +349,7 @@ class TestFileWatcher:
             reindex_count.append(1)
 
         watcher = FileWatcher(
-            repo_path=str(elixir_repo), register_signal_handlers=False, debounce_seconds=0.2
+            repo_path=str(elixir_repo), register_signal_handlers=False, debounce_seconds=0.05
         )
         watcher._trigger_reindex = mock_trigger_reindex
 
@@ -359,10 +359,10 @@ class TestFileWatcher:
         # Trigger multiple changes rapidly
         for _ in range(5):
             watcher._on_file_change(event)
-            time.sleep(0.05)  # 50ms between changes
+            time.sleep(0.01)  # 10ms between changes
 
         # Wait for debounce to expire
-        time.sleep(0.3)
+        time.sleep(0.1)
 
         # Should have only triggered once
         assert len(reindex_count) == 1
@@ -504,7 +504,7 @@ class TestFileWatcherIntegration:
         watcher = FileWatcher(
             repo_path=str(elixir_repo),
             verbose=False,
-            debounce_seconds=0.5,
+            debounce_seconds=0.15,  # Reduced from 0.5s for faster test
             register_signal_handlers=False,
         )
 
@@ -525,7 +525,7 @@ class TestFileWatcherIntegration:
 
         try:
             # Wait a moment for observer to be ready
-            time.sleep(0.3)
+            time.sleep(0.1)  # Reduced from 0.3s
 
             # Create a new .ex file
             test_file = elixir_repo / "lib" / "new_module.ex"
@@ -538,7 +538,7 @@ end
             )
 
             # Wait for file event detection + debounce + reindex trigger
-            success = reindex_called.wait(timeout=3)
+            success = reindex_called.wait(timeout=1)  # Reduced from 3s
             assert success, "Reindex should be triggered by real file change"
 
         finally:

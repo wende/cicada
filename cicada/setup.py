@@ -55,6 +55,17 @@ def detect_project_language(repo_path: Path) -> str:
     if (repo_path / "mix.exs").exists():
         return "elixir"
 
+    # Check for Erlang markers
+    erlang_markers = ["rebar.config", "rebar.lock", "erlang.mk"]
+    for marker in erlang_markers:
+        if (repo_path / marker).exists():
+            return "erlang"
+
+    # Fallback: Check for .erl files in src/ directory (common Erlang convention)
+    src_dir = repo_path / "src"
+    if src_dir.exists() and any(src_dir.glob("*.erl")):
+        return "erlang"
+
     # Check for TypeScript/JavaScript markers
     ts_markers = ["tsconfig.json", "package.json"]
     for marker in ts_markers:
@@ -68,7 +79,8 @@ def detect_project_language(repo_path: Path) -> str:
     raise ValueError(
         f"Could not detect project language in {repo_path}\n"
         "Expected Python markers (pyproject.toml, setup.py, etc.), "
-        "Elixir marker (mix.exs), or TypeScript/JavaScript markers"
+        "Elixir marker (mix.exs), Erlang markers (rebar.config, src/*.erl), "
+        "or TypeScript/JavaScript markers"
     )
 
 
