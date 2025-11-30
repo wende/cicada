@@ -30,7 +30,9 @@ class ElixirFormatter(BaseLanguageFormatter):
         """
         return f"{module_name}.{func_name}/{arity}"
 
-    def format_function_name(self, func_name: str, arity: int, args: list[str] | None = None) -> str:
+    def format_function_name(
+        self, func_name: str, arity: int, args: list[str] | None = None
+    ) -> str:
         """
         Format function name with args if available, otherwise arity.
 
@@ -51,10 +53,6 @@ class ElixirFormatter(BaseLanguageFormatter):
             >>> formatter.format_function_name("hello", 0, [])
             'hello/0'
         """
-        if args is not None:
-            if args:
-                return f"{func_name}({', '.join(args)})"
-            else:
-                # No args = arity 0
-                return f"{func_name}/0"
+        if args:
+            return f"{func_name}({', '.join(args)})"
         return f"{func_name}/{arity}"

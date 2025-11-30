@@ -39,7 +39,9 @@ class PythonFormatter(BaseLanguageFormatter):
         """
         return f"{module_name}.{func_name}()"
 
-    def format_function_name(self, func_name: str, arity: int, args: list[str] | None = None) -> str:
+    def format_function_name(
+        self, func_name: str, arity: int, args: list[str] | None = None
+    ) -> str:
         """
         Format function name with args, filtering out self/cls/arg0.
 

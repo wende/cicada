@@ -35,7 +35,9 @@ class BaseLanguageFormatter(ABC):
         """
 
     @abstractmethod
-    def format_function_name(self, func_name: str, arity: int, args: list[str] | None = None) -> str:
+    def format_function_name(
+        self, func_name: str, arity: int, args: list[str] | None = None
+    ) -> str:
         """
         Format just the function name with args/arity (no module prefix).
 

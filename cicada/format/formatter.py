@@ -131,15 +131,11 @@ class ModuleFormatter:
         """Detect language from function type field."""
         # Elixir uses 'def'/'defp', Python uses 'public'/'private'
         func_type = func.get("type", "")
-        if func_type in ("def", "defp"):
-            return "elixir"
-        return "python"
+        return "elixir" if func_type in ("def", "defp") else "python"
 
     @staticmethod
-    def _format_function_identifier(func: dict[str, Any], name: str, arity: int) -> str:
-        """Format function identifier using language-specific formatter."""
-        from cicada.languages.formatter_registry import get_language_formatter
-
+    def _format_function_name(func: dict[str, Any], name: str, arity: int) -> str:
+        """Format function name using language-specific formatter."""
         language = ModuleFormatter._get_language_from_func(func)
         formatter = get_language_formatter(language)
         args = func.get("args")
@@ -165,7 +161,7 @@ class ModuleFormatter:
                 lines.append(f"{func['line']:>5}: {func_sig}")
             else:
                 # Compact: language-appropriate identifier with return type if available
-                func_id = ModuleFormatter._format_function_identifier(func, name, arity)
+                func_id = ModuleFormatter._format_function_name(func, name, arity)
                 return_type = SignatureBuilder.get_return_type(func)
                 if return_type:
                     lines.append(f"{func['line']:>5}: {func_id} → {return_type}")
