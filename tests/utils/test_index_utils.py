@@ -34,6 +34,7 @@ def sample_index():
                         "arity": 2,
                         "args": ["x", "y"],
                         "type": "def",
+                        "visibility": "public",
                         "line": 2,
                         "signature": "my_func(x, y)",
                     },
@@ -42,6 +43,7 @@ def sample_index():
                         "arity": 1,
                         "args": ["x"],
                         "type": "defp",
+                        "visibility": "private",
                         "line": 5,
                         "signature": "private_func(x)",
                     },
@@ -56,6 +58,7 @@ def sample_index():
                         "arity": 0,
                         "args": [],
                         "type": "def",
+                        "visibility": "public",
                         "line": 2,
                         "signature": "other_func()",
                     },
@@ -571,8 +574,8 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "def"},
-                        {"name": "func2", "type": "def"},
+                        {"name": "func1", "type": "def", "visibility": "public"},
+                        {"name": "func2", "type": "def", "visibility": "public"},
                     ]
                 }
             }
@@ -589,8 +592,8 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "defp"},
-                        {"name": "func2", "type": "defp"},
+                        {"name": "func1", "type": "defp", "visibility": "private"},
+                        {"name": "func2", "type": "defp", "visibility": "private"},
                     ]
                 }
             }
@@ -601,14 +604,14 @@ class TestGetIndexStats:
         assert stats["public_functions"] == 0
         assert stats["private_functions"] == 2
 
-    def test_get_stats_functions_without_type(self):
-        """Test stats with functions missing type field"""
+    def test_get_stats_functions_without_visibility(self):
+        """Test stats with functions missing visibility field"""
         index = {
             "modules": {
                 "mod1": {
                     "functions": [
                         {"name": "func1"},
-                        {"name": "func2", "type": "def"},
+                        {"name": "func2", "visibility": "public"},
                     ]
                 }
             }
@@ -620,15 +623,15 @@ class TestGetIndexStats:
         assert stats["private_functions"] == 0
 
     def test_get_stats_mixed_function_types(self):
-        """Test stats with various function types"""
+        """Test stats with various visibility values"""
         index = {
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "def"},
-                        {"name": "func2", "type": "defp"},
-                        {"name": "func3", "type": "defmacro"},  # Should not be counted
-                        {"name": "func4", "type": "def"},
+                        {"name": "func1", "type": "def", "visibility": "public"},
+                        {"name": "func2", "type": "defp", "visibility": "private"},
+                        {"name": "func3", "type": "defmacro"},  # No visibility - not counted
+                        {"name": "func4", "type": "def", "visibility": "public"},
                     ]
                 }
             }
@@ -644,19 +647,19 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "f1", "type": "def"},
-                        {"name": "f2", "type": "defp"},
+                        {"name": "f1", "type": "def", "visibility": "public"},
+                        {"name": "f2", "type": "defp", "visibility": "private"},
                     ]
                 },
                 "mod2": {
                     "functions": [
-                        {"name": "f3", "type": "def"},
+                        {"name": "f3", "type": "def", "visibility": "public"},
                     ]
                 },
                 "mod3": {
                     "functions": [
-                        {"name": "f4", "type": "defp"},
-                        {"name": "f5", "type": "defp"},
+                        {"name": "f4", "type": "defp", "visibility": "private"},
+                        {"name": "f5", "type": "defp", "visibility": "private"},
                     ]
                 },
             }
@@ -793,7 +796,7 @@ class TestMergeIndexesIncremental:
             "modules": {
                 "Module1": {
                     "file": "lib/module1.ex",
-                    "functions": [{"name": "func1", "type": "def"}],
+                    "functions": [{"name": "func1", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},
@@ -804,8 +807,8 @@ class TestMergeIndexesIncremental:
                 "Module2": {
                     "file": "lib/module2.ex",
                     "functions": [
-                        {"name": "func2", "type": "def"},
-                        {"name": "func3", "type": "defp"},
+                        {"name": "func2", "type": "def", "visibility": "public"},
+                        {"name": "func3", "type": "defp", "visibility": "private"},
                     ],
                 },
             },
@@ -872,15 +875,15 @@ class TestMergeIndexesIncremental:
             "modules": {
                 "Unchanged": {
                     "file": "lib/unchanged.ex",
-                    "functions": [{"name": "f1", "type": "def"}],
+                    "functions": [{"name": "f1", "type": "def", "visibility": "public"}],
                 },
                 "ToBeUpdated": {
                     "file": "lib/updated.ex",
-                    "functions": [{"name": "f2", "type": "def"}],
+                    "functions": [{"name": "f2", "type": "def", "visibility": "public"}],
                 },
                 "ToBeDeleted": {
                     "file": "lib/deleted.ex",
-                    "functions": [{"name": "f3", "type": "def"}],
+                    "functions": [{"name": "f3", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},
@@ -891,13 +894,13 @@ class TestMergeIndexesIncremental:
                 "ToBeUpdated": {
                     "file": "lib/updated.ex",
                     "functions": [
-                        {"name": "f2", "type": "def"},
-                        {"name": "f4", "type": "defp"},
+                        {"name": "f2", "type": "def", "visibility": "public"},
+                        {"name": "f4", "type": "defp", "visibility": "private"},
                     ],
                 },
                 "NewModule": {
                     "file": "lib/new.ex",
-                    "functions": [{"name": "f5", "type": "def"}],
+                    "functions": [{"name": "f5", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},

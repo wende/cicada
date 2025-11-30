@@ -285,9 +285,9 @@ class TestFormatterRegistry:
         result = formatter.format_function_identifier("MyClass", "method", 2)
         assert result == "MyClass.method()"
 
-    def test_unknown_language_defaults_to_elixir(self):
-        """Test that unknown languages default to Elixir formatter."""
-        formatter = get_language_formatter("unknown_language")
-        assert isinstance(formatter, ElixirFormatter)
-        result = formatter.format_function_identifier("MyModule", "func", 3)
-        assert result == "MyModule.func/3"
+    def test_unknown_language_raises_error(self):
+        """Test that unknown languages raise ValueError."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsupported language"):
+            get_language_formatter("unknown_language")

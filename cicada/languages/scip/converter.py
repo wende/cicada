@@ -960,6 +960,7 @@ class SCIPConverter:
             "calls": call_sites,
             "dependencies": dependencies,
             "type": func_type,
+            "visibility": func_type,  # Same as type for Python (public/private)
             "args": args,
             "signature": signature,
         }
