@@ -5,6 +5,7 @@ git worktrees during parallel test execution.
 """
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -443,8 +444,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
             assert limit == 100  # Should analyze all commits for small repos
 
@@ -459,8 +458,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
             assert limit == 1500  # Should cap at 1500 for very large repos
 
@@ -478,8 +475,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             commits_data = analyzer._get_all_file_changes_batch(Path("/fake/repo"), 100)
             assert commits_data == {}  # Should return empty dict on error
 
@@ -505,3 +500,210 @@ class TestCoChangeAnalyzer:
         # Should return empty list for non-existent file
         results = CoChangeAnalyzer.find_cochange_pairs("file_x.ex", pairs)
         assert results == []
+
+    def test_analyze_repository_skips_commits_with_many_functions(self, tmp_path):
+        """Test that commits with too many functions are skipped (combinatorial explosion prevention)."""
+        # Create test files
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create many module files to generate many functions
+        for i in range(250):  # > MAX_FUNCTIONS_PER_COMMIT (200)
+            module_file = repo_path / f"lib/module_{i}.ex"
+            module_file.parent.mkdir(parents=True, exist_ok=True)
+            module_file.write_text(
+                f"""
+defmodule Module{i} do
+  def func_{i}(arg) do
+    :ok
+  end
+end
+"""
+            )
+
+        analyzer = CoChangeAnalyzer()
+
+        # Create commits_data that would result in >200 functions in one commit
+        many_files = {f"lib/module_{i}.ex" for i in range(250)}
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+
+            if "rev-list" in cmd and "--count" in cmd:
+                result.stdout = "1"
+            elif "--format=COMMIT:%H" in cmd:
+                files_str = "\n".join(many_files)
+                result.stdout = f"COMMIT:abc123\n{files_str}\n"
+            else:
+                result.stdout = ""
+
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = analyzer.analyze_repository(str(repo_path))
+
+            # Function pairs should be empty because the commit was skipped
+            # (too many functions would cause combinatorial explosion)
+            assert result["function_pairs"] == {}
+
+    def test_build_function_cache_with_missing_files(self, tmp_path):
+        """Test that _build_function_cache handles missing/deleted files gracefully."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create one file that exists
+        existing_file = repo_path / "lib/exists.ex"
+        existing_file.parent.mkdir(parents=True, exist_ok=True)
+        existing_file.write_text(
+            """
+defmodule Exists do
+  def my_func(arg) do
+    :ok
+  end
+end
+"""
+        )
+
+        analyzer = CoChangeAnalyzer()
+
+        # commits_data references a file that doesn't exist
+        commits_data = {
+            "abc123": {"lib/exists.ex", "lib/missing.ex"},
+        }
+
+        cache = analyzer._build_function_cache(Path(repo_path), commits_data)
+
+        # Should have cached the existing file
+        assert "lib/exists.ex" in cache
+        # Should NOT crash on missing file, just skip it
+        assert "lib/missing.ex" not in cache
+        # Should have extracted the function
+        assert any("Exists.my_func/1" in f for f in cache.get("lib/exists.ex", set()))
+
+    def test_build_function_cache_with_read_error(self, tmp_path):
+        """Test that _build_function_cache handles file read errors gracefully."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create a file
+        test_file = repo_path / "lib/test.ex"
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("defmodule Test do def foo, do: :ok end")
+
+        analyzer = CoChangeAnalyzer()
+
+        commits_data = {
+            "abc123": {"lib/test.ex"},
+        }
+
+        # Mock the read_text to raise an OSError
+        original_read_text = Path.read_text
+
+        def mock_read_text(self, *args, **kwargs):
+            if "test.ex" in str(self):
+                raise OSError("Permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        with patch.object(Path, "read_text", mock_read_text):
+            cache = analyzer._build_function_cache(Path(repo_path), commits_data)
+
+        # Should return empty cache when file can't be read
+        assert cache == {}
+
+    def test_build_function_cache_without_signature_extractor(self):
+        """Test that _build_function_cache returns empty when no extractor is available."""
+        analyzer = CoChangeAnalyzer(language="unsupported_language")
+
+        # Force no signature extractor
+        analyzer.signature_extractor = None
+
+        commits_data = {"abc123": {"file.ex"}}
+        cache = analyzer._build_function_cache(Path("/fake/repo"), commits_data)
+
+        assert cache == {}
+
+    def test_build_function_cache_skips_files_without_module_name(self, tmp_path):
+        """Test that _build_function_cache skips files that don't have extractable module names."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create a file with content that won't yield a module name
+        test_file = repo_path / "lib/invalid.ex"
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("# Just a comment, no defmodule")
+
+        # Create a valid file too
+        valid_file = repo_path / "lib/valid.ex"
+        valid_file.write_text(
+            """
+defmodule Valid do
+  def my_func, do: :ok
+end
+"""
+        )
+
+        analyzer = CoChangeAnalyzer()
+
+        commits_data = {
+            "abc123": {"lib/invalid.ex", "lib/valid.ex"},
+        }
+
+        cache = analyzer._build_function_cache(Path(repo_path), commits_data)
+
+        # Should skip the invalid file (no module name)
+        assert "lib/invalid.ex" not in cache
+        # Should cache the valid file
+        assert "lib/valid.ex" in cache
+
+    def test_analyze_function_cochanges_generates_pairs(self, tmp_path):
+        """Test that function co-change analysis generates pairs correctly."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        # Create two module files with functions
+        module_a = repo_path / "lib/module_a.ex"
+        module_a.parent.mkdir(parents=True, exist_ok=True)
+        module_a.write_text(
+            """
+defmodule ModuleA do
+  def func_one(arg), do: :ok
+  def func_two(arg), do: :ok
+end
+"""
+        )
+
+        module_b = repo_path / "lib/module_b.ex"
+        module_b.write_text(
+            """
+defmodule ModuleB do
+  def func_three(arg), do: :ok
+end
+"""
+        )
+
+        analyzer = CoChangeAnalyzer()
+
+        def mock_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+
+            if "rev-list" in cmd and "--count" in cmd:
+                result.stdout = "2"
+            elif "--format=COMMIT:%H" in cmd:
+                # Two commits that touch both files
+                result.stdout = "COMMIT:abc123\nlib/module_a.ex\nlib/module_b.ex\n\nCOMMIT:def456\nlib/module_a.ex\nlib/module_b.ex\n"
+            else:
+                result.stdout = ""
+
+            return result
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = analyzer.analyze_repository(str(repo_path))
+
+            # Should have found function pairs
+            function_pairs = result["function_pairs"]
+            # With 3 functions, sample_rate=0.5 samples 1 of 2 commits, giving raw count of 1 per pair.
+            # Scale factor of 2 (1/0.5) makes each pair count=2, meeting default min_count=2.
+            # C(3,2) = 3 possible pairs, all should pass the filter.
+            assert len(function_pairs) == 3

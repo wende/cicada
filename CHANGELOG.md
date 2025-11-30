@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+**Multithreaded Indexing (#195)**
+- Parallel file processing during indexing for significant performance improvements
+- Faster index builds especially on larger codebases
+
+**Automatic Fallback Searches for Function Lookups (#198)**
+- When a function search fails, automatically try relaxed searches:
+  - Without module qualifier (Module.func → func)
+  - Without arity constraint (func/2 → func)
+  - Private function variant (func → _func)
+- Results include notes explaining which fallback was used
+- Improved semantic search suggestions by splitting function names into keywords
+
+**Language-Agnostic Watcher (#199)**
+- Watcher now uses LanguageRegistry to detect project language automatically
+- Renamed ElixirFileEventHandler to SourceFileEventHandler with configurable extensions
+- Added fallback to index_repository() for indexers without incremental support
+- Shows detected language and watched file extensions in output
+
+### Improvements
+
+**Code Refactoring (#196)**
+- Extract shared helpers for keyword extraction, git timestamps, and module building
+- Refactor indexer to use shared helpers, eliminating ~200 lines of duplication
+- Extract handler methods from route_tool for better maintainability
+- Net reduction: -670 lines of code
+
+### Fixed
+
+**Watcher Language Detection (#199)**
+- Use LanguageRegistry.get_indexer() based on detected project language instead of hardcoding Elixir
+
+**Version Mismatch Handling (#199)**
+- Version mismatch now shows warning instead of forcing full reindex
+- Continue with incremental indexing even when versions differ
+
+**Legacy Path References (#197)**
+- Update indexer.py CLI to use get_index_path() for centralized storage
+- Default output path now uses ~/.cicada/projects/<hash>/index.json
+
+**Graceful Shutdown for Ctrl+C (#193)**
+- Fixed graceful shutdown during indexing when interrupted with Ctrl+C
+
+**Duplicate Git Helper Initialization (#196)**
+- Fix duplicate git_helper initialization bug in incremental indexer
+
 ## [0.5.1] - 2025-11-28
 
 ### Features
