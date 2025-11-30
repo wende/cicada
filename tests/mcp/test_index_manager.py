@@ -293,6 +293,9 @@ class TestBackgroundRefreshManager:
 
     def test_debounce_coalesces_requests(self, refresh_manager, mock_index_manager):
         """Test that multiple rapid requests are debounced."""
+        # Use a short debounce for faster test execution
+        refresh_manager.DEBOUNCE_SECONDS = 0.1
+
         with patch.object(refresh_manager, "_execute_refresh") as mock_execute:
             # Make multiple rapid schedule requests
             refresh_manager._schedule_refresh()
@@ -303,7 +306,7 @@ class TestBackgroundRefreshManager:
             assert refresh_manager._debounce_timer is not None
 
             # Wait for debounce to complete
-            time.sleep(refresh_manager.DEBOUNCE_SECONDS + 0.5)
+            time.sleep(refresh_manager.DEBOUNCE_SECONDS + 0.1)
 
             # Should have been called only once
             assert mock_execute.call_count == 1

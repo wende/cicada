@@ -57,6 +57,7 @@ dependencies = [
     "gensim>=4.4.0",
     "watchdog>=3.0.0",
     "protobuf>=4.0.0",  # Required for SCIP (language-agnostic code indexing)
+    "tree-sitter-language-pack>=0.13.0",  # Multi-language tree-sitter bindings (Erlang, etc.)
 ]
 
 [project.urls]
