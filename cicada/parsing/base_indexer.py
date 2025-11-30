@@ -258,6 +258,7 @@ class BaseIndexer(ABC):
         repo_path: Path,
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
+        extract_comment_keywords: bool = False,
         compute_timestamps: bool = False,
         extract_cochange: bool = False,
         keyword_extractor: Any = None,
@@ -276,6 +277,7 @@ class BaseIndexer(ABC):
             repo_path: Repository root path
             extract_keywords: Whether to extract keywords from docstrings
             extract_string_keywords: Whether to extract keywords from string literals
+            extract_comment_keywords: Whether to extract keywords from inline comments
             compute_timestamps: Whether to compute git timestamps for functions
             extract_cochange: Whether to analyze co-change patterns
             keyword_extractor: Keyword extractor instance (optional)
@@ -288,7 +290,9 @@ class BaseIndexer(ABC):
 
         # Phase 1: Extract and expand keywords using streaming pipeline (interruptible)
         # Requires extractor; expander is optional (falls back to extraction-only)
-        if (extract_keywords or extract_string_keywords) and keyword_extractor:
+        if (
+            extract_keywords or extract_string_keywords or extract_comment_keywords
+        ) and keyword_extractor:
 
             if keyword_expander:
                 # Full extraction + expansion with streaming pipeline
@@ -314,6 +318,11 @@ class BaseIndexer(ABC):
                         # Extract string keywords (sequential) with streaming expansion
                         if extract_string_keywords:
                             self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        if extract_comment_keywords:
+                            self._extract_comment_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
 
@@ -351,6 +360,11 @@ class BaseIndexer(ABC):
 
                         if extract_string_keywords:
                             self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        if extract_comment_keywords:
+                            self._extract_comment_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
 
@@ -440,6 +454,18 @@ class BaseIndexer(ABC):
         """
         if self.verbose:
             print("    Warning: String keyword extraction not implemented for this language")
+        return 0
+
+    def _extract_comment_keywords(
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor: Any,
+        pipeline: Any,
+    ) -> int:
+        """Extract keywords from inline comments in source files (language-specific)."""
+        if self.verbose:
+            print("    Warning: Comment keyword extraction not implemented for this language")
         return 0
 
     def _apply_expansion_result(self, callback: Any, result: dict[str, Any]) -> None:

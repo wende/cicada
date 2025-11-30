@@ -376,6 +376,7 @@ class PythonSCIPIndexer(BaseIndexer):
                 repo_path_obj,
                 extract_keywords=extract_keywords,
                 extract_string_keywords=extract_string_keywords,
+                extract_comment_keywords=extract_keywords,
                 compute_timestamps=compute_timestamps,
                 extract_cochange=extract_cochange,
                 keyword_extractor=keyword_extractor,

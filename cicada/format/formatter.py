@@ -24,6 +24,8 @@ from cicada.utils.truncation import TruncationHelper
 
 # Display limits for compact output
 MAX_COCHANGE_FILES = 3  # Maximum co-change files to show before truncating
+COMMENT_PREVIEW_LIMIT = 100
+COMMENT_ELLIPSIS = "..."
 
 
 class ModuleFormatter:
@@ -754,18 +756,16 @@ class ModuleFormatter:
             for comment_info in comment_sources[:5]:  # Limit to 5
                 comment_text = comment_info["comment"]
                 comment_line = comment_info["line"]
-                # Truncate very long comments
-                if len(comment_text) > 100:
-                    comment_text = comment_text[:97] + "..."
-                # Handle multi-line comments (from merged blocks)
-                if "\n" in comment_text:
-                    # Show first line only for multi-line comments
-                    first_line = comment_text.split("\n")[0]
-                    if len(first_line) > 100:
-                        first_line = first_line[:97] + "..."
-                    lines.append(f'   • "# {first_line}..." (:{comment_line})')
-                else:
-                    lines.append(f'   • "# {comment_text}" (:{comment_line})')
+                is_multiline = "\n" in comment_text
+                display_text = comment_text.split("\n")[0] if is_multiline else comment_text
+
+                if len(display_text) > COMMENT_PREVIEW_LIMIT:
+                    display_text = (
+                        display_text[: COMMENT_PREVIEW_LIMIT - len(COMMENT_ELLIPSIS)]
+                        + COMMENT_ELLIPSIS
+                    )
+
+                lines.append(f'   • "# {display_text}" (:{comment_line})')
             if len(comment_sources) > 5:
                 lines.append(f"   ... and {len(comment_sources) - 5} more comments")
 

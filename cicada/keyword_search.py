@@ -21,6 +21,8 @@ from cicada.scoring import (
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
 
+    VALID_SOURCES = ["all", "docs", "strings", "comments"]
+
     def __init__(
         self, index: dict[str, Any], match_source: str = "all", cochange_boost: float = 0.5
     ):
@@ -35,9 +37,10 @@ class KeywordSearcher:
         self.index = index
 
         # Validate match_source
-        valid_sources = ["all", "docs", "strings", "comments"]
-        if match_source not in valid_sources:
-            raise ValueError(f"match_source must be one of {valid_sources}, got '{match_source}'")
+        if match_source not in self.VALID_SOURCES:
+            raise ValueError(
+                f"match_source must be one of {self.VALID_SOURCES}, got '{match_source}'"
+            )
 
         self.match_source = match_source
         self.cochange_boost = cochange_boost
@@ -72,67 +75,48 @@ class KeywordSearcher:
             - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', 'comments', or combinations)
         """
         # Normalize to dict format
-        doc_kw_dict = {}
-        if doc_keywords:
-            if isinstance(doc_keywords, list):
-                doc_kw_dict = {kw.lower(): 1.0 for kw in doc_keywords}
-            else:
-                doc_kw_dict = {k.lower(): v for k, v in doc_keywords.items()}
-
-        string_kw_dict = {}
-        if string_keywords:
-            if isinstance(string_keywords, list):
-                string_kw_dict = {kw.lower(): 1.0 for kw in string_keywords}
-            else:
-                string_kw_dict = {k.lower(): v for k, v in string_keywords.items()}
-
-        comment_kw_dict = {}
-        if comment_keywords:
-            if isinstance(comment_keywords, list):
-                comment_kw_dict = {kw.lower(): 1.0 for kw in comment_keywords}
-            else:
-                comment_kw_dict = {k.lower(): v for k, v in comment_keywords.items()}
+        doc_kw_dict = self._normalize_keywords(doc_keywords)
+        string_kw_dict = self._normalize_keywords(string_keywords)
+        comment_kw_dict = self._normalize_keywords(comment_keywords)
 
         # Filter and merge based on match_source
-        merged = {}
-        sources = {}
-
         if self.match_source == "docs":
-            merged = doc_kw_dict
-            sources = dict.fromkeys(doc_kw_dict, "docs")
-        elif self.match_source == "strings":
-            merged = string_kw_dict
-            sources = dict.fromkeys(string_kw_dict, "strings")
-        elif self.match_source == "comments":
-            merged = comment_kw_dict
-            sources = dict.fromkeys(comment_kw_dict, "comments")
-        else:  # 'all'
-            # Merge all three, keeping higher score for duplicates and tracking sources
-            for k, v in doc_kw_dict.items():
-                merged[k] = v
-                sources[k] = "docs"
-            for k, v in string_kw_dict.items():
-                if k in merged:
-                    merged[k] = max(merged[k], v)
-                    # Update source to show it appears in multiple places
-                    if sources[k] == "docs":
-                        sources[k] = "docs+strings"
-                    else:
-                        sources[k] += "+strings"
+            return doc_kw_dict, dict.fromkeys(doc_kw_dict, "docs")
+        if self.match_source == "strings":
+            return string_kw_dict, dict.fromkeys(string_kw_dict, "strings")
+        if self.match_source == "comments":
+            return comment_kw_dict, dict.fromkeys(comment_kw_dict, "comments")
+
+        merged: dict[str, float] = {}
+        source_sets: dict[str, set[str]] = {}
+
+        for label, kw_dict in (
+            ("docs", doc_kw_dict),
+            ("strings", string_kw_dict),
+            ("comments", comment_kw_dict),
+        ):
+            for keyword, score in kw_dict.items():
+                if keyword in merged:
+                    merged[keyword] = max(merged[keyword], score)
                 else:
-                    merged[k] = v
-                    sources[k] = "strings"
-            for k, v in comment_kw_dict.items():
-                if k in merged:
-                    merged[k] = max(merged[k], v)
-                    # Update source to show it appears in multiple places
-                    if "comments" not in sources[k]:
-                        sources[k] += "+comments"
-                else:
-                    merged[k] = v
-                    sources[k] = "comments"
+                    merged[keyword] = score
+
+                if keyword not in source_sets:
+                    source_sets[keyword] = set()
+                source_sets[keyword].add(label)
+
+        # Convert source sets to stable strings (e.g., docs+comments+strings)
+        sources = {keyword: "+".join(sorted(labels)) for keyword, labels in source_sets.items()}
 
         return merged, sources
+
+    def _normalize_keywords(self, keywords: dict | list | None) -> dict[str, float]:
+        """Normalize keyword inputs to a lowercase->score dict."""
+        if not keywords:
+            return {}
+        if isinstance(keywords, list):
+            return {kw.lower(): 1.0 for kw in keywords}
+        return {k.lower(): v for k, v in keywords.items()}
 
     def _build_document_map(self) -> list[dict[str, Any]]:
         """

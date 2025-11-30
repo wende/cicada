@@ -21,8 +21,6 @@ class CommentExtractor:
         """
         self.min_length = min_length
         self.merge_consecutive = merge_consecutive
-        self.current_function: str | None = None
-        self.all_comments: list[dict] = []
 
     def extract_from_module(
         self, module_node, source_code: bytes, functions: list[dict]
@@ -47,43 +45,43 @@ class CommentExtractor:
                     ]
                 }
         """
-        # Reset state
-        self.all_comments = []
-        self.current_function = None
-
-        # Step 1: Extract all comments with their context
-        self._extract_comments_recursive(module_node, source_code)
+        # Step 1: Extract all comments with their context (stateless recursion)
+        all_comments: list[dict] = []
+        self._extract_comments_recursive(module_node, source_code, all_comments, None)
 
         # Step 2: Merge consecutive comments if enabled
         if self.merge_consecutive:
-            self.all_comments = self._merge_consecutive_comments(self.all_comments)
+            all_comments = self._merge_consecutive_comments(all_comments)
 
         # Step 3: Associate comments with functions
-        comments_by_function = self._associate_with_functions(self.all_comments, functions)
+        comments_by_function = self._associate_with_functions(all_comments, functions)
 
         return comments_by_function
 
-    def _extract_comments_recursive(self, node, source_code: bytes):
+    def _extract_comments_recursive(
+        self,
+        node,
+        source_code: bytes,
+        all_comments: list[dict],
+        current_function: str | None,
+    ):
         """
         Recursively walk the AST to find and extract comment nodes.
 
         Args:
             node: Current AST node
             source_code: The source code bytes
+            all_comments: Collector list for extracted comments
+            current_function: Name of the function currently being traversed (if any)
         """
         # Track function context
         if node.type == "call" and is_function_definition_call(node, source_code):
             # Extract function name
             func_name = self._extract_function_name(node, source_code)
-            prev_function = self.current_function
-            self.current_function = func_name
 
             # Process children within this function context
             for child in node.children:
-                self._extract_comments_recursive(child, source_code)
-
-            # Restore previous context
-            self.current_function = prev_function
+                self._extract_comments_recursive(child, source_code, all_comments, func_name)
             return
 
         # Extract comment if this is a comment node
@@ -92,18 +90,20 @@ class CommentExtractor:
 
             # Apply min_length filter
             if comment_text and len(comment_text) >= self.min_length:
-                self.all_comments.append(
+                all_comments.append(
                     {
                         "comment": comment_text,
                         "line": node.start_point[0] + 1,  # 1-indexed
-                        "function": self.current_function,  # Can be None for module-level
+                        "start_line": node.start_point[0] + 1,
+                        "end_line": node.end_point[0] + 1,
+                        "function": current_function,  # Can be None for module-level
                         "is_block": False,  # Will be updated if merged
                     }
                 )
 
         # Recursively process children
         for child in node.children:
-            self._extract_comments_recursive(child, source_code)
+            self._extract_comments_recursive(child, source_code, all_comments, current_function)
 
     def _extract_function_name(self, call_node, source_code: bytes) -> str | None:
         """
@@ -201,7 +201,9 @@ class CommentExtractor:
             if len(consecutive_group) > 1:
                 merged_comment = {
                     "comment": "\n".join(c["comment"] for c in consecutive_group),
-                    "line": consecutive_group[0]["line"],  # Start line
+                    "line": consecutive_group[0]["line"],  # Start line (backward compatibility)
+                    "start_line": consecutive_group[0]["start_line"],
+                    "end_line": consecutive_group[-1]["end_line"],
                     "function": current["function"],
                     "is_block": True,
                 }
@@ -245,6 +247,11 @@ class CommentExtractor:
             # If comment already has a function (was inside function body), use that
             if comment["function"]:
                 func_name = comment["function"]
+            else:
+                # Module-level comment - associate with next function
+                func_name = self._find_next_function(comment["line"], sorted_funcs)
+
+            if func_name:
                 if func_name not in result:
                     result[func_name] = []
 
@@ -252,25 +259,11 @@ class CommentExtractor:
                 clean_comment = {
                     "comment": comment["comment"],
                     "line": comment["line"],
+                    "start_line": comment.get("start_line", comment["line"]),
+                    "end_line": comment.get("end_line", comment["line"]),
                     "is_block": comment.get("is_block", False),
                 }
                 result[func_name].append(clean_comment)
-
-            else:
-                # Module-level comment - associate with next function
-                func_name = self._find_next_function(comment["line"], sorted_funcs)
-
-                if func_name:
-                    if func_name not in result:
-                        result[func_name] = []
-
-                    # Create a clean comment dict
-                    clean_comment = {
-                        "comment": comment["comment"],
-                        "line": comment["line"],
-                        "is_block": comment.get("is_block", False),
-                    }
-                    result[func_name].append(clean_comment)
 
         return result
 
@@ -291,7 +284,4 @@ class CommentExtractor:
                 return func["name"]
 
         # If no function found after the comment, associate with last function
-        if sorted_functions:
-            return sorted_functions[-1]["name"]
-
-        return None
+        return sorted_functions[-1]["name"] if sorted_functions else None

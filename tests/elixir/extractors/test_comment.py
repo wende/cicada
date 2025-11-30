@@ -257,6 +257,45 @@ class TestConsecutiveCommentMerging:
 
             assert step_1_separate or step_2_separate or step_3_separate
 
+    def test_does_not_merge_comments_separated_by_blank_line(self, sample_comments_module):
+        """Comments separated by blank lines should remain distinct blocks."""
+        from cicada.languages.elixir.extractors import CommentExtractor
+
+        module, source_code = sample_comments_module
+
+        extractor = CommentExtractor(merge_consecutive=True)
+        comments_by_function = extractor.extract_from_module(
+            module["do_block"], source_code, module["functions"]
+        )
+
+        func_comments = comments_by_function["function_with_blank_line_comments"]
+        assert len(func_comments) == 2
+
+        first_block, second_block = func_comments
+        assert first_block["end_line"] + 1 < second_block["start_line"]
+
+    def test_does_not_merge_comments_across_functions(self, sample_comments_module):
+        """Adjacent function comments should not merge across function boundaries."""
+        from cicada.languages.elixir.extractors import CommentExtractor
+
+        module, source_code = sample_comments_module
+
+        extractor = CommentExtractor(merge_consecutive=True)
+        comments_by_function = extractor.extract_from_module(
+            module["do_block"], source_code, module["functions"]
+        )
+
+        func_a_comments = comments_by_function["function_with_trailing_comment"]
+        func_b_comments = comments_by_function["function_with_leading_comment"]
+
+        assert func_a_comments
+        assert func_b_comments
+
+        last_block_func_a = func_a_comments[-1]
+        first_block_func_b = func_b_comments[0]
+
+        assert last_block_func_a["end_line"] < first_block_func_b["start_line"]
+
 
 class TestSpecialCommentMarkers:
     """Test extraction of TODO, FIXME, BUG markers."""
@@ -307,7 +346,7 @@ class TestFunctionContextTracking:
             assert any("inline comment" in text for text in comment_texts)
 
             # Should NOT have comments from other functions
-            assert not any("TODO: Implement proper validation" in text for text in comment_texts)
+            assert all("TODO: Implement proper validation" not in text for text in comment_texts)
 
     def test_private_functions_extract_comments(self, sample_comments_module):
         """Test that private functions (defp) also have their comments extracted."""

@@ -40,6 +40,15 @@ class TestKeywordSearcher:
                             "line": 30,
                             "doc": "Deletes a user",
                             "keywords": {"delete": 0.8, "remove": 0.7, "user": 0.9},
+                            "comment_keywords": {"todo": 0.9},
+                            "comment_sources": [
+                                {
+                                    "comment": "TODO remove test data",
+                                    "line": 35,
+                                    "start_line": 35,
+                                    "end_line": 35,
+                                }
+                            ],
                         },
                     ],
                 },
@@ -190,6 +199,21 @@ class TestKeywordSearcher:
         results = searcher.search(["anything"])
 
         assert len(results) == 0
+
+    def test_invalid_match_source(self, sample_index):
+        """Ensure invalid match_source raises a clear error."""
+        with pytest.raises(ValueError):
+            KeywordSearcher(sample_index, match_source="invalid")
+
+    def test_search_comments_only(self, sample_index):
+        """Search using only comment keywords."""
+        searcher = KeywordSearcher(sample_index, match_source="comments")
+        results = searcher.search(["todo"])
+
+        assert any("delete_user" in r["name"] for r in results)
+        for result in results:
+            # Sources should indicate comments only
+            assert all(src == "comments" for src in result["keyword_sources"].values())
 
     def test_search_returns_correct_fields(self, sample_index):
         """Test that search results contain all expected fields."""

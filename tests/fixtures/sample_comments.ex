@@ -47,6 +47,25 @@ defmodule SampleComments do
     :ok
   end
 
+  def function_with_blank_line_comments do
+    # First block line 1
+    # First block line 2
+
+    # Second block line 1
+    # Second block line 2
+    :ok
+  end
+
+  def function_with_trailing_comment do
+    do_work()
+    # Trailing comment for previous function
+  end
+
+  def function_with_leading_comment do
+    # Leading comment for next function
+    :ready
+  end
+
   # Short comments: #a #b #c should be filtered out
   def function_with_short_comments do
     # ok
@@ -109,4 +128,5 @@ defmodule SampleComments do
   defp process_step_one(x), do: x
   defp process_step_two(x), do: x
   defp process_step_three(x), do: x
+  defp do_work, do: :ok
 end

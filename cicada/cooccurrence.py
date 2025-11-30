@@ -92,26 +92,13 @@ class CooccurrenceAnalyzer:
         """
         keywords = set()
 
-        # Extract doc keywords
-        if doc_keywords:
-            if isinstance(doc_keywords, list):
-                keywords.update(kw.lower() for kw in doc_keywords)
+        for source in (doc_keywords, string_keywords, comment_keywords):
+            if not source:
+                continue
+            if isinstance(source, list):
+                keywords.update(kw.lower() for kw in source)
             else:
-                keywords.update(k.lower() for k in doc_keywords)
-
-        # Extract string keywords
-        if string_keywords:
-            if isinstance(string_keywords, list):
-                keywords.update(kw.lower() for kw in string_keywords)
-            else:
-                keywords.update(k.lower() for k in string_keywords)
-
-        # Extract comment keywords
-        if comment_keywords:
-            if isinstance(comment_keywords, list):
-                keywords.update(kw.lower() for kw in comment_keywords)
-            else:
-                keywords.update(k.lower() for k in comment_keywords)
+                keywords.update(k.lower() for k in source)
 
         return keywords
 
