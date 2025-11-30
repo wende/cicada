@@ -36,16 +36,14 @@ class ErlangIndexer(BaseIndexer):
         """
         Index an Erlang repository.
 
-        Note: This implementation always performs a full index. Incremental
-        indexing is not yet implemented. The force and config_path parameters
-        are accepted for interface compatibility but not currently used.
-
         Args:
             repo_path: Path to the repository to index
             output_path: Path where the index.json should be saved
-            force: Not yet implemented (always does full reindex)
+            force: Ignored - incremental indexing not implemented, always
+                does full reindex. Accepted for interface compatibility.
             verbose: If True, print detailed progress information
-            config_path: Not yet implemented
+            config_path: Ignored - config-based indexing not implemented.
+                Accepted for interface compatibility.
 
         Returns:
             Dictionary with indexing results

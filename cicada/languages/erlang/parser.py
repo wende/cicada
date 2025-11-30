@@ -102,11 +102,14 @@ class ErlangParser(BaseParser):
             self._find_exports_recursive(child, source, exports)
 
     def _extract_function_from_decl(self, node, source: bytes, exports: set) -> dict | None:
-        # fun_decl contains function_clause children
-        # NOTE: We only extract the first clause. Multiple clauses for the same function
-        # (pattern matching) will share the same name/arity, so we get the correct
-        # function signature from the first clause. Full multi-clause handling is
-        # documented as future work in docs/prd-erlang.md.
+        # fun_decl contains function_clause children.
+        # We only extract the first clause - this is safe because:
+        # 1. All clauses of a function share the same name and arity by definition
+        # 2. For indexing purposes (finding functions, line numbers, visibility), the
+        #    first clause provides all needed metadata
+        # 3. The line number of the first clause is the canonical location for navigation
+        # Full multi-clause handling (e.g., clause count metadata) is documented as
+        # future work in docs/prd-erlang.md.
         for child in node.children:
             if child.type == "function_clause":
                 return self._extract_function(child, source, exports)
