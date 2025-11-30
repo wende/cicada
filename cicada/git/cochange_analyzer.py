@@ -436,7 +436,7 @@ class CoChangeAnalyzer:
                 functions = self.signature_extractor.extract_function_signatures(
                     content, module_name
                 )
-                cache[file_path] = set(functions)
+                cache[file_path] = functions
             except OSError as e:
                 logger.debug(f"Failed to read {file_path}: {e}")
                 continue
