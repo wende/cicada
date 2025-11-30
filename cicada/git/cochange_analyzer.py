@@ -367,10 +367,9 @@ class CoChangeAnalyzer:
             language_files = self.signature_extractor.filter_files(list(files))
 
             # Look up functions from cache
-            functions = set()
-            for file_path in language_files:
-                if file_path in function_cache:
-                    functions.update(function_cache[file_path])
+            functions = set().union(
+                *(function_cache.get(file_path, set()) for file_path in language_files)
+            )
 
             if len(functions) < 2:
                 continue
@@ -411,9 +410,7 @@ class CoChangeAnalyzer:
             return {}
 
         # Collect all unique files across all commits
-        all_files: set[str] = set()
-        for files in commits_data.values():
-            all_files.update(files)
+        all_files: set[str] = set().union(*commits_data.values()) if commits_data else set()
 
         # Filter to language-specific files
         language_files = self.signature_extractor.filter_files(list(all_files))

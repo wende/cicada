@@ -5,6 +5,7 @@ git worktrees during parallel test execution.
 """
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -443,8 +444,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
             assert limit == 100  # Should analyze all commits for small repos
 
@@ -459,8 +458,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             limit = analyzer._calculate_adaptive_limit(Path("/fake/repo"))
             assert limit == 1500  # Should cap at 1500 for very large repos
 
@@ -478,8 +475,6 @@ class TestCoChangeAnalyzer:
             return result
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            from pathlib import Path
-
             commits_data = analyzer._get_all_file_changes_batch(Path("/fake/repo"), 100)
             assert commits_data == {}  # Should return empty dict on error
 
@@ -577,8 +572,6 @@ end
             "abc123": {"lib/exists.ex", "lib/missing.ex"},
         }
 
-        from pathlib import Path
-
         cache = analyzer._build_function_cache(Path(repo_path), commits_data)
 
         # Should have cached the existing file
@@ -604,8 +597,6 @@ end
             "abc123": {"lib/test.ex"},
         }
 
-        from pathlib import Path
-
         # Mock the read_text to raise an OSError
         original_read_text = Path.read_text
 
@@ -626,8 +617,6 @@ end
 
         # Force no signature extractor
         analyzer.signature_extractor = None
-
-        from pathlib import Path
 
         commits_data = {"abc123": {"file.ex"}}
         cache = analyzer._build_function_cache(Path("/fake/repo"), commits_data)
@@ -659,8 +648,6 @@ end
         commits_data = {
             "abc123": {"lib/invalid.ex", "lib/valid.ex"},
         }
-
-        from pathlib import Path
 
         cache = analyzer._build_function_cache(Path(repo_path), commits_data)
 
@@ -716,6 +703,7 @@ end
 
             # Should have found function pairs
             function_pairs = result["function_pairs"]
-            # With 3 functions across 2 commits, we should have some pairs
-            # (scaled by sample rate, min_count filtered)
-            assert isinstance(function_pairs, dict)
+            # With 3 functions, sample_rate=0.5 samples 1 of 2 commits, giving raw count of 1 per pair.
+            # Scale factor of 2 (1/0.5) makes each pair count=2, meeting default min_count=2.
+            # C(3,2) = 3 possible pairs, all should pass the filter.
+            assert len(function_pairs) == 3
