@@ -1921,6 +1921,84 @@ class TestInterruptibleEnrichmentPhases:
         assert "Warning: Timestamp computation failed: Something went wrong" in captured.out
 
 
+class TestCopyUnchangedKeywords:
+    """Tests for _copy_unchanged_keywords optimization."""
+
+    def test_copies_keywords_and_timestamps(self, tmp_path):
+        """Should copy module/function keywords and timestamps from unchanged files."""
+        indexer = PythonSCIPIndexer(verbose=False)
+        existing = tmp_path / "index.json"
+        existing.write_text(
+            json.dumps(
+                {
+                    "modules": {
+                        "M1": {
+                            "file": "f.py",
+                            "keywords": {"k": 0.9},
+                            "functions": [
+                                {"name": "f1", "keywords": {"fk": 0.8}, "created_at": "2024-01-01"}
+                            ],
+                        }
+                    }
+                }
+            )
+        )
+        new_index = {"modules": {"M1": {"file": "f.py", "functions": [{"name": "f1"}]}}}
+
+        count = indexer._copy_unchanged_keywords(new_index, existing, set())
+
+        assert count == 1
+        assert new_index["modules"]["M1"]["keywords"] == {"k": 0.9}
+        assert new_index["modules"]["M1"]["functions"][0]["keywords"] == {"fk": 0.8}
+        assert new_index["modules"]["M1"]["functions"][0]["created_at"] == "2024-01-01"
+
+    def test_skips_changed_and_missing_modules(self, tmp_path):
+        """Should skip changed files and missing modules."""
+        indexer = PythonSCIPIndexer(verbose=False)
+        existing = tmp_path / "index.json"
+        existing.write_text(
+            json.dumps({"modules": {"Old": {"file": "old.py", "keywords": {"k": 0.9}}}})
+        )
+        new_index = {"modules": {"New": {"file": "new.py"}}}
+
+        count = indexer._copy_unchanged_keywords(new_index, existing, {"changed.py"})
+
+        assert count == 0
+        assert "keywords" not in new_index["modules"]["New"]
+
+
+class TestTargetOnlyAndVerboseLogging:
+    """Test target-only indexing and verbose output."""
+
+    def test_target_only_verbose_logging(self, tmp_path, capsys):
+        """Should log target directory and class counts."""
+        indexer = PythonSCIPIndexer(verbose=True)
+        repo, output = tmp_path / "repo", tmp_path / "index.json"
+        repo.mkdir()
+
+        scip_index = scip_pb2.Index()
+        scip_index.documents.add()
+        scip_file = tmp_path / "temp.scip"
+        scip_file.write_bytes(scip_index.SerializeToString())
+
+        with patch.object(indexer, "_ensure_scip_python_installed"):
+            with patch.object(indexer, "_run_scip_python", return_value=scip_file):
+                with patch(
+                    "cicada.languages.python.indexer.compute_hashes_for_files",
+                    return_value={"lib/a.py": "h1"},
+                ):
+                    with patch("cicada.languages.python.indexer.SCIPConverter") as conv:
+                        conv.return_value.convert.return_value = {
+                            "modules": {"_file_a": {}, "ClassB": {}},
+                            "metadata": {"total_functions": 3},
+                        }
+                        indexer.index_repository(repo, output, verbose=True)
+
+        out = capsys.readouterr().out
+        assert "Limiting SCIP analysis to: lib" in out
+        assert "Indexed 1 files, 1 classes, 3 functions" in out
+
+
 class TestComputeTargetDirectory:
     """Test the _compute_target_directory helper for partial SCIP indexing."""
 
