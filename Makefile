@@ -118,34 +118,34 @@ setup-scip-fixtures:
 	fi
 
 # Run tests
-test: install generate-scip-proto setup-fixtures setup-scip-fixtures
+test: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
 	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
 
 # Run tests with verbose output
-test-verbose: install generate-scip-proto setup-fixtures setup-scip-fixtures
+test-verbose: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto --dist loadgroup -v
 
 # Run tests in watch mode
-test-watch: install generate-scip-proto setup-fixtures setup-scip-fixtures
+test-watch: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest-watch
 
 # Run tests with coverage
-cover: install generate-scip-proto setup-fixtures setup-scip-fixtures
+cover: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto --dist loadgroup --cov=cicada --cov-report=html --cov-report=term-missing --cov-fail-under=80
 	@echo "Coverage report generated in htmlcov/index.html"
 
 # Format code with black
-format: install
+format: install-deps
 	@uv run black cicada tests
 
 # Auto-fix issues with ruff
-lint-fix: install
+lint-fix: install-deps
 	@echo "Running ruff with auto-fix..."
 	@uv run ruff check cicada --fix
 	@echo "Auto-fixable issues resolved"
 
 # Check code formatting with ruff linter, pyrefly type checker and vulture dead code detector
-lint: install
+lint: install-deps
 	@FAILED=0; \
 	echo "Running ruff linter..."; \
 	uv run ruff check cicada || FAILED=1; \
@@ -158,7 +158,7 @@ lint: install
 	exit $$FAILED
 
 # Run all pre-commit checks
-pre-commit: install
+pre-commit: install-deps
 	@echo "Running pre-commit checks..."
 	@echo "Fetching latest tags..."
 	@git fetch --tags --quiet 2>/dev/null || true
@@ -193,7 +193,7 @@ pre-commit: install
 	@echo "✓ All pre-commit checks passed!"
 
 # Run tests in CI environment
-ci-test: install generate-scip-proto setup-fixtures setup-scip-fixtures
+ci-test: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
 	@uv run pytest -n auto --dist loadgroup -v --cov=cicada --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 # Clean up generated files
