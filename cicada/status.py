@@ -5,7 +5,6 @@ Cicada Status Command.
 Provides diagnostic information about Cicada configuration and indexes.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +14,11 @@ from cicada.utils import (
     get_config_path,
     get_index_path,
     get_pr_index_path,
+)
+from cicada.utils.storage import (
+    get_link_info,
+    is_linked,
+    validate_linked_from,
 )
 
 
@@ -124,8 +128,15 @@ def find_agent_files(repo_path: Path) -> dict:
         (repo_path / ".vscode" / "agents", "VS Code agents"),
     ]
 
+    # Root-level markdown files that may contain cicada instructions
+    agent_md_files = [
+        (repo_path / "CLAUDE.md", "Claude Code instructions"),
+        (repo_path / "AGENTS.md", "Agent instructions"),
+    ]
+
     agents_with_cicada = []
 
+    # Check JSON agent files in editor directories
     for agent_dir, desc in agent_locations:
         if agent_dir.exists() and agent_dir.is_dir():
             for agent_file in agent_dir.glob("*.json"):
@@ -140,8 +151,25 @@ def find_agent_files(repo_path: Path) -> dict:
                                     "relative_path": str(agent_file.relative_to(repo_path)),
                                 }
                             )
-                except (OSError, json.JSONDecodeError):
+                except OSError:
                     pass
+
+    # Check root-level markdown files
+    for md_file, desc in agent_md_files:
+        if md_file.exists() and md_file.is_file():
+            try:
+                with open(md_file) as f:
+                    content = f.read()
+                    if "cicada" in content.lower():
+                        agents_with_cicada.append(
+                            {
+                                "file": str(md_file),
+                                "description": desc,
+                                "relative_path": str(md_file.relative_to(repo_path)),
+                            }
+                        )
+            except OSError:
+                pass
 
     return {
         "total_found": len(agents_with_cicada),
@@ -176,7 +204,7 @@ def find_mcp_files(repo_path: Path) -> dict:
             "editor": "VS Code",
         },
         {
-            "path": repo_path / ".gemini" / "mcp.json",
+            "path": repo_path / ".gemini" / "settings.json",
             "description": "Gemini CLI config",
             "editor": "Gemini CLI",
         },
@@ -238,8 +266,8 @@ def _determine_tier(extraction_method: str, expansion_method: str) -> str:
     if extraction_method == "regular" and expansion_method == "lemmi":
         return "fast"
 
-    # Regular tier: bert_small extraction + glove expansion
-    if extraction_method == "bert_small" and expansion_method == "glove":
+    # Regular tier: regular extraction + glove expansion
+    if extraction_method == "regular" and expansion_method == "glove":
         return "regular"
 
     # Max tier: bert_large extraction + fasttext expansion
@@ -337,6 +365,51 @@ def check_repository(repo_path: Path) -> None:
         print("✗ No MCP config files found")
     print()
 
+    # 5. Link status
+    print("5. LINK STATUS")
+    print("-" * 70)
+
+    # Check forward link (this repo links to another)
+    has_forward_link = is_linked(repo_path)
+    if has_forward_link:
+        link_info = get_link_info(repo_path)
+        if link_info:
+            print(f"This repo links to: {link_info.get('source_repo_path', 'unknown')}")
+            if link_info.get("linked_at"):
+                print(f"  Linked at: {link_info['linked_at']}")
+    else:
+        print("This repo is not linked to any source repository")
+
+    print()
+
+    # Check reverse links (other repos link to this one)
+    validation_results = validate_linked_from(repo_path)
+    valid_links = []
+    stale_links = []
+    for entry, is_valid, reason in validation_results:
+        if is_valid:
+            valid_links.append((entry, reason))
+        else:
+            stale_links.append((entry, reason))
+
+    if valid_links:
+        print(f"Repositories linking to this ({len(valid_links)} valid):")
+        for entry, _ in valid_links:
+            print(f"  • {entry.get('target_repo_path', 'unknown')}")
+    else:
+        print("No other repositories link to this repo")
+
+    if stale_links:
+        print()
+        print(f"Stale reverse links ({len(stale_links)}):")
+        for entry, reason in stale_links:
+            print(f"  • {entry.get('target_repo_path', 'unknown')} ({reason})")
+
+    print()
+
+    # Check if there are any active links
+    has_any_links = has_forward_link or len(valid_links) > 0
+
     # Summary
     print("=" * 70)
     status_items = [
@@ -344,6 +417,7 @@ def check_repository(repo_path: Path) -> None:
         ("PR Index", pr_info["exists"]),
         ("Agent files", agents["total_found"] > 0),
         ("MCP files", mcp_files["total_found"] > 0),
+        ("Links", has_any_links),
     ]
 
     configured_count = sum(1 for _, exists in status_items if exists)

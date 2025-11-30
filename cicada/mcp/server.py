@@ -19,17 +19,8 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from cicada.command_logger import get_logger
-from cicada.git import GitHelper
 from cicada.mcp.config_manager import ConfigManager
-from cicada.mcp.handlers import (
-    AnalysisHandler,
-    FunctionSearchHandler,
-    GitHistoryHandler,
-    ModuleSearchHandler,
-    PRHistoryHandler,
-)
-from cicada.mcp.handlers.index_manager import IndexManager
-from cicada.mcp.router import ToolRouter
+from cicada.mcp.router import create_tool_router
 from cicada.mcp.tools import get_tool_definitions
 
 
@@ -49,42 +40,22 @@ class CicadaServer:
             config_path = ConfigManager.get_config_path()
         self.config = ConfigManager.load_config(config_path)
 
-        # Initialize index manager
-        self.index_manager = IndexManager(self.config)
+        # Create router using shared factory
+        self.router, self.index_manager, self.git_helper = create_tool_router(self.config)
 
-        # Initialize git helper
-        repo_path = self.config.get("repository", {}).get("path", ".")
-        self.git_helper: GitHelper | None = None
-        try:
-            self.git_helper = GitHelper(repo_path)
-        except Exception as e:
-            # If git initialization fails, set to None
-            # (e.g., not a git repository)
-            print(f"Warning: Git helper not available: {e}", file=sys.stderr)
-
-        # Initialize handlers
-        self.module_handler = ModuleSearchHandler(self.index_manager.index, self.config)
-        self.function_handler = FunctionSearchHandler(self.index_manager.index, self.config)
-        self.git_handler = GitHistoryHandler(self.git_helper, self.config)
-        self.pr_handler = PRHistoryHandler(self.index_manager.pr_index, self.config)
-        self.analysis_handler = AnalysisHandler(
-            self.index_manager.index, self.index_manager.has_keywords
-        )
-
-        # Initialize router
-        self.router = ToolRouter(
-            module_handler=self.module_handler,
-            function_handler=self.function_handler,
-            git_handler=self.git_handler,
-            pr_handler=self.pr_handler,
-            analysis_handler=self.analysis_handler,
-        )
+        # Expose handlers for test access (these are also available via router)
+        self.module_handler = self.router.module_handler
+        self.function_handler = self.router.function_handler
+        self.git_handler = self.router.git_handler
+        self.pr_handler = self.router.pr_handler
+        self.analysis_handler = self.router.analysis_handler
 
         # Initialize MCP server
         self.server = Server("cicada")
 
-        # Initialize command logger
-        self.logger = get_logger()
+        # Initialize command logger with repo path for per-project tracking
+        repo_path = self.config.get("repository", {}).get("path", ".")
+        self.logger = get_logger(repo_path=repo_path)
 
         # Register handlers
         _ = self.server.list_tools()(self.list_tools)
@@ -96,7 +67,7 @@ class CicadaServer:
 
     async def call_tool_with_logging(self, name: str, arguments: dict) -> list[TextContent]:
         """Wrapper for call_tool that logs execution details."""
-        # Reload index if it has been modified
+        # Reload index if it has been modified (e.g., by background refresh)
         self.index_manager.reload_if_changed()
 
         # Record start time
@@ -128,35 +99,47 @@ class CicadaServer:
                 error=error_msg,
             )
 
+            # Trigger background refresh check after tool completes (non-blocking)
+            # This schedules a refresh if source files have changed since last index
+            self.index_manager.request_background_refresh_if_stale()
+
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent]:
         """Handle tool calls."""
-        # Route to appropriate handler with callbacks for PR info and staleness check
+        # Route to appropriate handler with callbacks for PR info, staleness, and refresh
         return await self.router.route_tool(
             name=name,
             arguments=arguments,
             pr_info_callback=self.pr_handler.get_recent_pr_info,
             staleness_info_callback=self.index_manager.check_staleness,
+            refresh_callback=self.index_manager.force_refresh,
         )
 
     async def run(self):
         """Run the MCP server."""
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream, write_stream, self.server.create_initialization_options()
-            )
+        try:
+            async with stdio_server() as (read_stream, write_stream):
+                await self.server.run(
+                    read_stream, write_stream, self.server.create_initialization_options()
+                )
+        finally:
+            # Clean up background refresh manager on shutdown
+            self.index_manager.stop_background_refresh()
 
 
 async def async_main():
     """Async main entry point."""
+    import asyncio
+    from contextlib import suppress
 
-    # Set up signal handlers for clean shutdown
-    def signal_handler(signum, _frame):
-        """Handle signals by exiting cleanly."""
-        print(f"Received signal {signum}, shutting down...", file=sys.stderr)
-        sys.exit(0)
+    # Create a shutdown event for clean async cancellation
+    shutdown_event = asyncio.Event()
 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+    loop = asyncio.get_running_loop()
+
+    def request_shutdown(*args, **_kwargs) -> None:
+        """Signal the server to shut down."""
+
+        shutdown_event.set()
 
     try:
         # Check if setup is needed before starting server
@@ -164,21 +147,58 @@ async def async_main():
         original_stdout = sys.stdout
         try:
             sys.stdout = sys.stderr
-            _auto_setup_if_needed()
+            # Pass shutdown_event to allow interruption (e.g., if running in executor or checking later)
+            # Note: Standard KeyboardInterrupt handles aborts during synchronous setup
+            _auto_setup_if_needed(shutdown_event)
         finally:
             sys.stdout = original_stdout
 
+        if shutdown_event.is_set():
+            return
+
+        # Prefer asyncio-native signal handling to avoid race conditions
+        # Register handlers AFTER synchronous setup to avoid blocking them or handling signals too early
+        signals_to_handle = [signal.SIGINT]
+        if hasattr(signal, "SIGTERM"):
+            signals_to_handle.append(signal.SIGTERM)
+
+        for sig in signals_to_handle:
+            try:
+                loop.add_signal_handler(sig, request_shutdown)
+            except (NotImplementedError, RuntimeError):
+                # Fallback for platforms without add_signal_handler support
+                signal.signal(sig, lambda *_: loop.call_soon_threadsafe(request_shutdown))
         server = CicadaServer()
-        await server.run()
-    except KeyboardInterrupt:
-        print("Server interrupted, shutting down...", file=sys.stderr)
-        sys.exit(0)
+
+        # Run server with shutdown event monitoring
+        server_task = asyncio.create_task(server.run())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Wait for either server completion or shutdown signal
+        done, pending = await asyncio.wait(
+            [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Propagate exceptions from completed tasks
+        for task in done:
+            if task.cancelled():
+                continue
+            exception = task.exception()
+            if exception:
+                raise exception
+
+        # Cancel any remaining tasks (e.g., server_task during shutdown)
+        for task in pending:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
     except Exception as e:
         print(f"Error starting server: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def _auto_setup_if_needed():
+def _auto_setup_if_needed(shutdown_event=None):
     """
     Automatically run setup if the repository hasn't been indexed yet.
 
@@ -191,6 +211,12 @@ def _auto_setup_if_needed():
         get_config_path,
         get_index_path,
     )
+
+    def _ensure_not_shutdown():
+        if shutdown_event and shutdown_event.is_set():
+            raise KeyboardInterrupt
+
+    _ensure_not_shutdown()
 
     # Determine repository path from environment or current directory
     repo_path_str = None
@@ -222,20 +248,29 @@ def _auto_setup_if_needed():
         return
 
     # Setup needed - create storage and index (silent mode)
-    # Validate it's an Elixir project
-    if not (repo_path / "mix.exs").exists():
-        print(
-            f"Error: {repo_path} does not appear to be an Elixir project (mix.exs not found)",
-            file=sys.stderr,
-        )
+    # Validate it's a supported project type
+    from cicada.setup import detect_project_language
+
+    _ensure_not_shutdown()
+
+    try:
+        language = detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    _ensure_not_shutdown()
 
     try:
         # Create storage directory
         storage_dir = create_storage_dir(repo_path)
 
+        _ensure_not_shutdown()
+
         # Index repository (silent mode)
-        index_repository(repo_path, verbose=False)
+        index_repository(repo_path, language, verbose=False)
+
+        _ensure_not_shutdown()
 
         # Create config.yaml (silent mode)
         create_config_yaml(repo_path, storage_dir, verbose=False)
@@ -266,7 +301,11 @@ def main():
         os.environ["CICADA_CONFIG_DIR"] = str(storage_dir)
         os.environ["_CICADA_REPO_PATH_ARG"] = str(abs_path)
 
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        # Suppress traceback on Ctrl+C, exit cleanly
+        sys.exit(0)
 
 
 if __name__ == "__main__":

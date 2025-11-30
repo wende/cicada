@@ -26,6 +26,25 @@ class ConfigManager:
         # Check if CICADA_CONFIG_DIR is set (direct path to storage directory)
         config_dir = os.environ.get("CICADA_CONFIG_DIR")
         if config_dir:
+            # Check if this storage directory contains a link
+            storage_path = Path(config_dir)
+            link_file = storage_path / "link.yaml"
+
+            if link_file.exists():
+                # This is a linked repository - resolve to source storage
+                try:
+                    with open(link_file) as f:
+                        link_data = yaml.safe_load(f)
+                        if link_data and "source_storage_dir" in link_data:
+                            source_dir = link_data["source_storage_dir"]
+                            # Validate value is a non-empty string
+                            if isinstance(source_dir, str) and source_dir.strip():
+                                # Use the source storage directory's config
+                                return str(Path(source_dir) / "config.yaml")
+                except (yaml.YAMLError, OSError, KeyError, TypeError):
+                    # If link is corrupted, fall through to using config_dir directly
+                    pass
+
             return str(Path(config_dir) / "config.yaml")
 
         # Determine repository path from environment or current directory

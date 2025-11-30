@@ -8,7 +8,7 @@ This guide provides step-by-step instructions for installing Cicada MCP server i
 
 - **Cursor** editor installed
 - **uv** package manager ([installation guide](https://docs.astral.sh/uv/getting-started/installation/))
-- An **Elixir project** to analyze
+- An **Elixir or Python project** to analyze
 
 ---
 
@@ -55,7 +55,7 @@ fish_add_path ~/.local/bin
 
 #### Step 3: Initialize Your Project
 
-Navigate to your Elixir project and run:
+Navigate to your Elixir or Python project and run:
 
 ```bash
 cd /path/to/your/elixir/project
@@ -100,7 +100,7 @@ In your project root, create `.mcp.json`:
 }
 ```
 
-**Important:** Replace `/absolute/path/to/your/project` with the actual absolute path to your Elixir project.
+**Important:** Replace `/absolute/path/to/your/project` with the actual absolute path to your Elixir or Python project.
 
 #### Step 3: Index Your Project
 
@@ -119,7 +119,7 @@ Restart Cursor for the changes to take effect.
 
 After installation, verify Cicada is working:
 
-1. **Open Cursor** in your Elixir project
+1. **Open Cursor** in your Elixir or Python project
 2. **Open the Composer** (Cmd+K or Ctrl+K)
 3. **Try these commands:**
    - "Show me the User module"

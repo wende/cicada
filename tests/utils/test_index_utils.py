@@ -3,6 +3,10 @@ Comprehensive tests for cicada/utils/index_utils.py
 """
 
 import json
+import os
+import threading
+import time
+from pathlib import Path
 
 import pytest
 
@@ -22,20 +26,52 @@ def sample_index():
     return {
         "modules": {
             "lib/my_module.ex": {
+                "file": "lib/my_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "my_func", "arity": 2, "type": "def"},
-                    {"name": "private_func", "arity": 1, "type": "defp"},
-                ]
+                    {
+                        "name": "my_func",
+                        "arity": 2,
+                        "args": ["x", "y"],
+                        "type": "def",
+                        "visibility": "public",
+                        "line": 2,
+                        "signature": "my_func(x, y)",
+                    },
+                    {
+                        "name": "private_func",
+                        "arity": 1,
+                        "args": ["x"],
+                        "type": "defp",
+                        "visibility": "private",
+                        "line": 5,
+                        "signature": "private_func(x)",
+                    },
+                ],
             },
             "lib/other_module.ex": {
+                "file": "lib/other_module.ex",
+                "line": 1,
                 "functions": [
-                    {"name": "other_func", "arity": 0, "type": "def"},
-                ]
+                    {
+                        "name": "other_func",
+                        "arity": 0,
+                        "args": [],
+                        "type": "def",
+                        "visibility": "public",
+                        "line": 2,
+                        "signature": "other_func()",
+                    },
+                ],
             },
         },
         "metadata": {
-            "version": "1.0",
-            "timestamp": "2025-01-01T00:00:00Z",
+            "indexed_at": "2025-01-01T00:00:00Z",
+            "total_modules": 2,
+            "total_functions": 3,
+            "repo_path": "/test/repo",
+            "language": "elixir",
+            "version": "2.0",
         },
     }
 
@@ -212,6 +248,83 @@ class TestSaveIndex:
         with open(output_path) as f:
             loaded = json.load(f)
         assert loaded == sample_index
+
+    def test_save_index_atomic_no_temp_files_left(self, tmp_path, sample_index):
+        """Test that atomic save doesn't leave temp files on success"""
+        output_path = tmp_path / "output.json"
+        save_index(sample_index, output_path)
+
+        # Check no temp files remain
+        temp_files = list(tmp_path.glob(".index_*.tmp"))
+        assert len(temp_files) == 0
+
+        # But the actual file should exist
+        assert output_path.exists()
+
+    def test_save_index_atomic_concurrent_read_safe(self, tmp_path, sample_index):
+        """Test that atomic save allows concurrent reads without corruption"""
+        output_path = tmp_path / "output.json"
+        save_index(sample_index, output_path)
+
+        errors = []
+        reads_completed = []
+
+        def reader():
+            """Continuously read the index file"""
+            for _ in range(50):
+                try:
+                    result = load_index(output_path)
+                    if result is not None:
+                        reads_completed.append(True)
+                        # Should always be valid JSON if we got a result
+                        assert "modules" in result or "metadata" in result
+                except Exception as e:
+                    errors.append(str(e))
+                time.sleep(0.001)
+
+        def writer():
+            """Repeatedly save the index"""
+            for i in range(20):
+                modified = sample_index.copy()
+                modified["metadata"] = {"iteration": i}
+                save_index(modified, output_path)
+                time.sleep(0.002)
+
+        # Start reader and writer concurrently
+        reader_thread = threading.Thread(target=reader)
+        writer_thread = threading.Thread(target=writer)
+
+        reader_thread.start()
+        writer_thread.start()
+
+        reader_thread.join()
+        writer_thread.join()
+
+        # No JSON decode errors during concurrent access
+        json_errors = [e for e in errors if "JSON" in e or "decode" in e.lower()]
+        assert len(json_errors) == 0, f"Got JSON errors: {json_errors}"
+        # Some reads should have completed successfully
+        assert len(reads_completed) > 0
+
+    def test_save_index_cleans_up_on_failure(self, tmp_path, monkeypatch):
+        """Test that temp file is cleaned up on failure"""
+        output_path = tmp_path / "output.json"
+
+        # Mock json.dump to raise an exception
+        def mock_dump(*args, **kwargs):
+            raise ValueError("Simulated serialization error")
+
+        monkeypatch.setattr(json, "dump", mock_dump)
+
+        with pytest.raises(ValueError):
+            save_index({"test": "data"}, output_path)
+
+        # No temp files should remain
+        temp_files = list(tmp_path.glob(".index_*.tmp"))
+        assert len(temp_files) == 0
+
+        # And the output file should not exist
+        assert not output_path.exists()
 
 
 class TestValidateIndexStructure:
@@ -461,8 +574,8 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "def"},
-                        {"name": "func2", "type": "def"},
+                        {"name": "func1", "type": "def", "visibility": "public"},
+                        {"name": "func2", "type": "def", "visibility": "public"},
                     ]
                 }
             }
@@ -479,8 +592,8 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "defp"},
-                        {"name": "func2", "type": "defp"},
+                        {"name": "func1", "type": "defp", "visibility": "private"},
+                        {"name": "func2", "type": "defp", "visibility": "private"},
                     ]
                 }
             }
@@ -491,14 +604,14 @@ class TestGetIndexStats:
         assert stats["public_functions"] == 0
         assert stats["private_functions"] == 2
 
-    def test_get_stats_functions_without_type(self):
-        """Test stats with functions missing type field"""
+    def test_get_stats_functions_without_visibility(self):
+        """Test stats with functions missing visibility field"""
         index = {
             "modules": {
                 "mod1": {
                     "functions": [
                         {"name": "func1"},
-                        {"name": "func2", "type": "def"},
+                        {"name": "func2", "visibility": "public"},
                     ]
                 }
             }
@@ -510,15 +623,15 @@ class TestGetIndexStats:
         assert stats["private_functions"] == 0
 
     def test_get_stats_mixed_function_types(self):
-        """Test stats with various function types"""
+        """Test stats with various visibility values"""
         index = {
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "func1", "type": "def"},
-                        {"name": "func2", "type": "defp"},
-                        {"name": "func3", "type": "defmacro"},  # Should not be counted
-                        {"name": "func4", "type": "def"},
+                        {"name": "func1", "type": "def", "visibility": "public"},
+                        {"name": "func2", "type": "defp", "visibility": "private"},
+                        {"name": "func3", "type": "defmacro"},  # No visibility - not counted
+                        {"name": "func4", "type": "def", "visibility": "public"},
                     ]
                 }
             }
@@ -534,19 +647,19 @@ class TestGetIndexStats:
             "modules": {
                 "mod1": {
                     "functions": [
-                        {"name": "f1", "type": "def"},
-                        {"name": "f2", "type": "defp"},
+                        {"name": "f1", "type": "def", "visibility": "public"},
+                        {"name": "f2", "type": "defp", "visibility": "private"},
                     ]
                 },
                 "mod2": {
                     "functions": [
-                        {"name": "f3", "type": "def"},
+                        {"name": "f3", "type": "def", "visibility": "public"},
                     ]
                 },
                 "mod3": {
                     "functions": [
-                        {"name": "f4", "type": "defp"},
-                        {"name": "f5", "type": "defp"},
+                        {"name": "f4", "type": "defp", "visibility": "private"},
+                        {"name": "f5", "type": "defp", "visibility": "private"},
                     ]
                 },
             }
@@ -683,7 +796,7 @@ class TestMergeIndexesIncremental:
             "modules": {
                 "Module1": {
                     "file": "lib/module1.ex",
-                    "functions": [{"name": "func1", "type": "def"}],
+                    "functions": [{"name": "func1", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},
@@ -694,8 +807,8 @@ class TestMergeIndexesIncremental:
                 "Module2": {
                     "file": "lib/module2.ex",
                     "functions": [
-                        {"name": "func2", "type": "def"},
-                        {"name": "func3", "type": "defp"},
+                        {"name": "func2", "type": "def", "visibility": "public"},
+                        {"name": "func3", "type": "defp", "visibility": "private"},
                     ],
                 },
             },
@@ -762,15 +875,15 @@ class TestMergeIndexesIncremental:
             "modules": {
                 "Unchanged": {
                     "file": "lib/unchanged.ex",
-                    "functions": [{"name": "f1", "type": "def"}],
+                    "functions": [{"name": "f1", "type": "def", "visibility": "public"}],
                 },
                 "ToBeUpdated": {
                     "file": "lib/updated.ex",
-                    "functions": [{"name": "f2", "type": "def"}],
+                    "functions": [{"name": "f2", "type": "def", "visibility": "public"}],
                 },
                 "ToBeDeleted": {
                     "file": "lib/deleted.ex",
-                    "functions": [{"name": "f3", "type": "def"}],
+                    "functions": [{"name": "f3", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},
@@ -781,13 +894,13 @@ class TestMergeIndexesIncremental:
                 "ToBeUpdated": {
                     "file": "lib/updated.ex",
                     "functions": [
-                        {"name": "f2", "type": "def"},
-                        {"name": "f4", "type": "defp"},
+                        {"name": "f2", "type": "def", "visibility": "public"},
+                        {"name": "f4", "type": "defp", "visibility": "private"},
                     ],
                 },
                 "NewModule": {
                     "file": "lib/new.ex",
-                    "functions": [{"name": "f5", "type": "def"}],
+                    "functions": [{"name": "f5", "type": "def", "visibility": "public"}],
                 },
             },
             "metadata": {},

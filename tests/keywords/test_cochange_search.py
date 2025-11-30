@@ -152,12 +152,12 @@ class TestCoChangeSearch:
         # Act
         results = searcher.search(["authentication"], top_n=10)
 
-        # Assert - results should exist but not be boosted
+        # Assert - results should exist but not be boosted by co-change
         assert len(results) > 0
-        # Scores should be based solely on keyword matching
+        # Scores should be based on keyword matching with coverage bonus
         result = next(r for r in results if r["module"] == "ModuleA")
-        # Base score should be around 0.9 (keyword weight for "authentication")
-        assert 0.8 <= result["score"] <= 1.0
+        # Base score: 0.9, Coverage: 100% → multiplier 1.6, Final: 0.9 × 1.6 = 1.44
+        assert 1.28 <= result["score"] <= 1.6
 
     def test_cochange_boost_strength_configurable(self, index_with_cochange):
         """Test that boost strength is configurable."""

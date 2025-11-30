@@ -2,7 +2,7 @@
 Comprehensive tests for cicada/parser.py
 """
 
-from cicada.elixir.parser import ElixirParser
+from cicada.languages.elixir.parser import ElixirParser
 
 
 class TestElixirParserErrorHandling:
@@ -62,12 +62,12 @@ end
         monkeypatch.setattr(sys, "argv", ["parser.py", str(test_file)])
 
         # Clear module from cache to avoid import order warning
-        if "cicada.elixir.parser" in sys.modules:
-            del sys.modules["cicada.elixir.parser"]
+        if "cicada.languages.elixir.parser" in sys.modules:
+            del sys.modules["cicada.languages.elixir.parser"]
 
         # Execute the main block by running the module
         try:
-            runpy.run_module("cicada.elixir.parser", run_name="__main__")
+            runpy.run_module("cicada.languages.elixir.parser", run_name="__main__")
         except SystemExit:
             pass  # main() may call sys.exit()
 
@@ -83,12 +83,12 @@ end
         monkeypatch.setattr(sys, "argv", ["parser.py"])
 
         # Clear module from cache to avoid import order warning
-        if "cicada.elixir.parser" in sys.modules:
-            del sys.modules["cicada.elixir.parser"]
+        if "cicada.languages.elixir.parser" in sys.modules:
+            del sys.modules["cicada.languages.elixir.parser"]
 
         # Execute the main block
         try:
-            runpy.run_module("cicada.elixir.parser", run_name="__main__")
+            runpy.run_module("cicada.languages.elixir.parser", run_name="__main__")
         except SystemExit:
             pass
 
@@ -104,12 +104,12 @@ end
         monkeypatch.setattr(sys, "argv", ["parser.py", "/nonexistent/file.ex"])
 
         # Clear module from cache to avoid import order warning
-        if "cicada.elixir.parser" in sys.modules:
-            del sys.modules["cicada.elixir.parser"]
+        if "cicada.languages.elixir.parser" in sys.modules:
+            del sys.modules["cicada.languages.elixir.parser"]
 
         # Execute the main block
         try:
-            runpy.run_module("cicada.elixir.parser", run_name="__main__")
+            runpy.run_module("cicada.languages.elixir.parser", run_name="__main__")
         except SystemExit:
             pass
 

@@ -6,7 +6,7 @@ import pytest
 import tree_sitter_elixir
 from tree_sitter import Language, Parser
 
-from cicada.elixir.extractors.call import extract_function_calls
+from cicada.languages.elixir.extractors.call import extract_function_calls
 
 
 class TestExtractFunctionCalls:
@@ -16,7 +16,7 @@ class TestExtractFunctionCalls:
     def parser(self):
         """Create a tree-sitter parser for Elixir"""
         parser = Parser()
-        parser.language = Language(tree_sitter_elixir.language())
+        parser.language = Language(tree_sitter_elixir.language())  # type: ignore[deprecated]
         return parser
 
     def test_excludes_module_attributes_from_calls(self, parser):

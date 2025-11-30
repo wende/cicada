@@ -6,7 +6,7 @@ import pytest
 import tree_sitter_elixir as ts_elixir
 from tree_sitter import Language, Parser
 
-from cicada.elixir.extractors import extract_functions, extract_modules
+from cicada.languages.elixir.extractors import extract_functions, extract_modules
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ class TestCommentExtractorInitialization:
 
     def test_default_initialization(self):
         """Test CommentExtractor with default parameters."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         extractor = CommentExtractor()
         assert extractor.min_length == 3
@@ -57,7 +57,7 @@ class TestCommentExtractorInitialization:
 
     def test_custom_initialization(self):
         """Test CommentExtractor with custom parameters."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         extractor = CommentExtractor(min_length=5, merge_consecutive=False)
         assert extractor.min_length == 5
@@ -69,7 +69,7 @@ class TestBasicCommentExtraction:
 
     def test_extracts_inline_comments(self, sample_comments_module):
         """Test that inline comments inside functions are extracted."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -96,7 +96,7 @@ class TestBasicCommentExtraction:
 
     def test_strips_hash_prefix(self, sample_comments_module):
         """Test that # prefix is stripped from comment text."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -113,7 +113,7 @@ class TestBasicCommentExtraction:
 
     def test_skips_short_comments(self, sample_comments_module):
         """Test that comments shorter than min_length are filtered."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -145,7 +145,7 @@ class TestCommentBeforeFunction:
 
     def test_top_level_comments_associate_with_first_function(self, sample_comments_module):
         """Test that top-level comments are associated with the first function."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -167,7 +167,7 @@ class TestCommentBeforeFunction:
 
     def test_comments_before_function_associate_with_that_function(self, sample_comments_module):
         """Test that comments before a function definition are associated with it."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -190,7 +190,7 @@ class TestConsecutiveCommentMerging:
 
     def test_merges_consecutive_comments(self, sample_comments_module):
         """Test that consecutive comment lines are merged into blocks."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -225,7 +225,7 @@ class TestConsecutiveCommentMerging:
 
     def test_no_merge_with_flag_disabled(self, sample_comments_module):
         """Test that consecutive comments are NOT merged when flag is False."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -263,7 +263,7 @@ class TestSpecialCommentMarkers:
 
     def test_extracts_todo_fixme_bug_markers(self, sample_comments_module):
         """Test that comments with TODO, FIXME, BUG are extracted."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -288,7 +288,7 @@ class TestFunctionContextTracking:
 
     def test_associates_comments_with_correct_functions(self, sample_comments_module):
         """Test that comments are associated with the correct functions."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -311,7 +311,7 @@ class TestFunctionContextTracking:
 
     def test_private_functions_extract_comments(self, sample_comments_module):
         """Test that private functions (defp) also have their comments extracted."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -334,7 +334,7 @@ class TestEdgeCases:
 
     def test_function_with_no_comments(self, sample_comments_module):
         """Test function with no comments returns empty or is absent."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -350,7 +350,7 @@ class TestEdgeCases:
 
     def test_nested_structures_extract_comments(self, sample_comments_module):
         """Test comments in nested structures (if/case/etc) are extracted."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 
@@ -371,7 +371,7 @@ class TestEdgeCases:
 
     def test_empty_module_or_no_functions(self, parser):
         """Test handling of modules with no functions."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         # Create a minimal module with no functions
         source_code = b"""
@@ -397,7 +397,7 @@ class TestEdgeCases:
 
     def test_line_numbers_are_accurate(self, sample_comments_module):
         """Test that line numbers in extracted comments are accurate."""
-        from cicada.elixir.extractors import CommentExtractor
+        from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
 

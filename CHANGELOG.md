@@ -5,6 +5,272 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.2] - 2025-11-30
+
+### Fixed
+
+**Incremental Indexing Race Conditions (#206)**
+- Add reindex lock to prevent concurrent indexing in watcher
+- Fix hash path format mismatch (accept both dir and file paths)
+- Compute hashes once at start to fix pending reindex race condition
+- Prevent concurrent repository reindex operations with lock release on errors
+- Eliminate race conditions by computing file hashes once at start and reusing them
+
+**Co-change Analysis Performance (#200)**
+- Fix performance explosion in co-change analysis
+- Optimized algorithm to prevent exponential time complexity
+
+**Legacy Path References (#197)**
+- Fix legacy .cicada/index.json path references
+- Update indexer.py CLI to use get_index_path() for centralized storage
+
+**Watcher Language Detection (#199)**
+- Fix watcher to use LanguageRegistry.get_indexer() based on detected project language
+- Remove forced version mismatch reindexing
+
+### Improvements
+
+**Partial SCIP Indexing (#206)**
+- Add --target-only support for partial SCIP indexing on changed directories
+- Skip keyword extraction and timestamp computation for unchanged modules
+- Copy existing keywords/timestamps from previous index for unchanged files
+- Compute minimal common target directory for changed Python files
+- Add verbose logging for incremental indexing with reused data statistics
+
+**Test Infrastructure (#201, #204)**
+- Sandbox test targets to avoid modifying global cicada installation
+- Clean up long-running tests to improve CI performance
+- Update and extend Python indexer tests for hash-based change detection
+
+**Automatic Fallback Searches (#198)**
+- When a function search fails, automatically try relaxed searches
+- Without module qualifier, without arity constraint, or private function variant
+- Results include notes explaining which fallback was used
+- Improved semantic search suggestions by splitting function names into keywords
+
+### Features
+
+**Erlang Language Support (#183)**
+- Full Erlang code indexing via tree-sitter parsing
+- Extract modules, functions, arity, line numbers, and visibility
+- EDoc extraction with keyword search support (@doc, @param, @returns tags)
+- Erlang notation formatting (module:func/arity)
+- Automatic language detection via rebar.config, erlang.mk, or src/*.erl
+- Tested on PURITY and cowboy
+
+**CLI Tool Execution (#202)**
+- Add `cicada run [tool]` command to execute all MCP tools from CLI
+- Tools can be run identically to their MCP behavior directly from command line
+
+**Universal Visibility Field (#205)**
+- Add normalized 'visibility' field ('public'/'private') separate from language-specific 'type' field
+- Enables consistent public/private classification across all supported languages
+- Backward compatible with existing indexes
+
+**Language-Specific Function Formatters (#203)**
+- Add format_function_name() to language formatter interface
+- Elixir: show args if available, otherwise /arity notation
+- Python: show args filtering out self/cls/arg0 implicit params
+- Erlang: use /arity notation (module:func/arity)
+
+**Multithreaded Indexing (#195)**
+- Parallel file processing during indexing for significant performance improvements
+- Faster index builds especially on larger codebases
+
+**Language-Agnostic Watcher (#199)**
+- Watcher now uses LanguageRegistry to detect project language automatically
+- Renamed ElixirFileEventHandler to SourceFileEventHandler with configurable extensions
+- Added fallback to index_repository() for indexers without incremental support
+- Shows detected language and watched file extensions in output
+
+### Improvements
+
+**Code Refactoring (#196)**
+- Extract shared helpers for keyword extraction, git timestamps, and module building
+- Refactor indexer to use shared helpers, eliminating ~200 lines of duplication
+- Extract handler methods from route_tool for better maintainability
+- Net reduction: -670 lines of code
+
+### Fixed (from v0.5.1)
+
+**Graceful Shutdown for Ctrl+C (#193)**
+- Fixed graceful shutdown during indexing when interrupted with Ctrl+C
+
+**Duplicate Git Helper Initialization (#196)**
+- Fix duplicate git_helper initialization bug in incremental indexer
+
+## [0.5.1] - 2025-11-28
+
+### Features
+
+**Stats and Usage Tracking (#189)**
+- Add `cicada stats` command to display per-project usage statistics
+- Track all MCP tool executions with accurate token counting
+- Support multiple output formats: summary (default), detailed, time-series, JSON
+- Add filtering by tool, date range, and time period
+- Include project statistics (modules, functions, keywords) in output
+- Add reset functionality to manage log files
+
+**CLI Tool Execution (#187)**
+- Add `cicada run [tool]` command to execute all 7 MCP tools from CLI
+- Tools can be run identically to their MCP behavior directly from command line
+
+**Agent Installation (#188)**
+- Add `cicada agents install` command to programmatically install Claude Code agents
+- Installs agents locally to `./.claude/` directory (project-scoped)
+- Starts with cicada-code-explorer agent
+
+**Link Status Tracking (#182)**
+- Add bidirectional link tracking: `cicada link` now registers reverse links
+- Add "LINK STATUS" section to `cicada status` showing:
+  - Forward links (repos this one links to)
+  - Reverse links (repos linking to this one)
+  - Stale link detection with reasons
+
+**Automatic Index Refresh (#185)**
+- Add automatic background index refresh for MCP server
+- Add `refresh_index` tool for manual index refresh
+- Add debouncing (2s) and cooldown (15s) to prevent excessive refreshes
+- Add graceful shutdown to stop pending refresh operations
+
+**Graceful Ctrl+C Shutdown (#191)**
+- Ctrl+C during indexing now exits cleanly instead of crashing
+- Python indexer saves partial progress when interrupted during enrichment phases
+- Elixir saves partial progress, Python saves after SCIP conversion completes
+
+### Improvements
+
+**Co-change Analysis Optimization (#190)**
+- 15-20x faster co-change analysis (60-120s → ~1s for typical repos)
+- Now enabled by default during indexing
+- Add `--no-cochange` CLI flag to disable if needed
+- Display "Often Changed With" section in module search output
+
+**Compact Output Mode (#186)**
+- Add compact output mode for all MCP tools to reduce token usage
+- `query`: Compact keyword indicators (d)/(s)/(d+s), confidence only in verbose mode
+- `search_module`: Hide moduledoc and specs by default, add verbose parameter
+- `search_function`: Hide docs and specs by default, add verbose parameter
+- `git_history`: Compact PR output (single line), descriptions only when requested
+- `expand_result`: Auto-enables verbose mode for full details
+
+**CLI Progress Reporting (#192)**
+- CLI index/watch commands now show progress by default
+- Add `--quiet` flag for background watch processes
+- Separate keyword extraction phase for better timing visibility
+
+**Output Verbosity Reduction (#194)**
+- Replace verbose relevance labels with percentages (labels in verbose mode)
+- Compact match indicators: `auth(d)`, `login(s)` instead of `"Matched: *auth*, *login*"`
+- Convert ASCII box-drawing tier headers to markdown in dead code output
+- Shorten error messages to one-liners with actionable suggestions
+- Add return types to function listings (full specs in verbose mode)
+- Reduce suggestions from 5 to 2, co-change entries from 5 to 3
+- Change timestamp format from "Modified: X ago" to "X old"
+
+### Fixed
+
+**Graceful Shutdown for Ctrl+C (#191)**
+- Add KeyboardInterrupt handling in CLI commands for clean exit (code 130)
+- Python indexer now saves partial progress when interrupted during enrichment phases
+- Add interruptible enrichment phases helper for consistent interrupt handling
+
+## [0.5.0] - 2025-11-25
+
+### Added
+
+- **🎉 Python Language Support** ([#135](https://github.com/wende/cicada/pull/135))
+  - Full Python code indexing via SCIP (Source Code Intelligence Protocol)
+  - Complete Python code analysis: modules, classes, functions, call sites
+  - Python-specific formatting (Class.method() notation)
+  - Class display in search_module showing public/private method counts
+  - Language detection with multi-language project support
+  - 128+ tests for Python/SCIP functionality
+
+- **Language-Agnostic Architecture** ([#135](https://github.com/wende/cicada/pull/135))
+  - SCIP layer for universal code intelligence (111KB)
+  - Protobuf-based SCIP protocol support
+  - Language-specific formatters and indexers
+  - Unified index format supporting Python, Elixir, TypeScript
+  - Language detection: Python, Elixir, TypeScript/JavaScript
+  - Enhanced utilities: lookup_module, lookup_function, get_call_sites, etc.
+
+- **MCP Server Modular Architecture** ([#135](https://github.com/wende/cicada/pull/135))
+  - Refactored into separate handler modules for better maintainability
+  - Dedicated handlers: module, function, git, PR, analysis
+  - Improved code organization and testability
+
+- **Verbose flag** ([#154](https://github.com/wende/cicada/pull/154)) - Added `--verbose` flag for detailed logging and debugging
+- **PR comments command** ([#144](https://github.com/wende/cicada/pull/144)) - New `make pr-comments` command for viewing and analyzing PR discussion
+- **Keyword context display** ([#158](https://github.com/wende/cicada/pull/158)) - Enhanced search results with keyword match context showing where keywords were found
+- **Multiple keyword weighting** ([#159](https://github.com/wende/cicada/pull/159)) - Support for multiple keyword weights in search scoring
+- **Graceful shutdown** ([#153](https://github.com/wende/cicada/pull/153)) - Added signal handlers (SIGINT/SIGTERM) for clean MCP server shutdown
+- **Coverage delta reporting** ([#149](https://github.com/wende/cicada/pull/149)) - CodeCov comments now show coverage deltas
+- **Local scip-python installation** ([#178](https://github.com/wende/cicada/pull/178)) - Auto-installs scip-python to `~/.cicada/node/` avoiding global npm pollution
+
+### Changed
+
+- **Project Structure Reorganization** ([#135](https://github.com/wende/cicada/pull/135))
+  - `cicada/elixir/` → `cicada/languages/elixir/`
+  - `cicada/elixir/format/` → `cicada/format/`
+  - Language-specific code now under `cicada/languages/{lang}/`
+  - All import paths updated across codebase
+
+- **Dependencies Schema** ([#132](https://github.com/wende/cicada/pull/132))
+  - Module dependencies format changed from dict to list[dict]
+  - Added automatic truncation for large dependency results
+
+- **Python support refactoring** ([#160](https://github.com/wende/cicada/pull/160)) - Removed auto-install of scip-python and improved file handling safety
+- **Test output improvements** - Made test output more concise and less verbose ([#142](https://github.com/wende/cicada/pull/142))
+- **Markdown formatting** ([#167](https://github.com/wende/cicada/pull/167), [#169](https://github.com/wende/cicada/pull/169)) - Improved spacing after signatures and code blocks in usage output
+- **Non-TTY output** ([#170](https://github.com/wende/cicada/pull/170)) - Use asterisk keyword highlights in non-TTY output
+- **Documentation** ([#177](https://github.com/wende/cicada/pull/177)) - Refactored CLAUDE.md into modular documentation structure
+- **Documentation updates** - Revised installation and command usage in README
+
+### Fixed
+
+- **Search Query Tokenization** ([#131](https://github.com/wende/cicada/pull/131))
+  - Fixed query tokenization to properly handle wildcard patterns
+  - Improved pattern matching for module-qualified searches
+  - Better handling of OR patterns with spaces
+
+- **Dependency Analysis Output** ([#132](https://github.com/wende/cicada/pull/132))
+  - Fixed missing `detailed_dependencies` output in dependency analysis
+  - Added truncation to prevent token overflow on large results
+
+- **Gemini CLI Configuration** ([#130](https://github.com/wende/cicada/pull/130))
+  - Fixed config path to use `settings.json` instead of `.gemini/config.json`
+
+- **Class docstring display** ([#136](https://github.com/wende/cicada/pull/136)) - Fixed class docstring display in `expand_result` tool
+- **Wildcard matching** ([#137](https://github.com/wende/cicada/pull/137)) - Fixed wildcard match confidence scoring and z-score tier grading
+- **Python MCP tools** ([#139](https://github.com/wende/cicada/pull/139), [#151](https://github.com/wende/cicada/pull/151)) - Fixed critical bugs including dependency crashes and pattern matching issues
+- **Python recent filter** ([#141](https://github.com/wende/cicada/pull/141)) - Fixed `recent=true` filter now works correctly for Python code
+- **Private function suggestions** ([#140](https://github.com/wende/cicada/pull/140)) - Fixed incorrect private function suggestions in `search_function`
+- **Dunder method search** ([#152](https://github.com/wende/cicada/pull/152)) - Fixed search for Python dunder methods by matching function names correctly
+- **First-time linked repo bug** ([#176](https://github.com/wende/cicada/pull/176)) - Fixed bug when using cicada with a newly linked repository
+- **Agent files detection** ([#179](https://github.com/wende/cicada/pull/179)) - Fixed cicada agent files detection and tag insertion
+
+### Performance
+
+- **Python SCIP conversion optimization** ([#175](https://github.com/wende/cicada/pull/175)) - Optimized from O(n²) to O(n) complexity, **71x faster** indexing
+
+### Internal
+
+- **Test Coverage Improvements** ([#128](https://github.com/wende/cicada/pull/128), [#145](https://github.com/wende/cicada/pull/145), [#146](https://github.com/wende/cicada/pull/146), [#147](https://github.com/wende/cicada/pull/147), [#148](https://github.com/wende/cicada/pull/148), [#150](https://github.com/wende/cicada/pull/150))
+  - Boosted test coverage for low-coverage files
+  - Added comprehensive test suites for Python support
+  - Added comprehensive tests for index lookup and reference utilities
+  - Added validation coverage for query MCP tool
+  - Added edge case tests for filter_utils and pattern_utils
+  - Overall test coverage increased to 84%
+  - 1750+ tests passing across Python and Elixir
+- **SCIP tests enforcement** ([#178](https://github.com/wende/cicada/pull/178)) - Tests now fail instead of skip when SCIP indexes are missing
+- **CI/CD improvements**
+  - Added dev branch to CI test workflow
+  - Updated pull request trigger types in workflow
+
 ## [0.4.2] - 2025-11-20
 
 ### Added
@@ -581,7 +847,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/wende/cicada/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/wende/cicada/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/wende/cicada/compare/v0.4.2...v0.5.0
+[0.4.2]: https://github.com/wende/cicada/compare/v0.4.0...v0.4.2
+[0.4.0]: https://github.com/wende/cicada/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/wende/cicada/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/wende/cicada/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/wende/cicada/compare/v0.2.3...v0.3.0

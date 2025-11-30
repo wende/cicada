@@ -8,12 +8,20 @@ Author: Cicada Team
 """
 
 import re
+import shlex
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cicada.keyword_search import KeywordSearcher
-from cicada.mcp.pattern_utils import has_wildcards, parse_function_patterns
+from cicada.mcp.pattern_utils import (
+    has_wildcards,
+    match_any_pattern,
+    matches_pattern,
+    parse_function_patterns,
+    split_or_patterns,
+)
+from cicada.query.context_extractor import format_matched_context
 from cicada.query.types import FilterConfig, QueryConfig, QueryOptions, QueryStrategy, SearchResult
 from cicada.scoring import calculate_score_distribution_with_tiers
 from cicada.utils.path_utils import matches_glob_pattern
@@ -54,9 +62,44 @@ class QueryOrchestrator:
         # If no timestamp available, exclude from "recent" filter
         return False
 
+    def _tokenize_query(self, query: str) -> list[str]:
+        """
+        Tokenize a query string into individual keywords.
+
+        Supports quoted phrases for exact matching:
+        - "agent execution" → ["agent", "execution"]
+        - '"exact phrase" other' → ["exact phrase", "other"]
+        - "agent" → ["agent"]
+
+        Args:
+            query: Query string
+
+        Returns:
+            List of keywords/phrases
+        """
+        try:
+            # Use shlex to handle quoted phrases
+            tokens = shlex.split(query)
+        except ValueError:
+            # If shlex fails (unmatched quotes), fall back to simple split
+            tokens = query.split()
+
+        return [t.strip() for t in tokens if t.strip()]
+
     def _analyze_query(self, query: str | list[str]) -> QueryStrategy:
         """
         Analyze query to determine search strategy.
+
+        String queries are tokenized by whitespace (supports quoted phrases),
+        UNLESS they contain pattern syntax (wildcards, OR, module qualifiers),
+        in which case they are preserved as-is to avoid breaking patterns.
+
+        Examples:
+        - "agent execution" → ["agent", "execution"] (two keywords)
+        - ["agent", "execution"] → ["agent", "execution"] (two keywords)
+        - '"agent execution"' → ["agent execution"] (one exact phrase keyword)
+        - "login | auth" → ["login | auth"] (OR pattern, not tokenized)
+        - "ThenvoiCom.Agent*" → ["ThenvoiCom.Agent*"] (wildcard pattern, not tokenized)
 
         Args:
             query: Query string or list of query strings
@@ -64,7 +107,21 @@ class QueryOrchestrator:
         Returns:
             QueryStrategy with search configuration
         """
-        queries = [query] if isinstance(query, str) else query
+        # For string queries, check if they contain pattern syntax before tokenizing
+        if isinstance(query, str):
+            # Detect pattern syntax that would break if tokenized
+            has_pattern_syntax = (
+                "|" in query  # OR patterns
+                or "*" in query  # Wildcards
+                or "/" in query  # Arity specs
+                or (":" in query and (".ex" in query or ".exs" in query))  # File paths
+                or (query and query[0].isupper() and "." in query)  # Module qualifiers
+            )
+
+            # If pattern syntax detected, don't tokenize to preserve the pattern
+            queries = [query] if has_pattern_syntax else self._tokenize_query(query)
+        else:
+            queries = query
 
         use_keyword_search = False
         use_pattern_search = False
@@ -74,6 +131,12 @@ class QueryOrchestrator:
         for q in queries:
             q_normalized = q.strip()
             if not q_normalized:
+                continue
+
+            # Skip standalone OR tokens that can appear when queries are pre-tokenized
+            # (e.g., ["login", "|", "auth"]). Treating these as patterns would
+            # match everything.
+            if set(q_normalized) == {"|"}:
                 continue
 
             # Detect if this is a pattern (has wildcards, module qualifiers, arity)
@@ -138,10 +201,69 @@ class QueryOrchestrator:
         Returns:
             List of matching SearchResult objects
         """
-        # Parse the pattern
-        patterns = parse_function_patterns(pattern)
-
         results: list[SearchResult] = []
+
+        # Check if this is a pure name pattern (no dots, just wildcards/OR)
+        # Examples: "*Analyzer", "User|Post", "*Service*", "execute*", "foo|bar"
+        # These can match both module names and function names (depending on filter_type)
+        has_no_dots = "." not in pattern
+        has_pattern_chars = has_wildcards(pattern)
+
+        if has_no_dots and has_pattern_chars:
+            # This is a pure name pattern - match against module/function names directly
+            # Split by OR if present
+            name_patterns = split_or_patterns(pattern)
+
+            # Match modules if requested
+            if filter_type in ["all", "modules"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    if match_any_pattern(name_patterns, module_name):
+                        results.append(
+                            SearchResult(
+                                type="module",
+                                name=module_name,
+                                module=module_name,
+                                file=module_data.get("file", ""),
+                                line=module_data.get("line", 1),
+                                doc=module_data.get("moduledoc"),
+                                score=1.0,  # Pattern match = full score
+                                confidence=100.0,
+                                matched_keywords=[],
+                                pattern_match=True,
+                            )
+                        )
+
+            # Match functions if requested
+            if filter_type in ["all", "functions"]:
+                for module_name, module_data in self.index.get("modules", {}).items():
+                    file_path = module_data.get("file", "")
+                    for func in module_data.get("functions", []):
+                        if match_any_pattern(name_patterns, func["name"]):
+                            full_name = f"{module_name}.{func['name']}/{func['arity']}"
+                            results.append(
+                                SearchResult(
+                                    type="function",
+                                    name=full_name,
+                                    module=module_name,
+                                    function=func["name"],
+                                    arity=func["arity"],
+                                    file=file_path,
+                                    line=func.get("line", 1),
+                                    doc=func.get("doc"),
+                                    signature=func.get("signature"),
+                                    visibility=func.get("type", "def"),
+                                    score=1.0,
+                                    confidence=100.0,
+                                    matched_keywords=[],
+                                    pattern_match=True,
+                                    last_modified_at=func.get("last_modified_at"),
+                                )
+                            )
+
+            return results
+
+        # Parse the pattern for function/qualified module searches
+        patterns = parse_function_patterns(pattern)
 
         # Search through all modules
         for module_name, module_data in self.index.get("modules", {}).items():
@@ -149,11 +271,38 @@ class QueryOrchestrator:
 
             # For each pattern alternative (OR patterns)
             for func_pattern in patterns:
-                # Check if this is a module-level search (function name is "*")
+                # Check if this is a module-level search
+                # Two cases:
+                # 1. Function name is "*" (e.g., "MyApp.User.*")
+                # 2. Function name has no wildcards and could be the module suffix (e.g., "ThenvoiCom.Context")
+                is_module_search = func_pattern.name == "*"
+
+                # Check if the "function name" is actually a module suffix
+                # This handles queries like "ThenvoiCom.Context" which get parsed as module="*.ThenvoiCom", name="Context"
+                module_tail = module_name.rsplit(".", 1)[-1]
+                module_matches = matches_pattern(func_pattern.module, module_name)
                 if (
-                    func_pattern.name == "*"
+                    not is_module_search
+                    and "*" not in func_pattern.name
+                    and "|" not in func_pattern.name
+                    and func_pattern.module
+                ):
+                    module_base = (
+                        func_pattern.module[2:]
+                        if func_pattern.module.startswith("*.")
+                        else func_pattern.module
+                    )
+
+                    if matches_pattern(f"*.{module_base}.{func_pattern.name}", module_name):
+                        is_module_search = True
+
+                if (
+                    is_module_search
                     and filter_type in ["all", "modules"]
-                    and func_pattern.matches(module_name, file_path, {"name": "*", "arity": 0})
+                    and module_matches
+                    and (
+                        func_pattern.name == "*" or matches_pattern(func_pattern.name, module_tail)
+                    )
                 ):
                     # Add module as result
                     results.append(
@@ -249,6 +398,7 @@ class QueryOrchestrator:
             pattern_match=result_dict.get("pattern_match", False),
             doc=result_dict.get("doc"),
             keyword_sources=result_dict.get("keyword_sources", {}),
+            string_sources=result_dict.get("string_sources", []),
             function=result_dict.get("function"),
             arity=result_dict.get("arity"),
             signature=result_dict.get("signature"),
@@ -370,12 +520,14 @@ class QueryOrchestrator:
         """
         Generate smart next-step suggestions based on results.
 
+        Prioritizes contextual, actionable suggestions over generic fillers.
+
         Args:
             query: Original query
             results: Search results
 
         Returns:
-            List of suggestion strings
+            List of suggestion strings (max 2)
         """
         suggestions = []
 
@@ -383,33 +535,24 @@ class QueryOrchestrator:
         if results:
             top = results[0]
             if top.is_function() and top.function:
-                suggestions.append(
-                    f"search_function('{top.function}', module_path='{top.module}', "
-                    "include_usage_examples=true) - See how this function is used"
-                )
-            suggestions.append(f"search_module('{top.module}') - View complete {top.module} API")
+                suggestions.append(f"search_function('{top.function}', module_path='{top.module}')")
+            suggestions.append(f"search_module('{top.module}')")
 
-        # Query-specific suggestions based on content
-        query_text = self._normalize_query_text(query)
-
-        # SQL/database keywords
-        if self._is_sql_related_query(query_text):
-            suggestions.append("Try match_source='strings' to find SQL queries in code strings")
-
-        # Many results in same module
-        if self._has_multiple_results_in_same_module(results):
+        # Contextual suggestion: many results in same module
+        if len(
+            suggestions
+        ) < QueryConfig.MAX_SUGGESTIONS and self._has_multiple_results_in_same_module(results):
             common_module = self._get_most_common_module(results)
-            suggestions.append(
-                f"search_module('{common_module}', what_calls_it=True) - See where this module is used"
-            )
+            suggestions.append(f"search_module('{common_module}', what_calls_it=True)")
 
-        # Results have recent changes
-        if self._has_recent_changes(results):
-            suggestions.append("Try recent=true to focus on recently changed code")
+        # Contextual suggestion: SQL/database keywords warrant string search
+        query_text = self._normalize_query_text(query)
+        if len(suggestions) < QueryConfig.MAX_SUGGESTIONS and self._is_sql_related_query(
+            query_text
+        ):
+            suggestions.append("query(..., match_source='strings')")
 
-        # Module-level results
-        if self._has_many_module_results(results):
-            suggestions.append("Try filter_type='functions' to see only function-level matches")
+        # Skip generic fillers like "query(..., recent=true)" and "query(..., filter_type='functions')"
 
         return suggestions[: QueryConfig.MAX_SUGGESTIONS]
 
@@ -456,6 +599,7 @@ class QueryOrchestrator:
         max_results: int,
         query: str | list[str],
         show_snippets: bool = False,
+        verbose: bool = False,
     ) -> str:
         """
         Format final report with results and suggestions.
@@ -466,6 +610,7 @@ class QueryOrchestrator:
             max_results: Maximum number of results to show
             query: Original query
             show_snippets: Whether to show code snippet previews
+            verbose: Whether to show verbose output
 
         Returns:
             Markdown formatted report
@@ -482,7 +627,7 @@ class QueryOrchestrator:
 
         # Results
         for i, result in enumerate(results[:max_results], 1):
-            lines.append(self._format_result_snippet(result, i, show_snippets))
+            lines.append(self._format_result_snippet(result, i, show_snippets, verbose))
 
         # Suggestions
         if suggestions:
@@ -519,89 +664,82 @@ class QueryOrchestrator:
             return f"{years} year{'s' if years > 1 else ''} ago"
 
     def _format_result_snippet(
-        self, result: SearchResult, index: int, show_snippets: bool = False
+        self, result: SearchResult, index: int, show_snippets: bool = False, verbose: bool = False
     ) -> str:
         """
-        Format a single result as a snippet (compact format).
+        Format a single result as a snippet (compact by default).
 
         Args:
             result: SearchResult to format
             index: Result number (1-indexed)
             show_snippets: Whether to show code snippet previews
+            verbose: Whether to show full details (confidence %, docs, full context)
 
         Returns:
-            Compact formatted snippet
+            Formatted snippet
         """
         lines = []
 
-        # Compact header: number, name, and tier on first line
+        # Compact header: number, name, and confidence on first line
         header_parts = [f"{index}. {result.name}"]
 
-        # Add tier label if available
-        if result.tier_label:
-            header_parts.append(f"[{result.tier_label}]")
+        # Add confidence % by default, include tier label in verbose mode
+        if result.percentile is not None:
+            if verbose and result.tier_label:
+                header_parts.append(f"({result.percentile:.0f}%) [{result.tier_label}]")
+            else:
+                header_parts.append(f"({result.percentile:.0f}%)")
 
         lines.append(" | ".join(header_parts) + "\n")
 
         # Path on second line
-        lines.append(f"{result.file}:{result.line}\n")
+        lines.append(f"   {result.file}:{result.line}\n")
 
-        # Confidence on third line (if available)
-        if result.percentile is not None:
-            lines.append(f"Confidence: {result.percentile:.1f}%\n")
-
-        # First line of documentation (wrapped nicely)
-        if result.doc:
+        # Documentation preview (only in verbose mode)
+        if verbose and result.doc:
             doc = result.doc.strip().split("\n")[0]
-            # Wrap at ~100 characters
             if len(doc) > 100:
                 doc = doc[:100] + "..."
-            lines.append(f"{doc}\n")
+            lines.append(f"   {doc}\n")
 
-        # Last modified timestamp (if available)
+        # Last modified timestamp - compact format
         if result.last_modified_at:
             try:
-                # Parse ISO format timestamp
                 dt = datetime.fromisoformat(result.last_modified_at.replace("Z", "+00:00"))
-                # Ensure timezone-aware datetime for consistent comparisons
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
-
-                now = datetime.now(timezone.utc)
-                delta = now - dt
+                delta = datetime.now(timezone.utc) - dt
                 time_ago = self._get_relative_time_string(delta)
 
-                # Include commit hash and PR if available
                 git_info = []
-                if result.last_modified_sha:
-                    git_info.append(result.last_modified_sha)
                 if result.last_modified_pr:
                     git_info.append(f"#{result.last_modified_pr}")
 
                 if git_info:
-                    lines.append(f"Last modified: {time_ago} ({' '.join(git_info)})\n")
+                    lines.append(f"   {time_ago} old ({' '.join(git_info)})\n")
                 else:
-                    lines.append(f"Last modified: {time_ago}\n")
+                    lines.append(f"   {time_ago} old\n")
             except (ValueError, AttributeError):
                 pass
 
-        # Matched keywords with source indicators
+        # Matched keywords indicator - compact single line
         if result.matched_keywords:
-            kw_with_sources: list[str] = []
-            source_suffixes = {
-                "docs": " (in docs)",
-                "strings": " (in strings)",
-                "both": " (in docs+strings)",
-            }
-            for kw in result.matched_keywords[:5]:
-                source = result.keyword_sources.get(kw, "")
-                suffix = source_suffixes.get(source, "")
-                kw_with_sources.append(kw + suffix)
+            context = None
+            if verbose:
+                # Full context in verbose mode
+                context = format_matched_context(
+                    matched_keywords=result.matched_keywords,
+                    keyword_sources=result.keyword_sources,
+                    doc_text=result.doc,
+                    string_sources=result.string_sources,
+                    use_ansi=True,
+                )
 
-            matched_str = ", ".join(kw_with_sources)
-            if len(result.matched_keywords) > 5:
-                matched_str += f" (+{len(result.matched_keywords) - 5} more)"
-            lines.append(f"Matched keywords: {matched_str}\n")
+            if context:
+                lines.append(f"\n{context}\n")
+            else:
+                # Compact: just list keywords with source indicators
+                self._append_keyword_list(lines, result)
 
         # Code snippet preview (if enabled)
         if show_snippets:
@@ -612,6 +750,20 @@ class QueryOrchestrator:
         lines.append("\n")  # Blank line between results
 
         return "".join(lines)
+
+    def _append_keyword_list(self, lines: list[str], result: SearchResult) -> None:
+        """Append compact keyword list to lines."""
+        kw_with_sources: list[str] = []
+        source_suffixes = {"docs": "(d)", "strings": "(s)", "both": "(d+s)"}
+        for kw in result.matched_keywords[: QueryConfig.MAX_KEYWORDS_TO_SHOW]:
+            source = result.keyword_sources.get(kw, "")
+            suffix = source_suffixes.get(source, "")
+            kw_with_sources.append(f"{kw}{suffix}")
+
+        matched_str = ", ".join(kw_with_sources)
+        if len(result.matched_keywords) > QueryConfig.MAX_KEYWORDS_TO_SHOW:
+            matched_str += f" +{len(result.matched_keywords) - QueryConfig.MAX_KEYWORDS_TO_SHOW}"
+        lines.append(f"   {matched_str}\n")
 
     def _extract_code_snippet(
         self, file_path: str, line: int, context_lines: int = QueryConfig.DEFAULT_CONTEXT_LINES
@@ -802,6 +954,7 @@ class QueryOrchestrator:
         path_pattern: str | None = None,
         arity: int | None = None,
         show_snippets: bool = False,
+        verbose: bool = False,
     ) -> str:
         """
         Execute a query and return formatted results.
@@ -816,6 +969,7 @@ class QueryOrchestrator:
             path_pattern: Optional glob pattern for file paths
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
+            verbose: Whether to show verbose output (default: False)
 
         Returns:
             Markdown formatted report
@@ -868,5 +1022,5 @@ class QueryOrchestrator:
 
         # Format report
         return self._format_report(
-            ranked_results, suggestions, options.max_results, query, options.show_snippets
+            ranked_results, suggestions, options.max_results, query, options.show_snippets, verbose
         )

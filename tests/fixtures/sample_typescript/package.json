@@ -1,0 +1,13 @@
+{
+  "name": "sample-typescript",
+  "version": "0.1.0",
+  "description": "Sample TypeScript project for SCIP testing",
+  "main": "calculator.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@sourcegraph/scip-typescript": "latest",
+    "typescript": "^5.0.0"
+  }
+}

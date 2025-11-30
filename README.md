@@ -6,12 +6,20 @@
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-**Give your AI assistant structured access to your Elixir codebase.**
+**Context compaction for AI code assistants** – Give your AI structured, token-efficient access to Elixir, Python, and Erlang codebases.
+
+> [**Up to 50% less waiting · Up to 70% less tokens · Up to 99% less explanations to do**](https://cicada-mcp.vercel.app/#benchmark-section)
+> **Tighter context = Better Quality**
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
+
+[![Elixir Support](https://img.shields.io/badge/Elixir-✓-blueviolet.svg)](https://elixir-lang.org/)
+[![Python Support](https://img.shields.io/badge/Python-✓-blue.svg)](https://www.python.org/)
+[![Erlang Support](https://img.shields.io/badge/Erlang-Beta-orange.svg)](https://www.erlang.org/)
+[![TypeScript Support](https://img.shields.io/badge/TypeScript-Experimental-lightgrey.svg)](https://www.typescriptlang.org/)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
 
@@ -23,25 +31,30 @@
 
 ## Why CICADA?
 
-Traditional AI assistants treat your repo like a pile of text. That leads to:
+**The core problem:** AI code assistants [waste context on blind searches](https://www.youtube.com/live/xmbSQz-PNMM?t=2402). Grep dumps entire files when you only need a function signature, leaving less room for actual reasoning.
 
-- **Token waste:** blind grep dumps that burn 3k+ tokens per question.
-- **Hallucinated edits:** aliases/imports hide call sites, so refactors miss real usages.
-- **No historical context:** design intent and PR trade-offs never make it into the prompt.
+### The Context Compaction Approach
 
-CICADA is an MCP server that gives assistants AST-level knowledge:
+Instead of raw text dumps, CICADA gives your AI **structured, pre-indexed knowledge**:
 
-- Module + function definitions with signatures, specs, docs, owning files.
-- Complete call-site tracking (aliases, imports, dynamic references).
-- Semantic/keyword search so you can ask for "authentication" even if it's called `verify_credentials/2`.
-- Git + PR attribution to surface *why* code exists.
-- Dead-code detection and module dependency views for safe refactors.
+| Traditional Search | CICADA |
+|-------------------|--------|
+| Grep dumps entire files | Returns only signatures + call sites |
+| Misses aliased imports | Tracks all reference types |
+| No semantic understanding | Keyword search finds `verify_credentials` when you ask for "authentication" |
 
-**Result:** in our comparison, the same question dropped from **3,127 tokens / 52.8s** to **550 tokens / 35s** with correct answers.
+### What You Get
+
+- **AST-level indexing** – Module/function/class definitions with signatures, specs, docs
+- **Complete call-site tracking** – Aliases, imports, dynamic references across Elixir and Python
+- **Semantic search** – Find code by concept, not just literal strings
+- **Git + PR attribution** – Surface *why* code exists, not just what
+- **Dead-code detection** – Safe refactors with dependency analysis
+- **Automatic language detection** – Works seamlessly with both Elixir and Python
 
 ---
 
-## Quick Install
+## Install
 
 ```bash
 # 1. Install uv (if needed)
@@ -53,30 +66,55 @@ cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cic
 ```
 
 <div align="left">
-<details>
 <summary><strong>Try before installing permanently</strong></summary>
+Runs CICADA on demand (worse indexing quality, but zero install).
 
 ```bash
 uvx cicada-mcp claude   # or cursor, vs
 ```
+or
 
-Runs CICADA on demand (worse indexing quality, but zero install).
+```
+claude mcp add uvx cicada-mcp
+```   
+```
+gemini mcp add uvx cicada-mcp
+```  
+```
+codex mcp add uvx cicada-mcp
+```  
+
+
+Uses your editor's built-in MCP management to install CICADA.
 
 </details>
 </div>
 
 **Available commands after installation:**
-- `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command setup per project
+- `cicada [claude|cursor|vs|gemini|codex|opencode]` - One-command interactive setup per project
 - `cicada-mcp` - MCP server (auto-started by editor)
+- `cicada status` - Show index status, PR index, link status, agent files, MCP configs
+- `cicada stats [repo]` - Display usage statistics (tool calls, tokens, execution times)
 - `cicada watch` - Watch for file changes and automatically reindex
 - `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada find-dead-code` - Find potentially unused functions
+- `cicada run [tool]` - Execute any of the 7 MCP tools directly from CLI
+- `cicada agents install` - Install Claude Code agents to `./.claude/` directory
+- `cicada link [parent_dir]` - Links current repository to an existing index
+- `cicada clean` - Completely removes cicada integration from your folder as well as all settings
 
 Ask your assistant:
 ```
+# Elixir
 "Show me the functions in MyApp.User"
 "Where is authenticate/2 called?"
+
+# Python
+"Show me the AuthService class methods"
+"Where is login() used in the codebase?"
+
+# Both languages
 "Find code related to API authentication"
 ```
 
@@ -84,8 +122,8 @@ Ask your assistant:
 
 ## Privacy & Security
 
-- **100% local:** parsing + indexing happen on your machine; no cloud uploads.
-- **No telemetry:** CICADA doesn't collect usage or phone home.
+- **100% local:** parsing + indexing happen on your machine; no external access.
+- **No telemetry:** CICADA doesn't collect usage or any telemetry.
 - **Read-only tools:** MCP endpoints only read the index; they can't change your repo.
 - **Optional GitHub access:** PR features rely on `gh` and your existing OAuth token.
 - **Data layout:**
@@ -96,7 +134,7 @@ Ask your assistant:
   ├─ hashes.json     # incremental indexing cache
   └─ pr_index.json   # optional PR metadata + reviews
   ```
-  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/mcp.json`, `.codex/mcp.json`, or `.opencode.json`).
+  Your repo only gains an editor config (`.mcp.json`, `.cursor/mcp.json`, `.vscode/settings.json`, `.gemini/settings.json`, `.codex/mcp.json`, or `.opencode.json`).
 
 ---
 
@@ -141,17 +179,21 @@ Enable automatic reindexing when files change by starting the MCP server with th
 }
 ```
 When watch mode is enabled:
-- A separate process monitors `.ex` and `.exs` files for changes
+- A separate process monitors `.ex`, `.exs` (Elixir) and `.py` (Python) files for changes
 - Changes are automatically reindexed (incremental, fast)
 - 2-second debounce prevents excessive reindexing during rapid edits
 - The watch process stops automatically when the MCP server stops
-- Excluded directories: `deps`, `_build`, `node_modules`, `.git`, `assets`, `priv`
+- Excluded directories: `deps`, `_build`, `node_modules`, `.git`, `assets`, `priv`, `.venv`, `venv`
 
 ### CLI Cheat Sheet
+
+**Note:** Language detection is automatic – CICADA detects Elixir (mix.exs) and Python (pyproject.toml) projects automatically.
 
 | Command | Purpose | Run When |
 |---------|---------|---------|
 | `cicada claude` | Configure MCP + incremental re-index | First setup, after local changes |
+| `cicada status` | Check index health, link status, agent files | After setup, troubleshooting |
+| `cicada stats` | View usage statistics and token metrics | Monthly reviews, optimization |
 | `cicada watch` | Monitor files and auto-reindex on changes | During active development |
 | `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
@@ -275,11 +317,39 @@ cat ~/.cicada/projects/<hash>/config.yaml
 
 More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_INDEXING.md](docs/08-INCREMENTAL_INDEXING.md).
 
+<details>
+<summary><b>Python Indexing</b></summary>
+
+**Requirements:**
+- Node.js (for scip-python indexer)
+- Python project with pyproject.toml
+
+**First-time setup:**
+CICADA automatically installs scip-python via npm on first index. This may take a minute.
+
+**Known limitations (Beta):**
+- First indexing may be slower than Elixir (SCIP generation step)
+- Large virtual environments (.venv) are automatically excluded
+- Some dynamic Python patterns may not be captured
+
+**Performance tips:**
+```bash
+# Ensure .venv is excluded
+echo "/.venv/" >> .gitignore
+
+# Use --fast tier for quicker indexing
+cicada index --fast .
+```
+
+**Report issues:** [GitHub Issues](https://github.com/wende/cicada/issues) with "Python" label
+
+</details>
+
 ---
 
 ## For AI Assistants
 
-CICADA ships 7 focused MCP tools designed for efficient code exploration.
+CICADA ships 7 focused MCP tools designed for efficient code exploration across Elixir, Python, and Erlang codebases.
 
 ### 🧭 Which Tool Should You Use?
 
@@ -305,10 +375,12 @@ CICADA ships 7 focused MCP tools designed for efficient code exploration.
 
 **`search_module`** - Deep module analysis
 - View complete API: functions, signatures, specs, docs
+- For Python: Shows classes with method counts and signatures
+- For Elixir: Shows functions with arity notation
 - Bidirectional analysis:
   - `what_calls_it=true` → See who uses this module (impact analysis)
   - `what_it_calls=true` → See what this module depends on
-- Supports wildcards (`MyApp.*`) and OR patterns (`MyApp.User|MyApp.Post`)
+- Supports wildcards (Elixir: `MyApp.*`, Python: `api.handlers.*`) and OR patterns (`MyApp.User|MyApp.Post`)
 - Filter by visibility (public/private/all)
 
 **`search_function`** - Function usage tracking
@@ -356,6 +428,8 @@ Detailed parameters + output formats: [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFEREN
 
 All tools return structured Markdown/JSON snippets (signatures, call sites, PR metadata) instead of full files, keeping prompts lean.
 
+**New in v0.5.1:** All tools now use compact output by default to minimize token usage. Use `verbose=true` for detailed output with full docs and specs.
+
 ---
 
 
@@ -374,7 +448,19 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ## Roadmap
 
-### PYTHON AND TYPESCRIPT!!!
+### Current Status
+
+- ✅ **Elixir**
+- ✅ **Python**
+- 🚧 **Erlang** - Beta
+- 🧪 **TypeScript** - Experimental
+
+### What's Next
+
+- Stabilize Erlang support based on user feedback
+- TypeScript/JavaScript support via SCIP
+- Shared/team indexes for collaborative environments
+- Performance optimizations for large codebases
 
 ---
 
@@ -405,7 +491,7 @@ MIT – see [LICENSE](LICENSE).
 
 <div align="center">
 
-**Stop letting your AI search blindly. Give it CICADA.**
+**Stop wasting context on blind searches. Give your AI CICADA.**
 
 [Get Started](#quick-install) · [Report Issues](https://github.com/wende/cicada/issues)
 

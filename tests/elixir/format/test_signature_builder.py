@@ -2,6 +2,10 @@
 
 import pytest
 
+from cicada.languages.elixir.formatter import ElixirFormatter
+from cicada.languages.erlang.formatter import ErlangFormatter
+from cicada.languages.formatter_registry import get_language_formatter
+from cicada.languages.scip.formatter import PythonFormatter
 from cicada.utils.signature_builder import SignatureBuilder
 
 
@@ -218,3 +222,144 @@ class TestSignatureBuilder:
         result = SignatureBuilder.build(func)
         # Empty string is falsy, so no :: should be appended
         assert result == "no_return_shown(arg)"
+
+    def test_build_with_preformatted_signature(self):
+        """Test that pre-formatted signature field takes precedence."""
+        func = {
+            "name": "parse_file",
+            "arity": 2,
+            "args": ["self", "file_path"],
+            "signature": "parse_file(self, file_path: str) -> list[dict] | None",
+            "return_type": "list",  # This should be ignored
+        }
+        result = SignatureBuilder.build(func)
+        # Should use the pre-formatted signature directly
+        assert result == "parse_file(self, file_path: str) -> list[dict] | None"
+
+
+class TestElixirFormatter:
+    """Test the ElixirFormatter class."""
+
+    def test_format_elixir_function(self):
+        """Test formatting for Elixir uses /arity notation."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_identifier("MyModule", "my_func", 2)
+        assert result == "MyModule.my_func/2"
+
+    def test_format_zero_arity_elixir(self):
+        """Test zero-arity function in Elixir."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_identifier("Config", "version", 0)
+        assert result == "Config.version/0"
+
+    def test_format_function_name_with_args(self):
+        """Test formatting function name with args shows args."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_name("add", 2, ["a", "b"])
+        assert result == "add(a, b)"
+
+    def test_format_function_name_empty_args(self):
+        """Test formatting function name with empty args list uses arity."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_name("hello", 0, [])
+        assert result == "hello/0"
+
+    def test_format_function_name_none_args(self):
+        """Test formatting function name with None args falls back to arity."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_name("process", 2, None)
+        assert result == "process/2"
+
+    def test_format_function_name_single_arg(self):
+        """Test formatting function name with single argument."""
+        formatter = ElixirFormatter()
+        result = formatter.format_function_name("increment", 1, ["n"])
+        assert result == "increment(n)"
+
+
+class TestPythonFormatter:
+    """Test the PythonFormatter class."""
+
+    def test_format_python_function(self):
+        """Test formatting for Python uses () notation."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_identifier("MyClass", "my_method", 2)
+        assert result == "MyClass.my_method()"
+
+    def test_format_zero_arity_python(self):
+        """Test zero-arity function in Python."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_identifier("Config", "version", 0)
+        assert result == "Config.version()"
+
+    def test_format_function_name_filters_self(self):
+        """Test that self is filtered from args."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("method", 2, ["self", "arg"])
+        assert result == "method(arg)"
+
+    def test_format_function_name_filters_cls(self):
+        """Test that cls is filtered from args."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("classmethod", 2, ["cls", "value"])
+        assert result == "classmethod(value)"
+
+    def test_format_function_name_filters_arg0(self):
+        """Test that arg0 placeholder is filtered from args."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("index", 1, ["arg0"])
+        assert result == "index()"
+
+    def test_format_function_name_empty_args(self):
+        """Test formatting with empty args list."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("main", 0, [])
+        assert result == "main()"
+
+    def test_format_function_name_none_args(self):
+        """Test formatting with None args falls back to empty parens."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("process", 2, None)
+        assert result == "process()"
+
+    def test_format_function_name_multiple_args(self):
+        """Test formatting with multiple visible args."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("calc", 3, ["self", "x", "y"])
+        assert result == "calc(x, y)"
+
+    def test_format_function_name_no_implicit_args(self):
+        """Test formatting function with no implicit args."""
+        formatter = PythonFormatter()
+        result = formatter.format_function_name("utility", 2, ["a", "b"])
+        assert result == "utility(a, b)"
+
+
+class TestFormatterRegistry:
+    """Test the get_language_formatter function."""
+
+    def test_get_elixir_formatter(self):
+        """Test getting Elixir formatter from registry."""
+        formatter = get_language_formatter("elixir")
+        assert isinstance(formatter, ElixirFormatter)
+        result = formatter.format_function_identifier("MyModule", "func", 2)
+        assert result == "MyModule.func/2"
+
+    def test_get_python_formatter(self):
+        """Test getting Python formatter from registry."""
+        formatter = get_language_formatter("python")
+        assert isinstance(formatter, PythonFormatter)
+        result = formatter.format_function_identifier("MyClass", "method", 2)
+        assert result == "MyClass.method()"
+
+    def test_get_erlang_formatter(self):
+        """Test getting Erlang formatter from registry."""
+        formatter = get_language_formatter("erlang")
+        assert isinstance(formatter, ErlangFormatter)
+        result = formatter.format_function_identifier("lists", "map", 2)
+        assert result == "lists:map/2"
+
+    def test_unknown_language_raises_error(self):
+        """Test that unknown languages raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported language"):
+            get_language_formatter("unknown_language")

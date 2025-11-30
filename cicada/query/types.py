@@ -6,7 +6,17 @@ Type-safe representations of queries, results, and configurations.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal, TypedDict
+
+
+class StringSource(TypedDict, total=False):
+    """Structure for string literal matches."""
+
+    string: str
+    line: int
+    function: str
+    module: str
+    file: str
 
 
 @dataclass
@@ -24,6 +34,7 @@ class SearchResult:
     pattern_match: bool
     doc: str | None = None
     keyword_sources: dict[str, str] = field(default_factory=dict)
+    string_sources: list[StringSource] = field(default_factory=list)
 
     # Function-specific fields
     function: str | None = None
@@ -71,9 +82,9 @@ class SearchResult:
         except (ValueError, AttributeError):
             return None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary format for backward compatibility."""
-        result = {
+        result: dict[str, Any] = {
             "type": self.type,
             "name": self.name,
             "module": self.module,
@@ -88,6 +99,9 @@ class SearchResult:
 
         if self.doc is not None:
             result["doc"] = self.doc
+
+        if self.string_sources:
+            result["string_sources"] = self.string_sources
 
         # Function-specific fields
         if self.is_function():
@@ -180,7 +194,7 @@ class QueryConfig:
 
     # Search limits
     INTERNAL_SEARCH_LIMIT = 100  # Fetch this many from search, then filter/rank
-    MAX_SUGGESTIONS = 5  # Maximum suggestions to show
+    MAX_SUGGESTIONS = 2  # Maximum suggestions to show (keep focused)
     MAX_QUERY_VARIANTS = 3  # Maximum case/format variants to generate
 
     # Similarity thresholds
@@ -189,6 +203,9 @@ class QueryConfig:
 
     # Snippet extraction
     DEFAULT_CONTEXT_LINES = 2  # Lines of context around target line
+
+    # Display limits for compact output
+    MAX_KEYWORDS_TO_SHOW = 3  # Maximum matched keywords to show before truncating
 
     # Module clustering
     MIN_RESULTS_FOR_CLUSTERING = 3  # Minimum results to consider clustering

@@ -231,7 +231,7 @@ class TestKeywordSearcher:
         assert scores == sorted(scores, reverse=True)
 
     def test_score_calculation_simple(self, sample_index):
-        """Test that scores are calculated as sum of matched keyword weights."""
+        """Test hybrid scoring with diverse keywords (no repetition)."""
         searcher = KeywordSearcher(sample_index)
         # Search for "create" and "user" should match MyApp.User.create/1
         # which has create: 0.8, user: 0.9
@@ -241,8 +241,96 @@ class TestKeywordSearcher:
         # Find the create/1 function
         create_result = next((r for r in results if r["name"] == "MyApp.User.create/1"), None)
         assert create_result is not None
-        # Score should be 0.8 + 0.9 = 1.7
-        assert abs(create_result["score"] - 1.7) < 0.01
+        # Base score: 0.8 + 0.9 = 1.7
+        # Coverage: 2/2 = 100% → multiplier = 0.8 + 0.8 = 1.6
+        # Final score: 1.7 × 1.6 = 2.72
+        assert abs(create_result["score"] - 2.72) < 0.01
+
+    def test_diminishing_returns_repeated_keyword(self, sample_index):
+        """Test that repeated keywords get diminishing returns."""
+        searcher = KeywordSearcher(sample_index)
+        # Search with repeated "create" keyword
+        # MyApp.User.create/1 has create: 0.8
+        results = searcher.search(["create", "create", "create"], top_n=10)
+
+        assert len(results) > 0
+        create_result = next((r for r in results if r["name"] == "MyApp.User.create/1"), None)
+        assert create_result is not None
+
+        # Base score with diminishing returns:
+        # 1st match: 0.8 × 1.0 = 0.8
+        # 2nd match: 0.8 × 0.5 = 0.4
+        # 3rd match: 0.8 × 0.25 = 0.2
+        # Total base: 1.4
+        # Coverage: 1/1 unique = 100% → multiplier = 1.6
+        # Final: 1.4 × 1.6 = 2.24
+        assert abs(create_result["score"] - 2.24) < 0.01
+
+    def test_coverage_bonus_diverse_keywords(self, sample_index):
+        """Test that diverse keywords get coverage bonus over repetition."""
+        searcher = KeywordSearcher(sample_index)
+
+        # Search 1: Repeated keyword ["create", "create", "create"]
+        # Expected score: ~2.24 (from test above)
+        repeated_results = searcher.search(["create", "create", "create"], top_n=10)
+        repeated_score = next(
+            (r["score"] for r in repeated_results if r["name"] == "MyApp.User.create/1"), None
+        )
+
+        # Search 2: Diverse keywords ["create", "user"]
+        # Expected score: ~2.72 (from test_score_calculation_simple)
+        diverse_results = searcher.search(["create", "user"], top_n=10)
+        diverse_score = next(
+            (r["score"] for r in diverse_results if r["name"] == "MyApp.User.create/1"), None
+        )
+
+        # Diverse keywords should score higher despite having same base weight sum
+        assert diverse_score is not None
+        assert repeated_score is not None
+        assert diverse_score > repeated_score
+
+        # Verify the approximate ratio
+        # diverse: 2.72 vs repeated: 2.24 → ~21% higher
+        assert diverse_score / repeated_score > 1.2
+
+    def test_partial_coverage_penalty(self, sample_index):
+        """Test that partial keyword coverage reduces the multiplier."""
+        searcher = KeywordSearcher(sample_index)
+
+        # Search with 3 keywords, only 2 match
+        # MyApp.User.create/1 has create: 0.8, user: 0.9
+        results = searcher.search(["create", "user", "nonexistent"], top_n=10)
+
+        assert len(results) > 0
+        create_result = next((r for r in results if r["name"] == "MyApp.User.create/1"), None)
+        assert create_result is not None
+
+        # Base score: 0.8 + 0.9 = 1.7
+        # Coverage: 2/3 unique matched = 66.67% → multiplier = 0.8 + (0.667 × 0.8) = 1.333
+        # Final: 1.7 × 1.333 = 2.267
+        assert abs(create_result["score"] - 2.267) < 0.05
+
+    def test_hybrid_scoring_edge_case_single_keyword(self, sample_index):
+        """Test hybrid scoring with single keyword (100% coverage)."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["create"], top_n=10)
+
+        assert len(results) > 0
+        create_result = next((r for r in results if r["name"] == "MyApp.User.create/1"), None)
+        assert create_result is not None
+
+        # Base score: 0.8
+        # Coverage: 1/1 = 100% → multiplier = 1.6
+        # Final: 0.8 × 1.6 = 1.28
+        assert abs(create_result["score"] - 1.28) < 0.01
+
+    def test_hybrid_scoring_zero_coverage(self, sample_index):
+        """Test hybrid scoring when no keywords match (edge case)."""
+        searcher = KeywordSearcher(sample_index)
+        results = searcher.search(["nonexistent", "alsononexistent"], top_n=10)
+
+        # Should return empty results
+        assert len(results) == 0
 
     def test_partial_keyword_match(self, sample_index):
         """Test search with partial keyword matches."""

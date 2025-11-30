@@ -8,7 +8,7 @@ import re
 
 import pytest
 
-from cicada.elixir.format.ascii_art import (
+from cicada.format.ascii_art import (
     CICADA_ASCII_ART,
     CYAN,
     RESET,
@@ -158,7 +158,7 @@ class TestGetWelcomeBanner:
         result = get_welcome_banner()
 
         assert "Welcome to CICADA" in result
-        assert "Elixir Code Intelligence" in result
+        assert "Code Intelligence" in result
 
     def test_includes_separator_lines(self):
         """Test that banner includes separator lines"""
@@ -193,7 +193,7 @@ class TestGetWelcomeBanner:
 
         # Should contain the main components in order
         assert "Welcome to CICADA" in plain_text
-        assert "Elixir Code Intelligence" in plain_text
+        assert "Code Intelligence" in plain_text
 
 
 class TestCicadaAsciiArtConstant:

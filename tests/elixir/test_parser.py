@@ -2,7 +2,7 @@
 Unit tests for the Elixir parser.
 """
 
-from cicada.elixir.parser import ElixirParser
+from cicada.languages.elixir.parser import ElixirParser
 
 
 def test_simple_module():

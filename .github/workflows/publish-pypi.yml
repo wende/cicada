@@ -41,12 +41,32 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Clone test fixture
         run: |
           git clone https://github.com/wende/ab tests/fixtures/elixir_project
 
       - name: Setup test fixtures
         run: bash tests/setup_fixtures.sh
+
+      - name: Generate SCIP indexes for tests
+        run: |
+          # Install scip-python and scip-typescript
+          npm install -g @sourcegraph/scip-python @sourcegraph/scip-typescript
+
+          # Generate Python SCIP index
+          cd tests/fixtures/sample_python
+          scip-python index . --project-name sample_python --output index.scip
+          cd ../../..
+
+          # Generate TypeScript SCIP index
+          cd tests/fixtures/sample_typescript
+          scip-typescript index --output index.scip .
+          cd ../../..
 
       - name: Run tests
         run: uv run pytest

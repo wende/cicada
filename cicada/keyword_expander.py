@@ -15,6 +15,7 @@ Example:
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 
@@ -31,6 +32,10 @@ class KeywordExpander:
     # Class-level cache for loaded models
     _model_cache: dict[str, Any] = {}
     _lemminflect_cache: Any = None
+    _worker_init_lock = threading.Lock()
+    _initialized_workers: set[int] = set()  # Thread IDs that have been initialized
+    _worker_counter = 0
+    _total_workers: int | None = None
 
     # Model configurations for word embeddings
     EMBEDDING_MODELS = {
@@ -92,14 +97,39 @@ class KeywordExpander:
             import lemminflect
 
             KeywordExpander._lemminflect_cache = lemminflect
-            if self.verbose:
-                print("✓ lemminflect loaded")
             return lemminflect
         except ImportError as e:
             raise ImportError(
                 "lemminflect is required for keyword expansion. "
                 "Install with: pip install lemminflect"
             ) from e
+
+    def _maybe_print_worker_init(self) -> None:
+        """Print worker initialization message once per thread (if verbose)."""
+        if not self.verbose:
+            return
+
+        thread_id = threading.get_ident()
+
+        # Check if this thread has already been initialized
+        if thread_id in KeywordExpander._initialized_workers:
+            return
+
+        # Register this worker and print initialization message
+        with KeywordExpander._worker_init_lock:
+            # Double-check after acquiring lock
+            if thread_id in KeywordExpander._initialized_workers:
+                return
+
+            KeywordExpander._initialized_workers.add(thread_id)
+            KeywordExpander._worker_counter += 1
+            worker_num = KeywordExpander._worker_counter
+            total = KeywordExpander._total_workers
+
+            if total is not None:
+                print(f"\r✓ keyword expander loaded ({worker_num}/{total})", end="", flush=True)
+            else:
+                print(f"\r✓ keyword expander loaded ({worker_num})", end="", flush=True)
 
     def _load_embedding_model(self) -> Any:
         """
@@ -196,11 +226,10 @@ class KeywordExpander:
         keywords: list[str],
         top_n: int = 3,
         threshold: float = 0.7,
-        return_scores: bool = False,
         keyword_scores: dict[str, float] | None = None,
         min_score: float = 0.0,
         code_identifiers: list[str] | None = None,
-    ) -> list[str] | dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Expand keywords using the configured expansion strategy.
 
@@ -213,22 +242,17 @@ class KeywordExpander:
             keywords: List of seed keywords to expand.
             top_n: Maximum number of similar words to return per keyword (for embeddings).
             threshold: Minimum cosine similarity score for embeddings (0.0 to 1.0).
-            return_scores: If True, return detailed dict with scores. If False, return simple list.
             keyword_scores: Optional dict mapping keywords to their extraction scores.
                           These scores multiply with expansion similarity scores.
             min_score: Minimum score threshold for expanded keywords (filters out low-scoring terms).
             code_identifiers: List of code identifiers that should NOT be inflected or expanded.
 
         Returns:
-            If return_scores=False: Deduplicated list of expanded keywords (flat list).
-            If return_scores=True: Dict with 'words' (list of dicts with word/score/source) and 'simple' (flat list).
+            Dict with 'words' (list of dicts with word/score/source) and 'simple' (flat list).
 
         Example:
             >>> expander = KeywordExpander(expansion_type="lemmi")
-            >>> result = expander.expand_keywords(["run", "database"])
-            >>> # Returns: ['run', 'running', 'runs', 'ran', 'database', 'databases', ...]
-
-            >>> result = expander.expand_keywords(["run"], return_scores=True, keyword_scores={"run": 0.95})
+            >>> result = expander.expand_keywords(["run"], keyword_scores={"run": 0.95})
             >>> # Returns: {
             >>>   'words': [
             >>>     {'word': 'run', 'score': 0.95, 'source': 'original'},
@@ -237,6 +261,9 @@ class KeywordExpander:
             >>>   'simple': ['run', 'running', ...]
             >>> }
         """
+        # Print worker initialization message (once per thread)
+        self._maybe_print_worker_init()
+
         from cicada.utils import split_camel_snake_case
 
         # Default all keyword scores to 1.0 if not provided
@@ -261,11 +288,10 @@ class KeywordExpander:
             word_lower = keyword.lower()
             expanded_words.add(word_lower)
             extraction_score = keyword_scores.get(word_lower, 1.0)
-            if return_scores:
-                word_details[word_lower] = {
-                    "score": extraction_score,
-                    "source": "original",
-                }
+            word_details[word_lower] = {
+                "score": extraction_score,
+                "source": "original",
+            }
 
             # Split compound identifiers (e.g., get_keys → get, keys)
             split_text = split_camel_snake_case(keyword)
@@ -275,7 +301,7 @@ class KeywordExpander:
             split_keywords.extend(words)
             for word in words:
                 expanded_words.add(word)
-                if return_scores and word not in word_details:
+                if word not in word_details:
                     # Split words inherit parent's extraction score
                     word_details[word] = {
                         "score": extraction_score,
@@ -294,14 +320,12 @@ class KeywordExpander:
                 continue
 
             # Get the parent's score (either from original keywords or split words)
-            parent_score = (
-                word_details.get(keyword_lower, {}).get("score", 1.0) if return_scores else 1.0
-            )
+            parent_score = word_details.get(keyword_lower, {}).get("score", 1.0)
 
             inflections = self._get_inflections(keyword)
             for inflection in inflections:
                 expanded_words.add(inflection)
-                if return_scores and inflection not in word_details:
+                if inflection not in word_details:
                     # Inflections inherit parent's score with penalty
                     word_details[inflection] = {
                         "score": parent_score * self.INFLECTION_PENALTY,
@@ -326,11 +350,7 @@ class KeywordExpander:
                         continue
 
                     # Get parent keyword's score to multiply with similarity
-                    parent_score = (
-                        word_details.get(keyword_lower, {}).get("score", 1.0)
-                        if return_scores
-                        else 1.0
-                    )
+                    parent_score = word_details.get(keyword_lower, {}).get("score", 1.0)
 
                     try:
                         # Get most similar words
@@ -344,7 +364,7 @@ class KeywordExpander:
                                 # Add the similar word
                                 word_lower = word.lower()
                                 expanded_words.add(word_lower)
-                                if return_scores and word_lower not in word_details:
+                                if word_lower not in word_details:
                                     # Final score = extraction score × similarity score × semantic penalty
                                     final_score = (
                                         parent_score
@@ -359,21 +379,17 @@ class KeywordExpander:
 
                                 # Add inflections of the similar word
                                 inflections = self._get_inflections(word)
+                                # Use the score we just set, or calculate it
                                 embedding_score = (
-                                    word_details.get(word_lower, {}).get(
-                                        "score",
-                                        parent_score
-                                        * float(similarity_score)
-                                        * self.SEMANTIC_EXPANSION_PENALTY,
-                                    )
-                                    if return_scores
+                                    word_details[word_lower]["score"]
+                                    if word_lower in word_details
                                     else parent_score
                                     * float(similarity_score)
                                     * self.SEMANTIC_EXPANSION_PENALTY
                                 )
                                 for inflection in inflections:
                                     expanded_words.add(inflection)
-                                    if return_scores and inflection not in word_details:
+                                    if inflection not in word_details:
                                         # Embedding inflections inherit the embedding's score with inflection penalty
                                         word_details[inflection] = {
                                             "score": embedding_score * self.INFLECTION_PENALTY,
@@ -388,36 +404,26 @@ class KeywordExpander:
 
         simple_list = sorted(expanded_words)
 
-        if return_scores:
-            # Build detailed list with scores
+        # Build detailed list with scores
+        detailed_list = [
+            {"word": word, **word_details.get(word, {"score": 1.0, "source": "unknown"})}
+            for word in simple_list
+        ]
+
+        # Apply min_score filter if specified
+        if min_score > 0.0:
             detailed_list = [
-                {"word": word, **word_details.get(word, {"score": 1.0, "source": "unknown"})}
-                for word in simple_list
+                item
+                for item in detailed_list
+                if isinstance(item.get("score"), (int, float))
+                and float(item.get("score", 0.0)) >= min_score
             ]
+            simple_list = [item["word"] for item in detailed_list]
 
-            # Apply min_score filter if specified
-            if min_score > 0.0:
-                detailed_list = [
-                    item
-                    for item in detailed_list
-                    if isinstance(item.get("score"), (int, float))
-                    and float(item.get("score", 0.0)) >= min_score
-                ]
-                simple_list = [item["word"] for item in detailed_list]
-
-            return {
-                "words": detailed_list,
-                "simple": simple_list,
-            }
-        else:
-            # Apply min_score filter if specified
-            if min_score > 0.0:
-                simple_list = [
-                    word
-                    for word in simple_list
-                    if word_details.get(word, {}).get("score", 1.0) >= min_score
-                ]
-            return simple_list
+        return {
+            "words": detailed_list,
+            "simple": simple_list,
+        }
 
     def get_expansion_info(self) -> dict[str, Any]:
         """

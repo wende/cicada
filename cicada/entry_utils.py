@@ -4,6 +4,7 @@ import sys
 from collections.abc import Callable, Sequence
 
 from cicada import commands as _commands_module
+from cicada.logging_utils import configure_logging, get_verbose_flag
 
 KNOWN_SUBCOMMANDS_SET = getattr(_commands_module, "KNOWN_SUBCOMMANDS_SET", frozenset())
 get_argument_parser = _commands_module.get_argument_parser
@@ -72,6 +73,9 @@ def run_cli(
     parser = get_argument_parser()
     parser.prog = prog_name
     args = parser.parse_args(normalized[1:])
+
+    # Configure logging based on verbose flag
+    configure_logging(verbose=get_verbose_flag(args))
 
     if not handle_command(args):
         parser.print_help()

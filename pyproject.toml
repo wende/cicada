@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "grpcio-tools>=1.60.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicada-mcp"
-version = "0.4.2"
-description = "An Elixir module search MCP server"
+version = "0.5.2"
+description = "An Elixir and Python code intelligence MCP server"
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -16,6 +16,7 @@ maintainers = [
 ]
 keywords = [
     "elixir",
+    "python",
     "phoenix",
     "mcp",
     "model-context-protocol",
@@ -45,6 +46,7 @@ dependencies = [
     "pyyaml>=6.0",
     "tree-sitter>=0.20.0",
     "tree-sitter-elixir>=0.1.0",
+    "tiktoken>=0.5.0",
     "gitpython>=3.1.0",
     "jq>=1.6.0",
     "keybert>=0.8.0",
@@ -54,6 +56,8 @@ dependencies = [
     "tomli>=2.0.0; python_version < '3.11'",
     "gensim>=4.4.0",
     "watchdog>=3.0.0",
+    "protobuf>=4.0.0",  # Required for SCIP (language-agnostic code indexing)
+    "tree-sitter-language-pack>=0.13.0",  # Multi-language tree-sitter bindings (Erlang, etc.)
 ]
 
 [project.urls]
@@ -71,6 +75,12 @@ cicada = "cicada.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["cicada*"]
+
+[tool.setuptools.package-data]
+cicada = [
+    "agents/templates/agents/*.md",
+    "agents/templates/skills/**/*.md",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -152,6 +162,8 @@ extend-exclude = [
     "buck-out",
     "build",
     "dist",
+    "cicada/languages/scip/scip_pb2.py",
+    "cicada/languages/scip/scip_pb2.pyi",
 ]
 
 [tool.ruff.lint]
@@ -180,7 +192,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["T201", "T203"]  # Allow print in tests
 
-
+[tool.pyright]
+exclude = [
+    "cicada/languages/scip/scip_pb2.py",
+    "cicada/languages/scip/scip_pb2.pyi",
+]
 
 [dependency-groups]
 dev = [

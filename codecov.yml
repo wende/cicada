@@ -31,6 +31,6 @@ ignore:
   - ".pytest_cache/**"
 
 comment:
-  layout: "diff, flags, files"
+  layout: "header, diff, flags, files"
   behavior: once
   require_changes: true

@@ -5,10 +5,15 @@ This module provides centralized functions for loading and saving
 JSON index files with consistent error handling.
 """
 
+import contextlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
+
+from cicada.parsing.schema import UniversalIndexSchema
 
 
 def load_index(
@@ -66,7 +71,12 @@ def save_index(
     verbose: bool = False,
 ) -> None:
     """
-    Save an index dictionary to a JSON file.
+    Save an index dictionary to a JSON file atomically.
+
+    Uses a temp file + atomic rename pattern to prevent corruption
+    during concurrent reads/writes. This is critical for background
+    refresh operations where the MCP server may be reading while
+    the indexer is writing.
 
     Args:
         index: Index dictionary to save
@@ -84,23 +94,42 @@ def save_index(
     if create_dirs:
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_file, "w") as f:
-        json.dump(index, f, indent=indent)
+    # Write to temp file first, then atomic rename
+    fd, temp_path = tempfile.mkstemp(
+        dir=output_file.parent,
+        prefix=".index_",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(index, f, indent=indent)
 
-    if verbose:
-        print(f"Index saved to: {output_path}")
+        # Atomic rename (works on POSIX, best-effort on Windows)
+        os.replace(temp_path, output_file)
+
+        if verbose:
+            print(f"Index saved to: {output_path}")
+    except Exception:
+        # Clean up temp file on failure
+        with contextlib.suppress(OSError):
+            os.unlink(temp_path)
+        raise
 
 
 def validate_index_structure(
     index: Any,
     required_keys: list[str] | None = None,
+    strict: bool = True,
 ) -> tuple[bool, str | None]:
     """
-    Validate the structure of an index dictionary.
+    Validate the structure of an index dictionary using UniversalIndexSchema.
 
     Args:
         index: Index dictionary to validate
         required_keys: List of required top-level keys (default: ['modules', 'metadata'])
+                      If provided, performs basic key checking only for backward compatibility.
+        strict: If True, validate all field types and constraints (default).
+               If False, only validate required fields exist.
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -111,25 +140,51 @@ def validate_index_structure(
         if not valid:
             print(f"Invalid index: {error}")
     """
+    # Basic type check
     if not isinstance(index, dict):
         return False, "Index must be a dictionary"
 
-    if required_keys is None:
-        required_keys = ["modules", "metadata"]
+    # Legacy mode: simple key checking for backward compatibility
+    if required_keys is not None:
+        for key in required_keys:
+            if key not in index:
+                return False, f"Missing required key: {key}"
 
-    for key in required_keys:
-        if key not in index:
-            return False, f"Missing required key: {key}"
+        # Basic structure checks
+        if "modules" in index and not isinstance(index["modules"], dict):
+            return False, "'modules' must be a dictionary"
 
-    # Validate modules structure
-    if "modules" in index and not isinstance(index["modules"], dict):
+        if "metadata" in index and not isinstance(index["metadata"], dict):
+            return False, "'metadata' must be a dictionary"
+
+        return True, None
+
+    # Default mode: comprehensive schema validation
+    # First do basic structure check before attempting schema validation
+    if "modules" not in index:
+        return False, "Missing required key: modules"
+
+    if "metadata" not in index:
+        return False, "Missing required key: metadata"
+
+    if not isinstance(index["modules"], dict):
         return False, "'modules' must be a dictionary"
 
-    # Validate metadata structure
-    if "metadata" in index and not isinstance(index["metadata"], dict):
+    if not isinstance(index["metadata"], dict):
         return False, "'metadata' must be a dictionary"
 
-    return True, None
+    try:
+        schema = UniversalIndexSchema.from_dict(index)
+        is_valid, errors = schema.validate(strict=strict)
+
+        if not is_valid:
+            # Return first error for single-error API
+            return False, errors[0] if errors else "Validation failed"
+
+        return True, None
+
+    except Exception as e:
+        return False, f"Failed to validate index: {str(e)}"
 
 
 def merge_indexes(
@@ -217,9 +272,11 @@ def get_index_stats(index: dict[str, Any]) -> dict[str, Any]:
             stats["total_functions"] += len(functions)
 
             for func in functions:
-                if func.get("type") == "def":
+                # Check normalized visibility field (set by language indexers)
+                visibility = func.get("visibility")
+                if visibility == "public":
                     stats["public_functions"] += 1
-                elif func.get("type") == "defp":
+                elif visibility == "private":
                     stats["private_functions"] += 1
 
     return stats
@@ -297,3 +354,48 @@ def merge_indexes_incremental(
     merged["metadata"]["private_functions"] = stats["private_functions"]
 
     return merged
+
+
+# ============================================================================
+# Index Lookup and Reference Utilities
+# ============================================================================
+# These have been moved to separate modules for better organization.
+# Re-exported here for backward compatibility.
+
+from cicada.utils.index_lookup import (  # noqa: E402
+    get_function_documentation,
+    get_function_signature,
+    lookup_by_location,
+    lookup_function,
+    lookup_module,
+)
+from cicada.utils.index_references import (  # noqa: E402
+    get_call_sites,
+    get_callees_of,
+    get_callers_of,
+    get_dependencies,
+    get_references_to,
+)
+
+__all__ = [
+    # I/O and validation
+    "load_index",
+    "save_index",
+    "validate_index_structure",
+    # Merging
+    "merge_indexes",
+    "merge_indexes_incremental",
+    "get_index_stats",
+    # Lookups (re-exported from index_lookup.py)
+    "lookup_module",
+    "lookup_function",
+    "lookup_by_location",
+    "get_function_documentation",
+    "get_function_signature",
+    # References (re-exported from index_references.py)
+    "get_call_sites",
+    "get_callers_of",
+    "get_callees_of",
+    "get_dependencies",
+    "get_references_to",
+]

@@ -1,3 +1,6 @@
 # Elixir function tracking for git log -L
 *.ex diff=elixir
 *.exs diff=elixir
+
+# Python function tracking for git log -L
+*.py diff=python

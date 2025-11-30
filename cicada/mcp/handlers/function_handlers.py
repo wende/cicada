@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from mcp.types import TextContent
 
+from cicada.mcp.filter_utils import filter_by_file_type
 from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
 
 
@@ -199,62 +200,102 @@ class FunctionSearchHandler:
                     function_def_line = func["line"]
                     break
 
+        # Get the target module's file path for cross-referencing
+        target_file = None
+        if target_module in self.index["modules"]:
+            target_file = self.index["modules"][target_module].get("file")
+
         for caller_module, module_data in self.index["modules"].items():
             # Get aliases for this module to resolve calls
             aliases = module_data.get("aliases", {})
 
-            # Check all calls in this module
+            # Collect all dependencies (module-level and function-level)
+            all_dependencies = []
+
+            # Add module-level dependencies (for Elixir compatibility)
+            for dep in module_data.get("dependencies", []):
+                if isinstance(dep, dict):  # Skip string-only dependencies
+                    all_dependencies.append(dep)
+
+            # Add function-level dependencies (for Python/SCIP)
+            for func in module_data.get("functions", []):
+                for dep in func.get("dependencies", []):
+                    if isinstance(dep, dict):  # Skip string-only dependencies
+                        all_dependencies.append(dep)
+
+            # BACKWARD COMPATIBILITY: Also check old 'calls' format (Elixir module-level)
+            # This is for older indexes or test fixtures that haven't been updated
             for call in module_data.get("calls", []):
-                if call["function"] != target_function:
+                if isinstance(call, dict) and call.get("function"):
+                    all_dependencies.append(call)
+
+            # Check all dependencies in this module
+            for call in all_dependencies:
+                if call.get("function") != target_function:
                     continue
 
-                if call["arity"] != target_arity:
+                if call.get("arity") != target_arity:
                     continue
 
                 # Resolve the call's module name using aliases
                 call_module = call.get("module")
 
+                is_match = False
+                call_type = "unknown"
+                alias_used = None
+
                 if call_module is None:
                     # Local call - check if it's in the same module
                     if caller_module == target_module:
-                        # Filter out calls that are part of the function definition
-                        # (@spec, @doc appear 1-5 lines before the def)
-                        if function_def_line and abs(call["line"] - function_def_line) <= 5:
-                            continue
-
-                        # Find the calling function
-                        calling_function = self._find_function_at_line(caller_module, call["line"])
-
-                        call_sites.append(
-                            {
-                                "calling_module": caller_module,
-                                "calling_function": calling_function,
-                                "file": module_data["file"],
-                                "line": call["line"],
-                                "call_type": "local",
-                            }
-                        )
+                        is_match = True
+                        call_type = "local"
                 else:
                     # Qualified call - resolve the module name
                     resolved_module = aliases.get(call_module, call_module)
 
-                    # Check if this resolves to our target module
+                    # Check if this resolves to our target module (name match)
                     if resolved_module == target_module:
-                        # Find the calling function
-                        calling_function = self._find_function_at_line(caller_module, call["line"])
+                        is_match = True
+                        call_type = "qualified"
+                        alias_used = call_module if call_module != resolved_module else None
+                    # For Python/SCIP: also check if the call's module corresponds to the target file
+                    # This handles cases where dependencies store Python module paths with backticks
+                    # (e.g., `cicada.parsing.base_indexer`) but the target is a class (e.g., `BaseIndexer`)
+                    elif target_file and call_module:
+                        # Look up the dependency's module in the index
+                        dep_module_data = self.index["modules"].get(call_module.strip("`"))
+                        if dep_module_data and dep_module_data.get("file") == target_file:
+                            # The dependency references a module in the same file as our target
+                            is_match = True
+                            call_type = "qualified"
 
-                        call_sites.append(
-                            {
-                                "calling_module": caller_module,
-                                "calling_function": calling_function,
-                                "file": module_data["file"],
-                                "line": call["line"],
-                                "call_type": "qualified",
-                                "alias_used": (
-                                    call_module if call_module != resolved_module else None
-                                ),
-                            }
-                        )
+                if not is_match:
+                    continue
+
+                # Filter out calls that are part of the function definition
+                # (@spec, @doc appear 1-5 lines before the def)
+                # Only filter for local calls (same module)
+                call_line = call.get("line", 0)
+                if (
+                    call_type == "local"
+                    and function_def_line
+                    and abs(call_line - function_def_line) <= 5
+                ):
+                    continue
+
+                # Find the calling function
+                calling_function = self._find_function_at_line(caller_module, call_line)
+
+                call_sites.append(
+                    {
+                        "calling_module": caller_module,
+                        "calling_function": calling_function,
+                        "file": module_data["file"],
+                        "line": call_line,
+                        "call_type": call_type,
+                        "alias_used": alias_used,
+                    }
+                )
 
         return call_sites
 
@@ -468,6 +509,161 @@ class FunctionSearchHandler:
 
         raise ValueError(f"Invalid changed_since format: {changed_since}")
 
+    def _build_private_pattern_string(self, pattern: FunctionPattern) -> str:
+        """
+        Build a private function pattern string from a public pattern.
+
+        Args:
+            pattern: The original function pattern
+
+        Returns:
+            Pattern string with underscore prefix, preserving file scope if present
+            (e.g., "lib/foo.ex:Module._func*" or "lib/foo.ex:_func*/2")
+        """
+        private_pattern = f"_{pattern.name}"
+
+        if pattern.module:
+            module_part = (
+                pattern.module.replace("*.", "", 1)
+                if pattern.module.startswith("*.")
+                else pattern.module
+            )
+            private_pattern = f"{module_part}.{private_pattern}"
+
+        if pattern.arity is not None:
+            private_pattern += f"/{pattern.arity}"
+
+        # Preserve file constraint if present
+        if pattern.file:
+            private_pattern = f"{pattern.file}:{private_pattern}"
+
+        return private_pattern
+
+    def _has_matching_private_function(
+        self, private_pattern_str: str, cutoff_date: datetime | None
+    ) -> bool:
+        """
+        Check if any private functions match the given pattern.
+
+        Args:
+            private_pattern_str: The private function pattern to match
+
+        Returns:
+            True if at least one matching private function exists
+        """
+        private_patterns = parse_function_patterns(private_pattern_str)
+
+        for module_name, module_data in self.index["modules"].items():
+            for func in module_data["functions"]:
+                if not any(
+                    p.matches(module_name, module_data["file"], func) for p in private_patterns
+                ):
+                    continue
+
+                if cutoff_date:
+                    func_modified = func.get("last_modified_at")
+                    if not func_modified:
+                        continue
+
+                    func_modified_dt = datetime.fromisoformat(func_modified)
+                    if func_modified_dt.tzinfo is None:
+                        func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+
+                    if func_modified_dt < cutoff_date:
+                        continue
+
+                return True
+
+        return False
+
+    def _suggest_private_function(
+        self,
+        results: list,
+        parsed_patterns: list[FunctionPattern],
+        cutoff_date: datetime | None,
+    ) -> str | None:
+        """
+        Suggest a private function pattern if no public functions were found.
+
+        Args:
+            results: The search results (empty if no matches)
+            parsed_patterns: List of parsed function patterns from the search query
+
+        Returns:
+            Private function pattern string if matches found, None otherwise
+        """
+        if results or not parsed_patterns:
+            return None
+
+        for pattern in parsed_patterns:
+            if not (pattern.name and not pattern.name.startswith("_") and "*" in pattern.name):
+                continue
+
+            private_pattern = self._build_private_pattern_string(pattern)
+
+            if self._has_matching_private_function(private_pattern, cutoff_date):
+                return private_pattern
+
+        return None
+
+    def _search_with_patterns(
+        self,
+        patterns: list[FunctionPattern],
+        seen_functions: set[tuple[str, str, int]],
+        cutoff_date: datetime | None,
+        what_calls_it: bool,
+        usage_type: str,
+    ) -> list[dict]:
+        """
+        Execute a search with the given patterns, returning matching results.
+
+        This helper method encapsulates the core search loop for reuse in fallback searches.
+        """
+        results = []
+        for module_name, module_data in self.index["modules"].items():
+            for func in module_data["functions"]:
+                if any(p.matches(module_name, module_data["file"], func) for p in patterns):
+                    # Apply cutoff_date filter
+                    if cutoff_date:
+                        func_modified = func.get("last_modified_at")
+                        if not func_modified:
+                            continue
+                        func_modified_dt = datetime.fromisoformat(func_modified)
+                        if func_modified_dt.tzinfo is None:
+                            func_modified_dt = func_modified_dt.replace(tzinfo=timezone.utc)
+                        if func_modified_dt < cutoff_date:
+                            continue
+
+                    key = (module_name, func["name"], func["arity"])
+                    if key in seen_functions:
+                        continue
+                    seen_functions.add(key)
+
+                    # Find call sites if what_calls_it is enabled
+                    call_sites = []
+                    if what_calls_it:
+                        call_sites = self._find_call_sites(
+                            target_module=module_name,
+                            target_function=func["name"],
+                            target_arity=func["arity"],
+                        )
+                        if usage_type != "all":
+                            call_sites = filter_by_file_type(call_sites, usage_type)
+
+                    results.append(
+                        {
+                            "module": module_name,
+                            "moduledoc": module_data.get("moduledoc"),
+                            "function": func,
+                            "file": module_data["file"],
+                            "call_sites": call_sites,
+                            "call_sites_with_examples": [],
+                            "pr_info": None,
+                            "detailed_dependencies": None,
+                        }
+                    )
+        return results
+
     async def search_function(
         self,
         function_name: str,
@@ -480,6 +676,7 @@ class FunctionSearchHandler:
         module_path: str | None = None,
         what_it_calls: bool = False,
         include_code_context: bool = False,
+        format_opts: dict | None = None,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -498,7 +695,7 @@ class FunctionSearchHandler:
             module_path: Optional module path to prepend if function_name doesn't include it
             (other params documented in tool definition)
         """
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         # Handle both calling conventions:
         # 1. function_name="Module.function" (already qualified)
@@ -562,8 +759,6 @@ class FunctionSearchHandler:
 
                         # Filter call sites by file type if not 'all'
                         if usage_type != "all":
-                            from cicada.mcp.filter_utils import filter_by_file_type
-
                             call_sites = filter_by_file_type(call_sites, usage_type)
 
                         # Optionally include usage examples (actual code lines)
@@ -606,12 +801,43 @@ class FunctionSearchHandler:
         # For now, we'll skip this or pass it from server
         staleness_info = None
 
+        # Apply automatic fallback searches when no results found
+        fallback_note = None
+        if not results:
+            from cicada.mcp.fallbacks import apply_fallbacks
+
+            def search_fn(patterns: list[FunctionPattern]) -> list[dict]:
+                return self._search_with_patterns(
+                    patterns, seen_functions, cutoff_date, what_calls_it, usage_type
+                )
+
+            fallback_result = apply_fallbacks(
+                parsed_patterns,
+                search_fn,
+                context={"module_path": module_path},
+            )
+            results = fallback_result.results
+            fallback_note = fallback_result.note
+
+        # If still no results, generate suggestion for private function (for display only)
+        private_suggestion = self._suggest_private_function(results, parsed_patterns, cutoff_date)
+
+        # Get language from index metadata
+        language = self.index.get("metadata", {}).get("language", "elixir")
+
         # Format results
         if output_format == "json":
             result = ModuleFormatter.format_function_results_json(function_name, results)
         else:
             result = ModuleFormatter.format_function_results_markdown(
-                function_name, results, staleness_info, what_it_calls
+                function_name,
+                results,
+                staleness_info,
+                what_it_calls,
+                language,
+                private_suggestion,
+                format_opts=format_opts,
+                fallback_note=fallback_note,
             )
 
         return [TextContent(type="text", text=result)]

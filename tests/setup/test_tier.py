@@ -79,7 +79,7 @@ class TestTierToMethods:
         """Test tier to methods conversion"""
         test_cases = [
             ("fast", ("regular", "lemmi")),
-            ("regular", ("bert", "glove")),
+            ("regular", ("regular", "glove")),  # regular tier uses regular extraction + glove
             ("max", ("bert", "fasttext")),
             ("unknown", ("regular", "lemmi")),  # Default for unknown
             ("", ("regular", "lemmi")),  # Default for empty
@@ -95,12 +95,12 @@ class TestMethodsToTier:
     def test_methods_to_tier(self):
         """Test methods to tier conversion"""
         test_cases = [
-            ("regular", "lemmi", "fast"),  # Regular extraction maps to fast
-            ("regular", "glove", "fast"),
-            ("regular", "fasttext", "fast"),
+            ("regular", "lemmi", "fast"),  # Regular extraction + lemmi = fast
+            ("regular", "glove", "regular"),  # Regular extraction + glove = regular
+            ("regular", "fasttext", "regular"),  # Regular extraction + other = regular
             ("bert", "fasttext", "max"),  # Bert + fasttext = max
-            ("bert", "glove", "regular"),  # Bert + glove = regular
-            ("bert", "unknown", "regular"),  # Bert + other = regular
+            ("bert", "glove", "max"),  # Bert + glove = max (bert is max-level)
+            ("bert", "unknown", "max"),  # Bert + other = max
             ("unknown", "lemmi", "regular"),  # Unknown defaults to regular
         ]
 
@@ -206,7 +206,7 @@ class TestGetExtractionExpansionMethods:
         test_cases = [
             (Namespace(fast=False, max=False, regular=False), (None, None)),
             (Namespace(fast=True, max=False, regular=False), ("regular", "lemmi")),
-            (Namespace(fast=False, max=False, regular=True), ("bert", "glove")),
+            (Namespace(fast=False, max=False, regular=True), ("regular", "glove")),
             (Namespace(fast=False, max=True, regular=False), ("bert", "fasttext")),
         ]
 

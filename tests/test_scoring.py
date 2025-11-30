@@ -107,7 +107,7 @@ class TestScoreDistribution:
         dist = result["distribution"][0]
         assert dist["score"] == 5.0
         assert dist["z_score"] == 0.0
-        assert dist["percentile"] == 0.0
+        assert dist["percentile"] == 50.0  # Single/identical scores get median percentile
         assert dist["normalized"] == 1.0  # Single value normalizes to 1.0
 
     def test_identical_scores(self):
@@ -121,11 +121,10 @@ class TestScoreDistribution:
         assert result["max_score"] == 3.0
 
         # All z-scores should be 0 (no variance)
+        # For identical scores, z-score is 0, percentile is 50, and normalized is 0.5
         for dist in result["distribution"]:
             assert dist["z_score"] == 0.0
-
-        # All normalized scores should be 0.5 (no range)
-        for dist in result["distribution"]:
+            assert dist["percentile"] == 50.0
             assert dist["normalized"] == 0.5
 
     def test_empty_list(self):
@@ -291,16 +290,19 @@ class TestGradeByZScore:
         assert result_edge["tier"] == "above_average"
 
     def test_below_average_tier(self):
-        """Test z-scores in below average range (-1.0 < z ≤ 0.0)."""
+        """Test z-scores in below average range (-1.0 < z < 0.0)."""
         result = grade_by_z_score(-0.5)
         assert result["tier"] == "below_average"
         assert result["label"] == "Below Average"
         assert result["rank"] == 4
         assert "Bottom 50%" in result["description"]
 
-        # Edge case: exactly 0.0 should be below_average
-        result_edge = grade_by_z_score(0.0)
+        # Edge case: close to 0 but negative is still below_average
+        result_edge = grade_by_z_score(-0.01)
         assert result_edge["tier"] == "below_average"
+        assert result_edge["label"] == "Below Average"
+        assert result_edge["rank"] == 4
+        assert "Bottom 50%" in result_edge["description"]
 
     def test_poor_tier(self):
         """Test z-scores in poor range (≤ -1.0)."""
@@ -317,8 +319,8 @@ class TestGradeByZScore:
     def test_zero_z_score(self):
         """Test z-score of exactly 0 (mean)."""
         result = grade_by_z_score(0.0)
-        assert result["tier"] == "below_average"
-        assert result["rank"] == 4
+        assert result["tier"] == "above_average"  # At the mean = average, not below
+        assert result["rank"] == 3
 
     def test_extreme_z_scores(self):
         """Test very large and very small z-scores."""
@@ -423,7 +425,7 @@ class TestCalculateScoreDistributionWithTiers:
 
         # Single score has z-score of 0
         assert dist["z_score"] == 0.0
-        assert dist["tier"] == "below_average"  # z=0 is below_average tier
+        assert dist["tier"] == "above_average"  # z=0 is at the mean = above_average tier
 
     def test_tier_rank_ordering(self):
         """Test that tier_rank values are in correct order (1 is best)."""

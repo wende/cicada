@@ -237,17 +237,21 @@ def test_skip_test_files(sample_index):
 
 
 def test_is_test_file():
-    """Test test file detection."""
-    # Test various test file patterns
+    """Test test file detection with universal patterns."""
+    # Test directory patterns (universal)
     assert is_test_file("test/my_test.ex")
+    assert is_test_file("tests/test_user.py")
     assert is_test_file("lib/my_app/test/helper.ex")
-    assert is_test_file("lib/my_module_test.ex")
-    assert is_test_file("config/config.exs")
-    assert is_test_file("mix.exs")
+
+    # Test file naming patterns (universal)
+    assert is_test_file("lib/my_module_test.ex")  # *_test.* pattern
+    assert is_test_file("tests/test_calculator.py")  # test_*.* pattern
 
     # Non-test files
     assert not is_test_file("lib/my_app/module.ex")
     assert not is_test_file("lib/controllers/user.ex")
+    assert not is_test_file("config/config.exs")  # Not a test file (config)
+    assert not is_test_file("mix.exs")  # Not a test file (build script)
 
 
 def test_medium_confidence_with_behaviours(sample_index):

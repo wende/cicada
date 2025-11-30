@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
   test:
@@ -25,9 +25,42 @@ jobs:
       run: |
         uv sync --all-extras
 
+    - name: Install protobuf compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Generate SCIP protobuf files
+      run: |
+        cd cicada/languages/scip
+        protoc --python_out=. --pyi_out=. scip.proto
+        ls -la scip_pb2.py scip_pb2.pyi
+
     - name: Clone test fixture
       run: |
         git clone https://github.com/wende/ab tests/fixtures/elixir_project
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install SCIP indexers
+      run: |
+        npm install -g @sourcegraph/scip-python @sourcegraph/scip-typescript
+
+    - name: Generate Python SCIP index
+      run: |
+        cd tests/fixtures/sample_python
+        scip-python index .
+        ls -la index.scip
+
+    - name: Generate TypeScript SCIP index
+      run: |
+        cd tests/fixtures/sample_typescript
+        npm install
+        scip-typescript index .
+        ls -la index.scip
 
     - name: Run tests with coverage
       run: make ci-test

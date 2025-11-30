@@ -122,7 +122,7 @@ class TestEditorSpecs:
         """Should have correct Gemini spec"""
         gemini_spec = next(s for s in EDITOR_SPECS if s.name == "gemini")
         assert gemini_spec.cli_help == "Setup Cicada for Gemini CLI"
-        assert gemini_spec.config_relpath == Path(".gemini") / "mcp.json"
+        assert gemini_spec.config_relpath == Path(".gemini") / "settings.json"
         assert gemini_spec.config_key == "mcpServers"
         assert gemini_spec.needs_dir is True
         assert gemini_spec.cli_available is True

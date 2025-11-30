@@ -15,6 +15,22 @@ from mcp.types import TextContent
 from cicada.mcp.handlers.analysis_handlers import AnalysisHandler
 
 
+class MockIndexManager:
+    """Mock index manager for testing."""
+
+    def __init__(self, index: dict, has_keywords: bool = True):
+        self._index = index
+        self._has_keywords = has_keywords
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def has_keywords(self):
+        return self._has_keywords
+
+
 @pytest.fixture
 def mock_index_with_keywords():
     """Index with keywords for search testing."""
@@ -80,7 +96,7 @@ def mock_index_no_cooccurrence():
 @pytest.mark.asyncio
 async def test_suggest_keywords_no_cooccurrence_data(mock_index_no_cooccurrence):
     """Test suggest_keywords when co-occurrence data is missing."""
-    handler = AnalysisHandler(mock_index_no_cooccurrence, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_no_cooccurrence, has_keywords=True))
 
     result = await handler.suggest_keywords(
         keywords=["test"], mode="expand", top_n=5, min_cooccurrence=1
@@ -88,14 +104,14 @@ async def test_suggest_keywords_no_cooccurrence_data(mock_index_no_cooccurrence)
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "Co-occurrence data not available" in result[0].text
-    assert "cicada index --extract-keywords" in result[0].text
+    assert "No co-occurrence data" in result[0].text
+    assert "cicada index" in result[0].text
 
 
 @pytest.mark.asyncio
 async def test_suggest_keywords_expand_mode_success(mock_index_with_keywords):
     """Test suggest_keywords in expand mode with valid suggestions."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     result = await handler.suggest_keywords(
         keywords=["test"], mode="expand", top_n=5, min_cooccurrence=1
@@ -110,7 +126,7 @@ async def test_suggest_keywords_expand_mode_success(mock_index_with_keywords):
 @pytest.mark.asyncio
 async def test_suggest_keywords_expand_mode_no_suggestions(mock_index_with_keywords):
     """Test suggest_keywords in expand mode when no suggestions found."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     # Search for keyword that doesn't exist
     result = await handler.suggest_keywords(
@@ -119,14 +135,13 @@ async def test_suggest_keywords_expand_mode_no_suggestions(mock_index_with_keywo
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keyword suggestions found" in result[0].text
-    assert "min_cooccurrence threshold is too high" in result[0].text
+    assert "No suggestions for:" in result[0].text
 
 
 @pytest.mark.asyncio
 async def test_suggest_keywords_narrow_mode_no_results(mock_index_with_keywords):
     """Test suggest_keywords in narrow mode without search results."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     result = await handler.suggest_keywords(
         keywords=["test"], mode="narrow", search_results=None, top_n=5
@@ -140,7 +155,7 @@ async def test_suggest_keywords_narrow_mode_no_results(mock_index_with_keywords)
 @pytest.mark.asyncio
 async def test_suggest_keywords_narrow_mode_success(mock_index_with_keywords):
     """Test suggest_keywords in narrow mode with valid results."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     # Mock search results
     search_results = [
@@ -174,7 +189,7 @@ async def test_suggest_keywords_narrow_mode_success(mock_index_with_keywords):
 @pytest.mark.asyncio
 async def test_suggest_keywords_narrow_mode_no_suggestions(mock_index_with_keywords):
     """Test suggest_keywords in narrow mode when no narrowing keywords found."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     # Search results with no common keywords
     search_results = [
@@ -191,8 +206,7 @@ async def test_suggest_keywords_narrow_mode_no_suggestions(mock_index_with_keywo
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No narrowing keywords found" in result[0].text
-    assert "min_result_count threshold is too high" in result[0].text
+    assert "No narrowing keywords for:" in result[0].text
 
 
 # ===== query Method Tests =====
@@ -201,13 +215,13 @@ async def test_suggest_keywords_narrow_mode_no_suggestions(mock_index_with_keywo
 @pytest.mark.asyncio
 async def test_query_without_keywords(mock_index_without_keywords):
     """Test query method when keywords are not available."""
-    handler = AnalysisHandler(mock_index_without_keywords, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager(mock_index_without_keywords, has_keywords=False))
 
     result = await handler.query(query="test", scope="all", filter_type="all")
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keywords found in index" in result[0].text
+    assert "No keywords in index" in result[0].text
     assert "cicada index" in result[0].text
 
 
@@ -217,20 +231,20 @@ async def test_query_without_keywords(mock_index_without_keywords):
 @pytest.mark.asyncio
 async def test_search_by_keywords_no_keywords_in_index(mock_index_without_keywords):
     """Test search_by_keywords when index has no keywords."""
-    handler = AnalysisHandler(mock_index_without_keywords, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager(mock_index_without_keywords, has_keywords=False))
 
     result = await handler.search_by_keywords(keywords=["test"])
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keywords found in index" in result[0].text
-    assert "cicada index --force --regular" in result[0].text
+    assert "No keywords in index" in result[0].text
+    assert "cicada index" in result[0].text
 
 
 @pytest.mark.asyncio
 async def test_search_by_keywords_no_results_with_min_score(mock_index_with_keywords):
     """Test search_by_keywords when no results meet min_score threshold."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     # Use a very high min_score that no results will meet
     result = await handler.search_by_keywords(keywords=["nonexistent"], min_score=10.0)
@@ -246,7 +260,7 @@ async def test_search_by_keywords_no_results_without_min_score(
     mock_index_with_keywords,
 ):
     """Test search_by_keywords when no results found (no min_score)."""
-    handler = AnalysisHandler(mock_index_with_keywords, has_keywords=True)
+    handler = AnalysisHandler(MockIndexManager(mock_index_with_keywords, has_keywords=True))
 
     result = await handler.search_by_keywords(keywords=["nonexistent_keyword_12345"], min_score=0.0)
 
@@ -263,7 +277,7 @@ async def test_search_by_keywords_no_results_without_min_score(
 @pytest.mark.asyncio
 async def test_query_jq_timeout():
     """Test query_jq when jq execution times out."""
-    handler = AnalysisHandler({"modules": {}}, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager({"modules": {}}, has_keywords=False))
 
     with patch.object(handler, "_execute_jq_query", side_effect=asyncio.TimeoutError()):
         result = await handler.query_jq(query=".modules", output_format="json")
@@ -278,7 +292,7 @@ async def test_query_jq_timeout():
 @pytest.mark.asyncio
 async def test_query_jq_value_error_syntax():
     """Test query_jq when jq has syntax error with line/column info."""
-    handler = AnalysisHandler({"modules": {}}, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager({"modules": {}}, has_keywords=False))
 
     # Simulate jq syntax error with line and column information
     error_msg = "jq: error (at <stdin>:0): compile error near line 1, column 5: Invalid syntax"
@@ -295,7 +309,7 @@ async def test_query_jq_value_error_syntax():
 @pytest.mark.asyncio
 async def test_query_jq_value_error_iterate_null():
     """Test query_jq with 'iterate over null' error."""
-    handler = AnalysisHandler({"modules": {}}, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager({"modules": {}}, has_keywords=False))
 
     error_msg = "Cannot iterate over null"
 
@@ -313,7 +327,7 @@ async def test_query_jq_value_error_iterate_null():
 @pytest.mark.asyncio
 async def test_query_jq_general_exception():
     """Test query_jq when unexpected exception occurs."""
-    handler = AnalysisHandler({"modules": {}}, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager({"modules": {}}, has_keywords=False))
 
     with patch.object(handler, "_execute_jq_query", side_effect=RuntimeError("Unexpected error")):
         result = await handler.query_jq(query=".modules", output_format="json")
@@ -327,7 +341,7 @@ async def test_query_jq_general_exception():
 @pytest.mark.asyncio
 async def test_query_jq_null_result():
     """Test query_jq when result is None/null."""
-    handler = AnalysisHandler({"modules": {}}, has_keywords=False)
+    handler = AnalysisHandler(MockIndexManager({"modules": {}}, has_keywords=False))
 
     with patch.object(handler, "_execute_jq_query", return_value=None):
         result = await handler.query_jq(query=".nonexistent", output_format="json")

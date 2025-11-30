@@ -111,7 +111,7 @@ class TestFormatPRContext:
 
     def test_format_pr_context_with_pr_info(self):
         """Should format PR context when PR info is available"""
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         pr_info = {
             "number": 123,
@@ -132,7 +132,7 @@ class TestFormatPRContext:
 
     def test_format_pr_context_with_pr_info_no_comments(self):
         """Should format PR context without comments section"""
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         pr_info = {
             "number": 456,
@@ -151,7 +151,7 @@ class TestFormatPRContext:
 
     def test_format_pr_context_without_pr_info(self):
         """Should return empty list when PR info unavailable"""
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/test.ex")
 
@@ -159,7 +159,7 @@ class TestFormatPRContext:
 
     def test_format_pr_context_with_function_name(self):
         """Should return empty list when PR info unavailable (even with function name)"""
-        from cicada.elixir.format import ModuleFormatter
+        from cicada.format import ModuleFormatter
 
         result = ModuleFormatter._format_pr_context(None, "lib/user.ex", "create_user")
 

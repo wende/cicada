@@ -144,14 +144,20 @@ class TestMain:
             main()
             mock_handler.assert_called_once()
 
-    def test_main_no_args_shows_help(self):
-        """Should show help when no args provided"""
+    def test_main_no_args_shows_help(self, tmp_path):
+        """Should run interactive setup when no args provided in a valid project"""
+        # Create a valid Python project marker
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
         with (
             patch.object(sys, "argv", ["cicada"]),
-            pytest.raises(SystemExit) as exc_info,
+            patch("pathlib.Path.cwd", return_value=tmp_path),
+            patch("cicada.interactive_setup.show_full_interactive_setup") as mock_setup,
         ):
             main()
-        assert exc_info.value.code == 1
+
+        # Should call interactive setup, not exit
+        mock_setup.assert_called_once_with(tmp_path)
 
     def test_main_with_dot_path_calls_install(self):
         """Should route to install command when path is '.'"""
@@ -222,7 +228,7 @@ class TestHandleEditorSetup:
         assert "Can only specify one tier flag" in captured.err
 
     def test_requires_elixir_project(self, tmp_path, capsys):
-        """Should error if not an Elixir project"""
+        """Should error if not a supported project type"""
         args = make_index_args()
 
         with (
@@ -233,7 +239,7 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "does not appear to be an Elixir project" in captured.err
+        assert "Could not detect project language" in captured.err
 
     def test_fast_flag_sets_regular_extraction(self, mock_elixir_repo):
         """--fast should set extraction to regular + lemmi expansion"""
@@ -250,8 +256,8 @@ class TestHandleEditorSetup:
             assert call_kwargs["extraction_method"] == "regular"
             assert call_kwargs["expansion_method"] == "lemmi"
 
-    def test_regular_flag_sets_bert_glove(self, mock_elixir_repo):
-        """--regular should set extraction to bert + glove expansion"""
+    def test_regular_flag_sets_regular_glove(self, mock_elixir_repo):
+        """--regular should set extraction to regular + glove expansion"""
         args = make_index_args(regular=True)
 
         with (
@@ -260,9 +266,9 @@ class TestHandleEditorSetup:
         ):
             handle_editor_setup(args, "claude")
 
-            # Check that setup was called with bert + glove
+            # Check that setup was called with regular + glove
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "bert"
+            assert call_kwargs["extraction_method"] == "regular"
             assert call_kwargs["expansion_method"] == "glove"
 
     def test_max_flag_sets_bert_fasttext(self, mock_elixir_repo):
@@ -368,8 +374,8 @@ class TestHandleIndex:
             assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
             assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
 
-    def test_regular_flag_creates_config_with_bert_glove(self, mock_repo):
-        """--regular should create config with bert extraction and glove expansion"""
+    def test_regular_flag_creates_config_with_regular_glove(self, mock_repo):
+        """--regular should create config with regular extraction and glove expansion"""
         args = make_index_args(regular=True, force=True, repo=str(mock_repo))
 
         with (
@@ -388,10 +394,10 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with bert + glove
+            # Verify config was created with regular + glove
             mock_create_config.assert_called()
             call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method is 3rd positional arg
+            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
             assert call_args[3] == "glove"  # expansion_method is 4th positional arg
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
@@ -464,6 +470,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
@@ -479,14 +486,15 @@ class TestHandleIndex:
 
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
+            mock_get_indexer.return_value = mock_indexer
 
             handle_index(args)
 
-            # Verify config was updated with new tier (bert + glove)
+            # Verify config was updated with new tier (regular + glove)
             mock_create_config.assert_called_once()
             # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
             call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method
+            assert call_args[2] == "regular"  # extraction_method
             assert call_args[3] == "glove"  # expansion_method
 
             # Verify indexing proceeded normally
@@ -503,6 +511,7 @@ class TestHandleIndex:
             patch("cicada.utils.storage.get_index_path"),
             patch("cicada.setup.create_config_yaml") as mock_create_config,
             patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
+            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
             patch("builtins.open", MagicMock()),
             patch(
                 "yaml.safe_load",
@@ -518,6 +527,7 @@ class TestHandleIndex:
 
             mock_indexer = MagicMock()
             mock_indexer_class.return_value = mock_indexer
+            mock_get_indexer.return_value = mock_indexer
 
             handle_index(args)
 
@@ -951,6 +961,8 @@ class TestSetupAndStartWatcher:
             max=False,
             regular=False,
             debounce=3.5,
+            verbose=True,
+            quiet=False,
         )
 
         config_path = tmp_path / "config.yaml"

@@ -9,7 +9,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cicada.elixir.format import ModuleFormatter
+from cicada.format import ModuleFormatter
 
 
 def test_group_call_sites_by_caller_single_caller():
@@ -590,9 +590,11 @@ def test_format_function_results_markdown_with_examples():
         }
     ]
 
-    markdown = ModuleFormatter.format_function_results_markdown("example_func", results)
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "example_func", results, format_opts={"include_docs": True}
+    )
 
-    # Should include examples
+    # Should include examples (when include_docs=True)
     assert "Examples:" in markdown
     assert "iex> example_func(5)" in markdown
 
@@ -724,7 +726,7 @@ def test_format_function_results_json_not_found():
 
 def test_json_formatter_format_string():
     """Test JSONFormatter format_string method."""
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter(indent=2)
     input_json = '{"key":"value","nested":{"a":1}}'
@@ -740,7 +742,7 @@ def test_json_formatter_format_string_invalid():
     """Test JSONFormatter with invalid JSON."""
     import pytest
 
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter()
 
@@ -750,7 +752,7 @@ def test_json_formatter_format_string_invalid():
 
 def test_json_formatter_format_dict():
     """Test JSONFormatter format_dict method."""
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter(indent=4, sort_keys=True)
     data = {"z": 1, "a": 2, "m": 3}
@@ -765,7 +767,7 @@ def test_json_formatter_format_dict():
 
 def test_json_formatter_format_file(tmp_path):
     """Test JSONFormatter format_file method."""
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     # Create test JSON file
     input_file = tmp_path / "input.json"
@@ -783,7 +785,7 @@ def test_json_formatter_format_file_not_found(tmp_path):
     """Test JSONFormatter with non-existent file."""
     import pytest
 
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     formatter = JSONFormatter()
     nonexistent = tmp_path / "nonexistent.json"
@@ -794,7 +796,7 @@ def test_json_formatter_format_file_not_found(tmp_path):
 
 def test_json_formatter_format_file_with_output(tmp_path):
     """Test JSONFormatter writing to output file."""
-    from cicada.elixir.format import JSONFormatter
+    from cicada.format import JSONFormatter
 
     # Create test JSON file
     input_file = tmp_path / "input.json"
@@ -817,7 +819,7 @@ def test_json_formatter_main_with_output(tmp_path, monkeypatch, capsys):
     """Test main() function with output file."""
     import sys
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     # Create test file
     input_file = tmp_path / "test.json"
@@ -840,7 +842,7 @@ def test_json_formatter_main_to_stdout(tmp_path, monkeypatch, capsys):
     """Test main() function printing to stdout."""
     import sys
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     # Create test file
     input_file = tmp_path / "test.json"
@@ -861,7 +863,7 @@ def test_json_formatter_main_with_indent(tmp_path, monkeypatch):
     """Test main() function with custom indent."""
     import sys
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key":"value"}')
@@ -882,7 +884,7 @@ def test_json_formatter_main_with_sort_keys(tmp_path, monkeypatch):
     """Test main() function with sort_keys."""
     import sys
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"z":1,"a":2}')
@@ -904,7 +906,7 @@ def test_json_formatter_main_with_compact(tmp_path, monkeypatch):
     """Test main() function with compact flag."""
     import sys
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key": "value"}')
@@ -927,7 +929,7 @@ def test_json_formatter_main_file_not_found(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     nonexistent = tmp_path / "nonexistent.json"
 
@@ -946,7 +948,7 @@ def test_json_formatter_main_invalid_json(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.elixir.format import main
+    from cicada.format import main
 
     input_file = tmp_path / "invalid.json"
     input_file.write_text("{invalid json}")
@@ -966,7 +968,7 @@ def test_json_formatter_main_unexpected_error(tmp_path, monkeypatch):
 
     import pytest
 
-    from cicada.elixir.format import JSONFormatter, main
+    from cicada.format import JSONFormatter, main
 
     input_file = tmp_path / "test.json"
     input_file.write_text('{"key":"value"}')
@@ -987,11 +989,14 @@ def test_json_formatter_main_unexpected_error(tmp_path, monkeypatch):
 
 
 def test_format_module_markdown_long_moduledoc_truncation():
-    """Test that long moduledoc gets truncated at 200 chars."""
+    """Test that long moduledoc gets truncated at 200 chars when enabled."""
     long_doc = "A" * 300
     data = {"file": "lib/test.ex", "line": 1, "functions": [], "moduledoc": long_doc}
 
-    result = ModuleFormatter.format_module_markdown("TestModule", data)
+    # Moduledoc is hidden by default, need to enable it
+    result = ModuleFormatter.format_module_markdown(
+        "TestModule", data, format_opts={"include_moduledoc": True}
+    )
 
     # Should truncate at 200 chars with ellipsis
     assert ("A" * 200 + "...") in result
@@ -1137,3 +1142,415 @@ def test_format_function_results_markdown_with_match_source_indicators():
     markdown = ModuleFormatter.format_function_results_markdown("query", results)
     # Should not crash when match_sources is present
     assert "MyApp.SQL.query/1" in markdown
+
+
+# ===== Co-change formatting tests =====
+
+
+def test_format_module_markdown_with_cochange_files():
+    """Test that cochange_files are displayed in module markdown."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [
+            {
+                "name": "authenticate",
+                "arity": 2,
+                "type": "def",
+                "line": 5,
+                "args": ["user", "pass"],
+            },
+        ],
+        "cochange_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+            {"file": "lib/logger.ex", "module": "Logger", "count": 5},
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should include the "Often Changed With" section
+    assert "Often Changed With" in markdown
+    assert "Credentials (10 commits)" in markdown
+    assert "Logger (5 commits)" in markdown
+
+
+def test_format_module_markdown_with_cochange_files_truncation():
+    """Test that cochange_files are truncated to top 3 for compactness."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+        "cochange_files": [
+            {"file": f"lib/module{i}.ex", "module": f"Module{i}", "count": 10 - i}
+            for i in range(1, 9)  # 8 modules
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should show top 3
+    assert "Module1" in markdown
+    assert "Module2" in markdown
+    assert "Module3" in markdown
+    # Module4 should NOT be in output (limited to 3)
+    assert "Module4" not in markdown
+    # Should show truncation message
+    assert "... and 5 more" in markdown
+
+
+def test_format_module_markdown_with_cochange_files_uses_filename_fallback():
+    """Test that cochange_files use filename when module is not present."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+        "cochange_files": [
+            {"file": "lib/some_module.ex", "count": 5},  # No module key
+        ],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should use filename
+    assert "some_module.ex (5 commits)" in markdown
+
+
+def test_format_module_markdown_without_cochange_files():
+    """Test that module markdown works when cochange_files is empty or missing."""
+    data = {
+        "file": "lib/auth.ex",
+        "line": 1,
+        "functions": [],
+    }
+    markdown = ModuleFormatter.format_module_markdown("Auth", data)
+
+    # Should not include co-change section
+    assert "Often Changed With" not in markdown
+
+
+def test_format_cochange_info_with_related_files():
+    """Test _format_cochange_info with related_files."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+            {"file": "lib/logger.ex", "module": "Logger", "count": 5},
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    assert any("Often changed with" in line for line in lines)
+    assert any("Credentials" in line and "10" in line for line in lines)
+    assert any("Logger" in line and "5" in line for line in lines)
+
+
+def test_format_cochange_info_with_related_functions():
+    """Test _format_cochange_info with related_functions."""
+    cochange_info = {
+        "related_functions": [
+            {"module": "Credentials", "function": "validate", "arity": 2, "count": 8},
+            {"module": "Logger", "function": "log", "arity": 1, "count": 3},
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    assert any("Related functions" in line for line in lines)
+    assert any("Credentials.validate/2" in line and "8" in line for line in lines)
+    assert any("Logger.log/1" in line and "3" in line for line in lines)
+
+
+def test_format_cochange_info_with_both_files_and_functions():
+    """Test _format_cochange_info with both related_files and related_functions."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/credentials.ex", "module": "Credentials", "count": 10},
+        ],
+        "related_functions": [
+            {"module": "Logger", "function": "log", "arity": 1, "count": 3},
+        ],
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Both sections should be present
+    assert any("Often changed with" in line for line in lines)
+    assert any("Related functions" in line for line in lines)
+
+
+def test_format_cochange_info_empty():
+    """Test _format_cochange_info with empty data."""
+    cochange_info = {}
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Should return empty list
+    assert lines == []
+
+
+def test_format_cochange_info_uses_filename_when_no_module():
+    """Test _format_cochange_info uses filename when module is missing."""
+    cochange_info = {
+        "related_files": [
+            {"file": "lib/some_file.ex", "count": 5},  # No module key
+        ]
+    }
+    lines = ModuleFormatter._format_cochange_info(cochange_info)
+
+    # Should use the filename (without .ex) as display name
+    assert any("some_file" in line for line in lines)
+
+
+def test_format_related_items_truncation():
+    """Test _format_related_items truncates to top_n."""
+    items = [{"name": f"item{i}", "count": 10 - i} for i in range(10)]
+
+    def format_item(item: dict) -> tuple[str, int]:
+        return item["name"], item["count"]
+
+    lines = ModuleFormatter._format_related_items(items, "Test items:", format_item, top_n=3)
+
+    # Should have header + 3 items + truncation message
+    assert any("Test items:" in line for line in lines)
+    assert any("item0" in line for line in lines)
+    assert any("item2" in line for line in lines)
+    assert any("... and 7 more" in line for line in lines)
+    # Should NOT have item3 (beyond top_n)
+    assert not any("item3" in line for line in lines)
+
+
+# Tests for fallback note rendering and keyword splitting
+
+
+def test_split_function_name_to_keywords_snake_case():
+    """Test keyword splitting for snake_case function names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("create_user")
+    assert keywords == ["create", "user"]
+
+
+def test_split_function_name_to_keywords_leading_underscore():
+    """Test keyword splitting strips leading underscores."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("_extract_cochange")
+    assert keywords == ["extract", "cochange"]
+
+
+def test_split_function_name_to_keywords_camel_case():
+    """Test keyword splitting for camelCase function names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("getUserData")
+    assert keywords == ["get", "user", "data"]
+
+
+def test_split_function_name_to_keywords_single_word():
+    """Test keyword splitting returns single keyword for simple names."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("create")
+    assert keywords == ["create"]
+
+
+def test_split_function_name_to_keywords_mixed_case_underscore():
+    """Test keyword splitting for mixed naming conventions."""
+    keywords = ModuleFormatter._split_function_name_to_keywords("get_UserData")
+    assert keywords == ["get", "user", "data"]
+
+
+def test_fallback_note_rendered_for_single_result():
+    """Ensure fallback_note is rendered when there is a single result."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create_user",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+                "doc": "Creates a user.",
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        }
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create_user",
+        results,
+        fallback_note="no matches in `SomeModule`",
+    )
+
+    # Fallback note should be rendered with parentheses
+    assert "(no matches in `SomeModule`)" in markdown
+    # Result should still be rendered
+    assert "MyApp.Module.create_user/1" in markdown
+
+
+def test_fallback_note_rendered_for_multiple_results():
+    """Ensure fallback_note is rendered when there are multiple results."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+        {
+            "module": "OtherApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 2,
+                "type": "def",
+                "line": 10,
+            },
+            "file": "lib/other_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        results,
+        fallback_note="no matches with arity /3",
+    )
+
+    # Fallback note should be in the "Found X match(es)" line with parentheses
+    assert "(no matches with arity /3)" in markdown
+    assert "Found 2 match(es)" in markdown
+    # Both results should be rendered
+    assert "MyApp.Module.create/1" in markdown
+    assert "OtherApp.Module.create/2" in markdown
+
+
+def test_query_suggestion_uses_split_keywords():
+    """Verify query suggestion uses split keywords in not-found message."""
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "_extract_cochange",
+        [],  # No results
+    )
+
+    # Should suggest query with split keywords
+    assert "query(['extract', 'cochange'])" in markdown
+    assert "Not found" in markdown
+
+
+def test_query_suggestion_single_keyword():
+    """Verify query suggestion works for single-word function names."""
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        [],  # No results
+    )
+
+    # Should suggest query with single keyword
+    assert "query(['create'])" in markdown
+
+
+def test_fallback_note_not_rendered_when_none():
+    """Ensure no fallback note is rendered when None."""
+    results = [
+        {
+            "module": "MyApp.Module",
+            "moduledoc": None,
+            "function": {
+                "name": "create",
+                "arity": 1,
+                "type": "def",
+                "line": 42,
+            },
+            "file": "lib/my_app/module.ex",
+            "call_sites": [],
+            "call_sites_with_examples": [],
+            "pr_info": None,
+            "detailed_dependencies": None,
+        },
+    ]
+
+    markdown = ModuleFormatter.format_function_results_markdown(
+        "create",
+        results,
+        fallback_note=None,
+    )
+
+    # No parentheses should appear for fallback note
+    assert "no matches" not in markdown.lower()
+    # Result should still be rendered
+    assert "MyApp.Module.create/1" in markdown
+
+
+# Tests for language detection and function name formatting
+
+
+def test_get_language_from_func_elixir_def():
+    """Test that 'def' type is detected as Elixir."""
+    func = {"type": "def", "name": "public_func", "arity": 1}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "elixir"
+
+
+def test_get_language_from_func_elixir_defp():
+    """Test that 'defp' type is detected as Elixir."""
+    func = {"type": "defp", "name": "private_func", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "elixir"
+
+
+def test_get_language_from_func_python_public():
+    """Test that 'public' type is detected as Python."""
+    func = {"type": "public", "name": "method", "arity": 2}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_python_private():
+    """Test that 'private' type is detected as Python."""
+    func = {"type": "private", "name": "_internal", "arity": 1}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_unknown_defaults_to_python():
+    """Test that unknown function type defaults to Python."""
+    func = {"type": "unknown_type", "name": "something", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_missing_type_defaults_to_python():
+    """Test that missing type field defaults to Python."""
+    func = {"name": "something", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_format_function_name_elixir_with_args():
+    """Test formatting Elixir function with args shows args."""
+    func = {"type": "def", "name": "add", "arity": 2, "args": ["a", "b"]}
+    result = ModuleFormatter._format_function_name(func, "add", 2)
+    assert result == "add(a, b)"
+
+
+def test_format_function_name_elixir_without_args():
+    """Test formatting Elixir function without args uses arity notation."""
+    func = {"type": "def", "name": "process", "arity": 3}
+    result = ModuleFormatter._format_function_name(func, "process", 3)
+    assert result == "process/3"
+
+
+def test_format_function_name_python_filters_self():
+    """Test formatting Python method filters out self."""
+    func = {"type": "public", "name": "method", "arity": 2, "args": ["self", "value"]}
+    result = ModuleFormatter._format_function_name(func, "method", 2)
+    assert result == "method(value)"
+
+
+def test_format_function_name_python_without_args():
+    """Test formatting Python function without args shows empty parens."""
+    func = {"type": "public", "name": "util", "arity": 1}
+    result = ModuleFormatter._format_function_name(func, "util", 1)
+    assert result == "util()"

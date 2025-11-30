@@ -39,6 +39,9 @@ ENV/
 # pytest
 .pytest_cache/
 
+# ruff
+.ruff_cache/
+
 # Coverage
 .coverage
 .coverage.*
@@ -67,6 +70,18 @@ cicada/_version_hash.py
 # Test fixtures - local-only test projects
 tests/fixtures/elixir_project
 tests/fixtures/test_project
-tests/fixtures/sample_typescript/
 .env
+
+# Generated test fixture files
+tests/fixtures/**/index.scip
+tests/fixtures/**/cicada_index.json
+tests/fixtures/**/*lock.json
+tests/fixtures/**/uv.lock
+tests/fixtures/**/node_modules/
+
+# Auto-generated protobuf files (generated before tests/builds, not tracked in git)
+*_pb2.py
+*_pb2.pyi
+
+# Link directory
 link/

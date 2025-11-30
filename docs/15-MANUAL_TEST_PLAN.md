@@ -42,7 +42,7 @@ Quick test plan before merging to main.
 
 ## Index - Tier Modes
 - [x] `cicada index --force --fast` - Fast tier: Regular extraction + lemminflect (no downloads)
-- [x] `cicada index --force --regular` - Regular tier: KeyBERT small + GloVe (128MB, default)
+- [x] `cicada index --force --regular` - Regular tier: TF-IDF + GloVe (128MB, default)
 - [x] `cicada index --force --max` - Max tier: KeyBERT large + FastText (958MB+)
 
 ## Index - Error Cases

@@ -44,13 +44,16 @@ def test_indexer(tmp_path):
     # Verify Test module data
     test_module = index["modules"]["Test"]
     assert test_module["file"] == "sample.ex"
-    assert test_module["total_functions"] == 5
-    assert test_module["public_functions"] == 3
-    assert test_module["private_functions"] == 2
 
     # Verify functions are present
     functions = test_module["functions"]
     assert len(functions) == 5
+
+    # Check we have the expected number of public and private functions
+    public_count = sum(1 for f in functions if f.get("type") == "def")
+    private_count = sum(1 for f in functions if f.get("type") == "defp")
+    assert public_count == 3
+    assert private_count == 2
 
     function_names = [f["name"] for f in functions]
     assert "hello" in function_names
@@ -59,7 +62,10 @@ def test_indexer(tmp_path):
 
     print("  ✓ Index created successfully")
     print(f"  ✓ Found {len(index['modules'])} module(s)")
-    print(f"  ✓ Total functions: {index['metadata']['total_functions']}")
+
+    # Count total functions across all modules
+    total_funcs = sum(len(m.get("functions", [])) for m in index["modules"].values())
+    print(f"  ✓ Total functions: {total_funcs}")
 
 
 def test_mcp_server_initialization(index_path):

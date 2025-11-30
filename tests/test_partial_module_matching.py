@@ -7,7 +7,7 @@ that "SomeModule.func" matches functions in "MyProject.SomeModule".
 """
 import pytest
 
-from cicada.mcp.pattern_utils import FunctionPattern, match_any_pattern
+from cicada.mcp.pattern_utils import FunctionPattern, match_any_pattern, matches_pattern
 
 
 class TestPartialModuleMatching:
@@ -94,6 +94,67 @@ class TestPartialModuleMatching:
         # Should not match partial module names
         assert not pattern.matches("MyApp.UserContext", "lib/file.ex", func)
 
+    def test_prefix_matching_with_wildcard_suffix(self):
+        """Test that *.Prefix matches modules when Prefix is a path component."""
+        # Test *.ThenvoiCom.Agents matches both suffix and prefix
+        pattern = "*.ThenvoiCom.Agents"
+
+        # Should match exact
+        assert matches_pattern(pattern, "ThenvoiCom.Agents")
+
+        # Should match with prefix
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.Agents")
+
+        # Should match with suffix (prefix matching)
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.AgentExecutor")
+
+        # Should match with both prefix and suffix
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.Agents.AgentExecutor")
+
+    def test_wildcard_in_suffix_pattern(self):
+        """Test that *.Prefix* with wildcard in suffix works correctly."""
+        pattern = "*.ThenvoiCom.Agent*"
+
+        # Should match modules starting with ThenvoiCom.Agent
+        assert matches_pattern(pattern, "ThenvoiCom.AgentExecutor")
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.Module")
+        assert matches_pattern(pattern, "MyApp.ThenvoiCom.AgentService")
+
+        # Should also match nested patterns
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.AgentModule")
+
+        # Should not match modules not starting with ThenvoiCom.Agent
+        assert not matches_pattern(pattern, "ThenvoiCom.Context")
+        assert not matches_pattern(pattern, "MyApp.Context")
+
+    def test_nested_wildcard_pattern_matching(self):
+        """Test complex nested wildcard patterns."""
+        # Pattern with wildcard at the end
+        pattern = "*.Agents.*"
+
+        # Should match modules with Agents as a component
+        assert matches_pattern(pattern, "Agents.Something")
+        assert matches_pattern(pattern, "MyApp.Agents.AgentExecutor")
+        assert matches_pattern(pattern, "ThenvoiCom.Agents.Module")
+
+        # Should match Agents followed by anything
+        assert matches_pattern(pattern, "Agents.Sub.Module")
+
+        # Should not match modules without Agents
+        assert not matches_pattern(pattern, "MyApp.Context")
+
+    def test_double_wildcard_pattern(self):
+        """Test patterns with wildcards in both prefix and suffix."""
+        pattern = "*.Agent*.Sub*"
+
+        # Should match complex nested patterns
+        assert matches_pattern(pattern, "AgentExecutor.Subsystem")
+        assert matches_pattern(pattern, "MyApp.AgentService.Submodule")
+
+        # Should not match patterns that don't have the structure
+        assert not matches_pattern(pattern, "MyApp.Context.Other")
+        assert not matches_pattern(pattern, "Agent.Other")
+
 
 @pytest.mark.asyncio
 async def test_search_module_with_partial_name(tmp_path):
@@ -153,6 +214,65 @@ async def test_search_module_with_partial_name(tmp_path):
     assert "MyProject.SomeModule" in text
     assert "OtherProject.SomeModule" in text
     assert "DifferentModule" not in text
+
+
+@pytest.mark.asyncio
+async def test_search_module_fallback_to_last_segment(tmp_path):
+    """Integration test: search_module should fallback A.B.C.D to *.D."""
+    import json
+    import yaml
+    from cicada.mcp.server import CicadaServer
+
+    test_index = {
+        "modules": {
+            "MyProject.Context.User": {
+                "file": "lib/my_project/context/user.ex",
+                "line": 1,
+                "moduledoc": "User module",
+                "functions": [],
+                "public_functions": 0,
+                "private_functions": 0,
+            },
+            "OtherProject.User": {
+                "file": "lib/other_project/user.ex",
+                "line": 1,
+                "moduledoc": "Another User module",
+                "functions": [],
+                "public_functions": 0,
+                "private_functions": 0,
+            },
+        },
+        "metadata": {"total_modules": 2, "repo_path": str(tmp_path)},
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Search for "WrongProject.User" should fallback to *.User and find both User modules
+    result = await server.module_handler.search_module("WrongProject.User", "markdown")
+    text = result[0].text
+
+    # Should find modules ending with "User" via fallback
+    assert "MyProject.Context.User" in text
+    assert "OtherProject.User" in text
+
+    # Also test with deeper nesting: "A.B.C.User" should still find User modules
+    result = await server.module_handler.search_module("A.B.C.User", "markdown")
+    text = result[0].text
+
+    assert "MyProject.Context.User" in text
+    assert "OtherProject.User" in text
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages import LanguageRegistry
 from cicada.utils import (
     create_storage_dir,
     get_config_path,
@@ -23,6 +23,65 @@ from cicada.utils import (
 )
 
 EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode"]
+
+
+def detect_project_language(repo_path: Path) -> str:
+    """
+    Detect project language from marker files.
+
+    Args:
+        repo_path: Repository root path
+
+    Returns:
+        Language name ('elixir', 'python', etc.)
+
+    Raises:
+        ValueError: If no recognized project type found
+    """
+    # Check for Python markers
+    python_markers = [
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+    ]
+
+    for marker in python_markers:
+        if (repo_path / marker).exists():
+            return "python"
+
+    # Check for Elixir marker
+    if (repo_path / "mix.exs").exists():
+        return "elixir"
+
+    # Check for Erlang markers
+    erlang_markers = ["rebar.config", "rebar.lock", "erlang.mk"]
+    for marker in erlang_markers:
+        if (repo_path / marker).exists():
+            return "erlang"
+
+    # Fallback: Check for .erl files in src/ directory (common Erlang convention)
+    src_dir = repo_path / "src"
+    if src_dir.exists() and any(src_dir.glob("*.erl")):
+        return "erlang"
+
+    # Check for TypeScript/JavaScript markers
+    ts_markers = ["tsconfig.json", "package.json"]
+    for marker in ts_markers:
+        if (repo_path / marker).exists():
+            # Check if it's TypeScript or plain JavaScript
+            if (repo_path / "tsconfig.json").exists():
+                return "typescript"
+            return "javascript"
+
+    # No recognized language
+    raise ValueError(
+        f"Could not detect project language in {repo_path}\n"
+        "Expected Python markers (pyproject.toml, setup.py, etc.), "
+        "Elixir marker (mix.exs), Erlang markers (rebar.config, src/*.erl), "
+        "or TypeScript/JavaScript markers"
+    )
 
 
 def _setup_gitattributes(repo_path: Path) -> None:
@@ -169,7 +228,7 @@ def get_mcp_config_for_editor(
             "needs_dir": True,
         },
         "gemini": {
-            "config_path": repo_path / ".gemini" / "mcp.json",
+            "config_path": repo_path / ".gemini" / "settings.json",
             "config_key": "mcpServers",
             "needs_dir": True,
         },
@@ -255,12 +314,15 @@ keyword_expansion:
         print(f"✓ Config file created at {config_path}")
 
 
-def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = True) -> None:
+def index_repository(
+    repo_path: Path, language: str, force_full: bool = False, verbose: bool = True
+) -> None:
     """
     Index the repository with keyword extraction enabled.
 
     Args:
         repo_path: Path to the repository
+        language: Programming language (e.g., 'python', 'elixir', 'typescript')
         force_full: If True, force full reindex instead of incremental
         verbose: Whether to print progress messages (default: True)
 
@@ -269,20 +331,35 @@ def index_repository(repo_path: Path, force_full: bool = False, verbose: bool = 
     """
     try:
         index_path = get_index_path(repo_path)
-        indexer = ElixirIndexer(verbose=verbose)
+        config_path = get_config_path(repo_path)
 
-        # Use incremental indexing by default (unless force_full is True)
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            force_full=force_full,
-        )
+        # Use standard indexer interface
+        indexer = LanguageRegistry.get_indexer(language)
+        # Check if indexer supports incremental_index_repository (new unified API)
+        if hasattr(indexer, "incremental_index_repository"):
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                compute_timestamps=True,
+                extract_cochange=True,  # Enable co-change analysis by default
+                force_full=force_full,
+                verbose=verbose,
+            )
+        else:
+            # Fallback to basic interface for legacy indexers
+            indexer.index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                force=force_full,
+                verbose=verbose,
+                config_path=str(config_path),
+            )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:
             print(f"Error: Failed to index repository: {e}")
-            print("Please check that the repository contains valid Elixir files.")
+            print(f"Please check that the repository contains valid {language} files.")
         raise
 
 
@@ -317,7 +394,7 @@ def setup_multiple_editors(
 
 
 def update_claude_md(repo_path: Path, editor: EditorType | None = None) -> None:
-    """Update CLAUDE.md and AGENTS.md with instructions to use cicada-mcp for Elixir codebase searches.
+    """Update CLAUDE.md and AGENTS.md with instructions to use cicada-mcp for Elixir and Python codebase searches.
 
     Args:
         repo_path: Path to the repository
@@ -373,7 +450,7 @@ def _update_md_file(md_path: Path, tools) -> None:
     grep_antipatterns_str = "\n".join(grep_antipatterns)
 
     instruction_content = f"""<cicada>
-  **ALWAYS use cicada-mcp tools for Elixir code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
 {tool_list_str}
@@ -403,10 +480,6 @@ def _update_md_file(md_path: Path, tools) -> None:
             with open(md_path, "w") as f:
                 f.write(new_content)
             print(f"✓ Updated <cicada> instructions in {md_path.name}")
-        elif "cicada-mcp" in content.lower() or "cicada" in content.lower():
-            # Content already mentions cicada, don't add duplication
-            # This handles cases where users manually added cicada instructions
-            print(f"✓ {md_path.name} already mentions cicada, skipping update")
         else:
             # Append the instruction
             with open(md_path, "a") as f:
@@ -444,6 +517,9 @@ def setup(
     if repo_path is None:
         repo_path = Path.cwd()
     repo_path = repo_path.resolve()
+
+    # Detect project language
+    language = detect_project_language(repo_path)
 
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
@@ -543,7 +619,7 @@ def setup(
 
         # Index repository if needed
         if should_index:
-            index_repository(repo_path, force_full=force_full)
+            index_repository(repo_path, language, force_full=force_full)
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
@@ -629,10 +705,11 @@ def main():
         print(f"Error: Path is not a directory: {repo_path}")
         sys.exit(1)
 
-    # Check if it's an Elixir repository
-    if not (repo_path / "mix.exs").exists():
-        print(f"Error: {repo_path} does not appear to be an Elixir project")
-        print("(mix.exs not found)")
+    # Detect and validate project language
+    try:
+        detect_project_language(repo_path)
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
     # Run setup

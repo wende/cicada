@@ -57,11 +57,11 @@ def run_expansion_interactive(
     # Initialize keyword extractor
     try:
         if extraction_method == "regular":
-            from cicada.elixir.extractors.keyword import RegularKeywordExtractor
+            from cicada.extractors.keyword import RegularKeywordExtractor
 
             extractor = RegularKeywordExtractor(verbose=True)
         elif extraction_method == "bert":
-            from cicada.elixir.extractors.keybert import KeyBERTExtractor
+            from cicada.extractors.keybert import KeyBERTExtractor
 
             extractor = KeyBERTExtractor(verbose=True)
         else:
@@ -193,7 +193,6 @@ def run_expansion_interactive(
                     extracted_keywords,
                     top_n=3,
                     threshold=expansion_threshold,
-                    return_scores=True,
                     keyword_scores=extraction_scores,
                     min_score=min_score,
                     code_identifiers=results.get("code_identifiers", []),
@@ -362,11 +361,11 @@ def run_keywords_interactive(
     # Initialize keyword extractor
     try:
         if method == "regular":
-            from cicada.elixir.extractors.keyword import RegularKeywordExtractor
+            from cicada.extractors.keyword import RegularKeywordExtractor
 
             extractor = RegularKeywordExtractor(verbose=True)
         elif method == "bert":
-            from cicada.elixir.extractors.keybert import KeyBERTExtractor
+            from cicada.extractors.keybert import KeyBERTExtractor
 
             extractor = KeyBERTExtractor(verbose=True)
         else:
