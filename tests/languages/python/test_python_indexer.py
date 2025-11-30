@@ -5,7 +5,7 @@ import pytest
 import subprocess
 from unittest.mock import patch, Mock
 
-from cicada.languages.python.indexer import PythonSCIPIndexer
+from cicada.languages.python.indexer import PythonSCIPIndexer, _compute_target_directory
 from cicada.languages.python.scip_installer import SCIPPythonInstaller
 from cicada.languages.scip import scip_pb2
 
@@ -946,10 +946,15 @@ class TestPythonIndexerHelperMethods:
         with open(output, "w") as f:
             json.dump(initial_index, f)
 
-        # Mock the file finding and hash comparison to simulate no changes
+        # Pre-save hashes that match the current file content
+        hashes_path = get_hashes_path(repo)
+        save_file_hashes(str(hashes_path), {"test.py": "abc123"})
+
+        # Mock the file finding and hash computation to simulate no changes
         with patch.object(verbose_indexer, "_find_python_files", return_value=[py_file]):
             with patch(
-                "cicada.languages.python.indexer.detect_file_changes", return_value=([], [], [])
+                "cicada.languages.python.indexer.compute_hashes_for_files",
+                return_value={"test.py": "abc123"},  # Same hash as saved
             ):
                 result = verbose_indexer.incremental_index_repository(
                     repo_path=str(repo),
@@ -1422,13 +1427,15 @@ class TestIndexRepositoryErrorPaths:
                     assert "Keyword extractor initialization failed" in captured.out
                     assert result["success"] is True
 
-        # Test hash save failure
+        # Test hash save failure (force=True to bypass "no changes" skip)
         scip_file = self._create_scip_file(tmp_path)
         with patch.object(verbose_indexer, "_ensure_scip_python_installed"):
             with patch.object(verbose_indexer, "_run_scip_python", return_value=scip_file):
                 with patch("cicada.languages.python.indexer.save_file_hashes") as mock_save:
                     mock_save.side_effect = Exception("Hash save failed")
-                    result = verbose_indexer.index_repository(repo, output, verbose=True)
+                    result = verbose_indexer.index_repository(
+                        repo, output, force=True, verbose=True
+                    )
                     captured = capsys.readouterr()
                     assert "Failed to save file hashes" in captured.out
                     assert result["success"] is True
@@ -1471,16 +1478,26 @@ class TestIndexRepositoryErrorPaths:
         scip_file = tmp_path / "temp2.scip"
         with open(scip_file, "wb") as f:
             f.write(scip_index.SerializeToString())
+
+        # Set up existing hashes so we can simulate changes
+        from cicada.utils.storage import get_hashes_path
+        from cicada.utils.hash_utils import save_file_hashes
+
+        hashes_path = get_hashes_path(repo)
+        # Existing hashes: modified.py has old hash, deleted.py exists
+        save_file_hashes(str(hashes_path), {"modified.py": "old_hash", "deleted.py": "del_hash"})
+
         with patch.object(verbose_indexer, "_ensure_scip_python_installed"):
             with patch.object(verbose_indexer, "_run_scip_python", return_value=scip_file):
+                # Mock hash computation: new.py (not in existing), modified.py (different hash)
                 with patch(
-                    "cicada.languages.python.indexer.detect_file_changes",
-                    return_value=(["new.py"], ["modified.py"], ["deleted.py"]),
-                ) as mock_detect:
+                    "cicada.languages.python.indexer.compute_hashes_for_files",
+                    return_value={"new.py": "new_hash", "modified.py": "new_hash"},
+                ) as mock_hashes:
                     # Mock keyword extraction to avoid loading heavy models
                     with patch("cicada.parallel_expander.ParallelKeywordExpander"):
                         result = verbose_indexer.index_repository(repo, output, verbose=True)
-                        mock_detect.assert_called_once()
+                        mock_hashes.assert_called_once()
                         assert result["success"] is True
 
 
@@ -1902,3 +1919,70 @@ class TestInterruptibleEnrichmentPhases:
         assert result is False
         captured = capsys.readouterr()
         assert "Warning: Timestamp computation failed: Something went wrong" in captured.out
+
+
+class TestComputeTargetDirectory:
+    """Test the _compute_target_directory helper for partial SCIP indexing."""
+
+    def test_empty_list_returns_none(self):
+        """Empty file list should return None."""
+        assert _compute_target_directory([]) is None
+
+    def test_single_file_returns_parent(self):
+        """Single file should return its parent directory."""
+        assert _compute_target_directory(["lib/foo/bar.py"]) == "lib/foo"
+
+    def test_single_file_at_root_returns_none(self):
+        """Single file at repo root should return None."""
+        assert _compute_target_directory(["setup.py"]) is None
+
+    def test_files_same_directory(self):
+        """Files in same directory should return that directory."""
+        result = _compute_target_directory(
+            [
+                "lib/foo/a.py",
+                "lib/foo/b.py",
+                "lib/foo/c.py",
+            ]
+        )
+        assert result == "lib/foo"
+
+    def test_files_sibling_directories(self):
+        """Files in sibling directories should return common parent."""
+        result = _compute_target_directory(
+            [
+                "lib/foo/a.py",
+                "lib/bar/b.py",
+            ]
+        )
+        assert result == "lib"
+
+    def test_files_nested_directories(self):
+        """Files in nested directories should return deepest common parent."""
+        result = _compute_target_directory(
+            [
+                "lib/foo/deep/a.py",
+                "lib/foo/b.py",
+            ]
+        )
+        assert result == "lib/foo"
+
+    def test_files_different_top_level_returns_none(self):
+        """Files in different top-level directories return None (no benefit)."""
+        result = _compute_target_directory(
+            [
+                "lib/foo.py",
+                "tests/test_foo.py",
+            ]
+        )
+        assert result is None
+
+    def test_files_with_common_prefix_but_different_first_level(self):
+        """Files spanning different first-level dirs return None."""
+        result = _compute_target_directory(
+            [
+                "src/main/app.py",
+                "tests/unit/test_app.py",
+            ]
+        )
+        assert result is None

@@ -485,14 +485,20 @@ class BaseIndexer(ABC):
                 print(f"    Warning: Could not initialize git helper: {e}")
             return
 
-        # Collect all functions with their line numbers
+        # Collect all functions with their line numbers (skip those with existing timestamps)
         functions_to_query = []
+        skipped_count = 0
         for module_name, module_data in index.get("modules", {}).items():
             file_path = module_data.get("file")
             if not file_path:
                 continue
 
             for func in module_data.get("functions", []):
+                # Skip functions that already have timestamps (copied from existing index)
+                if "created_at" in func or "last_modified_at" in func:
+                    skipped_count += 1
+                    continue
+
                 func_name = func.get("name")
                 line = func.get("line")
                 if func_name and line:
@@ -505,6 +511,9 @@ class BaseIndexer(ABC):
                             "func_ref": func,
                         }
                     )
+
+        if self.verbose and skipped_count > 0:
+            print(f"    Reusing timestamps for {skipped_count} unchanged functions")
 
         if not functions_to_query:
             return

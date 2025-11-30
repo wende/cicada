@@ -670,3 +670,121 @@ class TestFileWatcherEdgeCases:
         watcher.indexer = mock_indexer
 
         watcher._trigger_reindex()
+
+
+class TestConcurrentReindexPrevention:
+    """Tests for preventing concurrent reindexing operations."""
+
+    @patch("cicada.utils.storage.get_index_path")
+    def test_concurrent_reindex_prevented(self, mock_get_index_path, elixir_repo):
+        """Test that concurrent _trigger_reindex calls are serialized."""
+        mock_get_index_path.return_value = elixir_repo / "index.json"
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+
+        reindex_call_times = []
+        reindex_started = threading.Event()
+        reindex_can_continue = threading.Event()
+
+        def slow_reindex(*args, **kwargs):
+            reindex_call_times.append(time.time())
+            reindex_started.set()
+            # Wait until allowed to continue
+            reindex_can_continue.wait(timeout=5)
+            return {}
+
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_indexer.incremental_index_repository.side_effect = slow_reindex
+        watcher.indexer = mock_indexer
+
+        # Start first reindex in a thread
+        thread1 = threading.Thread(target=watcher._trigger_reindex)
+        thread1.start()
+
+        # Wait for first reindex to start
+        reindex_started.wait(timeout=2)
+
+        # Try to start second reindex - should be queued, not concurrent
+        watcher._trigger_reindex()
+
+        # The pending flag should be set since a reindex is in progress
+        assert watcher._pending_reindex is True
+
+        # Let the first reindex complete
+        reindex_can_continue.set()
+
+        # Wait for thread to complete
+        thread1.join(timeout=3)
+
+        # The indexer should have been called exactly 2 times
+        # (once from the first reindex, once from the pending reindex)
+        assert mock_indexer.incremental_index_repository.call_count == 2
+
+    @patch("cicada.utils.storage.get_index_path")
+    def test_pending_reindex_coalesces_multiple_requests(self, mock_get_index_path, elixir_repo):
+        """Test that multiple concurrent attempts result in only one pending reindex."""
+        mock_get_index_path.return_value = elixir_repo / "index.json"
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+
+        reindex_started = threading.Event()
+        reindex_can_continue = threading.Event()
+
+        def slow_reindex(*args, **kwargs):
+            reindex_started.set()
+            reindex_can_continue.wait(timeout=5)
+            return {}
+
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_indexer.incremental_index_repository.side_effect = slow_reindex
+        watcher.indexer = mock_indexer
+
+        # Start first reindex in a thread
+        thread1 = threading.Thread(target=watcher._trigger_reindex)
+        thread1.start()
+
+        # Wait for first reindex to start
+        reindex_started.wait(timeout=2)
+
+        # Try to start multiple additional reindexes - should coalesce into one pending
+        for _ in range(5):
+            watcher._trigger_reindex()
+
+        # Only one pending reindex should be recorded
+        assert watcher._pending_reindex is True
+
+        # Let the first reindex complete
+        reindex_can_continue.set()
+        thread1.join(timeout=3)
+
+        # Should have called only 2 times total (first + one pending)
+        assert mock_indexer.incremental_index_repository.call_count == 2
+
+    @patch("cicada.utils.storage.get_index_path")
+    def test_reindex_lock_released_after_error(self, mock_get_index_path, elixir_repo):
+        """Test that the reindex lock is properly released even after an error."""
+        mock_get_index_path.return_value = elixir_repo / "index.json"
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+
+        # First call raises error, second succeeds
+        call_count = [0]
+
+        def flaky_reindex(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise Exception("First call fails")
+            return {}
+
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_indexer.incremental_index_repository.side_effect = flaky_reindex
+        watcher.indexer = mock_indexer
+
+        # First reindex (fails)
+        watcher._trigger_reindex()
+
+        # Lock should be released - second reindex should work
+        watcher._trigger_reindex()
+
+        # Both calls should have happened
+        assert call_count[0] == 2
