@@ -129,6 +129,7 @@ class FileWatcher:
         self.debounce_timer: threading.Timer | None = None
         self.timer_lock = threading.Lock()
         self._reindex_lock = threading.Lock()  # Prevent concurrent reindexing
+        self._pending_lock = threading.Lock()  # Protect _pending_reindex flag
         self._pending_reindex = False  # Track if reindex needed after current one completes
         self.running = False
         self.shutdown_event = threading.Event()
@@ -418,20 +419,26 @@ class FileWatcher:
         acquired = self._reindex_lock.acquire(blocking=False)
         if not acquired:
             # Another reindex is already in progress - mark that we need to reindex later
-            self._pending_reindex = True
+            with self._pending_lock:
+                self._pending_reindex = True
             if self.verbose:
                 logger.debug("Reindex already in progress, will reindex again when complete")
             return
 
         try:
             # Clear pending flag since we're about to reindex
-            self._pending_reindex = False
+            with self._pending_lock:
+                self._pending_reindex = False
 
             self._perform_reindex()
 
             # Check if another reindex is needed (file changes during current reindex)
-            while self._pending_reindex:
-                self._pending_reindex = False
+            while True:
+                with self._pending_lock:
+                    if not self._pending_reindex:
+                        break
+                    self._pending_reindex = False
+
                 if self.verbose:
                     print("\n" + "=" * 70)
                     print("Additional changes detected during reindex - reindexing again...")

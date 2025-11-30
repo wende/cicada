@@ -5,7 +5,7 @@ import pytest
 import subprocess
 from unittest.mock import patch, Mock
 
-from cicada.languages.python.indexer import PythonSCIPIndexer, _compute_target_directory
+from cicada.languages.python.indexer import PythonSCIPIndexer, compute_target_directory
 from cicada.languages.python.scip_installer import SCIPPythonInstaller
 from cicada.languages.scip import scip_pb2
 
@@ -2000,23 +2000,23 @@ class TestTargetOnlyAndVerboseLogging:
 
 
 class TestComputeTargetDirectory:
-    """Test the _compute_target_directory helper for partial SCIP indexing."""
+    """Test the compute_target_directory helper for partial SCIP indexing."""
 
     def test_empty_list_returns_none(self):
         """Empty file list should return None."""
-        assert _compute_target_directory([]) is None
+        assert compute_target_directory([]) is None
 
     def test_single_file_returns_parent(self):
         """Single file should return its parent directory."""
-        assert _compute_target_directory(["lib/foo/bar.py"]) == "lib/foo"
+        assert compute_target_directory(["lib/foo/bar.py"]) == "lib/foo"
 
     def test_single_file_at_root_returns_none(self):
         """Single file at repo root should return None."""
-        assert _compute_target_directory(["setup.py"]) is None
+        assert compute_target_directory(["setup.py"]) is None
 
     def test_files_same_directory(self):
         """Files in same directory should return that directory."""
-        result = _compute_target_directory(
+        result = compute_target_directory(
             [
                 "lib/foo/a.py",
                 "lib/foo/b.py",
@@ -2027,7 +2027,7 @@ class TestComputeTargetDirectory:
 
     def test_files_sibling_directories(self):
         """Files in sibling directories should return common parent."""
-        result = _compute_target_directory(
+        result = compute_target_directory(
             [
                 "lib/foo/a.py",
                 "lib/bar/b.py",
@@ -2037,7 +2037,7 @@ class TestComputeTargetDirectory:
 
     def test_files_nested_directories(self):
         """Files in nested directories should return deepest common parent."""
-        result = _compute_target_directory(
+        result = compute_target_directory(
             [
                 "lib/foo/deep/a.py",
                 "lib/foo/b.py",
@@ -2047,7 +2047,7 @@ class TestComputeTargetDirectory:
 
     def test_files_different_top_level_returns_none(self):
         """Files in different top-level directories return None (no benefit)."""
-        result = _compute_target_directory(
+        result = compute_target_directory(
             [
                 "lib/foo.py",
                 "tests/test_foo.py",
@@ -2057,7 +2057,7 @@ class TestComputeTargetDirectory:
 
     def test_files_with_common_prefix_but_different_first_level(self):
         """Files spanning different first-level dirs return None."""
-        result = _compute_target_directory(
+        result = compute_target_directory(
             [
                 "src/main/app.py",
                 "tests/unit/test_app.py",

@@ -677,19 +677,26 @@ class TestConcurrentReindexPrevention:
 
     @patch("cicada.utils.storage.get_index_path")
     def test_concurrent_reindex_prevented(self, mock_get_index_path, elixir_repo):
-        """Test that concurrent _trigger_reindex calls are serialized."""
+        """Test that concurrent _trigger_reindex calls are serialized (no time overlap)."""
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
 
-        reindex_call_times = []
+        # Track start/end times to prove no overlap
+        call_times = []  # List of (start_time, end_time) tuples
         reindex_started = threading.Event()
         reindex_can_continue = threading.Event()
+        lock = threading.Lock()
 
         def slow_reindex(*args, **kwargs):
-            reindex_call_times.append(time.time())
+            start_time = time.time()
             reindex_started.set()
-            # Wait until allowed to continue
+            # Simulate slow reindex
             reindex_can_continue.wait(timeout=5)
+            time.sleep(0.01)  # Small delay to ensure measurable duration
+            end_time = time.time()
+
+            with lock:
+                call_times.append((start_time, end_time))
             return {}
 
         mock_indexer = Mock()
@@ -708,7 +715,8 @@ class TestConcurrentReindexPrevention:
         watcher._trigger_reindex()
 
         # The pending flag should be set since a reindex is in progress
-        assert watcher._pending_reindex is True
+        with watcher._pending_lock:
+            assert watcher._pending_reindex is True
 
         # Let the first reindex complete
         reindex_can_continue.set()
@@ -719,6 +727,18 @@ class TestConcurrentReindexPrevention:
         # The indexer should have been called exactly 2 times
         # (once from the first reindex, once from the pending reindex)
         assert mock_indexer.incremental_index_repository.call_count == 2
+
+        # Verify serialization: second call should start >= when first call ended
+        assert len(call_times) == 2, f"Expected 2 calls, got {len(call_times)}"
+        first_start, first_end = call_times[0]
+        second_start, second_end = call_times[1]
+
+        # Assert no time overlap - second must start after first ends
+        assert second_start >= first_end, (
+            f"Calls overlapped in time! "
+            f"First: [{first_start}, {first_end}], "
+            f"Second: [{second_start}, {second_end}]"
+        )
 
     @patch("cicada.utils.storage.get_index_path")
     def test_pending_reindex_coalesces_multiple_requests(self, mock_get_index_path, elixir_repo):
@@ -751,7 +771,8 @@ class TestConcurrentReindexPrevention:
             watcher._trigger_reindex()
 
         # Only one pending reindex should be recorded
-        assert watcher._pending_reindex is True
+        with watcher._pending_lock:
+            assert watcher._pending_reindex is True
 
         # Let the first reindex complete
         reindex_can_continue.set()

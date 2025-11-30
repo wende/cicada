@@ -29,7 +29,7 @@ from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils.storage import get_hashes_path
 
 
-def _compute_target_directory(changed_files: list[str]) -> str | None:
+def compute_target_directory(changed_files: list[str]) -> str | None:
     """
     Compute minimal common directory from list of changed files.
 
@@ -291,7 +291,7 @@ class PythonSCIPIndexer(BaseIndexer):
         target_only = None
         if not force_full and (new_files or modified_files):
             changed_files = new_files + modified_files
-            target_only = _compute_target_directory(changed_files)
+            target_only = compute_target_directory(changed_files)
             if self.verbose and target_only:
                 print(f"  Limiting SCIP analysis to: {target_only}")
             elif self.verbose and not target_only:
@@ -487,11 +487,16 @@ class PythonSCIPIndexer(BaseIndexer):
             if not existing_module:
                 continue
 
+            # Track if we actually copied anything for this module
+            copied_something = False
+
             # Copy module-level keywords if present
             if "keywords" in existing_module:
                 module_data["keywords"] = existing_module["keywords"]
+                copied_something = True
             if "string_keywords" in existing_module:
                 module_data["string_keywords"] = existing_module["string_keywords"]
+                copied_something = True
 
             # Copy function-level keywords and timestamps
             existing_funcs = {f["name"]: f for f in existing_module.get("functions", [])}
@@ -501,8 +506,10 @@ class PythonSCIPIndexer(BaseIndexer):
                     # Copy keywords
                     if "keywords" in existing_func:
                         func["keywords"] = existing_func["keywords"]
+                        copied_something = True
                     if "string_keywords" in existing_func:
                         func["string_keywords"] = existing_func["string_keywords"]
+                        copied_something = True
                     # Copy timestamps
                     for ts_field in [
                         "created_at",
@@ -513,8 +520,11 @@ class PythonSCIPIndexer(BaseIndexer):
                     ]:
                         if ts_field in existing_func:
                             func[ts_field] = existing_func[ts_field]
+                            copied_something = True
 
-            copied_count += 1
+            # Only increment count if we actually copied at least one field
+            if copied_something:
+                copied_count += 1
 
         return copied_count
 
