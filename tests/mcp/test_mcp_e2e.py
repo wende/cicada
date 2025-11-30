@@ -208,7 +208,7 @@ class TestCompleteWorkflows:
         text = result[0].text
         assert "SampleApp.User" in text
         assert "create_user" in text
-        assert "User management module" in text
+        # Moduledoc hidden by default for compact output
 
         # Step 2: Find where User module is used
         result = await e2e_server.call_tool(

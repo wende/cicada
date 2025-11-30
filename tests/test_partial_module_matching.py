@@ -217,6 +217,65 @@ async def test_search_module_with_partial_name(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_search_module_fallback_to_last_segment(tmp_path):
+    """Integration test: search_module should fallback A.B.C.D to *.D."""
+    import json
+    import yaml
+    from cicada.mcp.server import CicadaServer
+
+    test_index = {
+        "modules": {
+            "MyProject.Context.User": {
+                "file": "lib/my_project/context/user.ex",
+                "line": 1,
+                "moduledoc": "User module",
+                "functions": [],
+                "public_functions": 0,
+                "private_functions": 0,
+            },
+            "OtherProject.User": {
+                "file": "lib/other_project/user.ex",
+                "line": 1,
+                "moduledoc": "Another User module",
+                "functions": [],
+                "public_functions": 0,
+                "private_functions": 0,
+            },
+        },
+        "metadata": {"total_modules": 2, "repo_path": str(tmp_path)},
+    }
+
+    index_path = tmp_path / "index.json"
+    with open(index_path, "w") as f:
+        json.dump(test_index, f)
+
+    config = {
+        "repository": {"path": str(tmp_path)},
+        "storage": {"index_path": str(index_path)},
+    }
+    config_path = tmp_path / "config.yaml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    server = CicadaServer(config_path=str(config_path))
+
+    # Search for "WrongProject.User" should fallback to *.User and find both User modules
+    result = await server.module_handler.search_module("WrongProject.User", "markdown")
+    text = result[0].text
+
+    # Should find modules ending with "User" via fallback
+    assert "MyProject.Context.User" in text
+    assert "OtherProject.User" in text
+
+    # Also test with deeper nesting: "A.B.C.User" should still find User modules
+    result = await server.module_handler.search_module("A.B.C.User", "markdown")
+    text = result[0].text
+
+    assert "MyProject.Context.User" in text
+    assert "OtherProject.User" in text
+
+
+@pytest.mark.asyncio
 async def test_search_function_with_partial_module_name(tmp_path):
     """Integration test: search_function should find functions with partial module names."""
     import json

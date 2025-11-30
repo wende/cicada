@@ -120,7 +120,7 @@ Both are kept in sync automatically.
 The following flags affect model configuration:
 
 - `--fast`: Fast tier - Token-based extraction with lemminflect (no model downloads)
-- `--regular`: Regular tier - KeyBERT small model + GloVe (default, ~128MB)
+- `--regular`: Regular tier - TF-IDF extraction + GloVe (default, ~128MB)
 - `--max`: Max tier - KeyBERT large model + FastText (~958MB+)
 
 ### Metadata Fields

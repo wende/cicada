@@ -7,11 +7,14 @@ type-aware semantic indexes of Python codebases.
 import json
 import subprocess
 import tempfile
-import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from cicada.git.cochange_analyzer import CoChangeAnalyzer
-from cicada.git.helper import GitHelper
+if TYPE_CHECKING:
+    from cicada.parallel_expander import StreamingExpansionPipeline
+
 from cicada.languages.python.scip_installer import SCIPPythonInstaller
 from cicada.languages.python.string_extractor import PythonStringExtractor
 from cicada.languages.scip.converter import SCIPConverter
@@ -27,6 +30,14 @@ from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils.storage import get_hashes_path
 
 
+@dataclass
+class ExpansionCallback:
+    """Callback data for streaming expansion pipeline."""
+
+    target: dict[str, Any]  # The module/function dict to update
+    target_key: str  # "keywords" or "string_keywords"
+
+
 class PythonSCIPIndexer(BaseIndexer):
     """Index Python repositories using scip-python."""
 
@@ -37,7 +48,7 @@ class PythonSCIPIndexer(BaseIndexer):
         Args:
             verbose: If True, print detailed progress information
         """
-        self.verbose = verbose
+        super().__init__(verbose=verbose)
         self.excluded_dirs = {
             "__pycache__",
             ".venv",
@@ -65,6 +76,43 @@ class PythonSCIPIndexer(BaseIndexer):
     def get_excluded_dirs(self) -> list[str]:
         """Return directories to exclude from indexing."""
         return list(self.excluded_dirs)
+
+    def _run_interruptible_phase(
+        self,
+        phase_name: str,
+        phase_func: Callable[[], Any],
+        skipped_phases: list[str],
+        partial_suffix: str = "",
+    ) -> bool:
+        """Run an enrichment phase that can be interrupted.
+
+        Args:
+            phase_name: Human-readable name of the phase (e.g., "string keywords")
+            phase_func: Callable that performs the phase work
+            skipped_phases: List to append skipped phase names to
+            partial_suffix: Suffix to add if interrupted mid-phase (e.g., " (partial)")
+
+        Returns:
+            True if the phase completed successfully, False otherwise
+        """
+        if self._interrupted:
+            skipped_phases.append(phase_name)
+            return False
+
+        try:
+            phase_func()
+            return True
+        except KeyboardInterrupt:
+            self._interrupted = True
+            skipped_phases.append(f"{phase_name}{partial_suffix}")
+            if self.verbose:
+                print(f"\n  ⚠️  Interrupted during {phase_name}")
+            return False
+        except Exception as e:
+            if self.verbose:
+                print(f"    Warning: {phase_name.capitalize()} failed: {e}")
+            skipped_phases.append(phase_name)
+            return False
 
     def index_repository(
         self,
@@ -130,21 +178,14 @@ class PythonSCIPIndexer(BaseIndexer):
         # Update verbosity setting from parameter
         self.verbose = verbose
 
+        # Reset interrupted flag at start of new run
+        self._interrupted = False
+
         repo_path_obj = Path(repo_path).resolve()
         output_path_obj = Path(output_path).resolve()
 
         # Start timing
-        start_time = time.time()
-        last_step_time = start_time
-
-        def log_timing(step_name: str):
-            nonlocal last_step_time
-            if self.verbose:
-                now = time.time()
-                elapsed = now - last_step_time
-                total = now - start_time
-                print(f"  ⏱️  {step_name}: {elapsed:.2f}s (total: {total:.2f}s)")
-                last_step_time = now
+        self._start_timing()
 
         if self.verbose:
             print(f"Indexing Python repository: {repo_path_obj}")
@@ -155,7 +196,7 @@ class PythonSCIPIndexer(BaseIndexer):
 
         # Find all Python files
         python_files = list(self._find_python_files(repo_path_obj))
-        log_timing("File discovery")
+        self._log_timing("File discovery")
 
         # Convert to relative paths for comparison
         relative_files = [str(f.relative_to(repo_path_obj)) for f in python_files]
@@ -191,11 +232,11 @@ class PythonSCIPIndexer(BaseIndexer):
 
         # 1. Ensure scip-python is installed
         self._ensure_scip_python_installed()
-        log_timing("SCIP-python check")
+        self._log_timing("SCIP-python check")
 
         # 2. Run scip-python indexer
         scip_file = self._run_scip_python(repo_path_obj)
-        log_timing("SCIP-python indexing")
+        self._log_timing("SCIP-python indexing")
 
         try:
             # 3. Read .scip file
@@ -209,7 +250,7 @@ class PythonSCIPIndexer(BaseIndexer):
                         f"  SCIP index: {summary['documents']} documents, "
                         f"{summary['symbols']} symbols"
                     )
-                log_timing("SCIP file reading")
+                self._log_timing("SCIP file reading")
             except Exception as e:
                 raise RuntimeError(f"Failed to read SCIP index: {e}") from e
 
@@ -231,64 +272,47 @@ class PythonSCIPIndexer(BaseIndexer):
 
                         keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
-                    # Initialize keyword expander
-                    from cicada.keyword_expander import KeywordExpander
+                    # Initialize parallel keyword expander with streaming pipeline
+                    from cicada.parallel_expander import ParallelKeywordExpander
 
-                    keyword_expander = KeywordExpander(
+                    keyword_expander = ParallelKeywordExpander(
                         expansion_type=expansion_method, verbose=self.verbose
                     )
-                    log_timing("Keyword extractor initialization")
+                    self._log_timing("Keyword extractor initialization")
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Keyword extractor initialization failed: {e}")
                     keyword_extractor = None
                     keyword_expander = None
 
-            # 5. Convert to Cicada format with optional keyword extraction
+            # 5. Convert to Cicada format (without keyword extraction - that's done separately)
             try:
                 converter = SCIPConverter(
-                    extract_keywords=extract_keywords,
-                    keyword_extractor=keyword_extractor,
+                    extract_keywords=False,  # Don't extract during conversion - too slow
+                    keyword_extractor=None,
                     verbose=self.verbose,
                 )
                 cicada_index = converter.convert(scip_index, repo_path_obj)
-                log_timing("SCIP to Cicada conversion")
+                self._log_timing("SCIP to Cicada conversion")
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
-            # 6. Extract string keywords if requested
-            if extract_string_keywords and keyword_extractor:
-                try:
-                    self._extract_string_keywords(
-                        cicada_index, repo_path_obj, keyword_extractor, keyword_expander
-                    )
-                    log_timing("String keyword extraction")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: String keyword extraction failed: {e}")
-
-            # 7. Compute timestamps if requested
-            if compute_timestamps:
-                try:
-                    self._compute_timestamps(cicada_index, repo_path_obj)
-                    log_timing("Timestamp computation")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Timestamp computation failed: {e}")
-
-            # 8. Extract co-change relationships if requested
-            if extract_cochange:
-                try:
-                    self._extract_cochange(cicada_index, repo_path_obj)
-                    log_timing("Co-change analysis")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Co-change analysis failed: {e}")
+            # 5-8. Run universal enrichment pipeline (shared across all languages)
+            skipped_phases = self._run_enrichment_pipeline(
+                cicada_index,
+                repo_path_obj,
+                extract_keywords=extract_keywords,
+                extract_string_keywords=extract_string_keywords,
+                compute_timestamps=compute_timestamps,
+                extract_cochange=extract_cochange,
+                keyword_extractor=keyword_extractor,
+                keyword_expander=keyword_expander,
+            )
 
             # 9. Save index
             try:
                 self._save_index(cicada_index, output_path_obj)
-                log_timing("Index saving")
+                self._log_timing("Index saving")
             except Exception as e:
                 raise RuntimeError(f"Failed to save index: {e}") from e
 
@@ -297,7 +321,7 @@ class PythonSCIPIndexer(BaseIndexer):
                 if python_files:  # Only compute hashes if we have files
                     current_hashes = compute_hashes_for_files([str(f) for f in python_files])
                     save_file_hashes(str(hashes_path.parent), current_hashes)
-                log_timing("Hash computation and saving")
+                self._log_timing("Hash computation and saving")
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to save file hashes: {e}")
@@ -326,6 +350,8 @@ class PythonSCIPIndexer(BaseIndexer):
                 "functions_count": functions_count,
                 "files_indexed": len(scip_index.documents),
                 "errors": [],
+                "interrupted": self._interrupted,
+                "skipped_phases": skipped_phases,
             }
 
         except Exception as e:
@@ -364,205 +390,257 @@ class PythonSCIPIndexer(BaseIndexer):
             python_files.append(py_file)
         return python_files
 
-    def _extract_string_keywords(
-        self, index: dict, repo_path: Path, keyword_extractor, keyword_expander
+    def _expand_and_update_keywords(
+        self, keywords: dict[str, float], keyword_expander
+    ) -> dict[str, float]:
+        """Expand keywords and update scores with expanded terms.
+
+        Args:
+            keywords: Dictionary of keyword -> score mappings
+            keyword_expander: Keyword expander instance (optional)
+
+        Returns:
+            Updated keywords dictionary with expanded terms
+        """
+        if not keyword_expander or not keywords:
+            return keywords
+
+        expansion_result = keyword_expander.expand_keywords(
+            list(keywords.keys()),
+            keyword_scores=keywords,
+        )
+
+        updated_keywords = keywords.copy()
+        for item in expansion_result["words"]:
+            word = item["word"]
+            score = item["score"]
+            if word not in updated_keywords or score > updated_keywords[word]:
+                updated_keywords[word] = score
+
+        return updated_keywords
+
+    def _extract_keywords_from_text(
+        self, text: str, keyword_extractor, keyword_expander, top_n: int = 10
+    ) -> dict[str, float] | None:
+        """Extract and expand keywords from text. Returns None if no keywords."""
+        if not text:
+            return None
+
+        result = keyword_extractor.extract_keywords(text, top_n=top_n)
+        keywords = dict(result.get("top_keywords", []))
+
+        if not keywords:
+            return None
+
+        return self._expand_and_update_keywords(keywords, keyword_expander)
+
+    def _extract_module_keywords(
+        self, module_data: dict, keyword_extractor, keyword_expander
     ) -> None:
+        """Extract keywords for a single module and its functions."""
+        # Module-level: combine moduledoc + all function docs
+        module_doc = module_data.get("moduledoc", "")
+        functions = module_data.get("functions", [])
+        func_docs = " ".join(f.get("doc", "") for f in functions)
+        combined_text = f"{module_doc} {func_docs}".strip()
+
+        keywords = self._extract_keywords_from_text(
+            combined_text, keyword_extractor, keyword_expander, top_n=10
+        )
+        if keywords:
+            module_data["keywords"] = keywords
+
+        # Function-level keywords
+        for func in functions:
+            func_keywords = self._extract_keywords_from_text(
+                func.get("doc", ""), keyword_extractor, keyword_expander, top_n=5
+            )
+            if func_keywords:
+                func["keywords"] = func_keywords
+
+    def _extract_docstring_keywords(
+        self, index: dict, keyword_extractor, pipeline: "StreamingExpansionPipeline"
+    ) -> None:
+        """Extract keywords from module and function docstrings.
+
+        Extraction is sequential, expansion is submitted to streaming pipeline.
+
+        Args:
+            index: The Cicada index to update
+            keyword_extractor: Keyword extractor instance
+            pipeline: Streaming expansion pipeline for parallel expansion
+        """
+        if self.verbose:
+            print("  Extracting keywords from docstrings...")
+
+        modules = index.get("modules", {})
+
+        # Defensive check: ensure modules is a dict
+        if not isinstance(modules, dict):
+            if self.verbose:
+                print(
+                    f"    Warning: modules is not a dict (got {type(modules).__name__}), skipping keyword extraction"
+                )
+            return
+
+        total = len(modules)
+
+        for idx, (module_name, module_data) in enumerate(modules.items(), 1):
+            # Defensive check: ensure module_data is a dict
+            if not isinstance(module_data, dict):
+                if self.verbose:
+                    print(f"    Warning: module_data for {module_name} is not a dict, skipping")
+                continue
+            if self.verbose and idx % 50 == 0 and pipeline:
+                print(
+                    f"\r    Processed {idx}/{total} modules (Keywords: {pipeline.stats['submitted']})",
+                    end="",
+                    flush=True,
+                )
+
+            try:
+                # Extract module-level keywords from moduledoc + function docs
+                module_doc = module_data.get("moduledoc", "")
+                functions = module_data.get("functions", [])
+                func_docs = " ".join(f.get("doc", "") for f in functions)
+                combined_text = f"{module_doc} {func_docs}".strip()
+
+                if combined_text:
+                    result = keyword_extractor.extract_keywords(combined_text, top_n=10)
+                    keywords = {}
+                    for keyword, score in result.get("top_keywords", []):
+                        keywords[keyword] = score
+
+                    if keywords:
+                        # Store extracted keywords and submit expansion
+                        module_data["keywords"] = keywords.copy()
+                        callback = ExpansionCallback(target=module_data, target_key="keywords")
+                        for cb, res in pipeline.submit(
+                            list(keywords.keys()), keywords, callback, top_n=3, threshold=0.2
+                        ):
+                            self._apply_expansion_result(cb, res)
+
+                # Extract function-level keywords
+                for func in functions:
+                    func_doc = func.get("doc", "")
+                    if func_doc:
+                        result = keyword_extractor.extract_keywords(func_doc, top_n=5)
+                        func_keywords = {}
+                        for keyword, score in result.get("top_keywords", []):
+                            func_keywords[keyword] = score
+
+                        if func_keywords:
+                            # Store extracted keywords and submit expansion
+                            func["keywords"] = func_keywords.copy()
+                            callback = ExpansionCallback(target=func, target_key="keywords")
+                            for cb, res in pipeline.submit(
+                                list(func_keywords.keys()),
+                                func_keywords,
+                                callback,
+                                top_n=3,
+                                threshold=0.2,
+                            ):
+                                self._apply_expansion_result(cb, res)
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
+
+    def _extract_string_keywords(
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor,
+        pipeline: "StreamingExpansionPipeline",
+    ) -> int:
         """Extract keywords from string literals in Python files.
+
+        Extraction is sequential, expansion is submitted to streaming pipeline.
 
         Args:
             index: The Cicada index to update
             repo_path: Repository root path
             keyword_extractor: Keyword extractor instance
-            keyword_expander: Keyword expander instance
+            pipeline: Streaming expansion pipeline for parallel expansion
+
+        Returns:
+            Number of modules processed
         """
+        # Check if interrupted before starting
+        if self._interrupted:
+            return 0
+
         if self.verbose:
             print("  Extracting string keywords...")
 
         string_extractor = PythonStringExtractor(min_length=3)
-
-        for _module_name, module_data in index.get("modules", {}).items():
-            file_path = module_data.get("file")
-            if not file_path:
-                continue
-
-            full_path = repo_path / file_path
-            if not full_path.exists():
-                continue
-
-            try:
-                source_code = full_path.read_text(encoding="utf-8")
-                strings = string_extractor.extract_from_source(source_code)
-
-                if not strings:
-                    continue
-
-                # Store string sources
-                module_data["string_sources"] = strings
-
-                # Extract keywords from all strings
-                all_string_text = " ".join(s["string"] for s in strings)
-                if all_string_text.strip():
-                    keywords_result = keyword_extractor.extract_keywords(all_string_text, top_n=15)
-
-                    # Apply string keyword boost (1.3x)
-                    string_keywords = {}
-                    for keyword, score in keywords_result.get("top_keywords", []):
-                        string_keywords[keyword] = score * 1.3
-
-                    if string_keywords:
-                        # Expand keywords
-                        if keyword_expander:
-                            expanded = keyword_expander.expand_keywords(
-                                list(string_keywords.keys())
-                            )
-                            for kw, score in expanded.items():
-                                if kw not in string_keywords:
-                                    string_keywords[kw] = score * 0.5
-
-                        module_data["string_keywords"] = string_keywords
-
-            except Exception as e:
-                if self.verbose:
-                    print(f"    Warning: Failed to extract strings from {file_path}: {e}")
-
-    def _compute_timestamps(self, index: dict, repo_path: Path) -> None:
-        """Compute git timestamps for functions.
-
-        Args:
-            index: The Cicada index to update
-            repo_path: Repository root path
-        """
-        if self.verbose:
-            print("  Computing git timestamps...")
+        processed = 0
 
         try:
-            git_helper = GitHelper(str(repo_path))
-        except Exception as e:
-            if self.verbose:
-                print(f"    Warning: Could not initialize git helper: {e}")
-            return
-
-        # Collect all functions with their line numbers
-        functions_to_query = []
-        for module_name, module_data in index.get("modules", {}).items():
-            file_path = module_data.get("file")
-            if not file_path:
-                continue
-
-            for func in module_data.get("functions", []):
-                func_name = func.get("name")
-                line = func.get("line")
-                if func_name and line:
-                    functions_to_query.append(
-                        {
-                            "file": file_path,
-                            "name": func_name,
-                            "line": line,
-                            "module": module_name,
-                            "func_ref": func,
-                        }
-                    )
-
-        if not functions_to_query:
-            return
-
-        # Group functions by file for batched queries
-        functions_by_file: dict[str, list[dict]] = {}
-        for func_info in functions_to_query:
-            file_path = func_info["file"]
-            if file_path not in functions_by_file:
-                functions_by_file[file_path] = []
-            functions_by_file[file_path].append(func_info)
-
-        # Query git for function evolution in batch per file
-        try:
-            for file_path, file_functions in functions_by_file.items():
-                # Prepare function list for batch query
-                functions_for_git = [{"name": f["name"], "line": f["line"]} for f in file_functions]
-
-                # Get evolution data for all functions in this file
-                evolution_data = git_helper.get_functions_evolution_batch(
-                    file_path, functions_for_git
-                )
-
-                # Update functions with timestamp data
-                for func_info in file_functions:
-                    func_name = func_info["name"]
-                    evolution = evolution_data.get(func_name)
-                    if evolution and isinstance(evolution, dict):
-                        # Extract fields like Elixir indexer does
-                        func_ref = func_info["func_ref"]
-                        created_at = evolution.get("created_at")
-                        last_modified = evolution.get("last_modified")
-
-                        if created_at and isinstance(created_at, dict):
-                            func_ref["created_at"] = created_at.get("date")
-                        if last_modified and isinstance(last_modified, dict):
-                            func_ref["last_modified_at"] = last_modified.get("date")
-                            func_ref["last_modified_sha"] = last_modified.get("sha")
-                        if "total_modifications" in evolution:
-                            func_ref["modification_count"] = evolution["total_modifications"]
-                        if "modification_frequency" in evolution:
-                            func_ref["modification_frequency"] = evolution["modification_frequency"]
-
-        except Exception as e:
-            if self.verbose:
-                print(f"    Warning: Failed to compute timestamps: {e}")
-
-    def _extract_cochange(self, index: dict, repo_path: Path) -> None:
-        """Extract co-change relationships from git history.
-
-        Args:
-            index: The Cicada index to update
-            repo_path: Repository root path
-        """
-        if self.verbose:
-            print("  Analyzing co-change patterns from git history...")
-
-        try:
-            analyzer = CoChangeAnalyzer(language="python")
-            cochange_data = analyzer.analyze_repository(str(repo_path))
-
-            # Add co-change metadata to index
-            index["cochange_metadata"] = cochange_data["metadata"]
-
-            # Integrate file-level co-changes into modules
-            file_to_module = {}
-            for module_name, module_data in index.get("modules", {}).items():
-                file_path = module_data.get("file")
-                if file_path:
-                    file_to_module[file_path] = module_name
-
-            # Add co-change files to modules
             for _module_name, module_data in index.get("modules", {}).items():
+                # Check for interrupt
+                if self._interrupted:
+                    break
+
                 file_path = module_data.get("file")
                 if not file_path:
                     continue
 
-                # Find co-changed files
-                cochanges = CoChangeAnalyzer.find_cochange_pairs(
-                    file_path, cochange_data["file_pairs"]
-                )
+                full_path = repo_path / file_path
+                if not full_path.exists():
+                    continue
 
-                if cochanges:
-                    module_data["cochange_files"] = [
-                        {
-                            "file": related_file,
-                            "count": count,
-                            "module": file_to_module.get(related_file),
-                        }
-                        for related_file, count in sorted(cochanges, key=lambda x: -x[1])[:10]
-                    ]
+                try:
+                    source_code = full_path.read_text(encoding="utf-8")
+                    strings = string_extractor.extract_from_source(source_code)
 
+                    if not strings:
+                        processed += 1
+                        continue
+
+                    # Store string sources
+                    module_data["string_sources"] = strings
+
+                    # Extract keywords from all strings
+                    all_string_text = " ".join(s["string"] for s in strings)
+                    if all_string_text.strip():
+                        keywords_result = keyword_extractor.extract_keywords(
+                            all_string_text, top_n=15
+                        )
+
+                        # Apply string keyword boost (1.3x)
+                        string_keywords = {}
+                        for keyword, score in keywords_result.get("top_keywords", []):
+                            string_keywords[keyword] = score * 1.3
+
+                        if string_keywords:
+                            # Store extracted keywords and submit expansion
+                            module_data["string_keywords"] = string_keywords.copy()
+                            callback = ExpansionCallback(
+                                target=module_data, target_key="string_keywords"
+                            )
+                            if pipeline:
+                                for cb, res in pipeline.submit(
+                                    list(string_keywords.keys()),
+                                    string_keywords,
+                                    callback,
+                                    top_n=3,
+                                    threshold=0.2,
+                                ):
+                                    self._apply_expansion_result(cb, res)
+
+                    processed += 1
+
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    Warning: Failed to extract strings from {file_path}: {e}")
+
+        except KeyboardInterrupt:
+            self._interrupted = True
             if self.verbose:
-                print(
-                    f"    Found {cochange_data['metadata']['file_pairs']} file pairs, "
-                    f"{cochange_data['metadata']['function_pairs']} function pairs"
-                )
+                print("\n    Keyboard interrupt - saving partial results...")
 
-        except Exception as e:
-            if self.verbose:
-                print(f"    Warning: Failed to analyze co-changes: {e}")
+        return processed
 
     def _ensure_scip_python_installed(self):
         """
@@ -645,8 +723,7 @@ class PythonSCIPIndexer(BaseIndexer):
         ]
 
         if self.verbose:
-            print(f"  Running: {' '.join(cmd)}")
-            print("  (This may take several minutes for large projects...)")
+            print("  Running SCIP (This may take several minutes for large projects...)")
 
         try:
             result = subprocess.run(
@@ -672,7 +749,8 @@ class PythonSCIPIndexer(BaseIndexer):
                 "scip-python indexing timed out after 10 minutes. "
                 "Try indexing a smaller subset of the project."
             ) from e
-        except Exception:
+        except BaseException:
+            # Cleanup on any exception including KeyboardInterrupt
             if scip_file.exists():
                 scip_file.unlink()
             raise

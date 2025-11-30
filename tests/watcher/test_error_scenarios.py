@@ -16,38 +16,47 @@ from cicada.watcher import FileWatcher
 class TestWatcherErrorScenarios:
     """Test Issue 2.1 fix - Dangerous Fallback with Broken Index"""
 
-    @patch("sys.exit")
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_critical_errors_cause_immediate_exit(self, mock_indexer_class, mock_exit, elixir_repo):
-        """Test that critical errors during initial indexing cause immediate exit"""
-        test_cases = [
+    @pytest.mark.parametrize(
+        "error,description",
+        [
             (MemoryError("Out of memory"), "MemoryError"),
             (OSError("Disk full"), "OSError"),
-        ]
+        ],
+        ids=["memory_error", "os_error"],
+    )
+    @patch("sys.exit")
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_critical_errors_cause_immediate_exit(
+        self, mock_get_indexer, mock_exit, elixir_repo, error, description
+    ):
+        """Test that critical errors during initial indexing cause immediate exit"""
+        # Make sys.exit actually stop execution in the test
+        mock_exit.side_effect = SystemExit(1)
 
-        for error, description in test_cases:
-            mock_exit.reset_mock()
-            # Make sys.exit actually stop execution in the test
-            mock_exit.side_effect = SystemExit(1)
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_indexer.incremental_index_repository.side_effect = error
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
-            mock_indexer = Mock()
-            mock_indexer.incremental_index_repository.side_effect = error
-            mock_indexer_class.return_value = mock_indexer
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
 
-            watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+        with pytest.raises(SystemExit):
+            watcher.start_watching()
 
-            with pytest.raises(SystemExit):
-                watcher.start_watching()
-
-            mock_exit.assert_called_once_with(1), f"Should exit for {description}"
+        mock_exit.assert_called_once_with(1), f"Should exit for {description}"
 
     @patch("sys.exit")
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_keyboard_interrupt_not_caught(self, mock_indexer_class, mock_exit, elixir_repo):
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_keyboard_interrupt_not_caught(self, mock_get_indexer, mock_exit, elixir_repo):
         """Test that KeyboardInterrupt is properly handled and not caught as generic Exception"""
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = KeyboardInterrupt()
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         watcher.shutdown_event.set()  # Set shutdown to exit immediately
@@ -57,14 +66,17 @@ class TestWatcherErrorScenarios:
         mock_exit.assert_not_called()
 
     @patch("sys.exit")
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_index_fallback_scenarios(self, mock_indexer_class, mock_exit, elixir_repo):
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_index_fallback_scenarios(self, mock_get_indexer, mock_exit, elixir_repo):
         """Test various index fallback scenarios when initial indexing fails"""
         from cicada.utils.storage import create_storage_dir, get_index_path
 
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("Initial indexing failed")
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         # Make sys.exit actually stop execution
         mock_exit.side_effect = SystemExit(1)
@@ -95,11 +107,11 @@ class TestWatcherErrorScenarios:
             watcher.start_watching()
         mock_exit.assert_called_once_with(1)
 
-    @patch("cicada.watcher.ElixirIndexer")
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
     @patch("cicada.watcher.Observer")
     @patch("sys.exit")
     def test_valid_index_allows_continuation(
-        self, mock_exit, mock_observer_class, mock_indexer_class, elixir_repo
+        self, mock_exit, mock_observer_class, mock_get_indexer, elixir_repo
     ):
         """Test that valid existing index allows continuation with warning"""
         from cicada.utils.storage import create_storage_dir, get_index_path
@@ -114,8 +126,11 @@ class TestWatcherErrorScenarios:
         index_path.write_text(json.dumps(valid_index))
 
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("Initial indexing failed")
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         mock_observer = Mock()
         mock_observer_class.return_value = mock_observer

@@ -10,9 +10,6 @@ import argparse
 import sys
 from pathlib import Path
 
-# Import logging utilities
-from cicada.logging_utils import get_verbose_flag
-
 # Import tier resolution functions from centralized module
 from cicada.tier import (
     determine_tier,
@@ -35,13 +32,15 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "watch",
     "index",
     "index-pr",
-    "query",
     "find-dead-code",
     "clean",
     "status",
+    "stats",
     "dir",
     "link",
     "unlink",
+    "agents",
+    "run",
 )
 KNOWN_SUBCOMMANDS_SET = frozenset(KNOWN_SUBCOMMANDS)
 
@@ -77,11 +76,12 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
         sys.exit(2)
 
     # Create and start watcher
+    # Use --quiet flag for background processes, otherwise show progress
     try:
         watcher = FileWatcher(
             repo_path=str(repo_path),
             debounce_seconds=getattr(args, "debounce", DEFAULT_WATCH_DEBOUNCE),
-            verbose=get_verbose_flag(args),
+            verbose=not getattr(args, "quiet", False),
             tier=tier,
         )
         watcher.start_watching()
@@ -91,6 +91,76 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def _add_tier_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add --fast, --regular, --max tier selection arguments."""
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast tier: Regular extraction + lemmi expansion",
+    )
+    parser.add_argument(
+        "--regular",
+        action="store_true",
+        help="Regular tier: KeyBERT small + GloVe expansion (default)",
+    )
+    parser.add_argument(
+        "--max",
+        action="store_true",
+        help="Max tier: KeyBERT large + FastText expansion",
+    )
+
+
+def _add_editor_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add editor selection arguments."""
+    parser.add_argument(
+        "--claude",
+        action="store_true",
+        help="Skip editor selection, use Claude Code",
+    )
+    parser.add_argument(
+        "--cursor",
+        action="store_true",
+        help="Skip editor selection, use Cursor",
+    )
+    parser.add_argument(
+        "--vs",
+        action="store_true",
+        help="Skip editor selection, use VS Code",
+    )
+    parser.add_argument(
+        "--gemini",
+        action="store_true",
+        help="Skip editor selection, use Gemini CLI",
+    )
+    parser.add_argument(
+        "--codex",
+        action="store_true",
+        help="Skip editor selection, use Codex",
+    )
+
+
+def _create_editor_subparser(
+    subparsers, name: str, common_parser: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """Create an editor-specific subparser (claude, cursor, vs, gemini, codex)."""
+    editor_display_names = {
+        "claude": "Claude Code",
+        "cursor": "Cursor",
+        "vs": "VS Code",
+        "gemini": "Gemini CLI",
+        "codex": "Codex",
+    }
+    display_name = editor_display_names.get(name, name.title())
+    parser = subparsers.add_parser(
+        name,
+        help=f"Setup Cicada for {display_name} editor",
+        description=f"One-command setup for {display_name} with keyword extraction",
+        parents=[common_parser],
+    )
+    _add_tier_arguments(parser)
+    return parser
 
 
 def get_argument_parser():
@@ -129,46 +199,8 @@ def get_argument_parser():
         default=None,
         help="Path to project repository (default: current directory)",
     )
-    install_parser.add_argument(
-        "--claude",
-        action="store_true",
-        help="Skip editor selection, use Claude Code",
-    )
-    install_parser.add_argument(
-        "--cursor",
-        action="store_true",
-        help="Skip editor selection, use Cursor",
-    )
-    install_parser.add_argument(
-        "--vs",
-        action="store_true",
-        help="Skip editor selection, use VS Code",
-    )
-    install_parser.add_argument(
-        "--gemini",
-        action="store_true",
-        help="Skip editor selection, use Gemini CLI",
-    )
-    install_parser.add_argument(
-        "--codex",
-        action="store_true",
-        help="Skip editor selection, use Codex",
-    )
-    install_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion (no downloads)",
-    )
-    install_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (128MB, default)",
-    )
-    install_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion (958MB+)",
-    )
+    _add_editor_arguments(install_parser)
+    _add_tier_arguments(install_parser)
     install_parser.add_argument(
         "--default",
         action="store_true",
@@ -187,161 +219,17 @@ def get_argument_parser():
         default=None,
         help="Path to project repository (default: current directory)",
     )
-    server_parser.add_argument(
-        "--claude",
-        action="store_true",
-        help="Create Claude Code config before starting server",
-    )
-    server_parser.add_argument(
-        "--cursor",
-        action="store_true",
-        help="Create Cursor config before starting server",
-    )
-    server_parser.add_argument(
-        "--vs",
-        action="store_true",
-        help="Create VS Code config before starting server",
-    )
-    server_parser.add_argument(
-        "--gemini",
-        action="store_true",
-        help="Create Gemini CLI config before starting server",
-    )
-    server_parser.add_argument(
-        "--codex",
-        action="store_true",
-        help="Create Codex config before starting server",
-    )
-    server_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion (if reindexing needed)",
-    )
-    server_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (if reindexing needed)",
-    )
-    server_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion (if reindexing needed)",
-    )
+    _add_editor_arguments(server_parser)
+    _add_tier_arguments(server_parser)
     server_parser.add_argument(
         "--watch",
         action="store_true",
         help="Start file watcher in a linked process for automatic reindexing",
     )
 
-    claude_parser = subparsers.add_parser(
-        "claude",
-        help="Setup Cicada for Claude Code editor",
-        description="One-command setup for Claude Code with keyword extraction",
-        parents=[common_parser],
-    )
-    claude_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    claude_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    claude_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    cursor_parser = subparsers.add_parser(
-        "cursor",
-        help="Setup Cicada for Cursor editor",
-        description="One-command setup for Cursor with keyword extraction",
-        parents=[common_parser],
-    )
-    cursor_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    cursor_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    cursor_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    vs_parser = subparsers.add_parser(
-        "vs",
-        help="Setup Cicada for VS Code editor",
-        description="One-command setup for VS Code with keyword extraction",
-        parents=[common_parser],
-    )
-    vs_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    vs_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    vs_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    gemini_parser = subparsers.add_parser(
-        "gemini",
-        help="Setup Cicada for Gemini CLI",
-        description="One-command setup for Gemini CLI with keyword extraction",
-        parents=[common_parser],
-    )
-    gemini_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    gemini_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    gemini_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
-
-    codex_parser = subparsers.add_parser(
-        "codex",
-        help="Setup Cicada for Codex editor",
-        description="One-command setup for Codex with keyword extraction",
-        parents=[common_parser],
-    )
-    codex_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    codex_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    codex_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
+    # Editor-specific subparsers (all have identical structure with tier args)
+    for editor in ["claude", "cursor", "vs", "gemini", "codex"]:
+        _create_editor_subparser(subparsers, editor, common_parser)
 
     watch_parser = subparsers.add_parser(
         "watch",
@@ -362,20 +250,11 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds to wait after file changes before reindexing (default: 2.0)",
     )
+    _add_tier_arguments(watch_parser)
     watch_parser.add_argument(
-        "--fast",
+        "--quiet",
         action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    watch_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    watch_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
+        help="Suppress progress output (used internally for background watch processes)",
     )
 
     index_parser = subparsers.add_parser(
@@ -390,21 +269,7 @@ def get_argument_parser():
         default=".",
         help="Path to the project repository to index (default: current directory)",
     )
-    index_parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
-    )
-    index_parser.add_argument(
-        "--regular",
-        action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    index_parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
-    )
+    _add_tier_arguments(index_parser)
     index_parser.add_argument(
         "-f",
         "--force",
@@ -459,6 +324,11 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds when using --watch (default: 2.0)",
     )
+    index_parser.add_argument(
+        "--no-cochange",
+        action="store_true",
+        help="Disable co-change analysis (enabled by default for better search results)",
+    )
 
     index_pr_parser = subparsers.add_parser(
         "index-pr",
@@ -476,81 +346,6 @@ def get_argument_parser():
         "--clean",
         action="store_true",
         help="Clean and rebuild the entire index from scratch (default: incremental update)",
-    )
-
-    query_parser = subparsers.add_parser(
-        "query",
-        help="Smart code discovery - search by keywords or patterns",
-        description="Smart code discovery - the 'Google for code'. Searches by keywords OR patterns automatically, provides broad overview with suggestions.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parser],
-        epilog="""
-Examples:
-  cicada query authentication                          # Keyword search
-  cicada query jwt token verify                        # Multiple keywords
-  cicada query "MyApp.Auth.verify*"                    # Pattern search
-  cicada query authentication --recent                 # Recent changes only
-  cicada query "create*" --filter-type functions       # Functions only
-  cicada query "SELECT" --match-source strings         # Search string literals
-  cicada query login --path-pattern "lib/auth/**"      # Specific directory
-  cicada query user --scope public --path-pattern "!**/test/**"  # Public API, no tests
-  cicada query auth --max-results 10                   # Limit results
-        """,
-    )
-    query_parser.add_argument(
-        "query",
-        nargs="+",
-        help="Keywords or patterns to search for (e.g., 'authentication login' or 'MyApp.User.create*')",
-    )
-    query_parser.add_argument(
-        "--scope",
-        choices=["all", "public", "private"],
-        default="all",
-        help="Filter scope: 'all' (default), 'public' (public only), 'private' (private only)",
-    )
-    query_parser.add_argument(
-        "--recent",
-        action="store_true",
-        help="Filter to recently changed code only (last 14 days)",
-    )
-    query_parser.add_argument(
-        "--filter-type",
-        choices=["all", "modules", "functions"],
-        default="all",
-        help="Result type filter: 'all' (default), 'modules', 'functions'",
-    )
-    query_parser.add_argument(
-        "--match-source",
-        choices=["all", "docs", "strings"],
-        default="all",
-        help="Where to search: 'all' (default), 'docs' (documentation only), 'strings' (string literals only)",
-    )
-    query_parser.add_argument(
-        "--max-results",
-        type=int,
-        default=10,
-        help="Maximum number of results to show (default: 10)",
-    )
-    query_parser.add_argument(
-        "--path-pattern",
-        help="Glob pattern to filter by path (e.g., 'lib/auth/**', '!**/test/**')",
-    )
-    query_parser.add_argument(
-        "--show-snippets",
-        action="store_true",
-        help="Show code snippet previews with context lines",
-    )
-    query_parser.add_argument(
-        "--min-tier",
-        type=int,
-        choices=[1, 2, 3, 4, 5],
-        help="Minimum tier rank to show (1=exceptional, 2=highly relevant, 3=above average, 4=below average, 5=poor)",
-    )
-    query_parser.add_argument(
-        "--format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format (default: text)",
     )
 
     dead_code_parser = subparsers.add_parser(
@@ -641,6 +436,86 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Stats command
+    stats_parser = subparsers.add_parser(
+        "stats",
+        help="Show MCP tool usage statistics for this project",
+        description="Display usage statistics for MCP tool calls in this project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parser],
+        epilog="""
+Examples:
+  cicada stats                      # Summary (all time)
+  cicada stats --detailed           # Detailed breakdown
+  cicada stats --last-7-days        # Last 7 days only
+  cicada stats --tool query         # Filter by tool
+  cicada stats --time-series        # Daily view
+  cicada stats --time-series --weekly   # Weekly view
+  cicada stats --format json        # JSON output
+  cicada stats --reset --older-than 30  # Delete logs >30 days old
+        """,
+    )
+
+    stats_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=".",
+        help="Path to the repository (default: current directory)",
+    )
+
+    stats_parser.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Show detailed per-tool breakdown",
+    )
+    stats_parser.add_argument(
+        "--time-series",
+        action="store_true",
+        help="Show time-based aggregation",
+    )
+    stats_parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="Use weekly aggregation (requires --time-series)",
+    )
+    stats_parser.add_argument(
+        "--tool",
+        help="Filter by tool name",
+    )
+    stats_parser.add_argument(
+        "--last-7-days",
+        action="store_true",
+        help="Show last 7 days only",
+    )
+    stats_parser.add_argument(
+        "--last-30-days",
+        action="store_true",
+        help="Show last 30 days only",
+    )
+    stats_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format",
+    )
+    stats_parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete log files",
+    )
+    stats_parser.add_argument(
+        "--older-than",
+        type=int,
+        metavar="DAYS",
+        help="With --reset: only delete logs older than DAYS",
+    )
+    stats_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="With --reset: skip confirmation",
+    )
+
     dir_parser = subparsers.add_parser(
         "dir",
         help="Show the absolute path to the Cicada storage directory",
@@ -701,6 +576,16 @@ Examples:
         help="Path to the repository (default: current directory)",
     )
 
+    # Agents command (MVP: install subcommand only)
+    agents_parser = subparsers.add_parser(
+        "agents",
+        help="Install Claude Code agents",
+        description="Install agents for code exploration",
+        parents=[common_parser],
+    )
+    agents_subparsers = agents_parser.add_subparsers(dest="agents_command", required=True)
+    agents_subparsers.add_parser("install", help="Install Cicada agents")
+
     return parser
 
 
@@ -724,13 +609,14 @@ def handle_command(args) -> bool:
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
-        "query": handle_query,
         "find-dead-code": handle_find_dead_code,
         "clean": handle_clean,
         "status": handle_status,
+        "stats": handle_stats,
         "dir": handle_dir,
         "link": handle_link,
         "unlink": handle_unlink,
+        "agents": handle_agents,
     }
 
     if args.command is None:
@@ -907,30 +793,47 @@ def handle_index_main(args) -> None:
     # Perform indexing using unified interface
     # If tier changed, force full reindex to ensure index consistency with new config
     indexer = LanguageRegistry.get_indexer(language)
-    verbose = get_verbose_flag(args)
+    # CLI commands always show progress (only MCP server should be silent)
+    verbose = True
 
-    # Check if indexer supports incremental_index_repository (new unified API)
-    if hasattr(indexer, "incremental_index_repository"):
-        # Co-change disabled by default due to performance issues (can be enabled with --extract-cochange)
-        extract_cochange = getattr(args, "extract_cochange", False)
-        indexer.incremental_index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            extract_keywords=True,
-            compute_timestamps=True,
-            extract_cochange=extract_cochange,
-            force_full=tier_changed,
-            verbose=verbose,
-        )
-    else:
-        # Fallback to basic interface for legacy indexers
-        indexer.index_repository(
-            repo_path=str(repo_path),
-            output_path=str(index_path),
-            force=tier_changed,
-            verbose=verbose,
-            config_path=str(config_path),
-        )
+    try:
+        # Check if indexer supports incremental_index_repository (new unified API)
+        if hasattr(indexer, "incremental_index_repository"):
+            # Co-change analysis is enabled by default for better search results
+            # Can be disabled with --no-cochange flag
+            extract_cochange = not getattr(args, "no_cochange", False)
+            # Force full reindex if --force flag was used OR tier changed
+            should_force = force_enabled or tier_changed
+            indexer.incremental_index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                compute_timestamps=True,
+                extract_cochange=extract_cochange,
+                force_full=should_force,
+                verbose=verbose,
+            )
+        else:
+            # Fallback to basic interface for legacy indexers
+            should_force = force_enabled or tier_changed
+            indexer.index_repository(
+                repo_path=str(repo_path),
+                output_path=str(index_path),
+                force=should_force,
+                verbose=verbose,
+                config_path=str(config_path),
+            )
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Indexing interrupted by user.")
+        # Handle interrupt during the initial, non-enrichment phase of indexing.
+        # For Python, an interrupt during the external `scip-python` call means no index is saved.
+        # Other indexers, like Elixir's, may save partial progress even at this stage.
+        if language == "elixir":
+            print("Partial index saved. Run again to continue indexing remaining files.")
+        else:
+            print("Run again to restart indexing.")
+        sys.exit(130)
 
 
 def _handle_index_config_update(
@@ -1051,68 +954,6 @@ def handle_index_pr(args):
         sys.exit(1)
 
 
-def handle_query(args):
-    """Handle query command for smart code discovery."""
-    from cicada.query import QueryOrchestrator
-    from cicada.utils import get_index_path, load_index
-
-    index_path = get_index_path(".")
-
-    if not index_path.exists():
-        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        print("\nRun 'cicada index' first to create the index.", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        index = load_index(index_path, raise_on_error=True)
-    except Exception as e:
-        print(f"Error loading index: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    assert index is not None, "Index should not be None after successful load"
-
-    # Check if keywords are available
-    has_keywords = any(
-        module_data.get("keywords") or module_data.get("string_keywords")
-        for module_data in index.get("modules", {}).values()
-    )
-
-    if not has_keywords:
-        print("Error: No keywords found in index.", file=sys.stderr)
-        print("\nPlease rebuild the index with keyword extraction:", file=sys.stderr)
-        print("  cicada index           # Default: reuse configured tier", file=sys.stderr)
-        print("  cicada index --force --regular   # BERT + GloVe (regular tier)", file=sys.stderr)
-        print(
-            "  cicada index --force --fast      # Fast: Token-based + lemminflect", file=sys.stderr
-        )
-        print("  cicada index --force --max       # Max: BERT + FastText", file=sys.stderr)
-        sys.exit(1)
-
-    # Create orchestrator and execute query
-    orchestrator = QueryOrchestrator(index)
-
-    # Convert query list to the format expected by orchestrator
-    query = args.query if len(args.query) > 1 else args.query[0]
-
-    result = orchestrator.execute_query(
-        query=query,
-        scope=args.scope,
-        recent=getattr(args, "recent", False),
-        filter_type=getattr(args, "filter_type", "all"),
-        match_source=getattr(args, "match_source", "all"),
-        max_results=args.max_results,
-        path_pattern=args.path_pattern,
-        show_snippets=args.show_snippets,
-    )
-
-    if args.format == "json":
-        # Parse the result text and convert to JSON
-        # For now, just print the text result since orchestrator returns formatted text
-        print(result)
-    else:
-        print(result)
-
-
 def handle_find_dead_code(args):
     from cicada.dead_code.analyzer import DeadCodeAnalyzer
     from cicada.dead_code.finder import filter_by_confidence, format_json, format_markdown
@@ -1190,6 +1031,83 @@ def handle_status(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def handle_stats(args):
+    """Show MCP tool usage statistics for the current project."""
+    from cicada.stats import StatsAnalyzer
+
+    repo_path = Path(args.repo).resolve()
+    analyzer = StatsAnalyzer(repo_path)
+
+    # Handle reset
+    if args.reset:
+        _handle_stats_reset(args, analyzer)
+        return
+
+    # Determine time filter
+    days = None
+    if args.last_7_days:
+        days = 7
+    elif args.last_30_days:
+        days = 30
+
+    # Get stats
+    try:
+        if args.time_series:
+            granularity = "weekly" if args.weekly else "daily"
+            stats = analyzer.get_stats(
+                days=days,
+                tool_filter=args.tool,
+                time_series=True,
+                granularity=granularity,
+            )
+        else:
+            stats = analyzer.get_stats(days=days, tool_filter=args.tool)
+
+        # Format output
+        if args.format == "json":
+            output = analyzer.format_json(stats)
+        elif args.time_series:
+            output = analyzer.format_time_series(stats)
+        elif args.detailed:
+            output = analyzer.format_detailed(stats)
+        else:
+            output = analyzer.format_summary(stats)
+
+        print(output)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _handle_stats_reset(args, analyzer):
+    """Handle stats reset operation."""
+    older_than = getattr(args, "older_than", None)
+    force = getattr(args, "force", False)
+
+    if older_than:
+        message = f"Delete logs older than {older_than} days?"
+        needs_confirmation = False
+    else:
+        message = "Delete ALL MCP tool logs for this project?"
+        needs_confirmation = not force
+
+    if needs_confirmation:
+        print(message)
+        print("This action cannot be undone.")
+        response = input("Continue? [y/N]: ").strip().lower()
+        if response not in ["y", "yes"]:
+            print("Aborted.")
+            sys.exit(0)
+
+    count = analyzer.reset_stats(older_than_days=older_than)
+
+    if older_than:
+        print(f"✓ Deleted {count} log file(s) older than {older_than} days")
+    else:
+        print(f"✓ Deleted {count} log file(s)")
 
 
 def handle_dir(args):
@@ -1606,3 +1524,33 @@ def _cleanup_watch_process(logger) -> None:
     except Exception as e:
         logger.exception("Error stopping watch process during cleanup")
         print(f"Warning: Error stopping watch process: {e}", file=sys.stderr)
+
+
+def handle_agents(args) -> None:
+    """Handle agents command routing.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    if args.agents_command == "install":
+        handle_agents_install()
+
+
+def handle_agents_install() -> None:
+    """Install Cicada agents to ./.claude/."""
+    from pathlib import Path
+
+    from cicada.agents.installer import install_agent
+
+    install_path = Path.cwd() / ".claude"
+    agent_name = "cicada-code-explorer.md"
+
+    print(f"\nInstalling Cicada agent: {install_path}\n")
+
+    install_agent(install_path, agent_name)
+
+    print(f"  ✓ Installed {agent_name}")
+    print("\n✓ Installation complete!")
+    print("\nNext steps:")
+    print("  1. Restart Claude Code to load the new agent")
+    print("  2. Use agent via: Task tool → select cicada-code-explorer")

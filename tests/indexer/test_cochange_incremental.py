@@ -1,57 +1,81 @@
-"""Test that co-change data is preserved/recomputed in incremental indexing."""
+"""Test that co-change data is preserved/recomputed in incremental indexing.
 
-import subprocess
-from pathlib import Path
+These tests mock the CoChangeAnalyzer to avoid git operations that can corrupt
+git worktrees during parallel test execution.
+"""
+
+import json
+from unittest.mock import patch
 
 import pytest
 
 from cicada.indexer import ElixirIndexer
-from cicada.utils import get_index_path
 
-pytestmark = pytest.mark.skip(
-    reason="Cochange tests disabled due to git index corruption in parallel runs"
-)
+
+# Mock cochange analysis result
+MOCK_COCHANGE_RESULT = {
+    "file_pairs": {
+        ("lib/auth.ex", "lib/credentials.ex"): 4,
+        ("lib/auth.ex", "lib/logger.ex"): 2,
+    },
+    "function_pairs": {
+        ("Auth.authenticate/2", "Credentials.validate/1"): 3,
+    },
+    "metadata": {
+        "analyzed_at": "2024-01-01T00:00:00",
+        "commit_count": 10,
+        "file_pairs": 2,
+        "function_pairs": 1,
+        "optimization": "batched_recency_sampling",
+    },
+}
+
+# Mock result with more commits (simulating more history)
+MOCK_COCHANGE_RESULT_EXTENDED = {
+    "file_pairs": {
+        ("lib/auth.ex", "lib/credentials.ex"): 6,
+        ("lib/auth.ex", "lib/logger.ex"): 3,
+    },
+    "function_pairs": {
+        ("Auth.authenticate/2", "Credentials.validate/1"): 4,
+    },
+    "metadata": {
+        "analyzed_at": "2024-01-02T00:00:00",
+        "commit_count": 15,
+        "file_pairs": 2,
+        "function_pairs": 1,
+        "optimization": "batched_recency_sampling",
+    },
+}
 
 
 @pytest.fixture
-def git_repo_for_incremental(tmp_path):
-    """Create a git repository with multiple files that will be incrementally updated."""
-    repo = tmp_path / "test_repo"
-    repo.mkdir()
-
-    # Initialize git repo
-    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "commit.gpgsign", "false"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create lib directory
-    lib_dir = repo / "lib"
+def elixir_repo_with_modules(tmp_path):
+    """Create an Elixir repo with modules for indexing (no git required)."""
+    lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
 
-    # Create auth.ex
-    auth_file = lib_dir / "auth.ex"
-    auth_file.write_text(
-        """defmodule MyApp.Auth do
+    # Create mix.exs
+    (tmp_path / "mix.exs").write_text(
+        """
+defmodule TestApp.MixProject do
+  use Mix.Project
+
+  def project do
+    [app: :test_app, version: "0.1.0"]
+  end
+end
+"""
+    )
+
+    # Create Auth module
+    (lib_dir / "auth.ex").write_text(
+        """
+defmodule Auth do
   @moduledoc "Authentication module"
 
-  def login(username, password) do
-    :ok
+  def authenticate(user, password) do
+    Credentials.validate(user, password)
   end
 
   def logout(user) do
@@ -61,305 +85,133 @@ end
 """
     )
 
-    # Create credentials.ex
-    cred_file = lib_dir / "credentials.ex"
-    cred_file.write_text(
-        """defmodule MyApp.Credentials do
-  @moduledoc "Credentials module"
+    # Create Credentials module
+    (lib_dir / "credentials.ex").write_text(
+        """
+defmodule Credentials do
+  @moduledoc "Credentials validation"
 
-  def check_password(user, password) do
-    true
+  def validate(user, password) do
+    {:ok, user}
   end
 end
 """
     )
 
-    # Create logger.ex (will be modified together with auth later)
-    logger_file = lib_dir / "logger.ex"
-    logger_file.write_text(
-        """defmodule MyApp.Logger do
-  @moduledoc "Logging module"
+    # Create Logger module
+    (lib_dir / "logger.ex").write_text(
+        """
+defmodule Logger do
+  @moduledoc "Logging utilities"
 
-  def log_login(user) do
-    :ok
+  def log(message) do
+    IO.puts(message)
   end
 end
 """
     )
 
-    # Commit 1: Initial commit with all files
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Commit 2: Modify auth and credentials together
-    auth_file.write_text(
-        """defmodule MyApp.Auth do
-  @moduledoc "Authentication module"
-
-  def login(username, password) do
-    # Check credentials
-    :ok
-  end
-
-  def logout(user) do
-    :ok
-  end
-end
-"""
-    )
-    cred_file.write_text(
-        """defmodule MyApp.Credentials do
-  @moduledoc "Credentials module"
-
-  def check_password(user, password) do
-    # Updated password check
-    true
-  end
-end
-"""
-    )
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Update auth and credentials"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Commit 3: Modify auth and logger together
-    auth_file.write_text(
-        """defmodule MyApp.Auth do
-  @moduledoc "Authentication module"
-
-  def login(username, password) do
-    # Check credentials and log
-    :ok
-  end
-
-  def logout(user) do
-    # Log logout
-    :ok
-  end
-end
-"""
-    )
-    logger_file.write_text(
-        """defmodule MyApp.Logger do
-  @moduledoc "Logging module"
-
-  def log_login(user) do
-    # Updated logging
-    :ok
-  end
-
-  def log_logout(user) do
-    :ok
-  end
-end
-"""
-    )
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Update auth and logger"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    return repo
+    return tmp_path
 
 
-@pytest.mark.xdist_group(name="cochange_tests")
-def test_incremental_preserves_cochange_data(git_repo_for_incremental):
-    """Test that co-change data is preserved/recomputed during incremental updates."""
-    repo = git_repo_for_incremental
-    index_path = get_index_path(repo)
+class TestCoChangeIncremental:
+    """Test co-change data in incremental indexing."""
 
-    indexer = ElixirIndexer(verbose=False)
+    def test_incremental_indexing_preserves_cochange_data(self, elixir_repo_with_modules, tmp_path):
+        """Test that co-change data is preserved when doing incremental updates."""
+        indexer = ElixirIndexer(verbose=False)
+        output_path = tmp_path / "index.json"
 
-    # Step 1: Initial full index with co-change extraction
-    initial_index = indexer.index_repository(str(repo), str(index_path), extract_cochange=True)
-
-    # Verify initial co-change data exists
-    assert "cochange_metadata" in initial_index
-    assert initial_index["cochange_metadata"]["commit_count"] >= 3
-
-    # Verify Auth module has co-change data
-    auth_module = initial_index["modules"]["MyApp.Auth"]
-    assert "cochange_files" in auth_module
-    assert len(auth_module["cochange_files"]) > 0
-
-    # Auth should have co-changed with both Credentials and Logger
-    cochange_files = {cf["file"] for cf in auth_module["cochange_files"]}
-    assert "lib/credentials.ex" in cochange_files
-    assert "lib/logger.ex" in cochange_files
-
-    # Step 2: Modify one file (create a change that triggers incremental indexing)
-    logger_file = repo / "lib" / "logger.ex"
-    logger_file.write_text(
-        """defmodule MyApp.Logger do
-  @moduledoc "Logging module - updated"
-
-  def log_login(user) do
-    # Updated logging with new feature
-    :ok
-  end
-
-  def log_logout(user) do
-    # Enhanced logout logging
-    :ok
-  end
-end
-"""
-    )
-
-    # Commit the change
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Update logger"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-
-    # Step 3: Incremental index with co-change extraction
-    incremental_index = indexer.incremental_index_repository(
-        str(repo), str(index_path), extract_cochange=True
-    )
-
-    # Step 4: Verify co-change data is still present and correct
-    assert "cochange_metadata" in incremental_index, "Co-change metadata should exist"
-    assert (
-        incremental_index["cochange_metadata"]["commit_count"] >= 4
-    ), "Should have at least 4 commits now"
-
-    # Verify Auth module still has co-change data
-    auth_module = incremental_index["modules"]["MyApp.Auth"]
-    assert "cochange_files" in auth_module, "Auth should have cochange_files"
-    assert len(auth_module["cochange_files"]) > 0, "Auth should have co-change files"
-
-    # Auth should still have co-changed with both Credentials and Logger
-    cochange_files = {cf["file"] for cf in auth_module["cochange_files"]}
-    assert "lib/credentials.ex" in cochange_files, "Auth should co-change with Credentials"
-    assert "lib/logger.ex" in cochange_files, "Auth should co-change with Logger"
-
-    # Verify function-level co-change data exists
-    if "functions" in auth_module:
-        login_func = next((f for f in auth_module["functions"] if f["name"] == "login"), None)
-        if login_func:
-            # Function-level co-change data should exist if there were function-level co-changes
-            assert (
-                "cochange_functions" in login_func
-                or len(login_func.get("cochange_functions", [])) == 0
+        # First full index with mocked cochange
+        with patch(
+            "cicada.git.cochange_analyzer.CoChangeAnalyzer.analyze_repository",
+            return_value=MOCK_COCHANGE_RESULT,
+        ):
+            indexer.index_repository(
+                repo_path=str(elixir_repo_with_modules),
+                output_path=str(output_path),
+                extract_cochange=True,
             )
 
+        # Read initial co-change metadata
+        with open(output_path) as f:
+            initial_index = json.load(f)
 
-@pytest.mark.xdist_group(name="cochange_tests")
-def test_incremental_without_cochange_flag_preserves_data(git_repo_for_incremental):
-    """Test that co-change data is preserved even when flag is not set on incremental run."""
-    repo = git_repo_for_incremental
-    index_path = get_index_path(repo)
+        initial_cochange_count = initial_index.get("cochange_metadata", {}).get("commit_count", 0)
 
-    indexer = ElixirIndexer(verbose=False)
+        # Do an incremental index with extended cochange result
+        with patch(
+            "cicada.git.cochange_analyzer.CoChangeAnalyzer.analyze_repository",
+            return_value=MOCK_COCHANGE_RESULT_EXTENDED,
+        ):
+            incremental_index = indexer.incremental_index_repository(
+                repo_path=str(elixir_repo_with_modules),
+                output_path=str(output_path),
+                extract_cochange=True,
+            )
 
-    # Step 1: Initial full index WITH co-change extraction
-    initial_index = indexer.index_repository(str(repo), str(index_path), extract_cochange=True)
+        # Assert: Co-change data should be present
+        assert "cochange_metadata" in incremental_index
+        assert incremental_index["cochange_metadata"]["commit_count"] >= initial_cochange_count
 
-    # Verify initial co-change data exists
-    assert "cochange_metadata" in initial_index
-    auth_module = initial_index["modules"]["MyApp.Auth"]
-    assert "cochange_files" in auth_module
-    initial_cochange_count = len(auth_module["cochange_files"])
+    def test_incremental_recomputes_cochange_when_enabled(self, elixir_repo_with_modules, tmp_path):
+        """Test that co-change is recomputed in incremental mode."""
+        indexer = ElixirIndexer(verbose=False)
+        output_path = tmp_path / "index.json"
 
-    # Step 2: Modify a file
-    logger_file = repo / "lib" / "logger.ex"
-    logger_file.write_text(
-        """defmodule MyApp.Logger do
-  @moduledoc "Logging module - updated again"
+        # Index with cochange enabled
+        with patch(
+            "cicada.git.cochange_analyzer.CoChangeAnalyzer.analyze_repository",
+            return_value=MOCK_COCHANGE_RESULT,
+        ):
+            result = indexer.index_repository(
+                repo_path=str(elixir_repo_with_modules),
+                output_path=str(output_path),
+                extract_cochange=True,
+            )
 
-  def log_login(user) do
-    :ok
-  end
-end
-"""
-    )
+        # Assert
+        assert "cochange_metadata" in result
+        assert result["cochange_metadata"]["commit_count"] >= 5
 
-    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Another logger update"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
+    def test_incremental_with_cochange_disabled_preserves_structure(
+        self, elixir_repo_with_modules, tmp_path
+    ):
+        """Test that running incremental with extract_cochange=False preserves index structure."""
+        output_path = tmp_path / "index.json"
+        indexer = ElixirIndexer(verbose=False)
 
-    # Step 3: Incremental index WITHOUT co-change flag
-    # This simulates the bug scenario - co-change data should be preserved
-    incremental_index = indexer.incremental_index_repository(
-        str(repo), str(index_path), extract_cochange=False
-    )
+        # First: index WITH cochange
+        with patch(
+            "cicada.git.cochange_analyzer.CoChangeAnalyzer.analyze_repository",
+            return_value=MOCK_COCHANGE_RESULT,
+        ):
+            indexer.index_repository(
+                repo_path=str(elixir_repo_with_modules),
+                output_path=str(output_path),
+                extract_cochange=True,
+            )
 
-    # Step 4: Co-change data from initial index should be preserved
-    # (Although it won't be updated with new commits, it shouldn't be lost)
-    auth_module = incremental_index["modules"]["MyApp.Auth"]
+        with open(output_path) as f:
+            indexed_with_cochange = json.load(f)
 
-    # In the current implementation, co-change data is lost when extract_cochange=False
-    # This is actually acceptable behavior - if the user doesn't request co-change,
-    # we don't preserve it. But let's verify the behavior is consistent:
-    # The co-change data should either be preserved OR consistently removed
-    # For now, we accept that it's removed when flag is False
+        assert "cochange_metadata" in indexed_with_cochange
+        initial_file_pairs = indexed_with_cochange["cochange_metadata"]["file_pairs"]
+        assert initial_file_pairs > 0
 
-
-@pytest.mark.xdist_group(name="cochange_tests")
-def test_multiple_incremental_runs_with_cochange(git_repo_for_incremental):
-    """Test that co-change data remains correct after multiple incremental runs."""
-    repo = git_repo_for_incremental
-    index_path = get_index_path(repo)
-
-    indexer = ElixirIndexer(verbose=False)
-
-    # Initial full index
-    index = indexer.index_repository(str(repo), str(index_path), extract_cochange=True)
-    initial_commit_count = index["cochange_metadata"]["commit_count"]
-
-    # Run multiple incremental updates
-    for i in range(3):
-        # Modify a file
-        logger_file = repo / "lib" / "logger.ex"
-        logger_file.write_text(
-            f"""defmodule MyApp.Logger do
-  @moduledoc "Logging module - iteration {i}"
-
-  def log_login(user) do
-    # Iteration {i}
-    :ok
-  end
-end
-"""
+        # Act: incremental index with extract_cochange=False
+        # When no changes detected, incremental just reports "up to date"
+        indexer.incremental_index_repository(
+            repo_path=str(elixir_repo_with_modules),
+            output_path=str(output_path),
+            extract_cochange=False,
         )
 
-        subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", f"Update {i}"],
-            cwd=repo,
-            check=True,
-            capture_output=True,
-        )
+        # Assert: index should still have valid structure
+        with open(output_path) as f:
+            indexed_after = json.load(f)
 
-        # Incremental index with co-change
-        index = indexer.incremental_index_repository(
-            str(repo), str(index_path), extract_cochange=True
-        )
-
-        # Verify co-change data is still present
-        assert "cochange_metadata" in index
-        assert index["cochange_metadata"]["commit_count"] == initial_commit_count + i + 1
-
-        # Verify Auth still has co-change data
-        auth_module = index["modules"]["MyApp.Auth"]
-        assert "cochange_files" in auth_module
-        assert len(auth_module["cochange_files"]) > 0
+        # cochange_metadata may be preserved (incremental doesn't clear when no changes)
+        # The key is that the index is still valid and usable
+        assert "modules" in indexed_after
+        assert len(indexed_after["modules"]) > 0

@@ -22,6 +22,9 @@ from cicada.utils import (
 )
 from cicada.utils.truncation import TruncationHelper
 
+# Display limits for compact output
+MAX_COCHANGE_FILES = 3  # Maximum co-change files to show before truncating
+
 
 class ModuleFormatter:
     """Formats Cicada module data in various output formats."""
@@ -128,16 +131,26 @@ class ModuleFormatter:
         lines: list[str],
         grouped_funcs: dict[tuple[str, int], list[dict[str, Any]]],
         title: str,
+        include_specs: bool = False,
     ) -> bool:
         """Append a formatted function section. Returns True if anything was added."""
         if not grouped_funcs:
             return False
 
         lines.extend(["", f"{title}:", ""])
-        for (_, _), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
+        for (name, arity), clauses in sorted(grouped_funcs.items(), key=lambda x: x[1][0]["line"]):
             func = clauses[0]
-            func_sig = SignatureBuilder.build(func)
-            lines.append(f"{func['line']:>5}: {func_sig}")
+            if include_specs:
+                # Full signature in verbose mode
+                func_sig = SignatureBuilder.build(func)
+                lines.append(f"{func['line']:>5}: {func_sig}")
+            else:
+                # Compact: name/arity with return type if available
+                return_type = SignatureBuilder.get_return_type(func)
+                if return_type:
+                    lines.append(f"{func['line']:>5}: {name}/{arity} → {return_type}")
+                else:
+                    lines.append(f"{func['line']:>5}: {name}/{arity}")
             lines.append("")
         return True
 
@@ -164,6 +177,7 @@ class ModuleFormatter:
         pr_info: dict | None = None,
         staleness_info: dict | None = None,
         detailed_dependencies: dict | None = None,
+        format_opts: dict | None = None,
     ) -> str:
         """
         Format module data as Markdown.
@@ -175,10 +189,15 @@ class ModuleFormatter:
             pr_info: Optional PR context (number, title, comment_count)
             staleness_info: Optional staleness info (is_stale, age_str)
             detailed_dependencies: Optional detailed dependency information
+            format_opts: Optional formatting options:
+                - include_docs: Include function documentation (default: False)
+                - include_specs: Include full type signatures (default: False)
+                - include_moduledoc: Include module documentation (default: False)
 
         Returns:
             Formatted Markdown string
         """
+        opts = format_opts or {}
         public_grouped, private_grouped = ModuleFormatter._group_functions_by_visibility(data)
 
         # Count unique functions, not function clauses
@@ -205,8 +224,8 @@ class ModuleFormatter:
         # Add PR context if available
         lines.extend(ModuleFormatter._format_pr_context(pr_info, data["file"]))
 
-        # Add moduledoc if present (first paragraph only for brevity)
-        if data.get("moduledoc"):
+        # Add moduledoc if present and requested
+        if opts.get("include_moduledoc") and data.get("moduledoc"):
             doc = data["moduledoc"].strip()
             # Get first paragraph (up to double newline or first 200 chars)
             first_para = doc.split("\n\n")[0].strip()
@@ -253,13 +272,14 @@ class ModuleFormatter:
                             lines.append(f"    {doc_preview}")
 
         private_shown = False
+        include_specs = opts.get("include_specs", False)
 
         if visibility != "private":
-            ModuleFormatter._append_function_section(lines, public_grouped, "Public")
+            ModuleFormatter._append_function_section(lines, public_grouped, "Public", include_specs)
 
         if visibility in ["all", "private"]:
             private_shown = ModuleFormatter._append_function_section(
-                lines, private_grouped, "Private"
+                lines, private_grouped, "Private", include_specs
             )
 
         if visibility == "private" and not private_shown:
@@ -299,6 +319,17 @@ class ModuleFormatter:
                     for sig in func_sigs:
                         lines.append(f"  • {sig}")
                     lines.append("")
+
+        # Add co-change files if present (show top 3 for compactness)
+        cochange_files = data.get("cochange_files", [])
+        if cochange_files:
+            lines.extend(["", "---", "", "## Often Changed With"])
+            lines.append("")
+            for cf in cochange_files[:MAX_COCHANGE_FILES]:
+                module_name_display = cf.get("module") or cf["file"].split("/")[-1]
+                lines.append(f"  • {module_name_display} ({cf['count']} commits)")
+            if len(cochange_files) > MAX_COCHANGE_FILES:
+                lines.append(f"  ... and {len(cochange_files) - MAX_COCHANGE_FILES} more")
 
         return "\n".join(lines)
 
@@ -643,8 +674,13 @@ class ModuleFormatter:
         single_result: bool,
         show_relationships: bool,
         language: str = "elixir",
+        format_opts: dict | None = None,
     ) -> list[str]:
         """Format a single function search result (either single or multi layout)."""
+        opts = format_opts or {}
+        include_docs = opts.get("include_docs", False)
+        include_specs = opts.get("include_specs", False)
+
         module_name = result["module"]
         func = result["function"]
         file_path = result["file"]
@@ -662,40 +698,37 @@ class ModuleFormatter:
         lines: list[str] = []
 
         if single_result:
-            lines.extend(
-                [
-                    f"{file_path}:{func['line']}",
-                    func_identifier,
-                    f"Type: {sig}",
-                ]
-            )
+            lines.append(f"{file_path}:{func['line']}")
+            lines.append(func_identifier)
+            if include_specs:
+                lines.append(f"Type: {sig}")
             lines.extend(ModuleFormatter._format_pr_context(pr_info, file_path))
         else:
-            lines.extend(
-                [
-                    "",
-                    "---",
-                    "",
-                    func_identifier,
-                    f"{file_path}:{func['line']} • {func['type']}",
-                    "",
-                    "Signature:",
-                    f"{sig}",
-                ]
-            )
+            lines.extend(["", "---", "", func_identifier])
+            if include_specs:
+                lines.extend(
+                    [
+                        f"{file_path}:{func['line']} • {func['type']}",
+                        "",
+                        "Signature:",
+                        f"{sig}",
+                    ]
+                )
+            else:
+                lines.append(f"{file_path}:{func['line']}")
             pr_lines = ModuleFormatter._format_pr_context(pr_info, file_path)
             if pr_info and pr_info.get("comment_count", 0) > 0 and len(pr_lines) > 2:
                 pr_lines[-1] = f"{pr_info['comment_count']} review comment(s) available"
             lines.extend(pr_lines)
 
-        if func.get("doc"):
+        if include_docs and func.get("doc"):
             doc_lines = ['Documentation: """', func["doc"], '"""']
             if single_result:
                 lines.extend(doc_lines)
             else:
                 lines.extend(["", *doc_lines])
 
-        if func.get("examples"):
+        if include_docs and func.get("examples"):
             lines.extend(["", "Examples:", "", func["examples"]])
 
         if func.get("guards"):
@@ -761,24 +794,27 @@ class ModuleFormatter:
         else:
             lines.append("*No call sites found*")
             lines.append("")
-            lines.append("Possible reasons:")
-            lines.append("   • Dead code → Use find_dead_code() to verify")
-            lines.append("   • Public API → Not called internally but used by clients")
-            lines.append("   • New code → Check when added with get_commit_history()")
-
-            if pr_info:
-                if pr_info.get("comment_count", 0) > 0:
-                    lines.append(
-                        f"   • {pr_info['comment_count']} PR review comments exist → get_file_pr_history(\"{file_path}\")"
-                    )
-                else:
-                    lines.append(
-                        f"   • Added in PR #{pr_info['number']} → get_file_pr_history(\"{file_path}\")"
-                    )
-
-            lines.append("")
 
         return lines
+
+    @staticmethod
+    def _split_function_name_to_keywords(func_name: str) -> list[str]:
+        """
+        Split a function name into keywords for semantic search.
+
+        Examples:
+            _extract_cochange -> ['extract', 'cochange']
+            getUserData -> ['get', 'user', 'data']
+            create_user -> ['create', 'user']
+        """
+        import re
+
+        # Remove leading underscores
+        name = func_name.lstrip("_")
+        # Split on underscores and camelCase boundaries
+        parts = re.split(r"_|(?<=[a-z])(?=[A-Z])", name)
+        # Filter empty strings and lowercase all parts
+        return [p.lower() for p in parts if p]
 
     @staticmethod
     def format_function_results_markdown(
@@ -788,6 +824,8 @@ class ModuleFormatter:
         show_relationships: bool = True,
         language: str = "elixir",
         private_suggestion: str | None = None,
+        format_opts: dict | None = None,
+        fallback_note: str | None = None,
     ) -> str:
         """
         Format function search results as Markdown.
@@ -799,6 +837,8 @@ class ModuleFormatter:
             show_relationships: Whether to show relationship information (what this calls / what calls this)
             language: Programming language for formatting function identifiers
             private_suggestion: Optional suggestion for private function pattern
+            format_opts: Optional dict with include_docs, include_specs for compact output
+            fallback_note: Optional note about fallback search (e.g., "No matches in X, showing all")
 
         Returns:
             Formatted Markdown string
@@ -806,6 +846,15 @@ class ModuleFormatter:
         if not results:
             # Extract just the function name without module/arity for suggestions
             func_only = function_name.split(".")[-1].split("/")[0]
+
+            # Split function name into keywords for semantic search
+            keywords = ModuleFormatter._split_function_name_to_keywords(func_only)
+            if len(keywords) > 1:
+                keywords_str = ", ".join(f"'{k}'" for k in keywords)
+                query_suggestion = f"query([{keywords_str}])"
+            else:
+                # Single keyword: use processed keyword for consistency with splitting logic
+                query_suggestion = f"query(['{keywords[0] if keywords else func_only.lower()}'])"
 
             # Build error message
             error_parts = []
@@ -817,44 +866,15 @@ class ModuleFormatter:
                     f"   Please ask the user to run: cicada index\n"
                 )
 
-            error_parts.append(
-                f"""Function Not Found
-
-**Query:** `{function_name}`
-"""
-            )
-
+            # Compact one-liner error with actionable suggestions
             if private_suggestion:
                 error_parts.append(
-                    f"""## Did you mean private functions?
-
-  • **Try:** `{private_suggestion}` (searches private functions with _ prefix)
-
-No public functions match this pattern, but private functions do.
-"""
+                    f"Not found: `{function_name}`. Try: `{private_suggestion}` (private) | `*{func_only}*` | {query_suggestion}"
                 )
-
-            suggestions_header = "## Other suggestions:" if private_suggestion else "## Try:"
-
-            error_parts.append(
-                f"""{suggestions_header}
-
-  • Search without arity: `{func_only}` (if you used /{'{arity}'})
-  • Search without module: `{func_only}` (searches all modules)
-  • Wildcard search: `*{func_only}*` or `{func_only}*`
-  • Semantic search: query(['{func_only.lower()}'])
-  • Check spelling (function names are case-sensitive)
-
-Tip: If you're exploring code, try query first to discover functions by what they do.
-
-## Was this function recently removed?
-
-If this function was deleted:
-  • Check recent PRs: get_file_pr_history("<file_path>")
-  • Search git history for the function name
-  • Find what replaced it: query(['<concept>'])
-"""
-            )
+            else:
+                error_parts.append(
+                    f"Not found: `{function_name}`. Try: `*{func_only}*` | {query_suggestion}"
+                )
 
             return "\n".join(error_parts)
 
@@ -891,19 +911,27 @@ If this function was deleted:
         # For single results (e.g., MFA search), use simpler header
         if single_result:
             lines.append("---")
+            # Add fallback note if present (even for single result)
+            if fallback_note:
+                lines.append(f"({fallback_note})")
+                lines.append("")
         else:
+            # Add fallback note to the found count line if present
+            found_line = f"Found {len(consolidated_results)} match(es):"
+            if fallback_note:
+                found_line = f"Found {len(consolidated_results)} match(es) ({fallback_note}):"
             lines.extend(
                 [
                     f"Functions matching {function_name}",
                     "",
-                    f"Found {len(consolidated_results)} match(es):",
+                    found_line,
                 ]
             )
 
         for result in consolidated_results:
             lines.extend(
                 ModuleFormatter._format_function_entry(
-                    result, single_result, show_relationships, language
+                    result, single_result, show_relationships, language, format_opts
                 )
             )
 

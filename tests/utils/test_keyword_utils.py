@@ -118,7 +118,7 @@ class TestReadKeywordExtractionConfig:
             assert expansion_method == "lemmi"
 
     def test_legacy_tier_regular(self, tmp_path, mock_home_dir):
-        """Should map legacy tier 'regular' to ('bert', 'glove')"""
+        """Should map legacy tier 'regular' to ('regular', 'glove')"""
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
 
@@ -134,7 +134,7 @@ class TestReadKeywordExtractionConfig:
 
             extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
 
-            assert extraction_method == "bert"
+            assert extraction_method == "regular"
             assert expansion_method == "glove"
 
     def test_legacy_tier_max(self, tmp_path, mock_home_dir):

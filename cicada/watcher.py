@@ -1,8 +1,9 @@
 """
-File system watcher for automatic Elixir code reindexing.
+File system watcher for automatic code reindexing.
 
-This module provides the FileWatcher class which monitors Elixir source files
+This module provides the FileWatcher class which monitors source files
 for changes and automatically triggers incremental reindexing.
+Supports multiple languages through the LanguageRegistry.
 """
 
 import json
@@ -16,35 +17,41 @@ from pathlib import Path
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from cicada.indexer import ElixirIndexer
+from cicada.languages import LanguageRegistry
+from cicada.parsing.base_indexer import BaseIndexer
+from cicada.setup import detect_project_language
 from cicada.utils.storage import create_storage_dir
 
 logger = logging.getLogger(__name__)
 
 
-class ElixirFileEventHandler(FileSystemEventHandler):
+class SourceFileEventHandler(FileSystemEventHandler):
     """
     Event handler for file system changes.
 
-    Filters events to only process Elixir source files (.ex, .exs)
+    Filters events to only process source files for the detected language
     and ignores changes in excluded directories.
     """
 
-    def __init__(self, watcher: "FileWatcher"):
+    def __init__(
+        self, watcher: "FileWatcher", file_extensions: list[str], excluded_dirs: list[str]
+    ):
         """
         Initialize the event handler.
 
         Args:
             watcher: The FileWatcher instance to notify of changes
+            file_extensions: List of file extensions to watch (e.g., ['.py'], ['.ex', '.exs'])
+            excluded_dirs: List of directory names to exclude
         """
         super().__init__()
         self.watcher = watcher
-        # Reuse excluded_dirs from ElixirIndexer to avoid duplication
-        self.excluded_dirs = ElixirIndexer(verbose=False).excluded_dirs
+        self.file_extensions = tuple(file_extensions)
+        self.excluded_dirs = set(excluded_dirs)
 
-    def _is_elixir_file(self, path: str) -> bool:
-        """Check if the path is an Elixir source file."""
-        return path.endswith((".ex", ".exs"))
+    def _is_source_file(self, path: str) -> bool:
+        """Check if the path is a source file for the configured language."""
+        return path.endswith(self.file_extensions)
 
     def _is_excluded_path(self, path: str) -> bool:
         """Check if the path is in an excluded directory."""
@@ -55,7 +62,7 @@ class ElixirFileEventHandler(FileSystemEventHandler):
         """
         Handle file system events.
 
-        Filters events to only process Elixir files not in excluded directories,
+        Filters events to only process source files not in excluded directories,
         then notifies the watcher to trigger reindexing.
 
         Args:
@@ -68,8 +75,8 @@ class ElixirFileEventHandler(FileSystemEventHandler):
         # Convert src_path to string (it can be bytes or str)
         src_path = str(event.src_path)
 
-        # Only process Elixir source files
-        if not self._is_elixir_file(src_path):
+        # Only process source files for the configured language
+        if not self._is_source_file(src_path):
             return
 
         # Skip excluded directories
@@ -82,11 +89,11 @@ class ElixirFileEventHandler(FileSystemEventHandler):
 
 class FileWatcher:
     """
-    Watches Elixir source files and triggers automatic reindexing on changes.
+    Watches source files and triggers automatic reindexing on changes.
 
-    The watcher monitors .ex and .exs files in a repository, excluding
-    standard directories like deps, _build, and node_modules. When changes
-    are detected, it debounces the events and triggers incremental reindexing.
+    The watcher detects the project language and monitors appropriate source files,
+    excluding language-specific directories. When changes are detected, it debounces
+    the events and triggers incremental reindexing.
     """
 
     def __init__(
@@ -112,8 +119,13 @@ class FileWatcher:
         self.verbose = verbose
         self.tier = tier
 
+        # Detect project language and get appropriate indexer
+        self.language = detect_project_language(self.repo_path)
+        self.indexer: BaseIndexer | None = None
+        self.file_extensions: list[str] = []
+        self.excluded_dirs: list[str] = []
+
         self.observer: Observer | None = None  # type: ignore[valid-type]
-        self.indexer: ElixirIndexer | None = None
         self.debounce_timer: threading.Timer | None = None
         self.timer_lock = threading.Lock()
         self.running = False
@@ -156,9 +168,11 @@ class FileWatcher:
             logger.warning("Watcher is already running")
             return
 
-        print(f"Initializing watch mode for {self.repo_path}")
-        print(f"Debounce interval: {self.debounce_seconds}s")
-        print()
+        if self.verbose:
+            print(f"Initializing watch mode for {self.repo_path}")
+            print(f"Detected language: {self.language}")
+            print(f"Debounce interval: {self.debounce_seconds}s")
+            print()
 
         # Ensure storage directory exists
         create_storage_dir(self.repo_path)
@@ -168,20 +182,20 @@ class FileWatcher:
 
         index_path = get_index_path(self.repo_path)
 
-        # Create indexer instance
-        self.indexer = ElixirIndexer(verbose=self.verbose)
+        # Create language-specific indexer instance
+        self.indexer = LanguageRegistry.get_indexer(self.language)
+        self.indexer.verbose = self.verbose
+        self.file_extensions = self.indexer.get_file_extensions()
+        self.excluded_dirs = self.indexer.get_excluded_dirs()
 
         # Run initial index
-        print("Running initial index...")
+        if self.verbose:
+            print("Running initial index...")
         try:
-            self.indexer.incremental_index_repository(
-                repo_path=str(self.repo_path),
-                output_path=str(index_path),
-                extract_keywords=True,
-                force_full=False,
-            )
-            print("\nInitial indexing complete!")
-            print()
+            self._run_indexer(index_path)
+            if self.verbose:
+                print("\nInitial indexing complete!")
+                print()
         except KeyboardInterrupt:
             print("\n\nInitial indexing interrupted. Exiting...")
             return
@@ -205,8 +219,8 @@ class FileWatcher:
             logger.exception("Initial indexing failed")
             self._handle_initial_index_failure(e, index_path)
 
-        # Set up file system observer
-        event_handler = ElixirFileEventHandler(self)
+        # Set up file system observer with language-specific extensions
+        event_handler = SourceFileEventHandler(self, self.file_extensions, self.excluded_dirs)
         self.observer = Observer()
         self.observer.schedule(event_handler, str(self.repo_path), recursive=True)
 
@@ -214,8 +228,11 @@ class FileWatcher:
         self.observer.start()
         self.running = True
 
+        # Format extensions for display
+        extensions_str = ", ".join(self.file_extensions)
+        print()
         print("=" * 70)
-        print("Watching for changes to Elixir files (.ex, .exs)")
+        print(f"Watching for changes to {self.language.capitalize()} files ({extensions_str})")
         print("=" * 70)
         print("Press Ctrl-C to stop")
         print()
@@ -316,6 +333,35 @@ class FileWatcher:
             logger.error(f"Existing index corrupted: {load_error}")
             sys.exit(1)
 
+    def _run_indexer(self, index_path: Path) -> None:
+        """Run the appropriate indexing process (incremental or full).
+
+        Uses the indexer's supports_incremental flag to determine which
+        method to call. Falls back to basic indexing if incremental is
+        not supported.
+
+        Args:
+            index_path: Path to the index file
+        """
+        if self.indexer is None:
+            return
+
+        # Use incremental indexing if supported, otherwise fall back to basic
+        if self.indexer.supports_incremental:
+            self.indexer.incremental_index_repository(
+                repo_path=str(self.repo_path),
+                output_path=str(index_path),
+                extract_keywords=True,
+                force_full=False,
+            )
+        else:
+            self.indexer.index_repository(
+                repo_path=str(self.repo_path),
+                output_path=str(index_path),
+                force=False,
+                verbose=self.verbose,
+            )
+
     def _on_file_change(self, event: FileSystemEvent) -> None:
         """
         Handle file change events with debouncing.
@@ -361,27 +407,24 @@ class FileWatcher:
         with self.timer_lock:
             self.debounce_timer = None
 
-        print("\n" + "=" * 70)
-        print("File changes detected - reindexing...")
-        print("=" * 70)
-        print()
+        if self.verbose:
+            print("\n" + "=" * 70)
+            print("File changes detected - reindexing...")
+            print("=" * 70)
+            print()
 
         try:
             if self.indexer is not None:
                 from cicada.utils.storage import get_index_path
 
                 index_path = get_index_path(self.repo_path)
-                self.indexer.incremental_index_repository(
-                    repo_path=str(self.repo_path),
-                    output_path=str(index_path),
-                    extract_keywords=True,
-                    force_full=False,
-                )
-                print()
-                print("=" * 70)
-                print("Reindexing complete!")
-                print("=" * 70)
-                print()
+                self._run_indexer(index_path)
+                if self.verbose:
+                    print()
+                    print("=" * 70)
+                    print("Reindexing complete!")
+                    print("=" * 70)
+                    print()
 
                 # Reset failure counter on success
                 self._consecutive_failures = 0

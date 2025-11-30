@@ -304,6 +304,9 @@ class GitHistoryHandler:
         recent: bool | None = None,
         recent_days: int | None = None,
         author: str | None = None,
+        include_pr_description: bool = False,
+        include_review_comments: bool = False,
+        verbose: bool = False,
     ) -> list[TextContent]:
         """
         Unified git history tool - consolidates get_blame, get_commit_history, find_pr_for_line, and get_file_pr_history.
@@ -318,6 +321,9 @@ class GitHistoryHandler:
             recent: True (last N days), False (older), None (all time)
             recent_days: Number of days for recent filter (default: 14)
             author: Filter by author name
+            include_pr_description: Include PR descriptions in output
+            include_review_comments: Include PR review comments in output
+            verbose: Enable verbose output (includes all details)
 
         Returns:
             TextContent with formatted history
@@ -360,8 +366,12 @@ class GitHistoryHandler:
                 author=author,
             )
 
-            # Format result
-            formatted = analyzer.format_result(result)
+            # Format result with compaction options
+            format_opts = {
+                "include_pr_description": include_pr_description or verbose,
+                "include_review_comments": include_review_comments or verbose,
+            }
+            formatted = analyzer.format_result(result, format_opts)
 
             return [TextContent(type="text", text=formatted)]
 

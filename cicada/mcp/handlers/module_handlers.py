@@ -292,6 +292,7 @@ class ModuleSearchHandler:
         what_it_calls: bool = False,
         dependency_depth: int = 1,
         show_function_usage: bool = False,
+        format_opts: dict | None = None,
     ) -> list[TextContent]:
         """
         Search for a module and return its information.
@@ -346,7 +347,9 @@ class ModuleSearchHandler:
                 elif use_compact:
                     result = ModuleFormatter.format_module_compact(mod_name, mod_data)
                 else:
-                    result = ModuleFormatter.format_module_markdown(mod_name, mod_data, visibility)
+                    result = ModuleFormatter.format_module_markdown(
+                        mod_name, mod_data, visibility, format_opts=format_opts
+                    )
                 results.append(result)
 
             # Combine results with separator for markdown, or as array for JSON
@@ -409,6 +412,7 @@ class ModuleSearchHandler:
                     pr_info,
                     staleness_info,
                     detailed_dependencies,
+                    format_opts,
                 )
                 # Append usage info for markdown
                 if usage_results:
@@ -430,16 +434,23 @@ class ModuleSearchHandler:
 
             return [TextContent(type="text", text=result)]
 
-        # Module not found - try with wildcard prefix to match partial names
-        # This allows "SomeModule" to match "MyProject.SomeModule"
-        wildcard_pattern = f"*.{module_name}"
-        matching_modules = [
-            mod_name
-            for mod_name in self.index["modules"]
-            if match_any_pattern([wildcard_pattern], mod_name)
-        ]
-        if matching_modules:
-            # Retry with wildcard pattern
+        # Module not found - try fallback searches
+        from cicada.mcp.fallbacks import apply_module_fallbacks
+
+        def search_with_pattern(pattern: str) -> list[tuple[str, dict]]:
+            """Search for modules matching the pattern."""
+            return [
+                (mod_name, mod_data)
+                for mod_name, mod_data in self.index["modules"].items()
+                if match_any_pattern([pattern], mod_name)
+            ]
+
+        fallback_result = apply_module_fallbacks(module_name, search_with_pattern)
+        if fallback_result.results:
+            # Get the pattern that was used for the fallback
+            last_segment = module_name.rsplit(".", 1)[-1]
+            wildcard_pattern = f"*.{last_segment}"
+            # Retry with the wildcard pattern (which formats results nicely)
             return await self.search_module(
                 wildcard_pattern,
                 output_format,
@@ -451,6 +462,7 @@ class ModuleSearchHandler:
                 what_it_calls,
                 dependency_depth,
                 show_function_usage,
+                format_opts,
             )
 
         # Module not found - compute suggestions and provide helpful error message

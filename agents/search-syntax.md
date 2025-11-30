@@ -135,6 +135,43 @@ scope="public"
 match_source="docs"
 ```
 
+## Output Control Options
+
+### Compact Output (Default)
+
+By default, search results are compact to minimize token usage:
+- Function signatures and documentation hidden
+- Only essential info shown (name, location, call sites)
+
+### Verbose Output
+
+Use these options to include additional details:
+
+```python
+# query tool
+verbose=True               # Enable full keyword sources and confidence
+
+# search_module tool
+include_moduledoc=True     # Show module documentation
+include_docs=True          # Show function documentation
+include_specs=True         # Show type specifications
+verbose=True               # Enable all above options
+
+# search_function tool
+include_docs=True          # Show function documentation
+include_specs=True         # Show type specifications
+verbose=True               # Enable all above options
+
+# git_history tool
+include_pr_description=True    # Show PR descriptions
+include_review_comments=True   # Show review comments
+verbose=True                   # Enable all above options
+```
+
+### expand_result Tool
+
+The `expand_result` tool automatically enables verbose output since its purpose is to show complete details.
+
 ## Common Pitfalls
 
 ### ❌ Don't: Use string query for patterns

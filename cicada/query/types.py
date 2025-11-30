@@ -194,7 +194,7 @@ class QueryConfig:
 
     # Search limits
     INTERNAL_SEARCH_LIMIT = 100  # Fetch this many from search, then filter/rank
-    MAX_SUGGESTIONS = 5  # Maximum suggestions to show
+    MAX_SUGGESTIONS = 2  # Maximum suggestions to show (keep focused)
     MAX_QUERY_VARIANTS = 3  # Maximum case/format variants to generate
 
     # Similarity thresholds
@@ -203,6 +203,9 @@ class QueryConfig:
 
     # Snippet extraction
     DEFAULT_CONTEXT_LINES = 2  # Lines of context around target line
+
+    # Display limits for compact output
+    MAX_KEYWORDS_TO_SHOW = 3  # Maximum matched keywords to show before truncating
 
     # Module clustering
     MIN_RESULTS_FOR_CLUSTERING = 3  # Minimum results to consider clustering

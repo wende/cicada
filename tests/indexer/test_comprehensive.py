@@ -1186,7 +1186,7 @@ end
         def mock_git_helper_init(repo_path):
             return mock_git_helper
 
-        monkeypatch.setattr("cicada.indexer.GitHelper", mock_git_helper_init)
+        monkeypatch.setattr("cicada.git.helper.GitHelper", mock_git_helper_init)
 
         # Create indexer and run with compute_timestamps=True
         indexer = ElixirIndexer(verbose=False)
@@ -1267,7 +1267,7 @@ end
         def mock_git_helper_init(repo_path):
             return mock_git_helper
 
-        monkeypatch.setattr("cicada.indexer.GitHelper", mock_git_helper_init)
+        monkeypatch.setattr("cicada.git.helper.GitHelper", mock_git_helper_init)
 
         # Create indexer and run
         indexer = ElixirIndexer(verbose=True)

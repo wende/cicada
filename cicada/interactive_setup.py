@@ -110,8 +110,8 @@ def _text_based_setup() -> tuple[str, str, bool, bool]:
     print(f"{BOLD}Step 1/3: Choose intelligence tier{RESET}")
     print()
     print("1. Fast - Term frequency + inflections (no downloads)")
-    print("2. Balanced - KeyBERT + GloVe semantic expansion (261MB)")
-    print("3. Maximum - KeyBERT + FastText expansion (1091MB)")
+    print("2. Balanced - TF-IDF + GloVe semantic expansion (128MB)")
+    print("3. Maximum - KeyBERT + FastText expansion (958MB)")
     print()
 
     while True:

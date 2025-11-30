@@ -188,3 +188,78 @@ def fixtures_dir():
             sample_file = fixtures_dir / "sample.ex"
     """
     return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def git_bundle_repo(tmp_path, fixtures_dir):
+    """
+    Clone git bundle into isolated tmp_path for each test.
+
+    Provides parallel-safe git repository with known co-change patterns.
+    Tests using this fixture are automatically grouped to run serially
+    via xdist_group marker to prevent git index corruption.
+
+    Contains 11 commits with strategic co-change patterns:
+    - lib/auth.ex + lib/credentials.ex: 4 co-changes
+    - lib/auth.ex + lib/logger.ex: 2 co-changes
+    - Single-file commits for edge case testing
+    - Rename scenario: old_name.ex -> new_name.ex
+    - Function-level co-changes: ModuleA.func_one <-> ModuleB.func_three
+    - Date-stamped commits for filtering tests
+
+    Usage:
+        def test_something(git_bundle_repo):
+            analyzer = CoChangeAnalyzer()
+            result = analyzer.analyze_repository(str(git_bundle_repo))
+    """
+    import subprocess
+
+    bundle_path = fixtures_dir / "cochange_test_repo.bundle"
+
+    if not bundle_path.exists():
+        pytest.fail(
+            f"Git bundle not found at {bundle_path}. "
+            "Run: tests/fixtures/create_cochange_bundle.sh"
+        )
+
+    repo_path = tmp_path / "test_repo"
+
+    # Clear git environment variables to prevent clone from affecting parent repo
+    # This is critical when running in a git worktree
+    clean_env = os.environ.copy()
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"]:
+        clean_env.pop(var, None)
+
+    subprocess.run(
+        ["git", "clone", str(bundle_path), str(repo_path)],
+        check=True,
+        capture_output=True,
+        timeout=10,
+        env=clean_env,
+    )
+
+    return repo_path
+
+
+def pytest_collection_modifyitems(items):
+    """
+    Automatically mark certain tests to run in same xdist group.
+
+    This prevents issues when multiple workers run tests that share state
+    or resources during parallel test execution.
+    """
+    for item in items:
+        # Check if this test uses the git_bundle_repo fixture
+        if "git_bundle_repo" in getattr(item, "fixturenames", []):
+            # Add xdist_group marker to run all such tests in the same worker
+            item.add_marker(pytest.mark.xdist_group(name="git_bundle_serial"))
+
+        # Group all incremental indexing and keyword extraction tests to run serially
+        # These tests have shared state issues (keyword extractor global state)
+        # when run in parallel
+        if "incremental" in item.name.lower() or "keyword" in item.name.lower():
+            item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))
+
+        # Also group tests in test_keybert.py (they all use the keyword extractor)
+        if "test_keybert" in str(item.fspath):
+            item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))

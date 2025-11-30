@@ -4,7 +4,9 @@ on:
     types: [] #[opened, synchronize]  # Triggers on PR creation and new commits
 
 jobs:
+  
   trigger-codex:
+    if: false
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

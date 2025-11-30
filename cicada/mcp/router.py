@@ -170,12 +170,344 @@ class ToolRouter:
         else:
             return "public"
 
+    async def _handle_search_module(
+        self,
+        arguments: dict,
+        pr_info_callback: Any = None,
+        staleness_info_callback: Any = None,
+    ) -> list[TextContent]:
+        """Handle search_module tool call."""
+        module_name = arguments.get("module_name")
+        file_path = arguments.get("file_path")
+        output_format = arguments.get("format", "markdown")
+        visibility = self._resolve_visibility_parameter(arguments)
+
+        # Get dependency parameters
+        what_calls_it = arguments.get("what_calls_it", False)
+        usage_type = arguments.get("usage_type", "source")
+        what_it_calls = arguments.get("what_it_calls", False)
+        dependency_depth = arguments.get("dependency_depth", 1)
+        show_function_usage = arguments.get("show_function_usage", False)
+
+        # Get compaction parameters
+        include_docs = arguments.get("include_docs", False)
+        include_specs = arguments.get("include_specs", False)
+        include_moduledoc = arguments.get("include_moduledoc", False)
+        verbose = arguments.get("verbose", False)
+
+        if not module_name and not file_path:
+            return [
+                TextContent(
+                    type="text", text="Either 'module_name' or 'file_path' must be provided"
+                )
+            ]
+
+        # If file_path is provided, resolve it to module_name
+        if file_path:
+            resolved_module = self.module_handler.resolve_file_to_module(file_path)
+            if not resolved_module:
+                return [
+                    TextContent(type="text", text=f"Could not find module in file: {file_path}")
+                ]
+            module_name = resolved_module
+
+        # Get PR info and staleness info if callbacks provided
+        pr_info = None
+        staleness_info = None
+        if pr_info_callback and module_name:
+            module_data = self.module_handler.index["modules"].get(module_name)
+            if module_data:
+                pr_info = pr_info_callback(module_data["file"])
+        if staleness_info_callback:
+            staleness_info = staleness_info_callback()
+
+        assert module_name is not None
+        format_opts = {
+            "include_docs": include_docs or verbose,
+            "include_specs": include_specs or verbose,
+            "include_moduledoc": include_moduledoc or verbose,
+        }
+
+        return await self.module_handler.search_module(
+            module_name,
+            output_format,
+            visibility,
+            pr_info,
+            staleness_info,
+            what_calls_it,
+            usage_type,
+            what_it_calls,
+            dependency_depth,
+            show_function_usage,
+            format_opts,
+        )
+
+    async def _handle_search_function(self, arguments: dict) -> list[TextContent]:
+        """Handle search_function tool call."""
+        function_name = arguments.get("function_name")
+        module_path = arguments.get("module_path")
+        output_format = arguments.get("format", "markdown")
+        include_usage_examples = arguments.get("include_usage_examples", False)
+        max_examples = arguments.get("max_examples", 5)
+        usage_type = arguments.get("usage_type", "source")
+        changed_since = arguments.get("changed_since")
+        what_calls_it = arguments.get("what_calls_it", True)
+        what_it_calls = arguments.get("what_it_calls", False)
+        include_code_context = arguments.get("include_code_context", False)
+        include_docs = arguments.get("include_docs", False)
+        include_specs = arguments.get("include_specs", False)
+        verbose = arguments.get("verbose", False)
+
+        if not function_name:
+            return [TextContent(type="text", text="'function_name' is required")]
+
+        if usage_type not in ("all", "tests", "source"):
+            return [
+                TextContent(
+                    type="text", text="'usage_type' must be one of: 'all', 'tests', 'source'"
+                )
+            ]
+
+        format_opts = {
+            "include_docs": include_docs or verbose,
+            "include_specs": include_specs or verbose,
+        }
+
+        return await self.function_handler.search_function(
+            function_name,
+            output_format,
+            include_usage_examples,
+            max_examples,
+            usage_type,
+            changed_since,
+            what_calls_it,
+            module_path,
+            what_it_calls,
+            include_code_context,
+            format_opts=format_opts,
+        )
+
+    async def _handle_git_history(self, arguments: dict) -> list[TextContent]:
+        """Handle git_history tool call."""
+        file_path = arguments.get("file_path")
+        if not file_path:
+            return [TextContent(type="text", text="'file_path' is required")]
+
+        return await self.git_handler.git_history(
+            file_path=file_path,
+            start_line=arguments.get("start_line"),
+            end_line=arguments.get("end_line"),
+            function_name=arguments.get("function_name"),
+            show_evolution=arguments.get("show_evolution", False),
+            max_results=arguments.get("max_results", 10),
+            recent=arguments.get("recent"),
+            author=arguments.get("author"),
+            include_pr_description=arguments.get("include_pr_description", False),
+            include_review_comments=arguments.get("include_review_comments", False),
+            verbose=arguments.get("verbose", False),
+        )
+
+    async def _handle_query(self, arguments: dict) -> list[TextContent]:
+        """Handle query tool call."""
+        query = arguments.get("query")
+        scope = arguments.get("scope", "all")
+        recent = arguments.get("recent", False)
+        filter_type = arguments.get("filter_type", "all")
+        match_source = arguments.get("match_source", "all")
+        max_results = arguments.get("max_results", 10)
+        path_pattern = arguments.get("path_pattern")
+        show_snippets = arguments.get("show_snippets", False)
+        verbose = arguments.get("verbose", False)
+
+        # Validation
+        if not query:
+            return [TextContent(type="text", text="'query' is required")]
+        if not isinstance(query, (str, list)):
+            return [TextContent(type="text", text="'query' must be a string or list of strings")]
+        if isinstance(query, list) and not all(isinstance(q, str) for q in query):
+            return [TextContent(type="text", text="'query' list must contain only strings")]
+        if scope not in ("all", "public", "private"):
+            return [
+                TextContent(type="text", text="'scope' must be one of: 'all', 'public', 'private'")
+            ]
+        if not isinstance(recent, bool):
+            return [TextContent(type="text", text="'recent' must be a boolean")]
+        if filter_type not in ("all", "modules", "functions"):
+            return [
+                TextContent(
+                    type="text", text="'filter_type' must be one of: 'all', 'modules', 'functions'"
+                )
+            ]
+        if match_source not in ("all", "docs", "strings"):
+            return [
+                TextContent(
+                    type="text", text="'match_source' must be one of: 'all', 'docs', 'strings'"
+                )
+            ]
+        if not isinstance(max_results, int) or max_results < 1:
+            return [TextContent(type="text", text="'max_results' must be a positive integer")]
+        if not isinstance(show_snippets, bool):
+            return [TextContent(type="text", text="'show_snippets' must be a boolean")]
+
+        return await self.analysis_handler.query(
+            query,
+            scope,
+            recent,
+            filter_type,
+            match_source,
+            max_results,
+            path_pattern,
+            show_snippets,
+            verbose,
+        )
+
+    async def _handle_find_dead_code(self, arguments: dict) -> list[TextContent]:
+        """Handle find_dead_code tool call."""
+        return await self.analysis_handler.find_dead_code(
+            arguments.get("min_confidence", "high"),
+            arguments.get("format", "markdown"),
+        )
+
+    async def _handle_query_jq(self, arguments: dict) -> list[TextContent]:
+        """Handle query_jq tool call."""
+        query = arguments.get("query")
+        output_format = arguments.get("format", "compact")
+        sample = arguments.get("sample", False)
+
+        if error := _validate_jq_query(query):
+            return [TextContent(type="text", text=error)]
+
+        # Backward compatibility: 'json' maps to 'compact'
+        if output_format == "json":
+            output_format = "compact"
+        if output_format not in ("compact", "pretty"):
+            return [
+                TextContent(
+                    type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
+                )
+            ]
+        if not isinstance(sample, bool):
+            return [TextContent(type="text", text="'sample' must be a boolean")]
+
+        return await self.analysis_handler.query_jq(cast(str, query), output_format, sample)
+
+    async def _handle_expand_result(self, arguments: dict) -> list[TextContent]:
+        """Handle expand_result tool call."""
+        identifier = arguments.get("identifier")
+        result_type = arguments.get("type", "auto")
+        what_calls_it = arguments.get("what_calls_it", True)
+        output_format = arguments.get("format", "markdown")
+        what_it_calls = arguments.get("what_it_calls", False)
+        dependency_depth = arguments.get("dependency_depth", 1)
+        show_function_usage = arguments.get("show_function_usage", False)
+        include_code_context = arguments.get("include_code_context", False)
+
+        # Validation
+        if not identifier:
+            return [TextContent(type="text", text="'identifier' is required")]
+        if result_type not in ("auto", "module", "function"):
+            return [
+                TextContent(type="text", text="'type' must be one of: 'auto', 'module', 'function'")
+            ]
+        if output_format not in ("markdown", "json"):
+            return [TextContent(type="text", text="'format' must be one of: 'markdown', 'json'")]
+
+        # Boolean validation
+        for name, value in [
+            ("what_calls_it", what_calls_it),
+            ("what_it_calls", what_it_calls),
+        ]:
+            if not isinstance(value, bool):
+                return [TextContent(type="text", text=f"'{name}' must be a boolean")]
+
+        # Auto-detect type if needed
+        if result_type == "auto":
+            if "/" in identifier:
+                result_type = "function"
+            elif identifier in self.module_handler.index.get("modules", {}):
+                result_type = "module"
+            else:
+                result_type = "function"
+
+        # Route to appropriate handler
+        if result_type == "module":
+            if identifier not in self.module_handler.index.get("modules", {}):
+                return [TextContent(type="text", text=f"Module not found: {identifier}")]
+
+            return await self.module_handler.search_module(
+                identifier,
+                output_format=output_format,
+                visibility="all",
+                pr_info=None,
+                staleness_info=None,
+                what_calls_it=False,
+                usage_type="source",
+                what_it_calls=what_it_calls,
+                dependency_depth=dependency_depth,
+                show_function_usage=show_function_usage,
+                format_opts={
+                    "include_moduledoc": True,
+                    "include_docs": True,
+                    "include_specs": True,
+                },
+            )
+        else:
+            function_name = identifier
+            module_path = None
+            if "." in identifier:
+                parts = identifier.rsplit(".", 1)
+                if len(parts) == 2:
+                    module_path, function_name = parts[0], parts[1]
+
+            if not function_name:
+                return [TextContent(type="text", text=f"Invalid function reference: {identifier}")]
+
+            return await self.function_handler.search_function(
+                function_name=function_name,
+                output_format=output_format,
+                include_usage_examples=what_calls_it,
+                max_examples=5,
+                usage_type="all",
+                changed_since=None,
+                what_calls_it=what_calls_it,
+                module_path=module_path,
+                what_it_calls=what_it_calls,
+                include_code_context=include_code_context,
+                format_opts={"include_docs": True, "include_specs": True},
+            )
+
+    async def _handle_refresh_index(
+        self, arguments: dict, refresh_callback: Any
+    ) -> list[TextContent]:
+        """Handle refresh_index tool call."""
+        force_full = arguments.get("force_full", False)
+
+        if not isinstance(force_full, bool):
+            return [TextContent(type="text", text="'force_full' must be a boolean")]
+        if not refresh_callback:
+            return [TextContent(type="text", text="Index refresh not available")]
+
+        result = refresh_callback(force_full)
+
+        if result.get("success"):
+            response = (
+                f"Index refreshed successfully ({result['mode']} mode)\n\n"
+                f"- Time: {result['elapsed_seconds']}s\n"
+                f"- Modules: {result['total_modules']}\n"
+                f"- Functions: {result['total_functions']}"
+            )
+        else:
+            response = f"Index refresh failed: {result.get('error', 'Unknown error')}"
+
+        return [TextContent(type="text", text=response)]
+
     async def route_tool(
         self,
         name: str,
         arguments: dict,
         pr_info_callback: Any = None,
         staleness_info_callback: Any = None,
+        refresh_callback: Any = None,
     ) -> list[TextContent]:
         """
         Route tool call to appropriate handler.
@@ -185,6 +517,7 @@ class ToolRouter:
             arguments: Tool arguments
             pr_info_callback: Optional callback to get PR info for a file
             staleness_info_callback: Optional callback to check index staleness
+            refresh_callback: Optional callback to force index refresh
 
         Returns:
             List of TextContent responses
@@ -193,315 +526,22 @@ class ToolRouter:
             ValueError: If tool name is unknown or arguments are invalid
         """
         if name == "search_module":
-            module_name = arguments.get("module_name")
-            file_path = arguments.get("file_path")
-            output_format = arguments.get("format", "markdown")
-
-            # Resolve visibility parameter with backward compatibility
-            visibility = self._resolve_visibility_parameter(arguments)
-
-            # Get dependency parameters
-            what_calls_it = arguments.get("what_calls_it", False)
-            usage_type = arguments.get("usage_type", "source")
-            what_it_calls = arguments.get("what_it_calls", False)
-            dependency_depth = arguments.get("dependency_depth", 1)
-            show_function_usage = arguments.get("show_function_usage", False)
-
-            # Validate that at least one is provided
-            if not module_name and not file_path:
-                error_msg = "Either 'module_name' or 'file_path' must be provided"
-                return [TextContent(type="text", text=error_msg)]
-
-            # If file_path is provided, resolve it to module_name
-            if file_path:
-                resolved_module = self.module_handler.resolve_file_to_module(file_path)
-                if not resolved_module:
-                    error_msg = f"Could not find module in file: {file_path}"
-                    return [TextContent(type="text", text=error_msg)]
-                module_name = resolved_module
-
-            # Get PR info and staleness info if callbacks provided
-            pr_info = None
-            staleness_info = None
-            if pr_info_callback and module_name:
-                # Get module data to extract file path
-                module_data = self.module_handler.index["modules"].get(module_name)
-                if module_data:
-                    pr_info = pr_info_callback(module_data["file"])
-            if staleness_info_callback:
-                staleness_info = staleness_info_callback()
-
-            assert module_name is not None, "module_name must be provided"
-            return await self.module_handler.search_module(
-                module_name,
-                output_format,
-                visibility,
-                pr_info,
-                staleness_info,
-                what_calls_it,
-                usage_type,
-                what_it_calls,
-                dependency_depth,
-                show_function_usage,
+            return await self._handle_search_module(
+                arguments, pr_info_callback, staleness_info_callback
             )
-
         elif name == "search_function":
-            function_name = arguments.get("function_name")
-            module_path = arguments.get("module_path")
-            output_format = arguments.get("format", "markdown")
-            include_usage_examples = arguments.get("include_usage_examples", False)
-            max_examples = arguments.get("max_examples", 5)
-
-            usage_type = arguments.get("usage_type", "source")
-
-            changed_since = arguments.get("changed_since")
-            what_calls_it = arguments.get("what_calls_it", True)
-            what_it_calls = arguments.get("what_it_calls", False)
-            include_code_context = arguments.get("include_code_context", False)
-
-            if not function_name:
-                error_msg = "'function_name' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate usage_type
-            valid_usage_types = ("all", "tests", "source")
-            if usage_type not in valid_usage_types:
-                error_msg = "'usage_type' must be one of: 'all', 'tests', 'source'"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.function_handler.search_function(
-                function_name,
-                output_format,
-                include_usage_examples,
-                max_examples,
-                usage_type,
-                changed_since,
-                what_calls_it,
-                module_path,
-                what_it_calls,
-                include_code_context,
-            )
-
+            return await self._handle_search_function(arguments)
         elif name == "git_history":
-            file_path = arguments.get("file_path")
-            start_line = arguments.get("start_line")
-            end_line = arguments.get("end_line")
-            function_name = arguments.get("function_name")
-            show_evolution = arguments.get("show_evolution", False)
-            max_results = arguments.get("max_results", 10)
-            recent = arguments.get("recent")
-            author = arguments.get("author")
-
-            if not file_path:
-                error_msg = "'file_path' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.git_handler.git_history(
-                file_path=file_path,
-                start_line=start_line,
-                end_line=end_line,
-                function_name=function_name,
-                show_evolution=show_evolution,
-                max_results=max_results,
-                recent=recent,
-                author=author,
-            )
-
+            return await self._handle_git_history(arguments)
         elif name == "query":
-            query = arguments.get("query")
-            scope = arguments.get("scope", "all")
-            recent = arguments.get("recent", False)
-            filter_type = arguments.get("filter_type", "all")
-            match_source = arguments.get("match_source", "all")
-            max_results = arguments.get("max_results", 10)
-            path_pattern = arguments.get("path_pattern")
-            show_snippets = arguments.get("show_snippets", False)
-
-            # Validate required argument
-            if not query:
-                error_msg = "'query' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate query type
-            if not isinstance(query, (str, list)):
-                error_msg = "'query' must be a string or list of strings"
-                return [TextContent(type="text", text=error_msg)]
-
-            if isinstance(query, list) and not all(isinstance(q, str) for q in query):
-                error_msg = "'query' list must contain only strings"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate enum parameters
-            if scope not in ("all", "public", "private"):
-                error_msg = "'scope' must be one of: 'all', 'public', 'private'"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate recent parameter
-            if not isinstance(recent, bool):
-                error_msg = "'recent' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
-            if filter_type not in ("all", "modules", "functions"):
-                error_msg = "'filter_type' must be one of: 'all', 'modules', 'functions'"
-                return [TextContent(type="text", text=error_msg)]
-
-            if match_source not in ("all", "docs", "strings"):
-                error_msg = "'match_source' must be one of: 'all', 'docs', 'strings'"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate max_results
-            if not isinstance(max_results, int) or max_results < 1:
-                error_msg = "'max_results' must be a positive integer"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate show_snippets
-            if not isinstance(show_snippets, bool):
-                error_msg = "'show_snippets' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
-            return await self.analysis_handler.query(
-                query,
-                scope,
-                recent,
-                filter_type,
-                match_source,
-                max_results,
-                path_pattern,
-                show_snippets,
-            )
-
+            return await self._handle_query(arguments)
         elif name == "find_dead_code":
-            min_confidence = arguments.get("min_confidence", "high")
-            output_format = arguments.get("format", "markdown")
-
-            return await self.analysis_handler.find_dead_code(min_confidence, output_format)
-
+            return await self._handle_find_dead_code(arguments)
         elif name == "query_jq":
-            query = arguments.get("query")
-            output_format = arguments.get("format", "compact")
-            sample = arguments.get("sample", False)
-
-            if error := _validate_jq_query(query):
-                return [TextContent(type="text", text=error)]
-
-            # Backward compatibility: 'json' maps to 'compact'
-            if output_format == "json":
-                output_format = "compact"
-
-            if output_format not in ("compact", "pretty"):
-                return [
-                    TextContent(
-                        type="text", text="'format' must be one of: 'json', 'compact', 'pretty'"
-                    )
-                ]
-
-            if not isinstance(sample, bool):
-                return [TextContent(type="text", text="'sample' must be a boolean")]
-
-            return await self.analysis_handler.query_jq(cast(str, query), output_format, sample)
-
+            return await self._handle_query_jq(arguments)
         elif name == "expand_result":
-            identifier = arguments.get("identifier")
-            result_type = arguments.get("type", "auto")
-            include_code = arguments.get("include_code", True)
-            what_calls_it = arguments.get("what_calls_it", True)
-            output_format = arguments.get("format", "markdown")
-            what_it_calls = arguments.get("what_it_calls", False)
-            dependency_depth = arguments.get("dependency_depth", 1)
-            show_function_usage = arguments.get("show_function_usage", False)
-            include_code_context = arguments.get("include_code_context", False)
-
-            # Validate required parameter
-            if not identifier:
-                error_msg = "'identifier' is required"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate enum parameters
-            if result_type not in ("auto", "module", "function"):
-                error_msg = "'type' must be one of: 'auto', 'module', 'function'"
-                return [TextContent(type="text", text=error_msg)]
-
-            if output_format not in ("markdown", "json"):
-                error_msg = "'format' must be one of: 'markdown', 'json'"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Validate boolean parameters
-            if not isinstance(include_code, bool):
-                error_msg = "'include_code' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not isinstance(what_calls_it, bool):
-                error_msg = "'what_calls_it' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
-            if not isinstance(what_it_calls, bool):
-                error_msg = "'what_it_calls' must be a boolean"
-                return [TextContent(type="text", text=error_msg)]
-
-            # Auto-detect type if needed
-            if result_type == "auto":
-                # If it has arity notation (e.g., /2), it's a function
-                if "/" in identifier:
-                    result_type = "function"
-                # Check if it exists as a module in the index
-                elif identifier in self.module_handler.index.get("modules", {}):
-                    result_type = "module"
-                else:
-                    # If not found as module, assume function (will error appropriately later)
-                    result_type = "function"
-
-            # Route to appropriate handler
-            if result_type == "module":
-                # Check if module exists
-                if identifier not in self.module_handler.index.get("modules", {}):
-                    error_msg = f"Module not found: {identifier}"
-                    return [TextContent(type="text", text=error_msg)]
-
-                # Use existing module search handler
-                return await self.module_handler.search_module(
-                    identifier,
-                    output_format=output_format,
-                    visibility="all",  # Show all functions (public and private)
-                    pr_info=None,
-                    staleness_info=None,
-                    # Note: what_calls_it not supported in expand_result context to avoid
-                    # expanding usage info for every result in large result sets, which would
-                    # significantly increase token usage and response time.
-                    what_calls_it=False,
-                    usage_type="source",
-                    what_it_calls=what_it_calls,
-                    dependency_depth=dependency_depth,
-                    show_function_usage=show_function_usage,
-                )
-            else:  # function
-                # Parse function reference to extract components
-                function_name = identifier
-                module_path = None
-
-                # If it contains a module path, split on the last dot
-                if "." in identifier:
-                    parts = identifier.rsplit(".", 1)
-                    if len(parts) == 2:
-                        module_path = parts[0]
-                        function_name = parts[1]
-
-                if not function_name:
-                    error_msg = f"Invalid function reference: {identifier}"
-                    return [TextContent(type="text", text=error_msg)]
-
-                # Use existing function search handler
-                return await self.function_handler.search_function(
-                    function_name=function_name,
-                    output_format=output_format,
-                    include_usage_examples=what_calls_it,  # Show usage if requested
-                    max_examples=5,
-                    usage_type="all",
-                    changed_since=None,
-                    what_calls_it=what_calls_it,
-                    module_path=module_path,
-                    what_it_calls=what_it_calls,
-                    include_code_context=include_code_context,
-                )
-
+            return await self._handle_expand_result(arguments)
+        elif name == "refresh_index":
+            return await self._handle_refresh_index(arguments, refresh_callback)
         else:
             raise ValueError(f"Unknown tool: {name}")

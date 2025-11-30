@@ -284,7 +284,7 @@ def test_format_markdown_all_levels(results_with_all_levels):
 
 
 def test_format_markdown_header_centering():
-    """Test that confidence headers are properly formatted."""
+    """Test that confidence headers are properly formatted with markdown."""
     results = {
         "summary": {
             "total_public_functions": 10,
@@ -311,9 +311,8 @@ def test_format_markdown_header_centering():
 
     output = format_markdown(results)
 
-    # Check that header has equal signs and label
-    assert "═" in output
-    assert "HIGH CONFIDENCE" in output
+    # Check that header uses markdown format
+    assert "## HIGH CONFIDENCE (1 function)" in output
 
 
 def test_format_markdown_medium_with_only_behaviours():

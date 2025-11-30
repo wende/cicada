@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cicada.watcher import ElixirFileEventHandler, FileWatcher
+from cicada.watcher import SourceFileEventHandler, FileWatcher
 
 # Mark all tests in this module to run serially in their own xdist group
 # This prevents interference with parallel test execution
@@ -52,33 +52,47 @@ def file_watcher(elixir_repo):
             pass  # Ignore cleanup errors
 
 
-class TestElixirFileEventHandler:
-    """Tests for ElixirFileEventHandler class"""
+class TestSourceFileEventHandler:
+    """Tests for SourceFileEventHandler class"""
 
     def test_initialization(self, mock_watcher):
         """Test that event handler initializes correctly"""
-        handler = ElixirFileEventHandler(mock_watcher)
+        file_extensions = [".ex", ".exs"]
+        excluded_dirs = ["deps", "_build", ".git"]
+        handler = SourceFileEventHandler(mock_watcher, file_extensions, excluded_dirs)
         assert handler.watcher == mock_watcher
         assert "deps" in handler.excluded_dirs
         assert "_build" in handler.excluded_dirs
         assert ".git" in handler.excluded_dirs
 
-    def test_is_elixir_file(self, mock_watcher):
+    def test_is_source_file_elixir(self, mock_watcher):
         """Test Elixir file detection"""
-        handler = ElixirFileEventHandler(mock_watcher)
+        handler = SourceFileEventHandler(mock_watcher, [".ex", ".exs"], ["deps", "_build", ".git"])
 
         # Valid Elixir files
-        assert handler._is_elixir_file("lib/module.ex") is True
-        assert handler._is_elixir_file("test/module_test.exs") is True
+        assert handler._is_source_file("lib/module.ex") is True
+        assert handler._is_source_file("test/module_test.exs") is True
 
         # Non-Elixir files
-        assert handler._is_elixir_file("README.md") is False
-        assert handler._is_elixir_file("config.yaml") is False
-        assert handler._is_elixir_file("lib/module.py") is False
+        assert handler._is_source_file("README.md") is False
+        assert handler._is_source_file("config.yaml") is False
+        assert handler._is_source_file("lib/module.py") is False
+
+    def test_is_source_file_python(self, mock_watcher):
+        """Test Python file detection"""
+        handler = SourceFileEventHandler(mock_watcher, [".py"], ["__pycache__", ".venv", ".git"])
+
+        # Valid Python files
+        assert handler._is_source_file("lib/module.py") is True
+        assert handler._is_source_file("test/test_module.py") is True
+
+        # Non-Python files
+        assert handler._is_source_file("README.md") is False
+        assert handler._is_source_file("lib/module.ex") is False
 
     def test_is_excluded_path(self, mock_watcher):
         """Test path exclusion logic"""
-        handler = ElixirFileEventHandler(mock_watcher)
+        handler = SourceFileEventHandler(mock_watcher, [".ex", ".exs"], ["deps", "_build", ".git"])
 
         # Excluded directories
         assert handler._is_excluded_path("deps/phoenix/lib/phoenix.ex") is True
@@ -91,14 +105,14 @@ class TestElixirFileEventHandler:
 
     def test_on_any_event_filtering(self, mock_watcher):
         """Test event filtering logic"""
-        handler = ElixirFileEventHandler(mock_watcher)
+        handler = SourceFileEventHandler(mock_watcher, [".ex", ".exs"], ["deps", "_build", ".git"])
 
         test_cases = [
             # (is_directory, src_path, should_trigger, description)
             (True, "lib/my_app", False, "directories ignored"),
-            (False, "README.md", False, "non-Elixir files ignored"),
+            (False, "README.md", False, "non-source files ignored"),
             (False, "deps/phoenix/lib/phoenix.ex", False, "excluded directories ignored"),
-            (False, "lib/my_app/module.ex", True, "valid Elixir files trigger"),
+            (False, "lib/my_app/module.ex", True, "valid source files trigger"),
         ]
 
         for is_directory, src_path, should_trigger, description in test_cases:
@@ -190,11 +204,14 @@ class TestFileWatcher:
         # Clean up
         second_timer.cancel()
 
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_trigger_reindex_calls_indexer(self, mock_indexer_class, elixir_repo):
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_trigger_reindex_calls_indexer(self, mock_get_indexer, elixir_repo):
         """Test that _trigger_reindex calls the incremental indexer"""
         mock_indexer = Mock()
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.supports_incremental = True
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         watcher.indexer = mock_indexer
@@ -210,12 +227,38 @@ class TestFileWatcher:
         assert call_kwargs["force_full"] is False
         assert "output_path" in call_kwargs
 
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_trigger_reindex_handles_errors_gracefully(self, mock_indexer_class, elixir_repo):
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_trigger_reindex_falls_back_to_basic_indexer(self, mock_get_indexer, elixir_repo):
+        """Test that _trigger_reindex falls back to index_repository for non-incremental indexers"""
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = False  # Non-incremental indexer
+        mock_indexer.get_file_extensions.return_value = [".py"]
+        mock_indexer.get_excluded_dirs.return_value = ["__pycache__", ".venv", ".git"]
+        mock_get_indexer.return_value = mock_indexer
+
+        watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
+        watcher.indexer = mock_indexer
+
+        # Trigger reindex
+        watcher._trigger_reindex()
+
+        # Verify index_repository was called instead of incremental_index_repository
+        assert mock_indexer.index_repository.called
+        assert not mock_indexer.incremental_index_repository.called
+        call_kwargs = mock_indexer.index_repository.call_args.kwargs
+        assert call_kwargs["repo_path"] == str(elixir_repo)
+        assert call_kwargs["force"] is False
+        assert "output_path" in call_kwargs
+
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_trigger_reindex_handles_errors_gracefully(self, mock_get_indexer, elixir_repo):
         """Test that errors during reindexing don't crash the watcher"""
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("Test error")
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         watcher.indexer = mock_indexer
@@ -329,10 +372,10 @@ class TestFileWatcher:
 class TestFileWatcherIntegration:
     """Integration tests with minimal mocking to test real component interaction"""
 
-    @patch("cicada.watcher.ElixirIndexer")
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
     @patch("cicada.watcher.Observer")
     def test_file_watcher_lifecycle_integration(
-        self, mock_observer_class, mock_indexer_class, elixir_repo
+        self, mock_observer_class, mock_get_indexer, elixir_repo
     ):
         """Test complete start_watching lifecycle focusing on component integration.
 
@@ -353,7 +396,10 @@ class TestFileWatcherIntegration:
 
         # Mock the indexer
         mock_indexer = Mock()
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.supports_incremental = True
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         # Mock observer but track calls
         mock_observer = Mock()
@@ -424,8 +470,8 @@ class TestFileWatcherIntegration:
         assert watcher.debounce_timer is None
         mock_exit.assert_called_once_with(0)
 
-    @patch("cicada.watcher.ElixirIndexer")
-    def test_file_watcher_detects_real_file_changes(self, mock_indexer_class, elixir_repo):
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    def test_file_watcher_detects_real_file_changes(self, mock_get_indexer, elixir_repo):
         """Integration test with actual file system modifications.
 
         Addresses REPORT.md Issue 4.4 - Real file system events not tested.
@@ -445,8 +491,10 @@ class TestFileWatcherIntegration:
 
         # Mock the indexer
         mock_indexer = Mock()
-        mock_indexer.excluded_dirs = ["_build", "deps", ".git"]
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.supports_incremental = True
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["_build", "deps", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         # Pre-create index
         create_storage_dir(elixir_repo)
@@ -470,7 +518,7 @@ class TestFileWatcherIntegration:
 
         # Manually set up observer (avoid start_watching() blocking)
         watcher.observer = Observer()
-        handler = ElixirFileEventHandler(watcher)
+        handler = SourceFileEventHandler(watcher, [".ex", ".exs"], ["_build", "deps", ".git"])
         watcher.observer.schedule(handler, str(elixir_repo), recursive=True)
         watcher.observer.start()
         watcher.running = True
@@ -511,15 +559,18 @@ class TestFileWatcherEdgeCases:
         watcher.stop_watching.assert_called_once()
         mock_exit.assert_called_once_with(0)
 
-    @patch("cicada.watcher.ElixirIndexer")
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
     @patch("cicada.watcher.Observer")
     @patch("cicada.watcher.time.sleep")
     def test_start_watching_handles_keyboard_interrupt_loop(
-        self, mock_sleep, mock_observer_class, mock_indexer_class, elixir_repo
+        self, mock_sleep, mock_observer_class, mock_get_indexer, elixir_repo
     ):
         mock_sleep.side_effect = KeyboardInterrupt()
         mock_indexer = Mock()
-        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.supports_incremental = True
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
 
         mock_observer = Mock()
         mock_observer.is_alive.return_value = False
@@ -564,6 +615,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = MemoryError("OOM")
         watcher.indexer = mock_indexer
 
@@ -576,6 +628,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = KeyboardInterrupt()
         watcher.indexer = mock_indexer
 
@@ -587,6 +640,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = Exception("boom")
         watcher.indexer = mock_indexer
 
@@ -611,6 +665,7 @@ class TestFileWatcherEdgeCases:
         mock_get_index_path.return_value = elixir_repo / "index.json"
         watcher = FileWatcher(repo_path=str(elixir_repo), register_signal_handlers=False)
         mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
         mock_indexer.incremental_index_repository.side_effect = OSError("disk full")
         watcher.indexer = mock_indexer
 

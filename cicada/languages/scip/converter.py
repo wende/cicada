@@ -173,8 +173,6 @@ class SCIPConverter:
             full_path = repo_path / doc.relative_path
             alias_extractor = PythonAliasExtractor()
             aliases = alias_extractor.extract_aliases(full_path)
-            if self.verbose and aliases:
-                print(f"Extracted {len(aliases)} aliases from {doc.relative_path}", file=sys.stderr)
             return aliases
         except Exception as e:
             if self.verbose:
