@@ -1197,3 +1197,755 @@ class TestHandleUnlinkErrors:
 
         captured = capsys.readouterr()
         assert "Unexpected error" in captured.err
+
+
+# ============================================================================
+# SECTION 15: Test Handle Run Command
+# ============================================================================
+
+
+class TestHandleRun:
+    """Test handle_run command for CLI execution of MCP tools."""
+
+    @patch("cicada.cli_mapper.parse_cli_args_to_handler_kwargs")
+    @patch("cicada.mcp.config_manager.ConfigManager.get_config_path")
+    @patch("cicada.mcp.config_manager.ConfigManager.load_config")
+    @patch("cicada.git.helper.GitHelper")
+    @patch("cicada.mcp.handlers.index_manager.IndexManager")
+    @patch("cicada.mcp.handlers.ModuleSearchHandler")
+    @patch("cicada.mcp.handlers.FunctionSearchHandler")
+    @patch("cicada.mcp.handlers.GitHistoryHandler")
+    @patch("cicada.mcp.handlers.PRHistoryHandler")
+    @patch("cicada.mcp.handlers.AnalysisHandler")
+    @patch("cicada.mcp.router.ToolRouter")
+    def test_run_query_success(
+        self,
+        mock_router_class,
+        mock_analysis_handler,
+        mock_pr_handler,
+        mock_git_handler,
+        mock_function_handler,
+        mock_module_handler,
+        mock_index_manager,
+        mock_git_helper,
+        mock_load_config,
+        mock_get_config,
+        mock_parse,
+        capsys,
+    ):
+        """Test run command with query tool."""
+        from cicada.commands import handle_run
+
+        mock_parse.return_value = {"query": "authentication"}
+        mock_get_config.return_value = Path("/tmp/config.yaml")
+        mock_load_config.return_value = {"repository": {"path": "."}}
+
+        # Mock router and its route_tool method
+        mock_router = MagicMock()
+        mock_router_class.return_value = mock_router
+
+        async def mock_route(*args, **kwargs):
+            mock_text = MagicMock()
+            mock_text.text = "Found 5 results for authentication"
+            return [mock_text]
+
+        mock_router.route_tool = mock_route
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["run", "query", "authentication"])
+        handle_run(args)
+
+        captured = capsys.readouterr()
+        assert "Found 5 results" in captured.out
+
+    @patch("cicada.cli_mapper.parse_cli_args_to_handler_kwargs")
+    def test_run_parse_error(self, mock_parse, capsys):
+        """Test run command with parse error."""
+        from cicada.commands import handle_run
+
+        mock_parse.side_effect = ValueError("Invalid argument")
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["run", "query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_run(args)
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Invalid argument" in captured.err
+
+    @patch("cicada.mcp.config_manager.ConfigManager.get_config_path")
+    @patch("cicada.cli_mapper.parse_cli_args_to_handler_kwargs")
+    def test_run_config_not_found(self, mock_parse, mock_get_config, capsys):
+        """Test run command when config not found."""
+        from cicada.commands import handle_run
+
+        mock_parse.return_value = {"query": "test"}
+        mock_get_config.side_effect = FileNotFoundError("Config not found")
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["run", "query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_run(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.cli_mapper.parse_cli_args_to_handler_kwargs")
+    @patch("cicada.mcp.config_manager.ConfigManager.get_config_path")
+    @patch("cicada.mcp.config_manager.ConfigManager.load_config")
+    @patch("cicada.git.helper.GitHelper")
+    @patch("cicada.mcp.handlers.index_manager.IndexManager")
+    @patch("cicada.mcp.handlers.ModuleSearchHandler")
+    @patch("cicada.mcp.handlers.FunctionSearchHandler")
+    @patch("cicada.mcp.handlers.GitHistoryHandler")
+    @patch("cicada.mcp.handlers.PRHistoryHandler")
+    @patch("cicada.mcp.handlers.AnalysisHandler")
+    @patch("cicada.mcp.router.ToolRouter")
+    def test_run_tool_error(
+        self,
+        mock_router_class,
+        mock_analysis_handler,
+        mock_pr_handler,
+        mock_git_handler,
+        mock_function_handler,
+        mock_module_handler,
+        mock_index_manager,
+        mock_git_helper,
+        mock_load_config,
+        mock_get_config,
+        mock_parse,
+        capsys,
+    ):
+        """Test run command handles tool errors."""
+        from cicada.commands import handle_run
+
+        mock_parse.return_value = {"query": "test"}
+        mock_get_config.return_value = Path("/tmp/config.yaml")
+        mock_load_config.return_value = {"repository": {"path": "."}}
+
+        # Mock router to raise exception
+        mock_router = MagicMock()
+        mock_router_class.return_value = mock_router
+
+        async def mock_route(*args, **kwargs):
+            raise Exception("Tool execution failed")
+
+        mock_router.route_tool = mock_route
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["run", "query", "test"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_run(args)
+        assert exc.value.code == 1
+
+    @patch("cicada.cli_mapper.parse_cli_args_to_handler_kwargs")
+    @patch("cicada.mcp.config_manager.ConfigManager.get_config_path")
+    @patch("cicada.mcp.config_manager.ConfigManager.load_config")
+    @patch("cicada.git.helper.GitHelper")
+    @patch("cicada.mcp.handlers.index_manager.IndexManager")
+    @patch("cicada.mcp.handlers.ModuleSearchHandler")
+    @patch("cicada.mcp.handlers.FunctionSearchHandler")
+    @patch("cicada.mcp.handlers.GitHistoryHandler")
+    @patch("cicada.mcp.handlers.PRHistoryHandler")
+    @patch("cicada.mcp.handlers.AnalysisHandler")
+    @patch("cicada.mcp.router.ToolRouter")
+    def test_run_empty_result(
+        self,
+        mock_router_class,
+        mock_analysis_handler,
+        mock_pr_handler,
+        mock_git_handler,
+        mock_function_handler,
+        mock_module_handler,
+        mock_index_manager,
+        mock_git_helper,
+        mock_load_config,
+        mock_get_config,
+        mock_parse,
+        capsys,
+    ):
+        """Test run command with empty result."""
+        from cicada.commands import handle_run
+
+        mock_parse.return_value = {"query": "nonexistent"}
+        mock_get_config.return_value = Path("/tmp/config.yaml")
+        mock_load_config.return_value = {"repository": {"path": "."}}
+
+        # Mock router to return empty result
+        mock_router = MagicMock()
+        mock_router_class.return_value = mock_router
+
+        async def mock_route(*args, **kwargs):
+            return []
+
+        mock_router.route_tool = mock_route
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["run", "query", "nonexistent"])
+        handle_run(args)
+
+        # Should complete without error even with empty result
+        captured = capsys.readouterr()
+        assert (
+            captured.out == ""
+            or "No" in captured.out
+            or captured.out == "\n"
+            or captured.out.strip() == ""
+        )
+
+
+# ============================================================================
+# SECTION 16: Test Handle Stats Command
+# ============================================================================
+
+
+class TestHandleStats:
+    """Test handle_stats command."""
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_summary(self, mock_analyzer_class, capsys):
+        """Test stats command summary output."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 100}
+        mock_analyzer.format_summary.return_value = "Total calls: 100"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "Total calls: 100" in captured.out
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_detailed(self, mock_analyzer_class, capsys):
+        """Test stats command detailed output."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 100}
+        mock_analyzer.format_detailed.return_value = "Detailed: query=50, search=50"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--detailed"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "Detailed" in captured.out
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_time_series(self, mock_analyzer_class, capsys):
+        """Test stats command time series output."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"daily": []}
+        mock_analyzer.format_time_series.return_value = "Time series data"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--time-series"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "Time series" in captured.out
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_weekly(self, mock_analyzer_class, capsys):
+        """Test stats command weekly output."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"weekly": []}
+        mock_analyzer.format_time_series.return_value = "Weekly data"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--time-series", "--weekly"])
+        handle_stats(args)
+
+        mock_analyzer.get_stats.assert_called_once()
+        call_kwargs = mock_analyzer.get_stats.call_args[1]
+        assert call_kwargs["granularity"] == "weekly"
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_json_format(self, mock_analyzer_class, capsys):
+        """Test stats command JSON format."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 100}
+        mock_analyzer.format_json.return_value = '{"total": 100}'
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--format", "json"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert '"total": 100' in captured.out
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_last_7_days(self, mock_analyzer_class, capsys):
+        """Test stats command with --last-7-days."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 50}
+        mock_analyzer.format_summary.return_value = "Last 7 days: 50"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--last-7-days"])
+        handle_stats(args)
+
+        mock_analyzer.get_stats.assert_called_once()
+        call_kwargs = mock_analyzer.get_stats.call_args[1]
+        assert call_kwargs["days"] == 7
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_last_30_days(self, mock_analyzer_class, capsys):
+        """Test stats command with --last-30-days."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 200}
+        mock_analyzer.format_summary.return_value = "Last 30 days: 200"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--last-30-days"])
+        handle_stats(args)
+
+        mock_analyzer.get_stats.assert_called_once()
+        call_kwargs = mock_analyzer.get_stats.call_args[1]
+        assert call_kwargs["days"] == 30
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_tool_filter(self, mock_analyzer_class, capsys):
+        """Test stats command with --tool filter."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.return_value = {"total": 25}
+        mock_analyzer.format_summary.return_value = "query: 25"
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--tool", "query"])
+        handle_stats(args)
+
+        mock_analyzer.get_stats.assert_called_once()
+        call_kwargs = mock_analyzer.get_stats.call_args[1]
+        assert call_kwargs["tool_filter"] == "query"
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_error(self, mock_analyzer_class, capsys):
+        """Test stats command error handling."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.get_stats.side_effect = Exception("Stats error")
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_stats(args)
+        assert exc.value.code == 1
+
+
+class TestHandleStatsReset:
+    """Test _handle_stats_reset function."""
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_reset_with_force(self, mock_analyzer_class, capsys):
+        """Test stats reset with --force flag."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.reset_stats.return_value = 5
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--reset", "-f"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "Deleted 5" in captured.out
+        mock_analyzer.reset_stats.assert_called_once_with(older_than_days=None)
+
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_reset_older_than(self, mock_analyzer_class, capsys):
+        """Test stats reset with --older-than."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.reset_stats.return_value = 3
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--reset", "--older-than", "30"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "older than 30 days" in captured.out
+        mock_analyzer.reset_stats.assert_called_once_with(older_than_days=30)
+
+    @patch("builtins.input", return_value="n")
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_reset_cancelled(self, mock_analyzer_class, mock_input, capsys):
+        """Test stats reset cancelled by user."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--reset"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_stats(args)
+        assert exc.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "Aborted" in captured.out
+
+    @patch("builtins.input", return_value="y")
+    @patch("cicada.stats.StatsAnalyzer")
+    def test_stats_reset_confirmed(self, mock_analyzer_class, mock_input, capsys):
+        """Test stats reset confirmed by user."""
+        from cicada.commands import handle_stats
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.reset_stats.return_value = 10
+        mock_analyzer_class.return_value = mock_analyzer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["stats", "--reset"])
+        handle_stats(args)
+
+        captured = capsys.readouterr()
+        assert "Deleted 10" in captured.out
+
+
+# ============================================================================
+# SECTION 17: Test Handle Agents Command
+# ============================================================================
+
+
+class TestHandleAgents:
+    """Test handle_agents command."""
+
+    @patch("cicada.commands.handle_agents_install")
+    def test_agents_install_routing(self, mock_install):
+        """Test agents install command routing."""
+        from cicada.commands import handle_agents
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["agents", "install"])
+        handle_agents(args)
+
+        mock_install.assert_called_once()
+
+    @patch("cicada.agents.installer.install_agent")
+    def test_agents_install_execution(self, mock_install, capsys):
+        """Test agents install actually installs agents."""
+        from cicada.commands import handle_agents_install
+
+        handle_agents_install()
+
+        captured = capsys.readouterr()
+        assert "Installing" in captured.out
+        assert "cicada-code-explorer" in captured.out
+        mock_install.assert_called_once()
+
+
+# ============================================================================
+# SECTION 18: Test Handle Index PR Command
+# ============================================================================
+
+
+class TestHandleIndexPR:
+    """Test handle_index_pr command."""
+
+    @patch("cicada.version_check.check_for_updates")
+    @patch("cicada.github.pr_indexer.PRIndexer")
+    @patch("cicada.utils.get_pr_index_path")
+    def test_index_pr_success(self, mock_get_path, mock_indexer_class, mock_check, capsys):
+        """Test index-pr command success."""
+        from cicada.commands import handle_index_pr
+
+        mock_get_path.return_value = "/tmp/pr_index.json"
+        mock_indexer = MagicMock()
+        mock_indexer_class.return_value = mock_indexer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index-pr"])
+        handle_index_pr(args)
+
+        captured = capsys.readouterr()
+        assert "Indexing complete" in captured.out
+        mock_indexer.index_repository.assert_called_once()
+
+    @patch("cicada.version_check.check_for_updates")
+    @patch("cicada.github.pr_indexer.PRIndexer")
+    @patch("cicada.utils.get_pr_index_path")
+    def test_index_pr_with_clean(self, mock_get_path, mock_indexer_class, mock_check, capsys):
+        """Test index-pr command with --clean flag."""
+        from cicada.commands import handle_index_pr
+
+        mock_get_path.return_value = "/tmp/pr_index.json"
+        mock_indexer = MagicMock()
+        mock_indexer_class.return_value = mock_indexer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index-pr", "--clean"])
+        handle_index_pr(args)
+
+        mock_indexer.index_repository.assert_called_once()
+        call_kwargs = mock_indexer.index_repository.call_args[1]
+        assert call_kwargs["incremental"] is False
+
+    @patch("cicada.version_check.check_for_updates")
+    @patch("cicada.github.pr_indexer.PRIndexer")
+    @patch("cicada.utils.get_pr_index_path")
+    def test_index_pr_keyboard_interrupt(
+        self, mock_get_path, mock_indexer_class, mock_check, capsys
+    ):
+        """Test index-pr handles keyboard interrupt."""
+        from cicada.commands import handle_index_pr
+
+        mock_get_path.return_value = "/tmp/pr_index.json"
+        mock_indexer = MagicMock()
+        mock_indexer.index_repository.side_effect = KeyboardInterrupt
+        mock_indexer_class.return_value = mock_indexer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index-pr"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_index_pr(args)
+        assert exc.value.code == 130
+
+    @patch("cicada.version_check.check_for_updates")
+    @patch("cicada.github.pr_indexer.PRIndexer")
+    @patch("cicada.utils.get_pr_index_path")
+    def test_index_pr_error(self, mock_get_path, mock_indexer_class, mock_check, capsys):
+        """Test index-pr handles errors."""
+        from cicada.commands import handle_index_pr
+
+        mock_get_path.return_value = "/tmp/pr_index.json"
+        mock_indexer = MagicMock()
+        mock_indexer.index_repository.side_effect = Exception("PR indexing failed")
+        mock_indexer_class.return_value = mock_indexer
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index-pr"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_index_pr(args)
+        assert exc.value.code == 1
+
+
+# ============================================================================
+# SECTION 19: Test Handle Find Dead Code Missing Index
+# ============================================================================
+
+
+class TestHandleFindDeadCodeMissingIndex:
+    """Test handle_find_dead_code when index doesn't exist."""
+
+    @patch("cicada.utils.get_index_path")
+    def test_find_dead_code_no_index(self, mock_get_path, capsys):
+        """Test find-dead-code when index doesn't exist."""
+        from cicada.commands import handle_find_dead_code
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
+        mock_get_path.return_value = mock_path
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["find-dead-code"])
+
+        with pytest.raises(SystemExit) as exc:
+            handle_find_dead_code(args)
+        assert exc.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "Index file not found" in captured.err
+
+    @patch("cicada.dead_code.finder.format_markdown")
+    @patch("cicada.dead_code.finder.filter_by_confidence")
+    @patch("cicada.dead_code.analyzer.DeadCodeAnalyzer")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_find_dead_code_success(
+        self, mock_get_path, mock_load, mock_analyzer_class, mock_filter, mock_format, capsys
+    ):
+        """Test find-dead-code success path."""
+        from cicada.commands import handle_find_dead_code
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.return_value = {"modules": {}}
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = []
+        mock_analyzer_class.return_value = mock_analyzer
+        mock_filter.return_value = []
+        mock_format.return_value = "No dead code found"
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["find-dead-code"])
+        handle_find_dead_code(args)
+
+        captured = capsys.readouterr()
+        assert "No dead code found" in captured.out
+
+    @patch("cicada.dead_code.finder.format_json")
+    @patch("cicada.dead_code.finder.filter_by_confidence")
+    @patch("cicada.dead_code.analyzer.DeadCodeAnalyzer")
+    @patch("cicada.utils.load_index")
+    @patch("cicada.utils.get_index_path")
+    def test_find_dead_code_json_format(
+        self, mock_get_path, mock_load, mock_analyzer_class, mock_filter, mock_format, capsys
+    ):
+        """Test find-dead-code with JSON format."""
+        from cicada.commands import handle_find_dead_code
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_get_path.return_value = mock_path
+        mock_load.return_value = {"modules": {}}
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = []
+        mock_analyzer_class.return_value = mock_analyzer
+        mock_filter.return_value = []
+        mock_format.return_value = "[]"
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["find-dead-code", "--format", "json"])
+        handle_find_dead_code(args)
+
+        captured = capsys.readouterr()
+        assert "[]" in captured.out
+
+
+# ============================================================================
+# SECTION 20: Test Handle Index with Watch
+# ============================================================================
+
+
+class TestHandleIndexWithWatch:
+    """Test handle_index with --watch flag."""
+
+    @patch("cicada.commands._setup_and_start_watcher")
+    @patch("cicada.version_check.check_for_updates")
+    def test_index_with_watch(self, mock_check, mock_watcher):
+        """Test index --watch routes to watcher."""
+        from cicada.commands import handle_index
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--watch", "--fast"])
+        handle_index(args)
+
+        mock_watcher.assert_called_once()
+
+    @patch("cicada.commands.handle_index_main")
+    @patch("cicada.version_check.check_for_updates")
+    def test_index_without_watch(self, mock_check, mock_main):
+        """Test index without --watch routes to main handler."""
+        from cicada.commands import handle_index
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--force", "--fast"])
+        handle_index(args)
+
+        mock_main.assert_called_once()
+
+    @patch("cicada.commands.handle_index_test_mode")
+    @patch("cicada.version_check.check_for_updates")
+    def test_index_test_mode(self, mock_check, mock_test):
+        """Test index --test routes to test mode."""
+        from cicada.commands import handle_index
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--test", "--fast"])
+        handle_index(args)
+
+        mock_test.assert_called_once()
+
+    @patch("cicada.commands.handle_index_test_expansion_mode")
+    @patch("cicada.version_check.check_for_updates")
+    def test_index_test_expansion_mode(self, mock_check, mock_test_exp):
+        """Test index --test-expansion routes to expansion test mode."""
+        from cicada.commands import handle_index
+
+        parser = get_argument_parser()
+        args = parser.parse_args(["index", "--test-expansion", "--fast"])
+        handle_index(args)
+
+        mock_test_exp.assert_called_once()
+
+
+# ============================================================================
+# SECTION 21: Test Handle Index Config Update
+# ============================================================================
+
+
+class TestHandleIndexConfigUpdate:
+    """Test _handle_index_config_update function."""
+
+    @patch("cicada.setup.create_config_yaml")
+    @patch("cicada.commands._load_existing_config")
+    def test_config_update_tier_changed(self, mock_load, mock_create, tmp_path):
+        """Test config update detects tier change."""
+        from cicada.commands import _handle_index_config_update
+
+        config_path = tmp_path / "config.yaml"
+        config_path.touch()
+
+        mock_load.return_value = ("bert_small", "glove")
+
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+
+        assert result is True  # Tier changed
+        mock_create.assert_called_once()
+
+    @patch("cicada.setup.create_config_yaml")
+    @patch("cicada.commands._load_existing_config")
+    def test_config_update_tier_unchanged(self, mock_load, mock_create, tmp_path):
+        """Test config update when tier unchanged."""
+        from cicada.commands import _handle_index_config_update
+
+        config_path = tmp_path / "config.yaml"
+        config_path.touch()
+
+        mock_load.return_value = ("regular", "lemmi")
+
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+
+        assert result is False  # Tier unchanged
+        mock_create.assert_called_once()
+
+    @patch("cicada.setup.create_config_yaml")
+    def test_config_update_new_config(self, mock_create, tmp_path):
+        """Test config update for new config (no existing)."""
+        from cicada.commands import _handle_index_config_update
+
+        config_path = tmp_path / "config.yaml"
+        # Don't create the file - simulates new config
+
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+
+        assert result is False  # No existing config, so no "change"
+        mock_create.assert_called_once()
