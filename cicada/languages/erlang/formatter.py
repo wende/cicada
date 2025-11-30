@@ -24,3 +24,30 @@ class ErlangFormatter(BaseLanguageFormatter):
             'lists:map/2'
         """
         return f"{module_name}:{func_name}/{arity}"
+
+    def format_function_name(
+        self, func_name: str, arity: int, args: list[str] | None = None
+    ) -> str:
+        """
+        Format function name with args if available, otherwise arity.
+
+        Args:
+            func_name: The function name
+            arity: The number of parameters
+            args: Optional list of argument names
+
+        Returns:
+            Formatted function name like "map(List, Fun)" or "map/2"
+
+        Examples:
+            >>> formatter = ErlangFormatter()
+            >>> formatter.format_function_name("map", 2, ["List", "Fun"])
+            'map(List, Fun)'
+            >>> formatter.format_function_name("map", 2)
+            'map/2'
+            >>> formatter.format_function_name("init", 0, [])
+            'init/0'
+        """
+        if args:
+            return f"{func_name}({', '.join(args)})"
+        return f"{func_name}/{arity}"

@@ -3,6 +3,7 @@
 import pytest
 
 from cicada.languages.elixir.formatter import ElixirFormatter
+from cicada.languages.erlang.formatter import ErlangFormatter
 from cicada.languages.formatter_registry import get_language_formatter
 from cicada.languages.scip.formatter import PythonFormatter
 from cicada.utils.signature_builder import SignatureBuilder
@@ -350,6 +351,13 @@ class TestFormatterRegistry:
         assert isinstance(formatter, PythonFormatter)
         result = formatter.format_function_identifier("MyClass", "method", 2)
         assert result == "MyClass.method()"
+
+    def test_get_erlang_formatter(self):
+        """Test getting Erlang formatter from registry."""
+        formatter = get_language_formatter("erlang")
+        assert isinstance(formatter, ErlangFormatter)
+        result = formatter.format_function_identifier("lists", "map", 2)
+        assert result == "lists:map/2"
 
     def test_unknown_language_defaults_to_elixir(self):
         """Test that unknown languages default to Elixir formatter."""
