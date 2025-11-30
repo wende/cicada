@@ -55,7 +55,7 @@ class PythonFormatter(BaseLanguageFormatter):
 
         Examples:
             >>> formatter = PythonFormatter()
-            >>> formatter.format_function_name("__init__", 2, ["config"])
+            >>> formatter.format_function_name("__init__", 1, ["config"])
             '__init__(config)'
             >>> formatter.format_function_name("index", 1, ["arg0"])
             'index()'
