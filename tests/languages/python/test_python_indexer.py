@@ -1966,6 +1966,149 @@ class TestCopyUnchangedKeywords:
         assert count == 0
         assert "keywords" not in new_index["modules"]["New"]
 
+    def test_reuses_only_unchanged_files(self, tmp_path):
+        """Metadata is reused only for files not listed in changed_files."""
+        indexer = PythonSCIPIndexer(verbose=False)
+        existing = tmp_path / "index.json"
+
+        # Existing index with two files that already have metadata
+        existing.write_text(
+            json.dumps(
+                {
+                    "modules": {
+                        "Unchanged": {
+                            "file": "src/unchanged.py",
+                            "keywords": {"foo": 0.9, "bar": 0.8},
+                            "string_keywords": {"foo_str": 0.7},
+                            "functions": [
+                                {
+                                    "name": "func1",
+                                    "keywords": {"kw1": 0.6},
+                                    "created_at": "2024-01-01",
+                                    "modification_count": 5,
+                                }
+                            ],
+                        },
+                        "Changed": {
+                            "file": "src/changed.py",
+                            "keywords": {"old_kw": 0.5},
+                            "string_keywords": {"old_str": 0.4},
+                            "functions": [
+                                {
+                                    "name": "func2",
+                                    "keywords": {"old": 0.3},
+                                    "created_at": "2024-01-01",
+                                }
+                            ],
+                        },
+                    }
+                }
+            )
+        )
+
+        # New index with changed file having new metadata
+        new_index = {
+            "modules": {
+                "Unchanged": {"file": "src/unchanged.py", "functions": [{"name": "func1"}]},
+                "Changed": {
+                    "file": "src/changed.py",
+                    "keywords": {"new_kw": 0.9},
+                    "string_keywords": {"new_str": 0.8},
+                    "functions": [
+                        {
+                            "name": "func2",
+                            "keywords": {"new": 0.7},
+                            "created_at": "2024-02-01",
+                        }
+                    ],
+                },
+            }
+        }
+
+        changed_files = {"src/changed.py"}
+        count = indexer._copy_unchanged_keywords(new_index, existing, changed_files)
+
+        # Should have copied metadata for only one module (Unchanged)
+        assert count == 1
+
+        # Unchanged file should have all its metadata copied
+        unchanged = new_index["modules"]["Unchanged"]
+        assert unchanged["keywords"] == {"foo": 0.9, "bar": 0.8}
+        assert unchanged["string_keywords"] == {"foo_str": 0.7}
+        assert unchanged["functions"][0]["keywords"] == {"kw1": 0.6}
+        assert unchanged["functions"][0]["created_at"] == "2024-01-01"
+        assert unchanged["functions"][0]["modification_count"] == 5
+
+        # Changed file must keep its freshly-computed metadata, not be overwritten
+        changed = new_index["modules"]["Changed"]
+        assert changed["keywords"] == {"new_kw": 0.9}
+        assert changed["string_keywords"] == {"new_str": 0.8}
+        assert changed["functions"][0]["keywords"] == {"new": 0.7}
+        assert changed["functions"][0]["created_at"] == "2024-02-01"
+
+    def test_does_not_add_new_files(self, tmp_path):
+        """Files only in existing_index should still be copied if not in changed_files."""
+        indexer = PythonSCIPIndexer(verbose=False)
+        existing = tmp_path / "index.json"
+
+        # Existing index has a file that's not in new index yet
+        existing.write_text(
+            json.dumps(
+                {
+                    "modules": {
+                        "OnlyExisting": {
+                            "file": "src/only_existing.py",
+                            "keywords": {"kw1": 0.9},
+                            "string_keywords": {"str1": 0.8},
+                            "functions": [{"name": "f1", "created_at": "2024-01-01"}],
+                        }
+                    }
+                }
+            )
+        )
+
+        # New index has one different file
+        new_index = {
+            "modules": {
+                "AlreadyNew": {
+                    "file": "src/already_new.py",
+                    "keywords": {"kw_new": 0.7},
+                    "functions": [{"name": "f2"}],
+                }
+            }
+        }
+
+        changed_files = {"src/changed_but_missing.py"}
+        count = indexer._copy_unchanged_keywords(new_index, existing, changed_files)
+
+        # Should not copy anything since OnlyExisting module is not in new_index
+        assert count == 0
+
+        # Pre-existing new_index entry must be preserved
+        assert "AlreadyNew" in new_index["modules"]
+        assert new_index["modules"]["AlreadyNew"]["keywords"] == {"kw_new": 0.7}
+
+        # File from existing index should NOT be added to new index
+        assert "OnlyExisting" not in new_index["modules"]
+
+    def test_counts_only_when_fields_copied(self, tmp_path):
+        """Count should only increment when at least one field is actually copied."""
+        indexer = PythonSCIPIndexer(verbose=False)
+        existing = tmp_path / "index.json"
+
+        # Existing module has no keywords or timestamps
+        existing.write_text(
+            json.dumps({"modules": {"M1": {"file": "f.py", "functions": [{"name": "f1"}]}}})
+        )
+
+        # New index has the same module
+        new_index = {"modules": {"M1": {"file": "f.py", "functions": [{"name": "f1"}]}}}
+
+        count = indexer._copy_unchanged_keywords(new_index, existing, set())
+
+        # Count should be 0 since nothing was copied
+        assert count == 0
+
 
 class TestTargetOnlyAndVerboseLogging:
     """Test target-only indexing and verbose output."""

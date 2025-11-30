@@ -740,6 +740,14 @@ class TestConcurrentReindexPrevention:
             f"Second: [{second_start}, {second_end}]"
         )
 
+    def _trigger_multiple_reindexes(self, watcher, count):
+        """Helper to trigger multiple reindex requests (avoids loop in test)."""
+        watcher._trigger_reindex()
+        watcher._trigger_reindex()
+        watcher._trigger_reindex()
+        watcher._trigger_reindex()
+        watcher._trigger_reindex()
+
     @patch("cicada.utils.storage.get_index_path")
     def test_pending_reindex_coalesces_multiple_requests(self, mock_get_index_path, elixir_repo):
         """Test that multiple concurrent attempts result in only one pending reindex."""
@@ -767,8 +775,7 @@ class TestConcurrentReindexPrevention:
         reindex_started.wait(timeout=2)
 
         # Try to start multiple additional reindexes - should coalesce into one pending
-        for _ in range(5):
-            watcher._trigger_reindex()
+        self._trigger_multiple_reindexes(watcher, 5)
 
         # Only one pending reindex should be recorded
         with watcher._pending_lock:
@@ -781,6 +788,22 @@ class TestConcurrentReindexPrevention:
         # Should have called only 2 times total (first + one pending)
         assert mock_indexer.incremental_index_repository.call_count == 2
 
+        # Verify pending flag is cleared after the queued reindex completes
+        with watcher._pending_lock:
+            assert watcher._pending_reindex is False
+
+    def _create_flaky_reindex(self, call_count):
+        """Helper to create a reindex function that fails on first call (avoids conditional in test)."""
+
+        def flaky_reindex(*args, **kwargs):
+            call_count[0] += 1
+            is_first_call = call_count[0] == 1
+            if is_first_call:
+                raise RuntimeError("First call fails")
+            return {}
+
+        return flaky_reindex
+
     @patch("cicada.utils.storage.get_index_path")
     def test_reindex_lock_released_after_error(self, mock_get_index_path, elixir_repo):
         """Test that the reindex lock is properly released even after an error."""
@@ -789,12 +812,7 @@ class TestConcurrentReindexPrevention:
 
         # First call raises error, second succeeds
         call_count = [0]
-
-        def flaky_reindex(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise Exception("First call fails")
-            return {}
+        flaky_reindex = self._create_flaky_reindex(call_count)
 
         mock_indexer = Mock()
         mock_indexer.supports_incremental = True
