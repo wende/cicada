@@ -40,7 +40,8 @@ def get_language_formatter(language: str) -> BaseLanguageFormatter:
     }
 
     if language not in formatters:
-        # Default to Elixir formatter for unknown languages
-        return formatters["elixir"]
+        raise ValueError(
+            f"Unsupported language: '{language}'. Supported: {list(formatters.keys())}"
+        )
 
     return formatters[language]

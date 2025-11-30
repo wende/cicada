@@ -93,5 +93,4 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
-
-
+- after successful commit always push

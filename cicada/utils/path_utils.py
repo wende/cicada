@@ -5,6 +5,7 @@ This module provides centralized path normalization and resolution
 functions used throughout the codebase.
 """
 
+import os
 import re
 from pathlib import Path
 
@@ -193,32 +194,43 @@ def ensure_relative_to_repo(
     return normalize_file_path(resolved)
 
 
-def is_test_file(file_path: str) -> bool:
+def is_test_file(file_path: str, language: str | None = None) -> bool:
     """
-    Check if a file is a test file or script file.
+    Check if a file is a test file.
 
-    Files are considered test/script files if they:
-    - Are in 'test/' directory (anywhere in path or at start)
-    - End with '_test.ex' suffix
-    - End with '.exs' extension (Elixir script files)
+    Uses common patterns across programming languages:
+    - Files in 'test/' or 'tests/' directories
+    - Files with test-related suffixes (_test.*, *_test.*, test_*.*)
 
     Args:
         file_path: Path to the file
+        language: Optional language hint (not currently used, reserved for future)
 
     Returns:
-        True if the file is a test file or script
+        True if the file is a test file
 
     Example:
         is_test_file('test/user_test.ex') -> True
-        is_test_file('lib/mix_task.exs') -> True
+        is_test_file('tests/test_user.py') -> True
         is_test_file('lib/user.ex') -> False
+        is_test_file('src/user.py') -> False
     """
     file_lower = file_path.lower()
-    return (
+
+    # Common test directory patterns (universal)
+    in_test_dir = (
         "/test/" in file_lower
-        or file_lower.startswith("test/")
-        or file_lower.endswith(("_test.ex", ".exs"))
+        or "/tests/" in file_lower
+        or file_lower.startswith(("test/", "tests/"))
     )
+
+    # Common test file naming patterns (universal)
+    # Pattern: *_test.* or test_*.* (covers most languages)
+    basename = os.path.basename(file_lower)
+    name_without_ext = os.path.splitext(basename)[0]
+    is_test_named = name_without_ext.endswith("_test") or name_without_ext.startswith("test_")
+
+    return in_test_dir or is_test_named
 
 
 def matches_glob_pattern(file_path: str | Path, pattern: str) -> bool:

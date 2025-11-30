@@ -3,8 +3,6 @@ Score calculation logic for keyword search.
 
 Provides functions to calculate search scores by summing weights of matched keywords,
 with support for wildcard pattern matching and module name boosting.
-
-Author: Cicada Team
 """
 
 import math

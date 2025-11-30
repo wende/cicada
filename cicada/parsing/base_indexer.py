@@ -193,7 +193,7 @@ class BaseIndexer(ABC):
     # ====================================================================================
     # UNIVERSAL ENRICHMENT PIPELINE (Shared across all languages)
     # ====================================================================================
-    # After language-specific SCIP/AST extraction, all indexers run the same enrichment
+    # After language-specific parsing, all indexers run the same enrichment
     # pipeline: keywords → timestamps → co-change → co-occurrence
     # ====================================================================================
 
@@ -642,7 +642,6 @@ class BaseIndexer(ABC):
         """Build function signature string for co-change lookups.
 
         Builds signatures in universal "Module.function/arity" format.
-        This format is used by both Elixir and Python signature extractors.
         Override this method only if a new language needs a different format.
 
         Args:
@@ -662,7 +661,6 @@ class BaseIndexer(ABC):
         """Parse function signature into components.
 
         Parses universal "Module.function/arity" format used by all languages.
-        This format is used by both Elixir and Python signature extractors.
         Override this method only if a new language needs a different format.
 
         Args:
