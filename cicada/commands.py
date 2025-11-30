@@ -590,7 +590,7 @@ Examples:
     run_parser = subparsers.add_parser(
         "run",
         help="Execute MCP tools from CLI",
-        description="Execute any of the 7 MCP tools directly from command line",
+        description="Execute any of the 8 MCP tools directly from command line",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[common_parser],
         epilog="""
@@ -1588,17 +1588,8 @@ def handle_run(args) -> None:
     import asyncio
 
     from cicada.cli_mapper import parse_cli_args_to_handler_kwargs
-    from cicada.git.helper import GitHelper
     from cicada.mcp.config_manager import ConfigManager
-    from cicada.mcp.handlers import (
-        AnalysisHandler,
-        FunctionSearchHandler,
-        GitHistoryHandler,
-        ModuleSearchHandler,
-        PRHistoryHandler,
-    )
-    from cicada.mcp.handlers.index_manager import IndexManager
-    from cicada.mcp.router import ToolRouter
+    from cicada.mcp.router import create_tool_router
 
     # Get tool name (convert kebab-case to snake_case for handler lookup)
     tool_name = args.tool.replace("-", "_")
@@ -1618,28 +1609,8 @@ def handle_run(args) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Initialize index manager
-    index_manager = IndexManager(config)
-
-    # Get repo path from config for git helper
-    repo_path = config.get("repository", {}).get("path", ".")
-
-    # Initialize handlers and router (matching server.py setup)
-    git_helper = GitHelper(repo_path)
-
-    module_handler = ModuleSearchHandler(index_manager.index, config)
-    function_handler = FunctionSearchHandler(index_manager.index, config)
-    git_handler = GitHistoryHandler(git_helper, config)
-    pr_handler = PRHistoryHandler(index_manager.pr_index, config)
-    analysis_handler = AnalysisHandler(index_manager)
-
-    router = ToolRouter(
-        module_handler=module_handler,
-        function_handler=function_handler,
-        git_handler=git_handler,
-        pr_handler=pr_handler,
-        analysis_handler=analysis_handler,
-    )
+    # Create router using shared factory (matches server.py setup)
+    router, _, _ = create_tool_router(config)
 
     # Execute via router
     async def run_tool():
@@ -1653,5 +1624,8 @@ def handle_run(args) -> None:
             for content in result:
                 print(content.text)
     except Exception as e:
+        import traceback
+
         print(f"Error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
