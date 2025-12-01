@@ -154,9 +154,7 @@ class TestBasicCommentExtraction:
             c["comment"] for func_comments in comments_by_function.values() for c in func_comments
         ]
         comments_with_hash = [c for c in all_comments if c.startswith("#") or c.startswith(" #")]
-        assert (
-            comments_with_hash == []
-        ), f"Found comments still starting with #: {comments_with_hash}"
+        assert not comments_with_hash, f"Found comments still starting with #: {comments_with_hash}"
 
     def test_skips_short_comments(self, sample_comments_module):
         """Test that comments shorter than min_length are filtered."""
@@ -396,7 +394,7 @@ class TestFunctionContextTracking:
 
         # Should NOT have comments from other functions
         validation_comments = [t for t in comment_texts if "TODO: Implement proper validation" in t]
-        assert validation_comments == [], "Function should not contain other function's comments"
+        assert not validation_comments, "Function should not contain other function's comments"
 
     def test_private_functions_extract_comments(self, sample_comments_module):
         """Test that private functions (defp) also have their comments extracted."""
@@ -497,10 +495,10 @@ class TestEdgeCases:
 
         # All comments should have line numbers
         missing_lines = [c for c in all_comments if "line" not in c]
-        assert missing_lines == [], f"Comments missing 'line' key: {missing_lines}"
+        assert not missing_lines, f"Comments missing 'line' key: {missing_lines}"
 
         # All line numbers should be positive integers
         invalid_lines = [
             c for c in all_comments if not isinstance(c["line"], int) or c["line"] <= 0
         ]
-        assert invalid_lines == [], f"Comments with invalid line numbers: {invalid_lines}"
+        assert not invalid_lines, f"Comments with invalid line numbers: {invalid_lines}"
