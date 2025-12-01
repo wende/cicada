@@ -64,6 +64,50 @@ class TestCommentExtractorInitialization:
         assert extractor.merge_consecutive is False
 
 
+class TestWhitespaceOnlyComments:
+    """Tests for min_length handling of whitespace-only and # only comments."""
+
+    def test_omits_whitespace_only_comments(self, parser):
+        """Ensure #, #   , and # with only whitespace are omitted."""
+        from cicada.languages.elixir.extractors import CommentExtractor
+
+        # Source with whitespace-only and hash-only comments
+        source_code = b"""
+        defmodule TestWhitespaceComments do
+          def test_func do
+            #
+            #
+            # \t
+            # valid comment
+            :ok
+          end
+        end
+        """
+
+        tree = parser.parse(source_code)
+        modules = extract_modules(tree.root_node, source_code)
+        module = modules[0]
+        functions = extract_functions(module["do_block"], source_code)
+
+        # Use min_length=1 so only truly empty comments are filtered
+        extractor = CommentExtractor(min_length=1)
+        comments_by_function = extractor.extract_from_module(
+            module["do_block"], source_code, functions
+        )
+
+        # Only "valid comment" should be extracted
+        func_comments = comments_by_function.get("test_func", [])
+        comment_texts = [c["comment"] for c in func_comments]
+
+        # Whitespace-only comments should be omitted
+        assert "" not in comment_texts
+        assert "   " not in comment_texts
+        assert " \t" not in comment_texts
+
+        # Valid comment should be present
+        assert "valid comment" in comment_texts
+
+
 class TestBasicCommentExtraction:
     """Test basic comment extraction functionality."""
 
@@ -105,11 +149,14 @@ class TestBasicCommentExtraction:
             module["do_block"], source_code, module["functions"]
         )
 
-        # Check all extracted comments don't start with #
-        for func_name, func_comments in comments_by_function.items():
-            for comment in func_comments:
-                assert not comment["comment"].startswith("#")
-                assert not comment["comment"].startswith(" #")
+        # Flatten all comments and check none start with #
+        all_comments = [
+            c["comment"] for func_comments in comments_by_function.values() for c in func_comments
+        ]
+        comments_with_hash = [c for c in all_comments if c.startswith("#") or c.startswith(" #")]
+        assert (
+            comments_with_hash == []
+        ), f"Found comments still starting with #: {comments_with_hash}"
 
     def test_skips_short_comments(self, sample_comments_module):
         """Test that comments shorter than min_length are filtered."""
@@ -125,19 +172,19 @@ class TestBasicCommentExtraction:
 
         # Function "function_with_short_comments" has comments: #a #b #c (too short)
         # and "This comment is long enough to be extracted" (long enough)
-        if "function_with_short_comments" in comments_by_function:
-            func_comments = comments_by_function["function_with_short_comments"]
-            comment_texts = [c["comment"] for c in func_comments]
+        assert "function_with_short_comments" in comments_by_function
+        func_comments = comments_by_function["function_with_short_comments"]
+        comment_texts = [c["comment"] for c in func_comments]
 
-            # Short comments should be filtered
-            assert "a" not in comment_texts
-            assert "b" not in comment_texts
-            assert "c" not in comment_texts
-            assert "ok" not in comment_texts
-            assert "no" not in comment_texts
+        # Short comments should be filtered
+        assert "a" not in comment_texts
+        assert "b" not in comment_texts
+        assert "c" not in comment_texts
+        assert "ok" not in comment_texts
+        assert "no" not in comment_texts
 
-            # Long comment should be present
-            assert any("long enough to be extracted" in text for text in comment_texts)
+        # Long comment should be present
+        assert any("long enough to be extracted" in text for text in comment_texts)
 
 
 class TestCommentBeforeFunction:
@@ -207,21 +254,23 @@ class TestConsecutiveCommentMerging:
         merged_blocks = [c for c in func_comments if c.get("is_block", False)]
         assert len(merged_blocks) > 0
 
-        # Check that the merged block contains all three steps
+        # Check that the merged block contains all three steps in a single block
         step_blocks = [
             c
             for c in func_comments
             if "Step 1" in c["comment"] or "Step 2" in c["comment"] or "Step 3" in c["comment"]
         ]
 
-        # With merging, should be one block containing all steps
-        if step_blocks:
-            assert any(
-                "Step 1" in block["comment"]
-                and "Step 2" in block["comment"]
-                and "Step 3" in block["comment"]
-                for block in step_blocks
-            )
+        # With merging, should have at least one block containing all steps
+        assert step_blocks, "Expected step comments to be present"
+        blocks_with_all_steps = [
+            block
+            for block in step_blocks
+            if "Step 1" in block["comment"]
+            and "Step 2" in block["comment"]
+            and "Step 3" in block["comment"]
+        ]
+        assert len(blocks_with_all_steps) > 0, "Expected merged block with all three steps"
 
     def test_no_merge_with_flag_disabled(self, sample_comments_module):
         """Test that consecutive comments are NOT merged when flag is False."""
@@ -235,27 +284,28 @@ class TestConsecutiveCommentMerging:
         )
 
         # With merge_consecutive=False, each line should be separate
-        if "function_with_consecutive_comments" in comments_by_function:
-            func_comments = comments_by_function["function_with_consecutive_comments"]
+        assert "function_with_consecutive_comments" in comments_by_function
+        func_comments = comments_by_function["function_with_consecutive_comments"]
 
-            # Should have individual comments for each step
-            step_comments = [c for c in func_comments if "Step" in c["comment"]]
+        # Should have individual comments for each step
+        step_comments = [c for c in func_comments if "Step" in c["comment"]]
 
-            # Each step should be in its own comment
-            step_1_separate = any(
-                "Step 1" in c["comment"] and "Step 2" not in c["comment"] for c in step_comments
-            )
-            step_2_separate = any(
-                "Step 2" in c["comment"]
-                and "Step 1" not in c["comment"]
-                and "Step 3" not in c["comment"]
-                for c in step_comments
-            )
-            step_3_separate = any(
-                "Step 3" in c["comment"] and "Step 2" not in c["comment"] for c in step_comments
-            )
+        # Each step should be in its own comment (not merged together)
+        # Check that Step 1 is alone (Step 2 not in same comment)
+        step_1_comments = [c for c in step_comments if "Step 1" in c["comment"]]
+        step_2_comments = [c for c in step_comments if "Step 2" in c["comment"]]
+        step_3_comments = [c for c in step_comments if "Step 3" in c["comment"]]
 
-            assert step_1_separate or step_2_separate or step_3_separate
+        # Each step should exist separately
+        assert step_1_comments, "Step 1 comment should exist"
+        assert step_2_comments, "Step 2 comment should exist"
+        assert step_3_comments, "Step 3 comment should exist"
+
+        # At least one step should be isolated (not merged with another)
+        step_1_isolated = step_1_comments[0]["comment"].count("Step") == 1
+        step_2_isolated = step_2_comments[0]["comment"].count("Step") == 1
+        step_3_isolated = step_3_comments[0]["comment"].count("Step") == 1
+        assert step_1_isolated or step_2_isolated or step_3_isolated
 
     def test_does_not_merge_comments_separated_by_blank_line(self, sample_comments_module):
         """Comments separated by blank lines should remain distinct blocks."""
@@ -337,16 +387,16 @@ class TestFunctionContextTracking:
         )
 
         # Each function should have its own comments, not others'
-        # function_with_inline_comments should have its specific comments
-        if "function_with_inline_comments" in comments_by_function:
-            func_comments = comments_by_function["function_with_inline_comments"]
-            comment_texts = [c["comment"] for c in func_comments]
+        assert "function_with_inline_comments" in comments_by_function
+        func_comments = comments_by_function["function_with_inline_comments"]
+        comment_texts = [c["comment"] for c in func_comments]
 
-            # Should have its own comments
-            assert any("inline comment" in text for text in comment_texts)
+        # Should have its own comments
+        assert any("inline comment" in text for text in comment_texts)
 
-            # Should NOT have comments from other functions
-            assert all("TODO: Implement proper validation" not in text for text in comment_texts)
+        # Should NOT have comments from other functions
+        validation_comments = [t for t in comment_texts if "TODO: Implement proper validation" in t]
+        assert validation_comments == [], "Function should not contain other function's comments"
 
     def test_private_functions_extract_comments(self, sample_comments_module):
         """Test that private functions (defp) also have their comments extracted."""
@@ -372,7 +422,7 @@ class TestEdgeCases:
     """Test edge cases and special scenarios."""
 
     def test_function_with_no_comments(self, sample_comments_module):
-        """Test function with no comments returns empty or is absent."""
+        """Test function with no comments returns empty list."""
         from cicada.languages.elixir.extractors import CommentExtractor
 
         module, source_code = sample_comments_module
@@ -382,10 +432,9 @@ class TestEdgeCases:
             module["do_block"], source_code, module["functions"]
         )
 
-        # no_comments_function should have no comments
-        if "no_comments_function" in comments_by_function:
-            func_comments = comments_by_function["no_comments_function"]
-            assert len(func_comments) == 0
+        # no_comments_function should have no comments (either absent or empty list)
+        func_comments = comments_by_function.get("no_comments_function", [])
+        assert len(func_comments) == 0
 
     def test_nested_structures_extract_comments(self, sample_comments_module):
         """Test comments in nested structures (if/case/etc) are extracted."""
@@ -422,17 +471,15 @@ class TestEdgeCases:
         tree = parser.parse(source_code)
         modules = extract_modules(tree.root_node, source_code)
 
-        if modules:
-            module = modules[0]
-            extractor = CommentExtractor()
+        assert modules, "Should parse the module successfully"
+        module = modules[0]
+        extractor = CommentExtractor()
 
-            # Pass empty functions list
-            comments_by_function = extractor.extract_from_module(
-                module["do_block"], source_code, []
-            )
+        # Pass empty functions list
+        comments_by_function = extractor.extract_from_module(module["do_block"], source_code, [])
 
-            # Should handle gracefully (empty dict or no crash)
-            assert isinstance(comments_by_function, dict)
+        # Should handle gracefully (empty dict or no crash)
+        assert isinstance(comments_by_function, dict)
 
     def test_line_numbers_are_accurate(self, sample_comments_module):
         """Test that line numbers in extracted comments are accurate."""
@@ -445,9 +492,15 @@ class TestEdgeCases:
             module["do_block"], source_code, module["functions"]
         )
 
-        # All comments should have line numbers > 0
-        for func_name, func_comments in comments_by_function.items():
-            for comment in func_comments:
-                assert "line" in comment
-                assert comment["line"] > 0
-                assert isinstance(comment["line"], int)
+        # Flatten all comments and validate line numbers
+        all_comments = [c for func_comments in comments_by_function.values() for c in func_comments]
+
+        # All comments should have line numbers
+        missing_lines = [c for c in all_comments if "line" not in c]
+        assert missing_lines == [], f"Comments missing 'line' key: {missing_lines}"
+
+        # All line numbers should be positive integers
+        invalid_lines = [
+            c for c in all_comments if not isinstance(c["line"], int) or c["line"] <= 0
+        ]
+        assert invalid_lines == [], f"Comments with invalid line numbers: {invalid_lines}"

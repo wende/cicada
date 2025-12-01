@@ -759,11 +759,15 @@ class ModuleFormatter:
                 is_multiline = "\n" in comment_text
                 display_text = comment_text.split("\n")[0] if is_multiline else comment_text
 
-                if len(display_text) > COMMENT_PREVIEW_LIMIT:
+                was_truncated = len(display_text) > COMMENT_PREVIEW_LIMIT
+                if was_truncated:
                     display_text = (
                         display_text[: COMMENT_PREVIEW_LIMIT - len(COMMENT_ELLIPSIS)]
                         + COMMENT_ELLIPSIS
                     )
+                elif is_multiline:
+                    # Indicate multi-line without implying truncation
+                    display_text = display_text + " [+lines]"
 
                 lines.append(f'   • "# {display_text}" (:{comment_line})')
             if len(comment_sources) > 5:

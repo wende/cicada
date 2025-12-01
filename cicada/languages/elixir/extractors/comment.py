@@ -157,7 +157,7 @@ class CommentExtractor:
         if comment_text.startswith("#"):
             comment_text = comment_text[1:].strip()
 
-        return comment_text if comment_text else None
+        return comment_text or None
 
     def _merge_consecutive_comments(self, comments: list[dict]) -> list[dict]:
         """
