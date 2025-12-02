@@ -203,6 +203,14 @@ LanguageRegistry.register_language(
     config=LanguageConfig.default_typescript(),
 )
 
+# Register Rust (SCIP-based scaffolding)
+LanguageRegistry.register_language(
+    language="rust",
+    parser_class=None,  # No parser yet – SCIP handles AST extraction
+    indexer_class="cicada.languages.rust.indexer.RustSCIPIndexer",
+    config=None,
+)
+
 
 # Global registry singleton
 def get_language_registry() -> type[LanguageRegistry]:
