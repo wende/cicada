@@ -64,11 +64,15 @@ def detect_project_language(repo_path: Path) -> str:
                 return "typescript"
             return "javascript"
 
+    # Check for Rust marker
+    if (repo_path / "Cargo.toml").exists():
+        return "rust"
+
     # No recognized language
     raise ValueError(
         f"Could not detect project language in {repo_path}\n"
         "Expected Python markers (pyproject.toml, setup.py, etc.), "
-        "Elixir marker (mix.exs), or TypeScript/JavaScript markers"
+        "Elixir marker (mix.exs), TypeScript/JavaScript markers, or Cargo.toml"
     )
 
 

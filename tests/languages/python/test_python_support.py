@@ -45,6 +45,11 @@ class TestLanguageDetection:
         (tmp_path / "mix.exs").write_text("defmodule")
         assert detect_project_language(tmp_path) == "python"
 
+    def test_detect_rust_from_cargo_toml(self, tmp_path):
+        """Cargo.toml should trigger Rust detection."""
+        (tmp_path / "Cargo.toml").write_text('[package]\nname = "demo"')
+        assert detect_project_language(tmp_path) == "rust"
+
 
 class TestSCIPPythonInstaller:
     """Test SCIP-Python installer utilities."""
