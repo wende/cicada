@@ -117,3 +117,14 @@ class LanguageConfig:
                 "block_end": "*/",
             },
         )
+
+    @staticmethod
+    def default_erlang() -> "LanguageConfig":
+        """Create default Erlang configuration."""
+        return LanguageConfig(
+            language="erlang",
+            file_extensions=[".erl", ".hrl"],
+            excluded_dirs=["_build", "deps", ".git", "node_modules", "ebin"],
+            tree_sitter_grammar="tree-sitter-erlang",
+            comment_syntax={"line": "%"},
+        )

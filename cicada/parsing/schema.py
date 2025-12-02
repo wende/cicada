@@ -19,7 +19,8 @@ class FunctionData:
     name: str  # Function name
     arity: int  # Number of parameters
     args: list[str]  # Parameter names
-    type: str  # Function type: 'public', 'private', 'def', 'defp', 'method', etc.
+    type: str  # Function type (language-specific: 'def', 'defp', 'method', etc.)
+    visibility: str  # Normalized visibility: 'public' or 'private'
     line: int  # Line number where function is defined
     signature: str  # Full function signature
     doc: str | None = None  # Documentation string
@@ -34,6 +35,7 @@ class FunctionData:
             "arity": self.arity,
             "args": self.args,
             "type": self.type,
+            "visibility": self.visibility,
             "line": self.line,
             "signature": self.signature,
             "doc": self.doc,
@@ -51,6 +53,7 @@ class FunctionData:
             "arity",
             "args",
             "type",
+            "visibility",
             "line",
             "signature",
             "doc",
@@ -64,6 +67,7 @@ class FunctionData:
             arity=data["arity"],
             args=data["args"],
             type=data["type"],
+            visibility=data.get("visibility", "public"),  # Default for backward compat
             line=data["line"],
             signature=data["signature"],
             doc=data.get("doc"),
@@ -396,6 +400,7 @@ class UniversalIndexSchema:
             "arity": int,
             "args": list,
             "type": str,
+            "visibility": str,
             "line": int,
             "signature": str,
         }

@@ -128,6 +128,9 @@ class FileWatcher:
         self.observer: Observer | None = None  # type: ignore[valid-type]
         self.debounce_timer: threading.Timer | None = None
         self.timer_lock = threading.Lock()
+        self._reindex_lock = threading.Lock()  # Prevent concurrent reindexing
+        self._pending_lock = threading.Lock()  # Protect _pending_reindex flag
+        self._pending_reindex = False  # Track if reindex needed after current one completes
         self.running = False
         self.shutdown_event = threading.Event()
         self._consecutive_failures = 0  # Track consecutive reindex failures
@@ -403,10 +406,56 @@ class FileWatcher:
 
         This method is called after the debounce period has elapsed.
         It runs the incremental indexer and handles any errors gracefully.
+
+        Uses a reindex lock to prevent concurrent indexing. If a reindex is
+        already in progress, we mark that another reindex is needed and return.
+        When the current reindex completes, it will check for pending reindex
+        and run again if needed.
         """
         with self.timer_lock:
             self.debounce_timer = None
 
+        # Try to acquire reindex lock without blocking
+        acquired = self._reindex_lock.acquire(blocking=False)
+        if not acquired:
+            # Another reindex is already in progress - mark that we need to reindex later
+            with self._pending_lock:
+                self._pending_reindex = True
+            if self.verbose:
+                logger.debug("Reindex already in progress, will reindex again when complete")
+            return
+
+        try:
+            # Clear pending flag since we're about to reindex
+            with self._pending_lock:
+                self._pending_reindex = False
+
+            self._perform_reindex()
+
+            # Check if another reindex is needed (file changes during current reindex)
+            while True:
+                with self._pending_lock:
+                    if not self._pending_reindex:
+                        break
+                    self._pending_reindex = False
+
+                if self.verbose:
+                    print("\n" + "=" * 70)
+                    print("Additional changes detected during reindex - reindexing again...")
+                    print("=" * 70)
+                    print()
+                self._perform_reindex()
+
+        finally:
+            self._reindex_lock.release()
+
+    def _perform_reindex(self) -> None:
+        """
+        Perform the actual reindexing operation.
+
+        This method handles the indexer invocation and error handling.
+        It should only be called while holding the _reindex_lock.
+        """
         if self.verbose:
             print("\n" + "=" * 70)
             print("File changes detected - reindexing...")

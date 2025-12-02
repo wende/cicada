@@ -6,6 +6,7 @@ formatter based on the language identifier.
 """
 
 from cicada.languages.elixir.formatter import ElixirFormatter
+from cicada.languages.erlang.formatter import ErlangFormatter
 from cicada.languages.formatter_interface import BaseLanguageFormatter
 from cicada.languages.scip.formatter import PythonFormatter, TypeScriptFormatter
 
@@ -34,12 +35,14 @@ def get_language_formatter(language: str) -> BaseLanguageFormatter:
     """
     formatters = {
         "elixir": ElixirFormatter(),
+        "erlang": ErlangFormatter(),
         "python": PythonFormatter(),
         "typescript": TypeScriptFormatter(),
     }
 
     if language not in formatters:
-        # Default to Elixir formatter for unknown languages
-        return formatters["elixir"]
+        raise ValueError(
+            f"Unsupported language: '{language}'. Supported: {list(formatters.keys())}"
+        )
 
     return formatters[language]

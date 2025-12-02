@@ -4,7 +4,10 @@ Tool Router for Cicada MCP Server.
 Routes tool calls to appropriate handlers with argument validation.
 """
 
-from typing import Any, cast
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp.types import TextContent
 
@@ -15,6 +18,10 @@ from cicada.mcp.handlers import (
     ModuleSearchHandler,
     PRHistoryHandler,
 )
+
+if TYPE_CHECKING:
+    from cicada.git.helper import GitHelper
+    from cicada.mcp.handlers.index_manager import IndexManager
 
 # Security limits for jq queries to prevent resource exhaustion
 MAX_JQ_QUERY_LENGTH = 10_000  # Maximum characters in a jq query
@@ -553,3 +560,50 @@ class ToolRouter:
             return await self._handle_refresh_index(arguments, refresh_callback)
         else:
             raise ValueError(f"Unknown tool: {name}")
+
+
+def create_tool_router(config: dict) -> tuple[ToolRouter, IndexManager, GitHelper | None]:
+    """Create a ToolRouter with all required handlers from config.
+
+    This factory function centralizes the handler initialization logic
+    that is shared between the MCP server and CLI run command.
+
+    Args:
+        config: Configuration dictionary with repository settings
+
+    Returns:
+        Tuple of (ToolRouter, IndexManager, GitHelper or None)
+    """
+    from cicada.git.helper import GitHelper
+    from cicada.mcp.handlers.index_manager import IndexManager
+
+    # Initialize index manager
+    index_manager = IndexManager(config)
+
+    # Get repo path from config for git helper
+    repo_path = config.get("repository", {}).get("path", ".")
+
+    # Initialize git helper (may fail if not a git repo)
+    git_helper: GitHelper | None = None
+    try:
+        git_helper = GitHelper(repo_path)
+    except Exception as e:
+        print(f"Warning: Git helper not available: {e}", file=sys.stderr)
+
+    # Initialize handlers
+    module_handler = ModuleSearchHandler(index_manager.index, config)
+    function_handler = FunctionSearchHandler(index_manager.index, config)
+    git_handler = GitHistoryHandler(git_helper, config)
+    pr_handler = PRHistoryHandler(index_manager.pr_index, config)
+    analysis_handler = AnalysisHandler(index_manager)
+
+    # Create router
+    router = ToolRouter(
+        module_handler=module_handler,
+        function_handler=function_handler,
+        git_handler=git_handler,
+        pr_handler=pr_handler,
+        analysis_handler=analysis_handler,
+    )
+
+    return router, index_manager, git_helper

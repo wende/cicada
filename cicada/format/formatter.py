@@ -24,6 +24,8 @@ from cicada.utils.truncation import TruncationHelper
 
 # Display limits for compact output
 MAX_COCHANGE_FILES = 3  # Maximum co-change files to show before truncating
+COMMENT_PREVIEW_LIMIT = 100
+COMMENT_ELLIPSIS = "..."
 
 
 class ModuleFormatter:
@@ -151,6 +153,21 @@ class ModuleFormatter:
         return lines
 
     @staticmethod
+    def _get_language_from_func(func: dict[str, Any]) -> str:
+        """Detect language from function type field."""
+        # Elixir uses 'def'/'defp', Python uses 'public'/'private'
+        func_type = func.get("type", "")
+        return "elixir" if func_type in ("def", "defp") else "python"
+
+    @staticmethod
+    def _format_function_name(func: dict[str, Any], name: str, arity: int) -> str:
+        """Format function name using language-specific formatter."""
+        language = ModuleFormatter._get_language_from_func(func)
+        formatter = get_language_formatter(language)
+        args = func.get("args")
+        return formatter.format_function_name(name, arity, args)
+
+    @staticmethod
     def _append_function_section(
         lines: list[str],
         grouped_funcs: dict[tuple[str, int], list[dict[str, Any]]],
@@ -169,12 +186,13 @@ class ModuleFormatter:
                 func_sig = SignatureBuilder.build(func)
                 lines.append(f"{func['line']:>5}: {func_sig}")
             else:
-                # Compact: name/arity with return type if available
+                # Compact: language-appropriate identifier with return type if available
+                func_id = ModuleFormatter._format_function_name(func, name, arity)
                 return_type = SignatureBuilder.get_return_type(func)
                 if return_type:
-                    lines.append(f"{func['line']:>5}: {name}/{arity} → {return_type}")
+                    lines.append(f"{func['line']:>5}: {func_id} → {return_type}")
                 else:
-                    lines.append(f"{func['line']:>5}: {name}/{arity}")
+                    lines.append(f"{func['line']:>5}: {func_id}")
             lines.append("")
         return True
 
@@ -808,6 +826,30 @@ class ModuleFormatter:
 
         if include_docs and func.get("examples"):
             lines.extend(["", "Examples:", "", func["examples"]])
+
+        # Display comment sources if available
+        comment_sources = result.get("comment_sources", [])
+        if comment_sources:
+            lines.extend(["", "Inline comments:"])
+            for comment_info in comment_sources[:5]:  # Limit to 5
+                comment_text = comment_info["comment"]
+                comment_line = comment_info["line"]
+                is_multiline = "\n" in comment_text
+                display_text = comment_text.split("\n")[0] if is_multiline else comment_text
+
+                was_truncated = len(display_text) > COMMENT_PREVIEW_LIMIT
+                if was_truncated:
+                    display_text = (
+                        display_text[: COMMENT_PREVIEW_LIMIT - len(COMMENT_ELLIPSIS)]
+                        + COMMENT_ELLIPSIS
+                    )
+                elif is_multiline:
+                    # Indicate multi-line without implying truncation
+                    display_text = display_text + " [+lines]"
+
+                lines.append(f'   • "# {display_text}" (:{comment_line})')
+            if len(comment_sources) > 5:
+                lines.append(f"   ... and {len(comment_sources) - 5} more comments")
 
         if func.get("guards"):
             guards_str = ", ".join(func["guards"])
@@ -1445,8 +1487,14 @@ class ModuleFormatter:
                         kw_with_sources.append(kw + " (in docs)")
                     elif source == "strings":
                         kw_with_sources.append(kw + " (in strings)")
+                    elif source == "comments":
+                        kw_with_sources.append(kw + " (in comments)")
                     elif source == "both":
+                        # Backward compatibility for old "both" format
                         kw_with_sources.append(kw + " (in docs+strings)")
+                    elif source and "+" in source:
+                        # New combined format: docs+strings+comments
+                        kw_with_sources.append(kw + f" (in {source})")
                     else:
                         kw_with_sources.append(kw)
                 lines.append("Matched keywords: " + ", ".join(kw_with_sources))

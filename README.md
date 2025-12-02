@@ -6,7 +6,7 @@
 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-**Context compaction for AI code assistants** – Give your AI structured, token-efficient access to Elixir and Python codebases.
+**Context compaction for AI code assistants** – Give your AI structured, token-efficient access to Elixir, Python, and Erlang codebases.
 
 > [**Up to 50% less waiting · Up to 70% less tokens · Up to 99% less explanations to do**](https://cicada-mcp.vercel.app/#benchmark-section)
 > **Tighter context = Better Quality**
@@ -16,8 +16,9 @@
 [![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
-[![Elixir Support](https://img.shields.io/badge/Elixir-✓_Production-blueviolet.svg)](https://elixir-lang.org/)
-[![Python Support](https://img.shields.io/badge/Python-Beta-orange.svg)](https://www.python.org/)
+[![Elixir Support](https://img.shields.io/badge/Elixir-✓-blueviolet.svg)](https://elixir-lang.org/)
+[![Python Support](https://img.shields.io/badge/Python-✓-blue.svg)](https://www.python.org/)
+[![Erlang Support](https://img.shields.io/badge/Erlang-Beta-orange.svg)](https://www.erlang.org/)
 [![TypeScript Support](https://img.shields.io/badge/TypeScript-Experimental-lightgrey.svg)](https://www.typescriptlang.org/)
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
@@ -75,13 +76,13 @@ uvx cicada-mcp claude   # or cursor, vs
 or
 
 ```
-claude mcp add uvx cicada-mcp
+claude mcp add cicada uvx cicada-mcp
 ```   
 ```
-gemini mcp add uvx cicada-mcp
+gemini mcp add cicada uvx cicada-mcp
 ```  
 ```
-codex mcp add uvx cicada-mcp
+codex mcp add cicada uvx cicada-mcp
 ```  
 
 
@@ -318,7 +319,7 @@ cat ~/.cicada/projects/<hash>/config.yaml
 More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_INDEXING.md](docs/08-INCREMENTAL_INDEXING.md).
 
 <details>
-<summary><b>Python Indexing (Beta)</b></summary>
+<summary><b>Python Indexing</b></summary>
 
 **Requirements:**
 - Node.js (for scip-python indexer)
@@ -349,7 +350,7 @@ cicada index --fast .
 
 ## For AI Assistants
 
-CICADA ships 7 focused MCP tools designed for efficient code exploration across Elixir and Python (Beta) codebases.
+CICADA ships 7 focused MCP tools designed for efficient code exploration across Elixir, Python, and Erlang codebases.
 
 ### 🧭 Which Tool Should You Use?
 
@@ -450,13 +451,14 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ### Current Status
 
-- ✅ **Elixir** - Production ready with full feature support
-- 🚧 **Python** - Beta
+- ✅ **Elixir**
+- ✅ **Python**
+- 🚧 **Erlang** - Beta
 - 🧪 **TypeScript** - Experimental
 
 ### What's Next
 
-- Stabilize Python support based on user feedback
+- Stabilize Erlang support based on user feedback
 - TypeScript/JavaScript support via SCIP
 - Shared/team indexes for collaborative environments
 - Performance optimizations for large codebases

@@ -193,7 +193,7 @@ class BaseIndexer(ABC):
     # ====================================================================================
     # UNIVERSAL ENRICHMENT PIPELINE (Shared across all languages)
     # ====================================================================================
-    # After language-specific SCIP/AST extraction, all indexers run the same enrichment
+    # After language-specific parsing, all indexers run the same enrichment
     # pipeline: keywords → timestamps → co-change → co-occurrence
     # ====================================================================================
 
@@ -258,6 +258,7 @@ class BaseIndexer(ABC):
         repo_path: Path,
         extract_keywords: bool = False,
         extract_string_keywords: bool = False,
+        extract_comment_keywords: bool = False,
         compute_timestamps: bool = False,
         extract_cochange: bool = False,
         keyword_extractor: Any = None,
@@ -276,6 +277,7 @@ class BaseIndexer(ABC):
             repo_path: Repository root path
             extract_keywords: Whether to extract keywords from docstrings
             extract_string_keywords: Whether to extract keywords from string literals
+            extract_comment_keywords: Whether to extract keywords from inline comments
             compute_timestamps: Whether to compute git timestamps for functions
             extract_cochange: Whether to analyze co-change patterns
             keyword_extractor: Keyword extractor instance (optional)
@@ -285,10 +287,13 @@ class BaseIndexer(ABC):
             List of skipped phase names (if interrupted)
         """
         skipped_phases: list[str] = []
+        self._start_timing()
 
         # Phase 1: Extract and expand keywords using streaming pipeline (interruptible)
         # Requires extractor; expander is optional (falls back to extraction-only)
-        if (extract_keywords or extract_string_keywords) and keyword_extractor:
+        if (
+            extract_keywords or extract_string_keywords or extract_comment_keywords
+        ) and keyword_extractor:
 
             if keyword_expander:
                 # Full extraction + expansion with streaming pipeline
@@ -314,6 +319,11 @@ class BaseIndexer(ABC):
                         # Extract string keywords (sequential) with streaming expansion
                         if extract_string_keywords:
                             self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        if extract_comment_keywords:
+                            self._extract_comment_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
 
@@ -351,6 +361,11 @@ class BaseIndexer(ABC):
 
                         if extract_string_keywords:
                             self._extract_string_keywords(
+                                index, repo_path, keyword_extractor, pipeline
+                            )
+
+                        if extract_comment_keywords:
+                            self._extract_comment_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
 
@@ -442,6 +457,18 @@ class BaseIndexer(ABC):
             print("    Warning: String keyword extraction not implemented for this language")
         return 0
 
+    def _extract_comment_keywords(
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor: Any,
+        pipeline: Any,
+    ) -> int:
+        """Extract keywords from inline comments in source files (language-specific)."""
+        if self.verbose:
+            print("    Warning: Comment keyword extraction not implemented for this language")
+        return 0
+
     def _apply_expansion_result(self, callback: Any, result: dict[str, Any]) -> None:
         """Apply expansion result to target dict.
 
@@ -485,14 +512,20 @@ class BaseIndexer(ABC):
                 print(f"    Warning: Could not initialize git helper: {e}")
             return
 
-        # Collect all functions with their line numbers
+        # Collect all functions with their line numbers (skip those with existing timestamps)
         functions_to_query = []
+        skipped_count = 0
         for module_name, module_data in index.get("modules", {}).items():
             file_path = module_data.get("file")
             if not file_path:
                 continue
 
             for func in module_data.get("functions", []):
+                # Skip functions that already have timestamps (copied from existing index)
+                if "created_at" in func or "last_modified_at" in func:
+                    skipped_count += 1
+                    continue
+
                 func_name = func.get("name")
                 line = func.get("line")
                 if func_name and line:
@@ -505,6 +538,9 @@ class BaseIndexer(ABC):
                             "func_ref": func,
                         }
                     )
+
+        if self.verbose and skipped_count > 0:
+            print(f"    Reusing timestamps for {skipped_count} unchanged functions")
 
         if not functions_to_query:
             return
@@ -642,7 +678,6 @@ class BaseIndexer(ABC):
         """Build function signature string for co-change lookups.
 
         Builds signatures in universal "Module.function/arity" format.
-        This format is used by both Elixir and Python signature extractors.
         Override this method only if a new language needs a different format.
 
         Args:
@@ -662,7 +697,6 @@ class BaseIndexer(ABC):
         """Parse function signature into components.
 
         Parses universal "Module.function/arity" format used by all languages.
-        This format is used by both Elixir and Python signature extractors.
         Override this method only if a new language needs a different format.
 
         Args:

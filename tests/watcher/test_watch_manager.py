@@ -483,7 +483,7 @@ class TestMCPWatchIntegration:
         assert get_watch_manager() is None, "Global watch manager should be cleared"
 
         # Give process a moment to terminate
-        time.sleep(0.5)
+        time.sleep(0.2)
 
         # Verify process is no longer running by checking if PID exists
         try:

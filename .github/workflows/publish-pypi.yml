@@ -15,10 +15,16 @@ on:
         required: false
         type: boolean
         default: false
+      skip_test_pypi:
+        description: 'Skip TestPyPI and publish directly to PyPI (manual override)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test-publish:
     name: Test on TestPyPI
+    if: github.event_name == 'push' || github.event.inputs.skip_test_pypi != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,7 +107,66 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: test-publish
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_only != true)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_only != true && github.event.inputs.skip_test_pypi != 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for branch checking
+
+      - name: Verify tag is on main branch
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Error: Tag must be on main branch for PyPI release"
+            exit 1
+          fi
+          echo "✓ Tag is on main branch"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Generate version hash file
+        run: |
+          python -c "
+          import subprocess
+          tag = subprocess.check_output(['git', 'describe', '--tags']).decode().strip()
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+          with open('cicada/_version_hash.py', 'w') as f:
+              f.write(f'GIT_TAG = \"{tag}\"\nGIT_COMMIT_HASH = \"{commit}\"\n')
+          "
+          cat cicada/_version_hash.py
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          uv publish --token $UV_PUBLISH_TOKEN
+
+      - name: Verify PyPI installation
+        run: |
+          sleep 60
+          pip install cicada-mcp
+          python -c "import cicada; print(f'Cicada version: {cicada.__version__}')"
+
+  publish-direct:
+    name: Publish to PyPI (direct)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.skip_test_pypi == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

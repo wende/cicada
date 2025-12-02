@@ -24,8 +24,8 @@ class FunctionGrouper:
         Group functions by their (name, arity) tuple.
 
         Multiple function clauses with the same name and arity are grouped
-        together. This is common in Elixir where you can define multiple
-        clauses for the same function.
+        together. This handles languages that allow multiple definitions
+        for the same function signature (e.g., pattern matching clauses).
 
         Args:
             functions: List of function dictionaries with 'name' and 'arity' keys

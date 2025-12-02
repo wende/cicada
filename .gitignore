@@ -85,3 +85,7 @@ tests/fixtures/**/node_modules/
 
 # Link directory
 link/
+
+# AI editor configs
+.codex/
+.gemini/

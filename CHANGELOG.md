@@ -5,6 +5,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.2] - 2025-11-30
+
+### Fixed
+
+**Incremental Indexing Race Conditions (#206)**
+- Add reindex lock to prevent concurrent indexing in watcher
+- Fix hash path format mismatch (accept both dir and file paths)
+- Compute hashes once at start to fix pending reindex race condition
+- Prevent concurrent repository reindex operations with lock release on errors
+- Eliminate race conditions by computing file hashes once at start and reusing them
+
+**Co-change Analysis Performance (#200)**
+- Fix performance explosion in co-change analysis
+- Optimized algorithm to prevent exponential time complexity
+
+**Legacy Path References (#197)**
+- Fix legacy .cicada/index.json path references
+- Update indexer.py CLI to use get_index_path() for centralized storage
+
+**Watcher Language Detection (#199)**
+- Fix watcher to use LanguageRegistry.get_indexer() based on detected project language
+- Remove forced version mismatch reindexing
+
+### Improvements
+
+**Partial SCIP Indexing (#206)**
+- Add --target-only support for partial SCIP indexing on changed directories
+- Skip keyword extraction and timestamp computation for unchanged modules
+- Copy existing keywords/timestamps from previous index for unchanged files
+- Compute minimal common target directory for changed Python files
+- Add verbose logging for incremental indexing with reused data statistics
+
+**Test Infrastructure (#201, #204)**
+- Sandbox test targets to avoid modifying global cicada installation
+- Clean up long-running tests to improve CI performance
+- Update and extend Python indexer tests for hash-based change detection
+
+**Automatic Fallback Searches (#198)**
+- When a function search fails, automatically try relaxed searches
+- Without module qualifier, without arity constraint, or private function variant
+- Results include notes explaining which fallback was used
+- Improved semantic search suggestions by splitting function names into keywords
+
+### Features
+
+**Erlang Language Support (#183)**
+- Full Erlang code indexing via tree-sitter parsing
+- Extract modules, functions, arity, line numbers, and visibility
+- EDoc extraction with keyword search support (@doc, @param, @returns tags)
+- Erlang notation formatting (module:func/arity)
+- Automatic language detection via rebar.config, erlang.mk, or src/*.erl
+- Tested on PURITY and cowboy
+
+**CLI Tool Execution (#202)**
+- Add `cicada run [tool]` command to execute all MCP tools from CLI
+- Tools can be run identically to their MCP behavior directly from command line
+
+**Universal Visibility Field (#205)**
+- Add normalized 'visibility' field ('public'/'private') separate from language-specific 'type' field
+- Enables consistent public/private classification across all supported languages
+- Backward compatible with existing indexes
+
+**Language-Specific Function Formatters (#203)**
+- Add format_function_name() to language formatter interface
+- Elixir: show args if available, otherwise /arity notation
+- Python: show args filtering out self/cls/arg0 implicit params
+- Erlang: use /arity notation (module:func/arity)
+
+**Multithreaded Indexing (#195)**
+- Parallel file processing during indexing for significant performance improvements
+- Faster index builds especially on larger codebases
+
+**Language-Agnostic Watcher (#199)**
+- Watcher now uses LanguageRegistry to detect project language automatically
+- Renamed ElixirFileEventHandler to SourceFileEventHandler with configurable extensions
+- Added fallback to index_repository() for indexers without incremental support
+- Shows detected language and watched file extensions in output
+
+### Improvements
+
+**Code Refactoring (#196)**
+- Extract shared helpers for keyword extraction, git timestamps, and module building
+- Refactor indexer to use shared helpers, eliminating ~200 lines of duplication
+- Extract handler methods from route_tool for better maintainability
+- Net reduction: -670 lines of code
+
+### Fixed (from v0.5.1)
+
+**Graceful Shutdown for Ctrl+C (#193)**
+- Fixed graceful shutdown during indexing when interrupted with Ctrl+C
+
+**Duplicate Git Helper Initialization (#196)**
+- Fix duplicate git_helper initialization bug in incremental indexer
+
 ## [0.5.1] - 2025-11-28
 
 ### Features
@@ -751,7 +847,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/wende/cicada/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wende/cicada/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/wende/cicada/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/wende/cicada/compare/v0.4.0...v0.4.2
