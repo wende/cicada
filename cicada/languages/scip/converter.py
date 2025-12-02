@@ -17,6 +17,7 @@ import cicada.languages.scip.scip_pb2 as scip_pb2
 # These are imported at module load time but after the class is defined
 _python_symbols = None
 _typescript_symbols = None
+_rust_symbols = None
 
 
 def _get_python_symbols():
@@ -37,6 +38,16 @@ def _get_typescript_symbols():
 
         _typescript_symbols = ts
     return _typescript_symbols
+
+
+def _get_rust_symbols():
+    """Lazy import for Rust symbol types module."""
+    global _rust_symbols
+    if _rust_symbols is None:
+        import cicada.languages.rust.symbol_types as rs
+
+        _rust_symbols = rs
+    return _rust_symbols
 
 
 @dataclass
@@ -1182,6 +1193,8 @@ class SCIPConverter:
         # Delegate to language-specific symbol type detection
         if scheme.startswith(("scip-typescript", "scip-javascript")):
             return _get_typescript_symbols().get_symbol_type(descriptor)
+        elif scheme.startswith(("rust-analyzer", "scip-rust")):
+            return _get_rust_symbols().get_symbol_type(descriptor)
         else:
             # Default to Python-style parsing (works for Python and unknown languages)
             return _get_python_symbols().get_symbol_type(descriptor)
@@ -1482,8 +1495,10 @@ class SCIPConverter:
             return None
 
         # Remove .py extension
-        if file_path.endswith(".py"):
+        if file_path.endswith((".py", ".rs", ".ts", ".js")):
             file_path = file_path[:-3]
+        elif file_path.endswith((".tsx", ".jsx")):
+            file_path = file_path[:-4]
 
         # Remove __init__ suffix for package modules
         if file_path.endswith("/__init__"):

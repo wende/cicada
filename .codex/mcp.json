@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cicada": {
+      "command": "uvx",
+      "args": [
+        "cicada-mcp"
+      ],
+      "env": {
+        "CICADA_CONFIG_DIR": "/Users/wende/.cicada/projects/9798b4939a1325d9"
+      }
+    }
+  }
+}

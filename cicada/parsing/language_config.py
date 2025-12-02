@@ -117,3 +117,23 @@ class LanguageConfig:
                 "block_end": "*/",
             },
         )
+
+    @staticmethod
+    def default_rust() -> "LanguageConfig":
+        """Create default Rust configuration."""
+        return LanguageConfig(
+            language="rust",
+            file_extensions=[".rs"],
+            excluded_dirs=[
+                "target",
+                ".git",
+                "node_modules",
+                "vendor",
+            ],
+            tree_sitter_grammar="tree-sitter-rust",
+            comment_syntax={
+                "line": "//",
+                "block_start": "/*",
+                "block_end": "*/",
+            },
+        )
