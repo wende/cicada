@@ -1,0 +1,839 @@
+{
+  "modules": {
+    "Calculator": {
+      "file": "src/lib.rs",
+      "line": 9,
+      "functions": [
+        {
+          "name": "new",
+          "arity": 0,
+          "line": 20,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Create a new calculator with an optional starting value.\n\n# Arguments\n\n* `initial_value` - The starting value (default: 0)"
+        },
+        {
+          "name": "add",
+          "arity": 0,
+          "line": 34,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 operations/add().",
+              "file": "src/lib.rs",
+              "line": 35
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "operations",
+              "function": "add",
+              "arity": 0,
+              "line": 35
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Add two numbers using operations module.\n\n# Arguments\n\n* `x` - First number\n* `y` - Second number\n\n# Returns\n\nSum of x and y"
+        },
+        {
+          "name": "multiply",
+          "arity": 0,
+          "line": 48,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 operations/multiply().",
+              "file": "src/lib.rs",
+              "line": 49
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "operations",
+              "function": "multiply",
+              "arity": 0,
+              "line": 49
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Multiply two numbers using operations module.\n\n# Arguments\n\n* `x` - First number\n* `y` - Second number\n\n# Returns\n\nProduct of x and y"
+        },
+        {
+          "name": "divide",
+          "arity": 0,
+          "line": 62,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 operations/divide().",
+              "file": "src/lib.rs",
+              "line": 63
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "operations",
+              "function": "divide",
+              "arity": 0,
+              "line": 63
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Divide x by y.\n\n# Arguments\n\n* `x` - Numerator\n* `y` - Denominator\n\n# Returns\n\nResult of division, or None if y is zero"
+        },
+        {
+          "name": "_private_method",
+          "arity": 0,
+          "line": 67,
+          "calls": [],
+          "dependencies": [],
+          "type": "private",
+          "args": [],
+          "signature": "",
+          "doc": "Private method (should be marked as private in index)."
+        },
+        {
+          "name": "calculate_expression",
+          "arity": 0,
+          "line": 82,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 impl#[Calculator]add().",
+              "file": "src/lib.rs",
+              "line": 83
+            },
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 impl#[Calculator]multiply().",
+              "file": "src/lib.rs",
+              "line": 84
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "impl#[Calculator]add()",
+              "function": "add",
+              "arity": 0,
+              "line": 83
+            },
+            {
+              "module": "impl#[Calculator]multiply()",
+              "function": "multiply",
+              "arity": 0,
+              "line": 84
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Calculate a complex expression using multiple operations.\n\n# Arguments\n\n* `x` - First operand\n* `y` - Second operand\n* `z` - Third operand\n\n# Returns\n\nResult of (x + y) * z"
+        },
+        {
+          "name": "format",
+          "arity": 0,
+          "line": 95,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo alloc https://github.com/rust-lang/rust/library/alloc macros/format!",
+              "file": "src/lib.rs",
+              "line": 96
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "macros",
+              "function": "format!",
+              "arity": 0,
+              "line": 96
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Format the value as a string."
+        }
+      ],
+      "calls": [
+        {
+          "module": "operations",
+          "function": "add",
+          "arity": 0,
+          "line": 35
+        },
+        {
+          "module": "operations",
+          "function": "multiply",
+          "arity": 0,
+          "line": 49
+        },
+        {
+          "module": "operations",
+          "function": "divide",
+          "arity": 0,
+          "line": 63
+        },
+        {
+          "module": "impl#[Calculator]add()",
+          "function": "add",
+          "arity": 0,
+          "line": 83
+        },
+        {
+          "module": "impl#[Calculator]multiply()",
+          "function": "multiply",
+          "arity": 0,
+          "line": 84
+        },
+        {
+          "module": "macros",
+          "function": "format!",
+          "arity": 0,
+          "line": 96
+        }
+      ],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "moduledoc": "A simple calculator that performs basic arithmetic operations.",
+      "name": "Calculator",
+      "type": "class",
+      "parent_module": "_file_src.lib",
+      "module_kind": "struct"
+    },
+    "Displayable": {
+      "file": "src/lib.rs",
+      "line": 89,
+      "functions": [
+        {
+          "name": "format",
+          "arity": 0,
+          "line": 91,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Format the value as a string."
+        }
+      ],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "moduledoc": "A trait for displayable results.",
+      "name": "Displayable",
+      "type": "class",
+      "parent_module": "_file_src.lib",
+      "module_kind": "trait"
+    },
+    "_file_src.lib": {
+      "name": "_file_src.lib",
+      "file": "src/lib.rs",
+      "line": 1,
+      "functions": [
+        {
+          "name": "helper_function",
+          "arity": 0,
+          "line": 109,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo core https://github.com/rust-lang/rust/library/core slice/impl#[`[T]`]len().",
+              "file": "src/lib.rs",
+              "line": 110
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "slice",
+              "function": "len",
+              "arity": 0,
+              "line": 110
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Top-level function to process data.\n\n# Arguments\n\n* `data` - Slice of items\n\n# Returns\n\nLength of the slice"
+        },
+        {
+          "name": "_private_function",
+          "arity": 0,
+          "line": 114,
+          "calls": [],
+          "dependencies": [],
+          "type": "private",
+          "args": [],
+          "signature": "",
+          "doc": "Private function (no pub keyword)."
+        },
+        {
+          "name": "test_calculator_add",
+          "arity": 0,
+          "line": 123,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 impl#[Calculator]new().",
+              "file": "src/lib.rs",
+              "line": 124
+            },
+            {
+              "callee": "rust-analyzer cargo core https://github.com/rust-lang/rust/library/core macros/assert_eq!",
+              "file": "src/lib.rs",
+              "line": 125
+            },
+            {
+              "callee": "rust-analyzer cargo sample_rust 0.1.0 impl#[Calculator]add().",
+              "file": "src/lib.rs",
+              "line": 125
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "impl#[Calculator]new()",
+              "function": "new",
+              "arity": 0,
+              "line": 124
+            },
+            {
+              "module": "macros",
+              "function": "assert_eq!",
+              "arity": 0,
+              "line": 125
+            },
+            {
+              "module": "impl#[Calculator]add()",
+              "function": "add",
+              "arity": 0,
+              "line": 125
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": ""
+        }
+      ],
+      "calls": [
+        {
+          "module": "slice",
+          "function": "len",
+          "arity": 0,
+          "line": 110
+        },
+        {
+          "module": "impl#[Calculator]new()",
+          "function": "new",
+          "arity": 0,
+          "line": 124
+        },
+        {
+          "module": "macros",
+          "function": "assert_eq!",
+          "arity": 0,
+          "line": 125
+        },
+        {
+          "module": "impl#[Calculator]add()",
+          "function": "add",
+          "arity": 0,
+          "line": 125
+        }
+      ],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "type": "module",
+      "module_kind": "module",
+      "classes": [
+        {
+          "name": "Calculator",
+          "line": 9,
+          "public_count": 6,
+          "private_count": 1,
+          "doc": "A simple calculator that performs basic arithmetic operations."
+        },
+        {
+          "name": "Displayable",
+          "line": 89,
+          "public_count": 1,
+          "private_count": 0,
+          "doc": "A trait for displayable results."
+        }
+      ],
+      "aliases": {},
+      "imports": []
+    },
+    "OperationType": {
+      "file": "src/utils.rs",
+      "line": 30,
+      "functions": [
+        {
+          "name": "symbol",
+          "arity": 0,
+          "line": 39,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Get the symbol for this operation."
+        }
+      ],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "moduledoc": "An enum representing operation types.",
+      "name": "OperationType",
+      "type": "class",
+      "parent_module": "_file_src.utils",
+      "module_kind": "enum"
+    },
+    "OperationType#Add": {
+      "file": "src/utils.rs",
+      "line": 31,
+      "functions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "name": "OperationType#Add",
+      "type": "class",
+      "parent_module": "_file_src.utils",
+      "module_kind": "class"
+    },
+    "OperationType#Subtract": {
+      "file": "src/utils.rs",
+      "line": 32,
+      "functions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "name": "OperationType#Subtract",
+      "type": "class",
+      "parent_module": "_file_src.utils",
+      "module_kind": "class"
+    },
+    "OperationType#Multiply": {
+      "file": "src/utils.rs",
+      "line": 33,
+      "functions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "name": "OperationType#Multiply",
+      "type": "class",
+      "parent_module": "_file_src.utils",
+      "module_kind": "class"
+    },
+    "OperationType#Divide": {
+      "file": "src/utils.rs",
+      "line": 34,
+      "functions": [],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "aliases": {},
+      "imports": [],
+      "name": "OperationType#Divide",
+      "type": "class",
+      "parent_module": "_file_src.utils",
+      "module_kind": "class"
+    },
+    "_file_src.utils": {
+      "name": "_file_src.utils",
+      "file": "src/utils.rs",
+      "line": 1,
+      "functions": [
+        {
+          "name": "chain_add",
+          "arity": 0,
+          "line": 12,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo core https://github.com/rust-lang/rust/library/core slice/impl#[`[T]`]iter().",
+              "file": "src/utils.rs",
+              "line": 13
+            },
+            {
+              "callee": "rust-analyzer cargo core https://github.com/rust-lang/rust/library/core iter/traits/iterator/Iterator#sum().",
+              "file": "src/utils.rs",
+              "line": 13
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "slice",
+              "function": "iter",
+              "arity": 0,
+              "line": 13
+            },
+            {
+              "module": "iter",
+              "function": "sum",
+              "arity": 0,
+              "line": 13
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Chain add a list of numbers.\n\n# Arguments\n\n* `numbers` - Slice of numbers to add\n\n# Returns\n\nSum of all numbers"
+        },
+        {
+          "name": "format_result",
+          "arity": 0,
+          "line": 25,
+          "calls": [
+            {
+              "callee": "rust-analyzer cargo alloc https://github.com/rust-lang/rust/library/alloc macros/format!",
+              "file": "src/utils.rs",
+              "line": 26
+            }
+          ],
+          "dependencies": [
+            {
+              "module": "macros",
+              "function": "format!",
+              "arity": 0,
+              "line": 26
+            }
+          ],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Format a result as a string.\n\n# Arguments\n\n* `value` - Value to format\n\n# Returns\n\nFormatted string representation"
+        }
+      ],
+      "calls": [
+        {
+          "module": "slice",
+          "function": "iter",
+          "arity": 0,
+          "line": 13
+        },
+        {
+          "module": "iter",
+          "function": "sum",
+          "arity": 0,
+          "line": 13
+        },
+        {
+          "module": "macros",
+          "function": "format!",
+          "arity": 0,
+          "line": 26
+        }
+      ],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "type": "module",
+      "module_kind": "module",
+      "classes": [
+        {
+          "name": "OperationType",
+          "line": 30,
+          "public_count": 1,
+          "private_count": 0,
+          "doc": "An enum representing operation types."
+        },
+        {
+          "name": "OperationType#Add",
+          "line": 31,
+          "public_count": 0,
+          "private_count": 0,
+          "doc": ""
+        },
+        {
+          "name": "OperationType#Subtract",
+          "line": 32,
+          "public_count": 0,
+          "private_count": 0,
+          "doc": ""
+        },
+        {
+          "name": "OperationType#Multiply",
+          "line": 33,
+          "public_count": 0,
+          "private_count": 0,
+          "doc": ""
+        },
+        {
+          "name": "OperationType#Divide",
+          "line": 34,
+          "public_count": 0,
+          "private_count": 0,
+          "doc": ""
+        }
+      ],
+      "aliases": {},
+      "imports": []
+    },
+    "_file_src.operations": {
+      "name": "_file_src.operations",
+      "file": "src/operations.rs",
+      "line": 1,
+      "functions": [
+        {
+          "name": "add",
+          "arity": 0,
+          "line": 13,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Add two integers.\n\n# Arguments\n\n* `x` - First number\n* `y` - Second number\n\n# Returns\n\nSum of x and y"
+        },
+        {
+          "name": "multiply",
+          "arity": 0,
+          "line": 27,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Multiply two integers.\n\n# Arguments\n\n* `x` - First number\n* `y` - Second number\n\n# Returns\n\nProduct of x and y"
+        },
+        {
+          "name": "divide",
+          "arity": 0,
+          "line": 41,
+          "calls": [],
+          "dependencies": [],
+          "type": "public",
+          "args": [],
+          "signature": "",
+          "doc": "Divide two floating point numbers.\n\n# Arguments\n\n* `x` - Numerator\n* `y` - Denominator\n\n# Returns\n\nSome(result) if y is not zero, None otherwise"
+        },
+        {
+          "name": "_internal_helper",
+          "arity": 0,
+          "line": 50,
+          "calls": [],
+          "dependencies": [],
+          "type": "private",
+          "args": [],
+          "signature": "",
+          "doc": "Private helper function."
+        }
+      ],
+      "calls": [],
+      "dependencies": {
+        "modules": [],
+        "has_dynamic_calls": false
+      },
+      "type": "module",
+      "module_kind": "module",
+      "classes": [],
+      "aliases": {},
+      "imports": []
+    }
+  },
+  "metadata": {
+    "indexed_at": "2025-12-02T22:43:21.262196",
+    "language": "rust",
+    "version": "2.0",
+    "repo_path": "/private/var/folders/1l/t5zft3hj5zj444636zdwrf2r0000gn/T/vibe-kanban-dev/worktrees/2b23-rust-support/tests/fixtures/sample_rust",
+    "total_modules": 10,
+    "total_functions": 18,
+    "scip_version": 0,
+    "tool_info": {
+      "name": "rust-analyzer",
+      "version": "1.89.0-nightly (777d3727 2025-05-17)"
+    }
+  },
+  "reverse_calls": {
+    "operations.add": [
+      {
+        "module": "Calculator",
+        "function": "add",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 35
+      }
+    ],
+    "operations.multiply": [
+      {
+        "module": "Calculator",
+        "function": "multiply",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 49
+      }
+    ],
+    "operations.divide": [
+      {
+        "module": "Calculator",
+        "function": "divide",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 63
+      }
+    ],
+    "impl#[Calculator]add().add": [
+      {
+        "module": "Calculator",
+        "function": "calculate_expression",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 83
+      },
+      {
+        "module": "_file_src.lib",
+        "function": "test_calculator_add",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 125
+      }
+    ],
+    "impl#[Calculator]multiply().multiply": [
+      {
+        "module": "Calculator",
+        "function": "calculate_expression",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 84
+      }
+    ],
+    "macros.format!": [
+      {
+        "module": "Calculator",
+        "function": "format",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 96
+      },
+      {
+        "module": "_file_src.utils",
+        "function": "format_result",
+        "arity": 0,
+        "file": "src/utils.rs",
+        "line": 26
+      }
+    ],
+    "slice.len": [
+      {
+        "module": "_file_src.lib",
+        "function": "helper_function",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 110
+      }
+    ],
+    "impl#[Calculator]new().new": [
+      {
+        "module": "_file_src.lib",
+        "function": "test_calculator_add",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 124
+      }
+    ],
+    "macros.assert_eq!": [
+      {
+        "module": "_file_src.lib",
+        "function": "test_calculator_add",
+        "arity": 0,
+        "file": "src/lib.rs",
+        "line": 125
+      }
+    ],
+    "slice.iter": [
+      {
+        "module": "_file_src.utils",
+        "function": "chain_add",
+        "arity": 0,
+        "file": "src/utils.rs",
+        "line": 13
+      }
+    ],
+    "iter.sum": [
+      {
+        "module": "_file_src.utils",
+        "function": "chain_add",
+        "arity": 0,
+        "file": "src/utils.rs",
+        "line": 13
+      }
+    ]
+  },
+  "cooccurrences": {
+    "method": {
+      "private": 1
+    },
+    "private": {
+      "method": 1,
+      "function": 1
+    },
+    "calculate": {
+      "expression": 1
+    },
+    "expression": {
+      "calculate": 1
+    },
+    "function": {
+      "helper": 1,
+      "private": 1
+    },
+    "helper": {
+      "function": 1,
+      "internal": 1
+    },
+    "add": {
+      "calculator": 1,
+      "test": 1,
+      "chain": 1
+    },
+    "calculator": {
+      "add": 1,
+      "test": 1
+    },
+    "test": {
+      "add": 1,
+      "calculator": 1
+    },
+    "chain": {
+      "add": 1
+    },
+    "format": {
+      "result": 1
+    },
+    "result": {
+      "format": 1
+    },
+    "internal": {
+      "helper": 1
+    }
+  }
+}
