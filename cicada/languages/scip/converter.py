@@ -1306,6 +1306,14 @@ class SCIPConverter:
                 name = descriptor
             return name
 
+        # Rust-specific handling
+        if scheme.startswith(("rust-analyzer", "scip-rust")) and "impl#[" in descriptor:
+            # Handle impl#[Type]method pattern
+            last_bracket = descriptor.rfind("]")
+            if last_bracket != -1:
+                name = descriptor[last_bracket + 1 :]
+                return name.rstrip("().")
+
         # Python and other languages: use () for callables
         # For classes (ending with #), remove # and get last / component
         if descriptor.endswith("#"):
@@ -1340,6 +1348,23 @@ class SCIPConverter:
         Returns:
         scip-python python myproject 1.0 mymodule/MyClass#
         """
+        # Rust-specific: Handle impl#[Type] pattern
+        # Example: rust-analyzer cargo pkg 1.0 impl#[Calculator]new().
+        if "impl#[" in symbol:
+            parts = symbol.split()
+            if len(parts) >= 5:
+                scheme = parts[0]
+                if scheme.startswith(("rust-analyzer", "scip-rust")):
+                    descriptor = " ".join(parts[4:])
+                    match = re.search(r"impl#\[(.*?)\]", descriptor)
+                    if match:
+                        type_name = match.group(1)
+                        # Preserve path prefix before impl (e.g. "utils/" in "utils/impl#[...]")
+                        path_prefix = descriptor[: match.start()]
+                        # Reconstruct parent symbol as: scheme language package version path/type_name#
+                        prefix = " ".join(parts[:4])
+                        return f"{prefix} {path_prefix}{type_name}#"
+
         if "#" not in symbol:
             return None
 
