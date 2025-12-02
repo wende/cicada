@@ -216,8 +216,8 @@ def get_tool_definitions() -> list[Tool]:
                     },
                     "match_source": {
                         "type": "string",
-                        "enum": ["all", "docs", "strings"],
-                        "description": "Where to search: 'all' (default) = docs + strings, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages).",
+                        "enum": ["all", "docs", "strings", "comments"],
+                        "description": "Where to search: 'all' (default) = docs + strings + comments, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages), 'comments' = inline comments (# ...).",
                     },
                     "max_results": {
                         "type": "integer",

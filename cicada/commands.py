@@ -586,6 +586,28 @@ Examples:
     agents_subparsers = agents_parser.add_subparsers(dest="agents_command", required=True)
     agents_subparsers.add_parser("install", help="Install Cicada agents")
 
+    # Run command - execute MCP tools from CLI
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Execute MCP tools from CLI",
+        description="Execute any of the 8 MCP tools directly from command line",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parser],
+        epilog="""
+Examples:
+  cicada run query "authentication"           # Search for code related to auth
+  cicada run search-module --module-name "MyApp.User"  # Search for a module
+  cicada run search-function create_user      # Find function definitions
+  cicada run git-history --file-path lib/auth.ex      # View file history
+        """,
+    )
+    # Register tool subparsers from MCP tool definitions
+    run_subparsers = run_parser.add_subparsers(dest="tool", required=True)
+    from cicada.cli_mapper import register_tool_subparsers
+    from cicada.mcp.tools import get_tool_definitions
+
+    register_tool_subparsers(run_subparsers, get_tool_definitions())
+
     return parser
 
 
@@ -617,6 +639,7 @@ def handle_command(args) -> bool:
         "link": handle_link,
         "unlink": handle_unlink,
         "agents": handle_agents,
+        "run": handle_run,
     }
 
     if args.command is None:
@@ -798,7 +821,7 @@ def handle_index_main(args) -> None:
 
     try:
         # Check if indexer supports incremental_index_repository (new unified API)
-        if hasattr(indexer, "incremental_index_repository"):
+        if indexer.supports_incremental:
             # Co-change analysis is enabled by default for better search results
             # Can be disabled with --no-cochange flag
             extract_cochange = not getattr(args, "no_cochange", False)
@@ -1554,3 +1577,55 @@ def handle_agents_install() -> None:
     print("\nNext steps:")
     print("  1. Restart Claude Code to load the new agent")
     print("  2. Use agent via: Task tool → select cicada-code-explorer")
+
+
+def handle_run(args) -> None:
+    """Execute MCP tools from CLI.
+
+    Args:
+        args: Parsed command-line arguments including tool name and tool-specific args
+    """
+    import asyncio
+
+    from cicada.cli_mapper import parse_cli_args_to_handler_kwargs
+    from cicada.mcp.config_manager import ConfigManager
+    from cicada.mcp.router import create_tool_router
+
+    # Get tool name (convert kebab-case to snake_case for handler lookup)
+    tool_name = args.tool.replace("-", "_")
+
+    # Parse CLI args to handler kwargs
+    try:
+        kwargs = parse_cli_args_to_handler_kwargs(args, tool_name)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load config using ConfigManager (handles env vars, links, etc.)
+    try:
+        config_path = ConfigManager.get_config_path()
+        config = ConfigManager.load_config(config_path)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Create router using shared factory (matches server.py setup)
+    router, _, _ = create_tool_router(config)
+
+    # Execute via router
+    async def run_tool():
+        result = await router.route_tool(tool_name, kwargs)
+        return result
+
+    try:
+        result = asyncio.run(run_tool())
+        # Print result (router returns list of TextContent)
+        if result:
+            for content in result:
+                print(content.text)
+    except Exception as e:
+        import traceback
+
+        print(f"Error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)

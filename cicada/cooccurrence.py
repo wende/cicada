@@ -47,6 +47,7 @@ class CooccurrenceAnalyzer:
             module_keywords = self._extract_all_keywords(
                 module_data.get("extracted_keywords"),
                 module_data.get("extracted_string_keywords"),
+                module_data.get("extracted_comment_keywords"),
             )
 
             # Record module-level co-occurrences
@@ -58,6 +59,7 @@ class CooccurrenceAnalyzer:
                 func_keywords = self._extract_all_keywords(
                     func.get("extracted_keywords"),
                     func.get("extracted_string_keywords"),
+                    func.get("extracted_comment_keywords"),
                 )
 
                 # Also include function name components as implicit keywords
@@ -72,33 +74,31 @@ class CooccurrenceAnalyzer:
         return dict(matrix)
 
     def _extract_all_keywords(
-        self, doc_keywords: dict | list | None, string_keywords: dict | list | None
+        self,
+        doc_keywords: dict | list | None,
+        string_keywords: dict | list | None,
+        comment_keywords: dict | list | None = None,
     ) -> set[str]:
         """
-        Extract all keywords from both doc and string sources.
+        Extract all keywords from doc, string, and comment sources.
 
         Args:
             doc_keywords: Keywords from documentation (dict or list)
             string_keywords: Keywords from string literals (dict or list)
+            comment_keywords: Keywords from inline comments (dict or list)
 
         Returns:
             Set of lowercase keywords
         """
         keywords = set()
 
-        # Extract doc keywords
-        if doc_keywords:
-            if isinstance(doc_keywords, list):
-                keywords.update(kw.lower() for kw in doc_keywords)
+        for source in (doc_keywords, string_keywords, comment_keywords):
+            if not source:
+                continue
+            if isinstance(source, list):
+                keywords.update(kw.lower() for kw in source)
             else:
-                keywords.update(k.lower() for k in doc_keywords)
-
-        # Extract string keywords
-        if string_keywords:
-            if isinstance(string_keywords, list):
-                keywords.update(kw.lower() for kw in string_keywords)
-            else:
-                keywords.update(k.lower() for k in string_keywords)
+                keywords.update(k.lower() for k in source)
 
         return keywords
 

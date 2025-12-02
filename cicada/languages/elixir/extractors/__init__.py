@@ -7,6 +7,7 @@ Author: Cursor(Auto)
 """
 
 from .call import extract_function_calls, extract_value_mentions
+from .comment import CommentExtractor
 from .dependency import (
     extract_aliases,
     extract_behaviours,
@@ -34,5 +35,6 @@ __all__ = [
     "extract_behaviours",
     "extract_function_calls",
     "extract_value_mentions",
+    "CommentExtractor",
     "StringExtractor",
 ]

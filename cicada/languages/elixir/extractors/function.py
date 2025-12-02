@@ -154,6 +154,7 @@ def _parse_test_definition(arguments_node, source_code: bytes, line: int) -> dic
             "line": line,
             "signature": f'test "{test_description}"',
             "type": "test",
+            "visibility": "private",  # Tests are not part of public API
             "test_description": test_description,
             "impl": False,
         }
@@ -217,6 +218,7 @@ def _parse_function_definition(
             "line": line,
             "signature": f"{func_type} {func_name}",
             "type": func_type,
+            "visibility": "public" if func_type == "def" else "private",
         }
 
     return None

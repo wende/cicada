@@ -22,12 +22,54 @@ from cicada.languages.scip.reader import SCIPReader
 from cicada.parsing.base_indexer import BaseIndexer
 from cicada.utils.hash_utils import (
     compute_hashes_for_files,
-    detect_file_changes,
     load_file_hashes,
     save_file_hashes,
 )
 from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils.storage import get_hashes_path
+
+
+def compute_target_directory(changed_files: list[str]) -> str | None:
+    """
+    Compute minimal common directory from list of changed files.
+
+    For incremental SCIP indexing, we want to limit analysis to the smallest
+    directory tree that contains all changed files.
+
+    Args:
+        changed_files: List of relative file paths that changed
+
+    Returns:
+        Common parent directory path, or None if files span the entire repo
+        (no benefit to using --target-only in that case)
+    """
+    if not changed_files:
+        return None
+
+    # Get parent directories of all changed files
+    parent_dirs = [str(Path(f).parent) for f in changed_files]
+
+    # Find common prefix path
+    if len(parent_dirs) == 1:
+        return parent_dirs[0] if parent_dirs[0] != "." else None
+
+    # Split paths into parts and find common prefix
+    split_paths = [Path(p).parts for p in parent_dirs]
+    common_parts: list[str] = []
+
+    for parts in zip(*split_paths, strict=False):
+        if len(set(parts)) == 1:
+            common_parts.append(parts[0])
+        else:
+            break
+
+    if not common_parts:
+        # Files span different top-level directories - no benefit
+        return None
+
+    common_path = str(Path(*common_parts))
+    # Don't return "." as it's the repo root
+    return common_path if common_path != "." else None
 
 
 @dataclass
@@ -201,10 +243,20 @@ class PythonSCIPIndexer(BaseIndexer):
         # Convert to relative paths for comparison
         relative_files = [str(f.relative_to(repo_path_obj)) for f in python_files]
 
-        # Check for changes
-        new_files, modified_files, deleted_files = detect_file_changes(
-            relative_files, existing_hashes, str(repo_path_obj)
-        )
+        # Compute current hashes ONCE at the start - these will be saved at the end
+        # This prevents race conditions where files change during indexing
+        current_hashes = compute_hashes_for_files(relative_files, str(repo_path_obj))
+
+        # Detect changes by comparing current hashes against existing hashes
+        current_file_set = set(current_hashes.keys())
+        old_file_set = set(existing_hashes.keys())
+        deleted_files = list(old_file_set - current_file_set)
+        new_files = [f for f in current_hashes if f not in existing_hashes]
+        modified_files = [
+            f
+            for f in current_hashes
+            if f in existing_hashes and current_hashes[f] != existing_hashes[f]
+        ]
 
         if not force_full and not new_files and not modified_files and not deleted_files:
             if self.verbose:
@@ -235,7 +287,19 @@ class PythonSCIPIndexer(BaseIndexer):
         self._log_timing("SCIP-python check")
 
         # 2. Run scip-python indexer
-        scip_file = self._run_scip_python(repo_path_obj)
+        # For incremental indexing, limit SCIP to changed file directories
+        target_only = None
+        if not force_full and (new_files or modified_files):
+            changed_files = new_files + modified_files
+            target_only = compute_target_directory(changed_files)
+            if self.verbose and target_only:
+                print(f"  Limiting SCIP analysis to: {target_only}")
+            elif self.verbose and not target_only:
+                print("  Changed files span repo root, running full SCIP")
+                if len(changed_files) <= 5:
+                    print(f"    Files: {changed_files}")
+
+        scip_file = self._run_scip_python(repo_path_obj, target_only=target_only)
         self._log_timing("SCIP-python indexing")
 
         try:
@@ -297,12 +361,22 @@ class PythonSCIPIndexer(BaseIndexer):
             except Exception as e:
                 raise RuntimeError(f"Failed to convert SCIP to Cicada format: {e}") from e
 
+            # 5b. Copy keywords from existing index for unchanged modules (optimization)
+            changed_files = set(new_files + modified_files)
+            copied_count = self._copy_unchanged_keywords(
+                cicada_index, output_path_obj, changed_files
+            )
+            if self.verbose and copied_count > 0:
+                print(f"  ✓ Reused keywords from {copied_count} unchanged modules")
+
             # 5-8. Run universal enrichment pipeline (shared across all languages)
+            # Note: _run_enrichment_pipeline will skip modules that already have keywords
             skipped_phases = self._run_enrichment_pipeline(
                 cicada_index,
                 repo_path_obj,
                 extract_keywords=extract_keywords,
                 extract_string_keywords=extract_string_keywords,
+                extract_comment_keywords=extract_keywords,
                 compute_timestamps=compute_timestamps,
                 extract_cochange=extract_cochange,
                 keyword_extractor=keyword_extractor,
@@ -316,12 +390,12 @@ class PythonSCIPIndexer(BaseIndexer):
             except Exception as e:
                 raise RuntimeError(f"Failed to save index: {e}") from e
 
-            # 10. Save file hashes
+            # 10. Save file hashes (use hashes computed at start to avoid race conditions)
+            # If files change DURING indexing, the pending reindex will detect them
             try:
-                if python_files:  # Only compute hashes if we have files
-                    current_hashes = compute_hashes_for_files([str(f) for f in python_files])
-                    save_file_hashes(str(hashes_path.parent), current_hashes)
-                self._log_timing("Hash computation and saving")
+                if current_hashes:  # current_hashes computed at start of indexing
+                    save_file_hashes(str(hashes_path), current_hashes)
+                self._log_timing("Hash saving")
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to save file hashes: {e}")
@@ -372,6 +446,88 @@ class PythonSCIPIndexer(BaseIndexer):
                 scip_file.unlink()
                 if self.verbose:
                     print(f"  Cleaned up temporary file: {scip_file}")
+
+    def _copy_unchanged_keywords(
+        self, new_index: dict, existing_index_path: Path, changed_files: set[str]
+    ) -> int:
+        """Copy keywords from existing index for modules whose files haven't changed.
+
+        This optimization avoids re-extracting keywords for unchanged modules,
+        significantly speeding up incremental indexing.
+
+        Args:
+            new_index: The freshly built index to update
+            existing_index_path: Path to the existing index.json
+            changed_files: Set of relative file paths that have changed
+
+        Returns:
+            Number of modules that had keywords copied
+        """
+        if not existing_index_path.exists():
+            return 0
+
+        try:
+            with open(existing_index_path) as f:
+                existing_index = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return 0
+
+        existing_modules = existing_index.get("modules", {})
+        new_modules = new_index.get("modules", {})
+        copied_count = 0
+
+        for module_name, module_data in new_modules.items():
+            file_path = module_data.get("file", "")
+
+            # Skip if file has changed - needs fresh keyword extraction
+            if file_path in changed_files:
+                continue
+
+            # Find corresponding module in existing index
+            existing_module = existing_modules.get(module_name)
+            if not existing_module:
+                continue
+
+            # Track if we actually copied anything for this module
+            copied_something = False
+
+            # Copy module-level keywords if present
+            if "keywords" in existing_module:
+                module_data["keywords"] = existing_module["keywords"]
+                copied_something = True
+            if "string_keywords" in existing_module:
+                module_data["string_keywords"] = existing_module["string_keywords"]
+                copied_something = True
+
+            # Copy function-level keywords and timestamps
+            existing_funcs = {f["name"]: f for f in existing_module.get("functions", [])}
+            for func in module_data.get("functions", []):
+                existing_func = existing_funcs.get(func["name"])
+                if existing_func:
+                    # Copy keywords
+                    if "keywords" in existing_func:
+                        func["keywords"] = existing_func["keywords"]
+                        copied_something = True
+                    if "string_keywords" in existing_func:
+                        func["string_keywords"] = existing_func["string_keywords"]
+                        copied_something = True
+                    # Copy timestamps
+                    for ts_field in [
+                        "created_at",
+                        "last_modified_at",
+                        "last_modified_sha",
+                        "modification_count",
+                        "modification_frequency",
+                    ]:
+                        if ts_field in existing_func:
+                            func[ts_field] = existing_func[ts_field]
+                            copied_something = True
+
+            # Only increment count if we actually copied at least one field
+            if copied_something:
+                copied_count += 1
+
+        return copied_count
 
     def _find_python_files(self, repo_path: Path) -> list[Path]:
         """Find all Python files in repository.
@@ -485,15 +641,22 @@ class PythonSCIPIndexer(BaseIndexer):
 
         total = len(modules)
 
+        skipped_count = 0
         for idx, (module_name, module_data) in enumerate(modules.items(), 1):
             # Defensive check: ensure module_data is a dict
             if not isinstance(module_data, dict):
                 if self.verbose:
                     print(f"    Warning: module_data for {module_name} is not a dict, skipping")
                 continue
+
+            # Skip modules that already have keywords (copied from existing index)
+            if "keywords" in module_data:
+                skipped_count += 1
+                continue
+
             if self.verbose and idx % 50 == 0 and pipeline:
                 print(
-                    f"\r    Processed {idx}/{total} modules (Keywords: {pipeline.stats['submitted']})",
+                    f"\r    Processed {idx}/{total} modules (Keywords: {pipeline.stats['submitted']}, Reused: {skipped_count})",
                     end="",
                     flush=True,
                 )
@@ -581,6 +744,11 @@ class PythonSCIPIndexer(BaseIndexer):
                 # Check for interrupt
                 if self._interrupted:
                     break
+
+                # Skip modules that already have string_keywords (copied from existing index)
+                if "string_keywords" in module_data:
+                    processed += 1
+                    continue
 
                 file_path = module_data.get("file")
                 if not file_path:
@@ -677,12 +845,15 @@ class PythonSCIPIndexer(BaseIndexer):
             "  npm install -g @sourcegraph/scip-python"
         )
 
-    def _run_scip_python(self, repo_path: Path) -> Path:
+    def _run_scip_python(self, repo_path: Path, target_only: str | None = None) -> Path:
         """
         Run scip-python indexer on repository.
 
         Args:
             repo_path: Repository root path
+            target_only: Optional path to limit SCIP analysis to (for incremental indexing).
+                        When provided, only files under this path are analyzed by SCIP.
+                        Cross-references from other directories may become stale.
 
         Returns:
             Path to generated .scip file
@@ -722,8 +893,14 @@ class PythonSCIPIndexer(BaseIndexer):
             str(scip_file),
         ]
 
+        if target_only:
+            cmd.extend(["--target-only", target_only])
+
         if self.verbose:
-            print("  Running SCIP (This may take several minutes for large projects...)")
+            if target_only:
+                print(f"  Running SCIP on {target_only} (partial incremental indexing)")
+            else:
+                print("  Running SCIP (This may take several minutes for large projects...)")
 
         try:
             result = subprocess.run(

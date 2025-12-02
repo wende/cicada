@@ -19,17 +19,8 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from cicada.command_logger import get_logger
-from cicada.git import GitHelper
 from cicada.mcp.config_manager import ConfigManager
-from cicada.mcp.handlers import (
-    AnalysisHandler,
-    FunctionSearchHandler,
-    GitHistoryHandler,
-    ModuleSearchHandler,
-    PRHistoryHandler,
-)
-from cicada.mcp.handlers.index_manager import IndexManager
-from cicada.mcp.router import ToolRouter
+from cicada.mcp.router import create_tool_router
 from cicada.mcp.tools import get_tool_definitions
 
 
@@ -49,34 +40,15 @@ class CicadaServer:
             config_path = ConfigManager.get_config_path()
         self.config = ConfigManager.load_config(config_path)
 
-        # Initialize index manager
-        self.index_manager = IndexManager(self.config)
+        # Create router using shared factory
+        self.router, self.index_manager, self.git_helper = create_tool_router(self.config)
 
-        # Initialize git helper
-        repo_path = self.config.get("repository", {}).get("path", ".")
-        self.git_helper: GitHelper | None = None
-        try:
-            self.git_helper = GitHelper(repo_path)
-        except Exception as e:
-            # If git initialization fails, set to None
-            # (e.g., not a git repository)
-            print(f"Warning: Git helper not available: {e}", file=sys.stderr)
-
-        # Initialize handlers
-        self.module_handler = ModuleSearchHandler(self.index_manager.index, self.config)
-        self.function_handler = FunctionSearchHandler(self.index_manager.index, self.config)
-        self.git_handler = GitHistoryHandler(self.git_helper, self.config)
-        self.pr_handler = PRHistoryHandler(self.index_manager.pr_index, self.config)
-        self.analysis_handler = AnalysisHandler(self.index_manager)
-
-        # Initialize router
-        self.router = ToolRouter(
-            module_handler=self.module_handler,
-            function_handler=self.function_handler,
-            git_handler=self.git_handler,
-            pr_handler=self.pr_handler,
-            analysis_handler=self.analysis_handler,
-        )
+        # Expose handlers for test access (these are also available via router)
+        self.module_handler = self.router.module_handler
+        self.function_handler = self.router.function_handler
+        self.git_handler = self.router.git_handler
+        self.pr_handler = self.router.pr_handler
+        self.analysis_handler = self.router.analysis_handler
 
         # Initialize MCP server
         self.server = Server("cicada")

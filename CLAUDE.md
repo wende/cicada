@@ -4,7 +4,7 @@ This file contains project-specific instructions for AI assistants working on th
 
 ## Quick Reference
 
-- **Language Support:** Elixir (production), Python (Beta - v0.5.0+), TypeScript (planned)
+- **Language Support:** Elixir, Python, Erlang (Beta), TypeScript (planned)
 - **Primary Installation:** `uv tool install cicada-mcp`
 - **Storage Directory:** `~/.cicada/projects/<repo_hash>/` (use `cicada dir` to find it)
 - **Testing:** Always use `make test` (never use `pytest` directly)
@@ -38,7 +38,7 @@ git commit -m "Add gh CLI dependency check"
 
 ### Cicada Tool Usage
 
-**ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
+**ALWAYS use cicada-mcp tools for Elixir, Python, and Erlang code searches. NEVER use Grep/Find for these tasks.**
 
 #### Use cicada tools for:
 - **PRIMARY TOOL:** `mcp__cicada__query` - Start here for ALL code exploration and discovery
@@ -71,7 +71,7 @@ For detailed information on specific topics, see:
 - **[Python Support](agents/python-support.md)** - Class display, import detection configuration
 
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for Elixir, Python, and Erlang code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
   - YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery. `mcp__cicada__query`
@@ -93,7 +93,4 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
-
-
-
-
+- after successful commit always push

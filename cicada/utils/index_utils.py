@@ -272,9 +272,11 @@ def get_index_stats(index: dict[str, Any]) -> dict[str, Any]:
             stats["total_functions"] += len(functions)
 
             for func in functions:
-                if func.get("type") == "def":
+                # Check normalized visibility field (set by language indexers)
+                visibility = func.get("visibility")
+                if visibility == "public":
                     stats["public_functions"] += 1
-                elif func.get("type") == "defp":
+                elif visibility == "private":
                     stats["private_functions"] += 1
 
     return stats

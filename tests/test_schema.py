@@ -29,6 +29,7 @@ class TestFunctionDataSerialization:
             arity=2,
             args=["arg1", "arg2"],
             type="public",
+            visibility="public",
             line=10,
             signature="def my_function(arg1, arg2)",
         )
@@ -44,6 +45,7 @@ class TestFunctionDataSerialization:
         assert func_restored.arity == func.arity
         assert func_restored.args == func.args
         assert func_restored.type == func.type
+        assert func_restored.visibility == func.visibility
         assert func_restored.line == func.line
         assert func_restored.signature == func.signature
         assert func_restored.doc is None
@@ -57,6 +59,7 @@ class TestFunctionDataSerialization:
             arity=2,
             args=["arg1", "arg2"],
             type="public",
+            visibility="public",
             line=10,
             signature="def my_function(arg1, arg2)",
             doc="My documentation",
@@ -84,6 +87,7 @@ class TestFunctionDataSerialization:
             arity=0,
             args=[],
             type="public",
+            visibility="public",
             line=10,
             signature="def my_function()",
             language_specific={"custom_field": "custom_value", "another": 123},
@@ -314,6 +318,7 @@ class TestValidationHappyPaths:
                             "arity": 2,
                             "args": ["x", "y"],
                             "type": "public",
+                            "visibility": "public",
                             "line": 5,
                             "signature": "def my_func(x, y)",
                             "doc": "Function doc",
@@ -998,9 +1003,10 @@ class TestEdgeCases:
             arity=1,
             args=["参数"],  # Chinese
             type="公开",  # Chinese
+            visibility="public",
             line=10,
             signature="def функция(参数)",
-            doc="Cette fonction fait quelque chose",  # French
+            doc="Cette fonction résout le problème très facilement",  # French with accents
         )
 
         func_dict = func.to_dict()
@@ -1009,7 +1015,7 @@ class TestEdgeCases:
         assert func_restored.name == "функция"
         assert func_restored.args == ["参数"]
         assert func_restored.type == "公开"
-        assert func_restored.doc == "Cette fonction fait quelque chose"
+        assert func_restored.doc == "Cette fonction résout le problème très facilement"
 
     def test_special_characters_in_signatures(self):
         """Test special characters in signatures and paths."""
@@ -1024,6 +1030,7 @@ class TestEdgeCases:
             arity=2,
             args=["a", "b"],
             type="public",
+            visibility="public",
             line=5,
             signature="def operator++(a, b) -> Result<T, Error>",
         )
@@ -1052,6 +1059,7 @@ class TestEdgeCases:
                             "arity": 0,
                             "args": [],
                             "type": "public",
+                            "visibility": "public",
                             "line": 5,
                             "signature": "def zero_arity()",
                         }
@@ -1081,6 +1089,7 @@ class TestEdgeCases:
             arity=100,
             args=large_args,
             type="public",
+            visibility="public",
             line=10,
             signature=f"def many_args({', '.join(large_args)})",
         )
@@ -1098,6 +1107,7 @@ class TestEdgeCases:
             arity=0,
             args=[],
             type="public",
+            visibility="public",
             line=10,
             signature="def my_func()",
             doc=None,
@@ -1119,6 +1129,7 @@ class TestEdgeCases:
             arity=0,
             args=[],
             type="public",
+            visibility="public",
             line=10,
             signature="def my_func()",
             language_specific={

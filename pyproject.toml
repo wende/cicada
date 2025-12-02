@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicada-mcp"
-version = "0.5.1"
+version = "0.5.2"
 description = "An Elixir and Python code intelligence MCP server"
 readme = "README.md"
 license = "MIT"
@@ -57,6 +57,7 @@ dependencies = [
     "gensim>=4.4.0",
     "watchdog>=3.0.0",
     "protobuf>=4.0.0",  # Required for SCIP (language-agnostic code indexing)
+    "tree-sitter-language-pack>=0.13.0",  # Multi-language tree-sitter bindings (Erlang, etc.)
 ]
 
 [project.urls]

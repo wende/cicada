@@ -21,6 +21,8 @@ from cicada.scoring import (
 class KeywordSearcher:
     """Search for modules and functions by keywords using pre-weighted keyword scores."""
 
+    VALID_SOURCES = ["all", "docs", "strings", "comments"]
+
     def __init__(
         self, index: dict[str, Any], match_source: str = "all", cochange_boost: float = 0.5
     ):
@@ -29,10 +31,17 @@ class KeywordSearcher:
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
-            match_source: Filter by keyword source ('all', 'docs', 'strings'). Defaults to 'all'.
+            match_source: Filter by keyword source ('all', 'docs', 'strings', 'comments'). Defaults to 'all'.
             cochange_boost: Boost factor for co-change relationships (0.0 to disable). Defaults to 0.5.
         """
         self.index = index
+
+        # Validate match_source
+        if match_source not in self.VALID_SOURCES:
+            raise ValueError(
+                f"match_source must be one of {self.VALID_SOURCES}, got '{match_source}'"
+            )
+
         self.match_source = match_source
         self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
@@ -47,59 +56,67 @@ class KeywordSearcher:
                 self.cooccurrence_analyzer = CooccurrenceAnalyzer(index)
 
     def _merge_keywords(
-        self, doc_keywords: dict | list | None, string_keywords: dict | list | None
+        self,
+        doc_keywords: dict | list | None,
+        string_keywords: dict | list | None,
+        comment_keywords: dict | list | None = None,
     ) -> tuple[dict[str, float], dict[str, str]]:
         """
-        Merge documentation and string keywords based on match_source filter.
+        Merge documentation, string, and comment keywords based on match_source filter.
 
         Args:
             doc_keywords: Keywords from documentation (dict or list)
             string_keywords: Keywords from string literals (dict or list)
+            comment_keywords: Keywords from inline comments (dict or list)
 
         Returns:
             Tuple of (merged_keywords_dict, keyword_sources_dict) where:
             - merged_keywords_dict: Combined keywords with scores
-            - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', or 'both')
+            - keyword_sources_dict: Maps each keyword to its source ('docs', 'strings', 'comments', or combinations)
         """
         # Normalize to dict format
-        doc_kw_dict = {}
-        if doc_keywords:
-            if isinstance(doc_keywords, list):
-                doc_kw_dict = {kw.lower(): 1.0 for kw in doc_keywords}
-            else:
-                doc_kw_dict = {k.lower(): v for k, v in doc_keywords.items()}
-
-        string_kw_dict = {}
-        if string_keywords:
-            if isinstance(string_keywords, list):
-                string_kw_dict = {kw.lower(): 1.0 for kw in string_keywords}
-            else:
-                string_kw_dict = {k.lower(): v for k, v in string_keywords.items()}
+        doc_kw_dict = self._normalize_keywords(doc_keywords)
+        string_kw_dict = self._normalize_keywords(string_keywords)
+        comment_kw_dict = self._normalize_keywords(comment_keywords)
 
         # Filter and merge based on match_source
-        merged = {}
-        sources = {}
-
         if self.match_source == "docs":
-            merged = doc_kw_dict
-            sources = dict.fromkeys(doc_kw_dict, "docs")
-        elif self.match_source == "strings":
-            merged = string_kw_dict
-            sources = dict.fromkeys(string_kw_dict, "strings")
-        else:  # 'all'
-            # Merge both, keeping higher score for duplicates
-            for k, v in doc_kw_dict.items():
-                merged[k] = v
-                sources[k] = "docs"
-            for k, v in string_kw_dict.items():
-                if k in merged:
-                    merged[k] = max(merged[k], v)
-                    sources[k] = "both"
+            return doc_kw_dict, dict.fromkeys(doc_kw_dict, "docs")
+        if self.match_source == "strings":
+            return string_kw_dict, dict.fromkeys(string_kw_dict, "strings")
+        if self.match_source == "comments":
+            return comment_kw_dict, dict.fromkeys(comment_kw_dict, "comments")
+
+        merged: dict[str, float] = {}
+        source_sets: dict[str, set[str]] = {}
+
+        for label, kw_dict in (
+            ("docs", doc_kw_dict),
+            ("strings", string_kw_dict),
+            ("comments", comment_kw_dict),
+        ):
+            for keyword, score in kw_dict.items():
+                if keyword in merged:
+                    merged[keyword] = max(merged[keyword], score)
                 else:
-                    merged[k] = v
-                    sources[k] = "strings"
+                    merged[keyword] = score
+
+                if keyword not in source_sets:
+                    source_sets[keyword] = set()
+                source_sets[keyword].add(label)
+
+        # Convert source sets to stable strings (e.g., docs+comments+strings)
+        sources = {keyword: "+".join(sorted(labels)) for keyword, labels in source_sets.items()}
 
         return merged, sources
+
+    def _normalize_keywords(self, keywords: dict | list | None) -> dict[str, float]:
+        """Normalize keyword inputs to a lowercase->score dict."""
+        if not keywords:
+            return {}
+        if isinstance(keywords, list):
+            return {kw.lower(): 1.0 for kw in keywords}
+        return {k.lower(): v for k, v in keywords.items()}
 
     def _build_document_map(self) -> list[dict[str, Any]]:
         """
@@ -129,9 +146,11 @@ class KeywordSearcher:
         self, module_name: str, module_data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a module."""
-        # Merge doc keywords and string keywords based on match_source
+        # Merge doc keywords, string keywords, and comment keywords based on match_source
         keywords_dict, keyword_sources = self._merge_keywords(
-            module_data.get("keywords"), module_data.get("string_keywords")
+            module_data.get("keywords"),
+            module_data.get("string_keywords"),
+            module_data.get("comment_keywords"),
         )
 
         # Skip if no keywords after filtering
@@ -183,9 +202,11 @@ class KeywordSearcher:
         self, module_name: str, module_data: dict[str, Any], func: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Create a searchable document for a function."""
-        # Merge doc keywords and string keywords based on match_source
+        # Merge doc keywords, string keywords, and comment keywords based on match_source
         keywords_dict, keyword_sources = self._merge_keywords(
-            func.get("keywords"), func.get("string_keywords")
+            func.get("keywords"),
+            func.get("string_keywords"),
+            func.get("comment_keywords"),
         )
 
         # Skip if no keywords after filtering
@@ -216,6 +237,10 @@ class KeywordSearcher:
         # Include string sources if available and relevant
         if func.get("string_sources") and self.match_source in ["all", "strings"]:
             document["string_sources"] = func["string_sources"]
+
+        # Include comment sources if available and relevant
+        if func.get("comment_sources") and self.match_source in ["all", "comments"]:
+            document["comment_sources"] = func["comment_sources"]
 
         # Include timestamp fields if available
         if func.get("last_modified_at"):

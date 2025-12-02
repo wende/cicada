@@ -42,18 +42,22 @@ def compute_file_hash(file_path: str) -> str:
         raise OSError(f"Error reading file {file_path}: {e}") from e
 
 
-def load_file_hashes(cicada_dir: str) -> dict[str, str]:
+def load_file_hashes(path: str) -> dict[str, str]:
     """
-    Load file hashes from .cicada/hashes.json.
+    Load file hashes from a hashes.json file.
 
     Args:
-        cicada_dir: Path to the .cicada directory
+        path: Path to the hashes.json file OR the directory containing it.
+              If a directory is passed, appends 'hashes.json' for backwards compatibility.
 
     Returns:
         Dictionary mapping file paths to MD5 hashes.
         Returns empty dict if hashes.json doesn't exist.
     """
-    hashes_path = Path(cicada_dir) / "hashes.json"
+    hashes_path = Path(path)
+    # Backwards compatibility: if directory passed, append hashes.json
+    if hashes_path.is_dir() or not str(path).endswith(".json"):
+        hashes_path = hashes_path / "hashes.json"
 
     if not hashes_path.exists():
         return {}
@@ -67,18 +71,22 @@ def load_file_hashes(cicada_dir: str) -> dict[str, str]:
         return {}
 
 
-def save_file_hashes(cicada_dir: str, hashes: dict[str, str]) -> None:
+def save_file_hashes(path: str, hashes: dict[str, str]) -> None:
     """
-    Save file hashes to .cicada/hashes.json.
+    Save file hashes to a hashes.json file.
 
     Args:
-        cicada_dir: Path to the .cicada directory
+        path: Path to the hashes.json file OR the directory containing it.
+              If a directory is passed, appends 'hashes.json' for backwards compatibility.
         hashes: Dictionary mapping file paths to MD5 hashes
     """
-    hashes_path = Path(cicada_dir) / "hashes.json"
+    hashes_path = Path(path)
+    # Backwards compatibility: if directory passed, append hashes.json
+    if hashes_path.is_dir() or not str(path).endswith(".json"):
+        hashes_path = hashes_path / "hashes.json"
 
-    # Ensure .cicada directory exists
-    os.makedirs(cicada_dir, exist_ok=True)
+    # Ensure parent directory exists
+    os.makedirs(hashes_path.parent, exist_ok=True)
 
     data = {
         "version": "1.0",

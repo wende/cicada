@@ -1481,3 +1481,76 @@ def test_fallback_note_not_rendered_when_none():
     assert "no matches" not in markdown.lower()
     # Result should still be rendered
     assert "MyApp.Module.create/1" in markdown
+
+
+# Tests for language detection and function name formatting
+
+
+def test_get_language_from_func_elixir_def():
+    """Test that 'def' type is detected as Elixir."""
+    func = {"type": "def", "name": "public_func", "arity": 1}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "elixir"
+
+
+def test_get_language_from_func_elixir_defp():
+    """Test that 'defp' type is detected as Elixir."""
+    func = {"type": "defp", "name": "private_func", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "elixir"
+
+
+def test_get_language_from_func_python_public():
+    """Test that 'public' type is detected as Python."""
+    func = {"type": "public", "name": "method", "arity": 2}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_python_private():
+    """Test that 'private' type is detected as Python."""
+    func = {"type": "private", "name": "_internal", "arity": 1}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_unknown_defaults_to_python():
+    """Test that unknown function type defaults to Python."""
+    func = {"type": "unknown_type", "name": "something", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_get_language_from_func_missing_type_defaults_to_python():
+    """Test that missing type field defaults to Python."""
+    func = {"name": "something", "arity": 0}
+    language = ModuleFormatter._get_language_from_func(func)
+    assert language == "python"
+
+
+def test_format_function_name_elixir_with_args():
+    """Test formatting Elixir function with args shows args."""
+    func = {"type": "def", "name": "add", "arity": 2, "args": ["a", "b"]}
+    result = ModuleFormatter._format_function_name(func, "add", 2)
+    assert result == "add(a, b)"
+
+
+def test_format_function_name_elixir_without_args():
+    """Test formatting Elixir function without args uses arity notation."""
+    func = {"type": "def", "name": "process", "arity": 3}
+    result = ModuleFormatter._format_function_name(func, "process", 3)
+    assert result == "process/3"
+
+
+def test_format_function_name_python_filters_self():
+    """Test formatting Python method filters out self."""
+    func = {"type": "public", "name": "method", "arity": 2, "args": ["self", "value"]}
+    result = ModuleFormatter._format_function_name(func, "method", 2)
+    assert result == "method(value)"
+
+
+def test_format_function_name_python_without_args():
+    """Test formatting Python function without args shows empty parens."""
+    func = {"type": "public", "name": "util", "arity": 1}
+    result = ModuleFormatter._format_function_name(func, "util", 1)
+    assert result == "util()"

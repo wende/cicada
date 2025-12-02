@@ -308,6 +308,102 @@ class ElixirIndexer(BaseIndexer):
 
         return processed
 
+    def _extract_comment_keywords(
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor: Any,
+        pipeline: Any,
+    ) -> int:
+        """Extract keywords from inline comments (Elixir-specific)."""
+        from cicada.languages.elixir.extractors import CommentExtractor, extract_modules
+
+        if self.verbose:
+            print("  Extracting comment keywords...")
+
+        comment_extractor = CommentExtractor(min_length=3, merge_consecutive=True)
+        processed = 0
+
+        for module_name, module_data in index.get("modules", {}).items():
+            file_path_str = module_data.get("file")
+            if not file_path_str:
+                continue
+
+            full_path = repo_path / file_path_str
+            if not full_path.exists():
+                continue
+
+            try:
+                import tree_sitter_elixir as ts_elixir
+                from tree_sitter import Language, Parser
+
+                with open(full_path, "rb") as f:
+                    source_code = f.read()
+
+                ts_parser = Parser(Language(ts_elixir.language()))  # type: ignore[deprecated]
+                tree = ts_parser.parse(source_code)
+
+                parsed_modules = extract_modules(tree.root_node, source_code)
+                if not parsed_modules:
+                    continue
+
+                for parsed_mod in parsed_modules:
+                    if parsed_mod["module"] != module_name:
+                        continue
+
+                    do_block = parsed_mod.get("do_block")
+                    if not do_block:
+                        continue
+
+                    # Extract comments and associate with functions
+                    comments_by_function = comment_extractor.extract_from_module(
+                        do_block, source_code, module_data.get("functions", [])
+                    )
+
+                    for func in module_data.get("functions", []):
+                        func_name = func.get("name")
+                        if not func_name or func_name not in comments_by_function:
+                            continue
+
+                        func_comments = comments_by_function[func_name]
+                        if not func_comments:
+                            continue
+
+                        combined_text = " ".join(c["comment"] for c in func_comments)
+                        if not combined_text.strip():
+                            func["comment_sources"] = func_comments
+                            continue
+
+                        result = keyword_extractor.extract_keywords(combined_text, top_n=10)
+                        keywords = {
+                            kw: score * 1.2  # 1.2x boost for comments
+                            for kw, score in result.get("top_keywords", [])
+                        }
+
+                        if keywords:
+                            func["comment_sources"] = func_comments
+                            func["extracted_comment_keywords"] = keywords.copy()
+                            callback = ExpansionCallback(target=func, target_key="comment_keywords")
+                            for cb, res in pipeline.submit(
+                                list(keywords.keys()),
+                                keywords,
+                                callback,
+                                top_n=3,
+                                threshold=0.2,
+                            ):
+                                self._apply_expansion_result(cb, res)
+                        else:
+                            func["comment_sources"] = func_comments
+
+                    processed += 1
+                    break  # Found module, stop searching parsed modules
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Warning: Failed to extract comments from {file_path_str}: {e}")
+
+        return processed
+
     # ====================================================================================
     # Legacy methods
     # ====================================================================================
@@ -816,6 +912,7 @@ class ElixirIndexer(BaseIndexer):
             repo_path_obj,
             extract_keywords=extract_keywords,
             extract_string_keywords=extract_string_keywords,
+            extract_comment_keywords=extract_keywords,
             compute_timestamps=compute_timestamps,
             extract_cochange=extract_cochange,
             keyword_extractor=keyword_extractor,
@@ -858,8 +955,6 @@ class ElixirIndexer(BaseIndexer):
                 print("\nIndexing complete!")
                 print(f"  Modules: {len(all_modules)}")
                 print(f"  Functions: {total_functions}")
-
-            # Report keyword extraction failures if any
 
             print(f"\nIndex saved to: {output_path_obj}")
             print(f"Hashes saved to: {output_path_obj.parent}/hashes.json")
@@ -1119,6 +1214,7 @@ class ElixirIndexer(BaseIndexer):
                 repo_path_obj,
                 extract_keywords=extract_keywords,
                 extract_string_keywords=extract_string_keywords,
+                extract_comment_keywords=extract_keywords,
                 compute_timestamps=compute_timestamps,
                 extract_cochange=extract_cochange,
                 keyword_extractor=keyword_extractor,
@@ -1166,7 +1262,6 @@ class ElixirIndexer(BaseIndexer):
             print(f"  Files processed: {files_processed}")
             print(f"  Files deleted: {len(deleted_files)}")
 
-        # Report keyword extraction failures if any
         return merged_index
 
     def _find_elixir_files(self, repo_path: Path) -> list:

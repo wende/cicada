@@ -211,6 +211,14 @@ LanguageRegistry.register_language(
     config=LanguageConfig.default_rust(),
 )
 
+# Register Erlang (tree-sitter based)
+LanguageRegistry.register_language(
+    language="erlang",
+    parser_class="cicada.languages.erlang.parser.ErlangParser",
+    indexer_class="cicada.languages.erlang.indexer.ErlangIndexer",
+    config=LanguageConfig.default_erlang(),
+)
+
 
 # Global registry singleton
 def get_language_registry() -> type[LanguageRegistry]:
