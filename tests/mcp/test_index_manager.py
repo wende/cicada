@@ -402,6 +402,37 @@ class TestBackgroundRefreshManager:
         # Should reset flag even on error
         assert refresh_manager._refresh_in_progress is False
 
+    def test_run_incremental_falls_back_when_not_supported(self, refresh_manager):
+        """Background refresh should fall back to full indexing when needed."""
+        mock_indexer = MagicMock()
+        mock_indexer.supports_incremental = False
+        mock_indexer.incremental_index_repository = MagicMock()
+        mock_indexer.index_repository = MagicMock()
+
+        with patch("cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer):
+            with patch("cicada.setup.detect_project_language", return_value="python"):
+                refresh_manager._run_incremental_index()
+
+        mock_indexer.incremental_index_repository.assert_not_called()
+        mock_indexer.index_repository.assert_called_once()
+
+    def test_force_refresh_falls_back_without_incremental(self, refresh_manager):
+        """force_refresh should use full indexing when incremental unsupported."""
+        mock_indexer = MagicMock()
+        mock_indexer.supports_incremental = False
+        mock_indexer.incremental_index_repository = MagicMock()
+        mock_indexer.index_repository.return_value = {
+            "metadata": {"total_modules": 1, "total_functions": 2}
+        }
+
+        with patch("cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer):
+            with patch("cicada.setup.detect_project_language", return_value="python"):
+                result = refresh_manager.force_refresh(force_full=False)
+
+        assert result["mode"] == "full"
+        mock_indexer.incremental_index_repository.assert_not_called()
+        mock_indexer.index_repository.assert_called_once()
+
     def test_execute_refresh_sets_pending_if_already_running(self, refresh_manager):
         """Test that _execute_refresh sets pending flag if refresh already in progress."""
         refresh_manager._refresh_in_progress = True

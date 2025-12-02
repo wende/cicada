@@ -327,8 +327,9 @@ def index_repository(
 
         # Use standard indexer interface
         indexer = LanguageRegistry.get_indexer(language)
-        # Check if indexer supports incremental_index_repository (new unified API)
-        if hasattr(indexer, "incremental_index_repository"):
+        supports_incremental = getattr(indexer, "supports_incremental", False)
+        can_incremental = supports_incremental and hasattr(indexer, "incremental_index_repository")
+        if can_incremental:
             indexer.incremental_index_repository(
                 repo_path=str(repo_path),
                 output_path=str(index_path),

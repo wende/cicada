@@ -4,6 +4,7 @@ Index Management for Cicada MCP Server.
 Handles loading, reloading, and managing the code index and PR index.
 """
 
+import inspect
 import json
 import os
 import random
@@ -147,14 +148,26 @@ class BackgroundRefreshManager:
         extract_keywords = indexing_config.get("extract_keywords", False)
         extract_string_keywords = indexing_config.get("extract_string_keywords", False)
 
-        indexer.incremental_index_repository(
-            repo_path=str(self.repo_path),
-            output_path=str(self.index_path),
-            extract_keywords=extract_keywords,
-            extract_string_keywords=extract_string_keywords,
-            force_full=False,
-            verbose=False,
-        )
+        supports_incremental = getattr(indexer, "supports_incremental", False)
+        can_incremental = supports_incremental and hasattr(indexer, "incremental_index_repository")
+
+        if can_incremental:
+            indexer.incremental_index_repository(
+                repo_path=str(self.repo_path),
+                output_path=str(self.index_path),
+                extract_keywords=extract_keywords,
+                extract_string_keywords=extract_string_keywords,
+                force_full=False,
+                verbose=False,
+            )
+        else:
+            self._call_full_index(
+                indexer=indexer,
+                extract_keywords=extract_keywords,
+                extract_string_keywords=extract_string_keywords,
+                force=False,
+                verbose=False,
+            )
 
     def force_refresh(self, force_full: bool = False) -> dict[str, Any]:
         """
@@ -194,14 +207,20 @@ class BackgroundRefreshManager:
                 extract_keywords = indexing_config.get("extract_keywords", False)
                 extract_string_keywords = indexing_config.get("extract_string_keywords", False)
 
-                if force_full:
-                    result = indexer.index_repository(
-                        repo_path=str(self.repo_path),
-                        output_path=str(self.index_path),
+                supports_incremental = getattr(indexer, "supports_incremental", False)
+                can_incremental = supports_incremental and hasattr(
+                    indexer, "incremental_index_repository"
+                )
+
+                if force_full or not can_incremental:
+                    result = self._call_full_index(
+                        indexer=indexer,
                         extract_keywords=extract_keywords,
                         extract_string_keywords=extract_string_keywords,
+                        force=force_full,
                         verbose=False,
                     )
+                    mode = "full"
                 else:
                     result = indexer.incremental_index_repository(
                         repo_path=str(self.repo_path),
@@ -211,6 +230,7 @@ class BackgroundRefreshManager:
                         force_full=False,
                         verbose=False,
                     )
+                    mode = "incremental"
 
                 elapsed = time.time() - start_time
                 with self._refresh_lock:
@@ -223,7 +243,7 @@ class BackgroundRefreshManager:
                     "elapsed_seconds": round(elapsed, 2),
                     "total_modules": metadata.get("total_modules", 0),
                     "total_functions": metadata.get("total_functions", 0),
-                    "mode": "full" if force_full else "incremental",
+                    "mode": mode,
                 }
             except Exception as e:
                 elapsed = time.time() - start_time
@@ -235,6 +255,36 @@ class BackgroundRefreshManager:
         finally:
             with self._refresh_lock:
                 self._refresh_in_progress = False
+
+    def _call_full_index(
+        self,
+        *,
+        indexer: Any,
+        extract_keywords: bool,
+        extract_string_keywords: bool,
+        force: bool,
+        verbose: bool,
+    ) -> Any:
+        """Invoke index_repository with the keyword arguments it supports."""
+
+        kwargs: dict[str, Any] = {
+            "repo_path": str(self.repo_path),
+            "output_path": str(self.index_path),
+            "force": force,
+            "verbose": verbose,
+        }
+
+        try:
+            params = inspect.signature(indexer.index_repository).parameters
+        except (TypeError, ValueError):  # pragma: no cover - defensive fallback
+            params = {}
+
+        if "extract_keywords" in params:
+            kwargs["extract_keywords"] = extract_keywords
+        if "extract_string_keywords" in params:
+            kwargs["extract_string_keywords"] = extract_string_keywords
+
+        return indexer.index_repository(**kwargs)
 
     def stop(self) -> None:
         """Stop any pending refresh operations."""

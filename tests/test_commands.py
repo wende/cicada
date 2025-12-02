@@ -996,6 +996,30 @@ class TestHandleIndexMain:
             assert exc_info.value.code == 130
 
     @patch("cicada.languages.LanguageRegistry.get_indexer")
+    def test_index_main_respects_supports_incremental_flag(self, mock_get_indexer):
+        """Should fall back to full indexing when supports_incremental is False."""
+        from cicada.commands import handle_index_main
+
+        mock_indexer = MagicMock()
+        mock_indexer.supports_incremental = False
+        mock_indexer.incremental_index_repository = MagicMock()
+        mock_indexer.index_repository = MagicMock()
+        mock_get_indexer.return_value = mock_indexer
+
+        with TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "mix.exs").touch()
+
+            parser = get_argument_parser()
+            args = parser.parse_args(["index", "--force", "--fast", tmpdir])
+
+            with patch("cicada.setup.detect_project_language", return_value="elixir"):
+                handle_index_main(args)
+
+            mock_indexer.incremental_index_repository.assert_not_called()
+            mock_indexer.index_repository.assert_called_once()
+
+    @patch("cicada.languages.LanguageRegistry.get_indexer")
     def test_index_main_keyboard_interrupt_legacy_indexer(self, mock_get_indexer):
         """Test KeyboardInterrupt with legacy indexer (no incremental_index_repository)."""
         from cicada.commands import handle_index_main

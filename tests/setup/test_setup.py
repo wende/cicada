@@ -765,6 +765,22 @@ class TestIndexRepositoryForceFullParameter:
                     "Please check that the repository contains valid elixir files" in captured.out
                 )
 
+    def test_falls_back_when_incremental_not_supported(self, mock_repo):
+        """Should call index_repository when supports_incremental is False."""
+        with patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer:
+            with patch("cicada.setup.get_index_path"):
+                with patch("cicada.setup.get_config_path"):
+                    mock_indexer = MagicMock()
+                    mock_indexer.supports_incremental = False
+                    mock_indexer.incremental_index_repository = MagicMock()
+                    mock_indexer.index_repository = MagicMock()
+                    mock_get_indexer.return_value = mock_indexer
+
+                    index_repository(mock_repo, language="elixir")
+
+                    mock_indexer.incremental_index_repository.assert_not_called()
+                    mock_indexer.index_repository.assert_called_once()
+
 
 class TestSetupIndexExists:
     """Tests for setup() with index_exists parameter"""
