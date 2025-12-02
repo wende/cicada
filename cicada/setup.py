@@ -55,6 +55,10 @@ def detect_project_language(repo_path: Path) -> str:
     if (repo_path / "mix.exs").exists():
         return "elixir"
 
+    # Check for Rust marker
+    if (repo_path / "Cargo.toml").exists():
+        return "rust"
+
     # Check for TypeScript/JavaScript markers
     ts_markers = ["tsconfig.json", "package.json"]
     for marker in ts_markers:
@@ -68,7 +72,7 @@ def detect_project_language(repo_path: Path) -> str:
     raise ValueError(
         f"Could not detect project language in {repo_path}\n"
         "Expected Python markers (pyproject.toml, setup.py, etc.), "
-        "Elixir marker (mix.exs), or TypeScript/JavaScript markers"
+        "Elixir marker (mix.exs), Rust marker (Cargo.toml), or TypeScript/JavaScript markers"
     )
 
 
