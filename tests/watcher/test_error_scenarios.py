@@ -13,6 +13,19 @@ import pytest
 from cicada.watcher import FileWatcher
 
 
+@pytest.fixture(autouse=True)
+def patch_generic_indexing_for_watcher_errors():
+    with patch("cicada.watcher.run_generic_indexing_for_language_indexer") as mock_runner:
+        mock_runner.return_value = {
+            "success": True,
+            "modules_count": 0,
+            "files_indexed": 0,
+            "errors": [],
+            "metadata": {},
+        }
+        yield mock_runner
+
+
 class TestWatcherErrorScenarios:
     """Test Issue 2.1 fix - Dangerous Fallback with Broken Index"""
 

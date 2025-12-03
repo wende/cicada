@@ -1257,15 +1257,18 @@ class SCIPConverter:
         if descriptor.endswith("/__init__"):
             descriptor = descriptor[: -len("/__init__")]
 
+        # Normalize descriptor by removing optional backticks added by scip-python
+        descriptor = descriptor.strip("`")
+
         # Get the module part
         if "/" in descriptor:
             # For "utils/chain_add" -> "utils"
             # For "typing/List" -> "typing"
             module_path = descriptor.split("/")[0]
-            return module_path
+            return module_path.strip("`")
         elif descriptor:
             # For "operations" (after __init__ removal) -> "operations"
-            return descriptor
+            return descriptor.strip("`")
 
         return None
 

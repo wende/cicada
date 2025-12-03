@@ -1,0 +1,17 @@
+{
+  "exclude": [
+    ".venv",
+    ".egg-info",
+    "htmlcov",
+    "__pycache__",
+    ".mypy_cache",
+    ".git",
+    "build",
+    "dist",
+    ".pytest_cache",
+    ".tox",
+    "node_modules",
+    "venv",
+    ".ruff_cache"
+  ]
+}

@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
 from cicada.utils import get_pr_index_path, load_index
 
 # Type hint for IndexManager is forward-referenced with string annotation below
@@ -155,6 +156,12 @@ class BackgroundRefreshManager:
             force_full=False,
             verbose=False,
         )
+        run_generic_indexing_for_language_indexer(
+            indexer,
+            self.repo_path,
+            self.index_path,
+            verbose=False,
+        )
 
     def force_refresh(self, force_full: bool = False) -> dict[str, Any]:
         """
@@ -212,12 +219,23 @@ class BackgroundRefreshManager:
                         verbose=False,
                     )
 
+                generic_result = run_generic_indexing_for_language_indexer(
+                    indexer,
+                    self.repo_path,
+                    self.index_path,
+                    verbose=False,
+                )
+
                 elapsed = time.time() - start_time
                 with self._refresh_lock:
                     self._last_refresh_time = time.time()
 
                 # Extract stats from result
-                metadata = result.get("metadata", {}) if result else {}
+                metadata = {}
+                if generic_result:
+                    metadata = generic_result.get("metadata", {}) or metadata
+                if not metadata and result:
+                    metadata = result.get("metadata", {}) or metadata
                 return {
                     "success": True,
                     "elapsed_seconds": round(elapsed, 2),

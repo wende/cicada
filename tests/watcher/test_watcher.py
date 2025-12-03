@@ -17,6 +17,19 @@ from cicada.watcher import SourceFileEventHandler, FileWatcher
 pytestmark = pytest.mark.xdist_group(name="file_watcher_tests")
 
 
+@pytest.fixture(autouse=True)
+def patch_generic_indexing_for_watcher_module():
+    with patch("cicada.watcher.run_generic_indexing_for_language_indexer") as mock_runner:
+        mock_runner.return_value = {
+            "success": True,
+            "modules_count": 0,
+            "files_indexed": 0,
+            "errors": [],
+            "metadata": {},
+        }
+        yield mock_runner
+
+
 @pytest.fixture
 def mock_watcher():
     """Create a mock watcher for event handler testing"""

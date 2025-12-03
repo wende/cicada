@@ -18,6 +18,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from cicada.languages import LanguageRegistry
+from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
 from cicada.parsing.base_indexer import BaseIndexer
 from cicada.setup import detect_project_language
 from cicada.utils.storage import create_storage_dir
@@ -364,6 +365,13 @@ class FileWatcher:
                 force=False,
                 verbose=self.verbose,
             )
+
+        run_generic_indexing_for_language_indexer(
+            self.indexer,
+            self.repo_path,
+            index_path,
+            verbose=self.verbose,
+        )
 
     def _on_file_change(self, event: FileSystemEvent) -> None:
         """

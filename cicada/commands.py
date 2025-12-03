@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 # Import tier resolution functions from centralized module
+from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
 from cicada.tier import (
     determine_tier,
     get_extraction_expansion_methods,
@@ -846,6 +847,13 @@ def handle_index_main(args) -> None:
                 verbose=verbose,
                 config_path=str(config_path),
             )
+
+        run_generic_indexing_for_language_indexer(
+            indexer,
+            repo_path,
+            index_path,
+            verbose=verbose,
+        )
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")

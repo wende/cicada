@@ -15,6 +15,21 @@ import pytest
 from cicada.mcp.handlers.index_manager import BackgroundRefreshManager, IndexManager
 
 
+@pytest.fixture(autouse=True)
+def patch_generic_indexing_for_mcp_index_manager():
+    with patch(
+        "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer"
+    ) as mock_runner:
+        mock_runner.return_value = {
+            "success": True,
+            "modules_count": 0,
+            "files_indexed": 0,
+            "errors": [],
+            "metadata": {},
+        }
+        yield mock_runner
+
+
 class TestIndexManagerKeywordDetection:
     """Test IndexManager's keyword availability detection."""
 

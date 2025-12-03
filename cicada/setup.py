@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from cicada.languages import LanguageRegistry
+from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
 from cicada.utils import (
     create_storage_dir,
     get_config_path,
@@ -355,6 +356,12 @@ def index_repository(
                 verbose=verbose,
                 config_path=str(config_path),
             )
+        run_generic_indexing_for_language_indexer(
+            indexer,
+            repo_path,
+            index_path,
+            verbose=verbose,
+        )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:

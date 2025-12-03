@@ -23,6 +23,19 @@ from cicada.commands import (
 from cicada.cli import main
 
 
+@pytest.fixture(autouse=True)
+def patch_generic_indexing_for_cli_module():
+    with patch("cicada.commands.run_generic_indexing_for_language_indexer") as mock_runner:
+        mock_runner.return_value = {
+            "success": True,
+            "modules_count": 0,
+            "files_indexed": 0,
+            "errors": [],
+            "metadata": {},
+        }
+        yield mock_runner
+
+
 def make_index_args(**overrides):
     """Build a MagicMock with sensible defaults for index command args."""
     defaults = {
