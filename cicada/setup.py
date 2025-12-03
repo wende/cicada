@@ -314,6 +314,56 @@ keyword_expansion:
         print(f"✓ Config file created at {config_path}")
 
 
+def _get_excluded_extensions_for_language(language: str) -> set[str]:
+    """
+    Get file extensions handled by a language-specific indexer.
+
+    Args:
+        language: Programming language identifier
+
+    Returns:
+        Set of file extensions (with dots) that the language indexer handles
+    """
+    language_extensions = {
+        "elixir": {".ex", ".exs"},
+        "python": {".py", ".pyi"},
+        "erlang": {".erl", ".hrl"},
+        "typescript": {".ts", ".tsx", ".js", ".jsx"},
+        "javascript": {".js", ".jsx"},
+    }
+    return language_extensions.get(language, set())
+
+
+def _run_generic_indexer(
+    repo_path: Path, language: str, force_full: bool = False, verbose: bool = True
+) -> None:
+    """
+    Run the generic file indexer after the primary language indexer.
+
+    Args:
+        repo_path: Path to the repository
+        language: Primary programming language (to exclude its extensions)
+        force_full: If True, force full reindex
+        verbose: Whether to print progress messages
+    """
+    from cicada.languages.generic import GenericFileIndexer
+
+    index_path = get_index_path(repo_path)
+
+    # Get extensions to exclude (handled by primary indexer)
+    excluded_extensions = _get_excluded_extensions_for_language(language)
+
+    # Create and run generic indexer
+    generic_indexer = GenericFileIndexer(excluded_extensions=excluded_extensions, verbose=verbose)
+
+    # Merge generic files into existing index
+    generic_indexer.merge_into_existing_index(
+        existing_index_path=index_path,
+        repo_path=repo_path,
+        verbose=verbose,
+    )
+
+
 def index_repository(
     repo_path: Path, language: str, force_full: bool = False, verbose: bool = True
 ) -> None:
@@ -355,6 +405,14 @@ def index_repository(
                 verbose=verbose,
                 config_path=str(config_path),
             )
+
+        # Run generic file indexer to pick up non-code files (markdown, config, etc.)
+        try:
+            _run_generic_indexer(repo_path, language, force_full=force_full, verbose=verbose)
+        except Exception as e:
+            if verbose:
+                print(f"  Warning: Generic file indexing failed: {e}")
+
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:
         if verbose:

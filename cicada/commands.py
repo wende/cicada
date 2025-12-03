@@ -847,6 +847,17 @@ def handle_index_main(args) -> None:
                 config_path=str(config_path),
             )
 
+        # Run generic file indexer to pick up non-code files (markdown, config, etc.)
+        try:
+            from cicada.setup import _run_generic_indexer
+
+            _run_generic_indexer(
+                repo_path, language, force_full=(force_enabled or tier_changed), verbose=verbose
+            )
+        except Exception as e:
+            if verbose:
+                print(f"  Warning: Generic file indexing failed: {e}")
+
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
         # Handle interrupt during the initial, non-enrichment phase of indexing.
