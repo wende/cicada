@@ -155,10 +155,14 @@ class FilterConfig:
 
     scope: Literal["all", "public", "private"] = "all"
     recent: bool = False
-    filter_type: Literal["all", "modules", "functions"] = "all"
-    match_source: Literal["all", "docs", "strings"] = "all"
-    path_pattern: str | None = None
+    result_type: Literal["all", "modules", "functions"] = "all"
+    match_source: Literal["all", "docs", "strings", "comments"] = "all"
+    glob: str | None = None  # Glob pattern for file filtering (renamed from path_pattern)
     arity: int | None = None
+
+    # Aliases for backward compatibility (not used in filtering, just for API compat)
+    # filter_type is an alias for result_type
+    # path_pattern is an alias for glob
 
 
 @dataclass
@@ -167,21 +171,27 @@ class QueryOptions:
 
     scope: Literal["all", "public", "private"] = "all"
     recent: bool = False
-    filter_type: Literal["all", "modules", "functions"] = "all"
-    match_source: Literal["all", "docs", "strings"] = "all"
+    result_type: Literal["all", "modules", "functions"] = "all"
+    match_source: Literal["all", "docs", "strings", "comments"] = "all"
     max_results: int = 10
-    path_pattern: str | None = None
+    glob: str | None = None  # Glob pattern for file filtering
     arity: int | None = None
     show_snippets: bool = False
+    offset: int = 0  # Skip first N results (pagination)
+    context_lines: int = 2  # Lines of context in snippets
+
+    # Deprecated aliases (kept for backward compatibility)
+    # filter_type -> result_type (no-op, always "all")
+    # path_pattern -> glob
 
     def to_filter_config(self) -> FilterConfig:
         """Convert to FilterConfig for filtering operations."""
         return FilterConfig(
             scope=self.scope,
             recent=self.recent,
-            filter_type=self.filter_type,
+            result_type=self.result_type,
             match_source=self.match_source,
-            path_pattern=self.path_pattern,
+            glob=self.glob,
             arity=self.arity,
         )
 

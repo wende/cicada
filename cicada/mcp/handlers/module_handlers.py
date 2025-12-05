@@ -293,6 +293,9 @@ class ModuleSearchHandler:
         dependency_depth: int = 1,
         show_function_usage: bool = False,
         format_opts: dict | None = None,
+        glob: str | None = None,
+        head_limit: int | None = None,
+        offset: int = 0,
     ) -> list[TextContent]:
         """
         Search for a module and return its information.
@@ -304,6 +307,11 @@ class ModuleSearchHandler:
             - "lib/my_app/*.ex" - matches all modules in that directory
             - "MyApp.User|MyApp.Post" - matches either module
             - "*User*|*Post*" - matches modules containing User OR Post
+
+        Args:
+            glob: Optional glob pattern to filter results by file path
+            head_limit: Maximum number of results to return (overrides MAX_WILDCARD_RESULTS)
+            offset: Number of results to skip (for pagination)
         """
         # Check for wildcard or OR patterns
         if has_wildcards(module_name):
@@ -319,6 +327,16 @@ class ModuleSearchHandler:
                 ):
                     matching_modules.append((mod_name, mod_data))
 
+            # Apply glob filter if specified
+            if glob:
+                from cicada.utils.path_utils import matches_glob_pattern
+
+                matching_modules = [
+                    (mod_name, mod_data)
+                    for mod_name, mod_data in matching_modules
+                    if matches_glob_pattern(mod_data["file"], glob)
+                ]
+
             # If no matches found, return error
             if not matching_modules:
                 total_modules = self.index["metadata"]["total_modules"]
@@ -328,11 +346,18 @@ class ModuleSearchHandler:
                     error_result = ModuleFormatter.format_error_markdown(module_name, total_modules)
                 return [TextContent(type="text", text=error_result)]
 
-            # Apply limit to prevent overwhelming results
+            # Apply pagination (offset + head_limit)
             total_matches = len(matching_modules)
-            truncated = total_matches > self.MAX_WILDCARD_RESULTS
+
+            # Apply offset first
+            if offset > 0:
+                matching_modules = matching_modules[offset:]
+
+            # Determine the effective limit
+            effective_limit = head_limit if head_limit is not None else self.MAX_WILDCARD_RESULTS
+            truncated = len(matching_modules) > effective_limit
             if truncated:
-                matching_modules = matching_modules[: self.MAX_WILDCARD_RESULTS]
+                matching_modules = matching_modules[:effective_limit]
 
             # Format all matching modules
             # Use compact format when showing multiple modules
@@ -359,8 +384,11 @@ class ModuleSearchHandler:
             else:
                 # For markdown, separate with horizontal rules (or blank lines for compact)
                 header = f"Found {total_matches} module(s) matching pattern '{module_name}'"
-                if truncated:
-                    header += f" (showing first {self.MAX_WILDCARD_RESULTS}, use more specific pattern to see others)"
+                showing_count = len(matching_modules)
+                if offset > 0:
+                    header += f" (showing {offset + 1}-{offset + showing_count})"
+                elif truncated:
+                    header += f" (showing first {effective_limit}, use more specific pattern or offset to see others)"
                 header += ":\n\n"
 
                 if use_compact:

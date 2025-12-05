@@ -363,10 +363,10 @@ class TestQueryOptions:
         options = QueryOptions(
             scope="public",
             recent=True,
-            filter_type="functions",
+            result_type="functions",
             match_source="docs",
             max_results=20,
-            path_pattern="lib/**/*.ex",
+            glob="lib/**/*.ex",
             arity=2,
             show_snippets=True,
         )
@@ -376,9 +376,9 @@ class TestQueryOptions:
         assert isinstance(config, FilterConfig)
         assert config.scope == "public"
         assert config.recent is True
-        assert config.filter_type == "functions"
+        assert config.result_type == "functions"
         assert config.match_source == "docs"
-        assert config.path_pattern == "lib/**/*.ex"
+        assert config.glob == "lib/**/*.ex"
         assert config.arity == 2
 
     def test_to_filter_config_uses_defaults(self):
@@ -389,9 +389,9 @@ class TestQueryOptions:
 
         assert config.scope == "all"
         assert config.recent is False
-        assert config.filter_type == "all"
+        assert config.result_type == "all"
         assert config.match_source == "all"
-        assert config.path_pattern is None
+        assert config.glob is None
         assert config.arity is None
 
     def test_query_options_defaults(self):
@@ -400,10 +400,10 @@ class TestQueryOptions:
 
         assert options.scope == "all"
         assert options.recent is False
-        assert options.filter_type == "all"
+        assert options.result_type == "all"
         assert options.match_source == "all"
         assert options.max_results == 10
-        assert options.path_pattern is None
+        assert options.glob is None
         assert options.arity is None
         assert options.show_snippets is False
 
@@ -417,9 +417,9 @@ class TestFilterConfig:
 
         assert config.scope == "all"
         assert config.recent is False
-        assert config.filter_type == "all"
+        assert config.result_type == "all"
         assert config.match_source == "all"
-        assert config.path_pattern is None
+        assert config.glob is None
         assert config.arity is None
 
     def test_filter_config_with_custom_values(self):
@@ -427,15 +427,15 @@ class TestFilterConfig:
         config = FilterConfig(
             scope="private",
             recent=True,
-            filter_type="modules",
+            result_type="modules",
             match_source="strings",
-            path_pattern="test/**/*.exs",
+            glob="test/**/*.exs",
             arity=3,
         )
 
         assert config.scope == "private"
         assert config.recent is True
-        assert config.filter_type == "modules"
+        assert config.result_type == "modules"
         assert config.match_source == "strings"
-        assert config.path_pattern == "test/**/*.exs"
+        assert config.glob == "test/**/*.exs"
         assert config.arity == 3

@@ -192,7 +192,7 @@ class TestOrchestratorContextWithFiltering:
 
     def test_context_with_module_filter(self, orchestrator_with_index):
         """Test context extraction when filtering to modules only."""
-        formatted = orchestrator_with_index.execute_query(["authentication"], filter_type="modules")
+        formatted = orchestrator_with_index.execute_query(["authentication"], result_type="modules")
 
         # Should only show module results
         assert "TestModule.Auth" in formatted

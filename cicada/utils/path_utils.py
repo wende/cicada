@@ -9,6 +9,41 @@ import os
 import re
 from pathlib import Path
 
+# File type shorthand to glob pattern mapping (matches Grep tool behavior)
+FILE_TYPE_TO_GLOB: dict[str, str] = {
+    "py": "**/*.py",
+    "ex": "**/*.{ex,exs}",
+    "erl": "**/*.{erl,hrl}",
+    "ts": "**/*.{ts,tsx}",
+    "js": "**/*.{js,jsx}",
+    "rust": "**/*.rs",
+    "go": "**/*.go",
+    "java": "**/*.java",
+    "c": "**/*.{c,h}",
+    "cpp": "**/*.{cpp,hpp,cc,hh,cxx,hxx}",
+    "cs": "**/*.cs",
+    "rb": "**/*.rb",
+    "php": "**/*.php",
+    "swift": "**/*.swift",
+    "kt": "**/*.{kt,kts}",
+    "scala": "**/*.{scala,sc}",
+    "clj": "**/*.{clj,cljs,cljc,edn}",
+    "hs": "**/*.hs",
+    "ml": "**/*.{ml,mli}",
+    "r": "**/*.{r,R}",
+    "lua": "**/*.lua",
+    "sh": "**/*.{sh,bash}",
+    "sql": "**/*.sql",
+    "html": "**/*.{html,htm}",
+    "css": "**/*.css",
+    "scss": "**/*.{scss,sass}",
+    "json": "**/*.json",
+    "yaml": "**/*.{yaml,yml}",
+    "toml": "**/*.toml",
+    "xml": "**/*.xml",
+    "md": "**/*.{md,markdown}",
+}
+
 
 def normalize_file_path(
     file_path: str | Path,
@@ -356,3 +391,55 @@ def _expand_braces(pattern: str) -> list[str]:
         expanded.extend(_expand_braces(expanded_pattern))
 
     return expanded
+
+
+def resolve_glob_pattern(
+    glob: str | None = None,
+    path: str | None = None,
+    file_type: str | None = None,
+) -> str | None:
+    """
+    Combine glob, path, and file_type into an effective glob pattern.
+
+    This function resolves the grep-like parameters into a single glob pattern
+    that can be used for file filtering. Priority: explicit glob > type mapping.
+    Path acts as a prefix to the resolved pattern.
+
+    Args:
+        glob: Explicit glob pattern (e.g., "**/*.ex", "lib/**/*.py")
+        path: Base directory to search in (e.g., "lib/auth", "src")
+        file_type: File type shorthand (e.g., "py", "ex", "ts")
+
+    Returns:
+        Effective glob pattern, or None if no filtering specified
+
+    Examples:
+        resolve_glob_pattern(glob="*.ex") -> "*.ex"
+        resolve_glob_pattern(file_type="py") -> "**/*.py"
+        resolve_glob_pattern(path="lib/auth") -> "lib/auth/**/*"
+        resolve_glob_pattern(path="lib", glob="*.ex") -> "lib/*.ex"
+        resolve_glob_pattern(path="src", file_type="py") -> "src/**/*.py"
+    """
+    effective_glob = glob
+
+    # If no explicit glob but type provided, use type mapping
+    if not effective_glob and file_type:
+        effective_glob = FILE_TYPE_TO_GLOB.get(file_type)
+
+    # If path provided, prepend to glob
+    if path:
+        # Normalize path (remove trailing slashes)
+        path_normalized = path.rstrip("/")
+
+        if effective_glob:
+            # Combine path with glob
+            # Remove leading **/ from glob if present since path provides the base
+            glob_normalized = effective_glob
+            if glob_normalized.startswith("**/"):
+                glob_normalized = glob_normalized[3:]
+            effective_glob = f"{path_normalized}/{glob_normalized}"
+        else:
+            # Path alone: match everything under it
+            effective_glob = f"{path_normalized}/**/*"
+
+    return effective_glob

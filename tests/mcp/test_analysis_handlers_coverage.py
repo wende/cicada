@@ -217,7 +217,7 @@ async def test_query_without_keywords(mock_index_without_keywords):
     """Test query method when keywords are not available."""
     handler = AnalysisHandler(MockIndexManager(mock_index_without_keywords, has_keywords=False))
 
-    result = await handler.query(query="test", scope="all", filter_type="all")
+    result = await handler.query(query="test", scope="all", result_type="all")
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)

@@ -22,10 +22,12 @@ QUERY_DESCRIPTION = (
     "• Mixed: ['oauth', 'MyApp.Auth.*'] → combines both\\n\\n"
     "Power Filters:\\n"
     "• scope: 'all' (default) | 'public' | 'private'\\n"
-    "• filter_type: 'all' | 'modules' | 'functions'\\n"
+    "• result_type: 'all' | 'modules' | 'functions'\\n"
     "• match_source: 'all' | 'docs' | 'strings' (search in code strings like SQL)\\n"
     "• recent: false (default) | true (last 14 days only)\\n"
-    "• path_pattern: glob like 'lib/auth/**' or '**/*_controller.ex'\\n\\n"
+    "• glob: glob pattern like 'lib/auth/**' or '**/*_controller.ex'\\n"
+    "• path: base directory to search in (e.g., 'lib/auth')\\n"
+    "• type: file type shorthand (e.g., 'py', 'ex', 'ts')\\n\\n"
     "Returns:\\n"
     "• Compact results with essential info (verbose=true for full details)\\n"
     "• Smart suggestions for next steps with actual tool names to use\\n"
@@ -35,7 +37,7 @@ QUERY_DESCRIPTION = (
     "• Don't ask users for module/function names - query will find them for you\\n"
     "• Start broad: query('authentication') then follow the tool suggestions\\n"
     "• Try patterns when you know structure: query('MyApp.*.create*')\\n"
-    "• Use filters to narrow: query('login', scope='recent', path_pattern='lib/auth/**')\\n"
+    "• Use filters to narrow: query('login', scope='recent', glob='lib/auth/**')\\n"
     "• The results include smart suggestions - follow them to drill deeper\\n"
     "• Only skip this tool if you already have exact module.function/arity identifiers\\n\\n"
     "Example Workflow:\\n"
@@ -209,31 +211,64 @@ def get_tool_definitions() -> list[Tool]:
                         "type": "boolean",
                         "description": "Filter to recently changed code only (last 14 days). Defaults to false.",
                     },
-                    "filter_type": {
+                    "result_type": {
                         "type": "string",
                         "enum": ["all", "modules", "functions"],
                         "description": "Result type filter: 'all' (default) = modules + functions, 'modules' = only modules, 'functions' = only functions.",
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "modules", "functions"],
+                        "description": "Deprecated alias for result_type. Kept for backward compatibility.",
                     },
                     "match_source": {
                         "type": "string",
                         "enum": ["all", "docs", "strings", "comments"],
                         "description": "Where to search: 'all' (default) = docs + strings + comments, 'docs' = documentation only, 'strings' = string literals in code (e.g., SQL queries, error messages), 'comments' = inline comments (# ...).",
                     },
+                    "glob": {
+                        "type": "string",
+                        "description": "Glob pattern to filter by file path. Supports *, **, {a,b}, and ! negation (e.g., 'lib/auth/**', '**/*.{ex,exs}', '!**/test/**').",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Base directory to search in. Prepended to glob pattern (e.g., path='lib/auth' + glob='*.ex' -> 'lib/auth/*.ex').",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "File type shorthand. Maps to glob pattern (e.g., 'py' -> '**/*.py', 'ex' -> '**/*.{ex,exs}'). Common types: py, ex, erl, ts, js, rust, go, java.",
+                    },
+                    "path_pattern": {
+                        "type": "string",
+                        "description": "Deprecated alias for glob. Kept for backward compatibility.",
+                    },
+                    "head_limit": {
+                        "type": "integer",
+                        "description": "Maximum results to show (default: 10). Alias for max_results.",
+                    },
                     "max_results": {
                         "type": "integer",
                         "description": "Maximum results to show (default: 10). Use smaller values (3-5) for quick overview, larger (20+) for comprehensive search.",
                     },
-                    "path_pattern": {
-                        "type": "string",
-                        "description": "Optional glob pattern to filter by file path. Supports ** for recursive (e.g., 'lib/auth/**', '**/*_controller.ex'). To exclude tests, use negative patterns like '!**/test/**'.",
+                    "offset": {
+                        "type": "integer",
+                        "description": "Skip first N results (default: 0). Use with head_limit/max_results for pagination.",
                     },
                     "show_snippets": {
                         "type": "boolean",
                         "description": "Show code snippet previews with context lines (default: false). When enabled, displays actual code around each result.",
                     },
+                    "context_lines": {
+                        "type": "integer",
+                        "description": "Number of context lines around snippets (default: 2). Only used when show_snippets=true.",
+                    },
                     "verbose": {
                         "type": "boolean",
                         "description": "Enable verbose output with full documentation previews and confidence percentages. Defaults to false.",
+                    },
+                    "regex": {
+                        "type": "boolean",
+                        "description": "STUB: Treat query keywords as regex patterns. Not yet implemented.",
                     },
                 },
                 "required": ["query"],
@@ -299,6 +334,23 @@ def get_tool_definitions() -> list[Tool]:
                     "verbose": {
                         "type": "boolean",
                         "description": "Enable verbose output (includes docs, specs, moduledoc). Defaults to false.",
+                    },
+                    # Grep-like parameters
+                    "glob": {
+                        "type": "string",
+                        "description": "Glob pattern to filter results by file path. Supports *, **, {a,b}, and ! negation.",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Base directory to filter results. Prepended to glob pattern.",
+                    },
+                    "head_limit": {
+                        "type": "integer",
+                        "description": "Maximum results to show (default: 20 for wildcard searches).",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Skip first N results (default: 0). Use with head_limit for pagination.",
                     },
                 },
             },
@@ -377,6 +429,23 @@ def get_tool_definitions() -> list[Tool]:
                     "verbose": {
                         "type": "boolean",
                         "description": "Enable all optional content (docs, specs, examples). Equivalent to include_docs=true, include_specs=true.",
+                    },
+                    # Grep-like parameters
+                    "glob": {
+                        "type": "string",
+                        "description": "Glob pattern to filter results by file path. Supports *, **, {a,b}, and ! negation.",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Base directory to filter results. Prepended to glob pattern.",
+                    },
+                    "head_limit": {
+                        "type": "integer",
+                        "description": "Maximum results to show.",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Skip first N results (default: 0). Use with head_limit for pagination.",
                     },
                 },
                 "required": ["function_name"],

@@ -184,6 +184,8 @@ class ToolRouter:
         staleness_info_callback: Any = None,
     ) -> list[TextContent]:
         """Handle search_module tool call."""
+        from cicada.utils.path_utils import resolve_glob_pattern
+
         module_name = arguments.get("module_name")
         file_path = arguments.get("file_path")
         output_format = arguments.get("format", "markdown")
@@ -201,6 +203,13 @@ class ToolRouter:
         include_specs = arguments.get("include_specs", False)
         include_moduledoc = arguments.get("include_moduledoc", False)
         verbose = arguments.get("verbose", False)
+
+        # Grep-like parameters
+        glob_pattern = arguments.get("glob")
+        path = arguments.get("path")
+        effective_glob = resolve_glob_pattern(glob_pattern, path, None)
+        head_limit = arguments.get("head_limit")
+        offset = arguments.get("offset", 0)
 
         if not module_name and not file_path:
             return [
@@ -247,10 +256,15 @@ class ToolRouter:
             dependency_depth,
             show_function_usage,
             format_opts,
+            glob=effective_glob,
+            head_limit=head_limit,
+            offset=offset,
         )
 
     async def _handle_search_function(self, arguments: dict) -> list[TextContent]:
         """Handle search_function tool call."""
+        from cicada.utils.path_utils import resolve_glob_pattern
+
         function_name = arguments.get("function_name")
         module_path = arguments.get("module_path")
         output_format = arguments.get("format", "markdown")
@@ -264,6 +278,13 @@ class ToolRouter:
         include_docs = arguments.get("include_docs", False)
         include_specs = arguments.get("include_specs", False)
         verbose = arguments.get("verbose", False)
+
+        # Grep-like parameters
+        glob_pattern = arguments.get("glob")
+        path = arguments.get("path")
+        effective_glob = resolve_glob_pattern(glob_pattern, path, None)
+        head_limit = arguments.get("head_limit")
+        offset = arguments.get("offset", 0)
 
         if not function_name:
             return [TextContent(type="text", text="'function_name' is required")]
@@ -292,6 +313,9 @@ class ToolRouter:
             what_it_calls,
             include_code_context,
             format_opts=format_opts,
+            glob=effective_glob,
+            head_limit=head_limit,
+            offset=offset,
         )
 
     async def _handle_git_history(self, arguments: dict) -> list[TextContent]:
@@ -316,15 +340,43 @@ class ToolRouter:
 
     async def _handle_query(self, arguments: dict) -> list[TextContent]:
         """Handle query tool call."""
+        from cicada.utils.path_utils import resolve_glob_pattern
+
         query = arguments.get("query")
         scope = arguments.get("scope", "all")
         recent = arguments.get("recent", False)
-        filter_type = arguments.get("filter_type", "all")
+
+        # Handle result_type vs filter_type (deprecated alias)
+        result_type = arguments.get("result_type") or arguments.get("filter_type", "all")
+
         match_source = arguments.get("match_source", "all")
-        max_results = arguments.get("max_results", 10)
-        path_pattern = arguments.get("path_pattern")
+
+        # Handle head_limit vs max_results (alias)
+        max_results = arguments.get("head_limit") or arguments.get("max_results", 10)
+
+        # Handle glob vs path_pattern (deprecated alias)
+        glob_pattern = arguments.get("glob") or arguments.get("path_pattern")
+        path = arguments.get("path")
+        file_type = arguments.get("type")
+
+        # Resolve glob/path/type into effective glob pattern
+        effective_glob = resolve_glob_pattern(glob_pattern, path, file_type)
+
+        offset = arguments.get("offset", 0)
         show_snippets = arguments.get("show_snippets", False)
+        context_lines = arguments.get("context_lines", 2)
         verbose = arguments.get("verbose", False)
+
+        # Regex stub
+        regex = arguments.get("regex", False)
+        if regex:
+            return [
+                TextContent(
+                    type="text",
+                    text="Error: 'regex' parameter is not yet implemented. "
+                    "Use pattern matching with wildcards (*) instead.",
+                )
+            ]
 
         # Validation
         if not query:
@@ -339,33 +391,41 @@ class ToolRouter:
             ]
         if not isinstance(recent, bool):
             return [TextContent(type="text", text="'recent' must be a boolean")]
-        if filter_type not in ("all", "modules", "functions"):
+        if result_type not in ("all", "modules", "functions"):
             return [
                 TextContent(
-                    type="text", text="'filter_type' must be one of: 'all', 'modules', 'functions'"
+                    type="text",
+                    text="'result_type' must be one of: 'all', 'modules', 'functions'",
                 )
             ]
-        if match_source not in ("all", "docs", "strings"):
+        if match_source not in ("all", "docs", "strings", "comments"):
             return [
                 TextContent(
-                    type="text", text="'match_source' must be one of: 'all', 'docs', 'strings'"
+                    type="text",
+                    text="'match_source' must be one of: 'all', 'docs', 'strings', 'comments'",
                 )
             ]
         if not isinstance(max_results, int) or max_results < 1:
             return [TextContent(type="text", text="'max_results' must be a positive integer")]
+        if not isinstance(offset, int) or offset < 0:
+            return [TextContent(type="text", text="'offset' must be a non-negative integer")]
         if not isinstance(show_snippets, bool):
             return [TextContent(type="text", text="'show_snippets' must be a boolean")]
+        if not isinstance(context_lines, int) or context_lines < 0:
+            return [TextContent(type="text", text="'context_lines' must be a non-negative integer")]
 
         return await self.analysis_handler.query(
             query,
             scope,
             recent,
-            filter_type,
+            result_type,
             match_source,
             max_results,
-            path_pattern,
+            effective_glob,
             show_snippets,
             verbose,
+            offset,
+            context_lines,
         )
 
     async def _handle_find_dead_code(self, arguments: dict) -> list[TextContent]:

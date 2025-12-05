@@ -249,12 +249,14 @@ class AnalysisHandler:
         query: str | list[str],
         scope: str = "all",
         recent: bool = False,
-        filter_type: str = "all",
+        result_type: str = "all",
         match_source: str = "all",
         max_results: int = 10,
-        path_pattern: str | None = None,
+        glob: str | None = None,
         show_snippets: bool = False,
         verbose: bool = False,
+        offset: int = 0,
+        context_lines: int = 2,
     ) -> list[TextContent]:
         """
         Smart code discovery - intelligently search by keywords or patterns.
@@ -263,12 +265,14 @@ class AnalysisHandler:
             query: Query string or list of strings (keywords OR patterns)
             scope: Scope filter ('all', 'public', 'private')
             recent: Filter to recently changed code only (last 14 days)
-            filter_type: Type filter ('all', 'modules', 'functions')
-            match_source: Match source filter ('all', 'docs', 'strings')
+            result_type: Type filter ('all', 'modules', 'functions')
+            match_source: Match source filter ('all', 'docs', 'strings', 'comments')
             max_results: Maximum number of results to show
-            path_pattern: Optional glob pattern for file paths
+            glob: Optional glob pattern for file paths
             show_snippets: Whether to show code snippet previews (default: False)
             verbose: Whether to show verbose output with docs and confidence (default: False)
+            offset: Number of results to skip (for pagination, default: 0)
+            context_lines: Number of context lines in snippets (default: 2)
 
         Returns:
             TextContent with formatted query results and suggestions
@@ -288,12 +292,14 @@ class AnalysisHandler:
             query=query,
             scope=scope,
             recent=recent,
-            filter_type=filter_type,
+            result_type=result_type,
             match_source=match_source,
             max_results=max_results,
-            path_pattern=path_pattern,
+            glob=glob,
             show_snippets=show_snippets,
             verbose=verbose,
+            offset=offset,
+            context_lines=context_lines,
         )
 
         return [TextContent(type="text", text=result)]

@@ -434,9 +434,9 @@ class QueryOrchestrator:
             # Only include private functions
             filtered = [r for r in filtered if r.is_private()]
 
-        # Path pattern filter
-        if config.path_pattern:
-            filtered = [r for r in filtered if matches_glob_pattern(r.file, config.path_pattern)]
+        # Glob pattern filter (path_pattern is deprecated alias)
+        if config.glob:
+            filtered = [r for r in filtered if matches_glob_pattern(r.file, config.glob)]
 
         # Arity filter (only for functions)
         if config.arity is not None:
@@ -600,6 +600,8 @@ class QueryOrchestrator:
         query: str | list[str],
         show_snippets: bool = False,
         verbose: bool = False,
+        offset: int = 0,
+        context_lines: int = 2,
     ) -> str:
         """
         Format final report with results and suggestions.
@@ -611,23 +613,39 @@ class QueryOrchestrator:
             query: Original query
             show_snippets: Whether to show code snippet previews
             verbose: Whether to show verbose output
+            offset: Number of results to skip (pagination)
+            context_lines: Number of context lines in snippets
 
         Returns:
             Markdown formatted report
         """
         lines = []
 
+        # Apply offset and limit pagination
+        paginated_results = results[offset : offset + max_results]
+
         # Header - compact format
         query_display = query if isinstance(query, str) else ", ".join(f'"{q}"' for q in query)
         total = len(results)
-        showing = min(total, max_results)
-        lines.append(
-            f"Query: {query_display} | {total} result{'s' if total != 1 else ''} (showing {showing})\n\n"
-        )
+        showing = len(paginated_results)
+
+        # Include offset info in header if pagination is active
+        if offset > 0:
+            lines.append(
+                f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "
+                f"(showing {offset + 1}-{offset + showing})\n\n"
+            )
+        else:
+            lines.append(
+                f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "
+                f"(showing {showing})\n\n"
+            )
 
         # Results
-        for i, result in enumerate(results[:max_results], 1):
-            lines.append(self._format_result_snippet(result, i, show_snippets, verbose))
+        for i, result in enumerate(paginated_results, offset + 1):
+            lines.append(
+                self._format_result_snippet(result, i, show_snippets, verbose, context_lines)
+            )
 
         # Suggestions
         if suggestions:
@@ -664,7 +682,12 @@ class QueryOrchestrator:
             return f"{years} year{'s' if years > 1 else ''} ago"
 
     def _format_result_snippet(
-        self, result: SearchResult, index: int, show_snippets: bool = False, verbose: bool = False
+        self,
+        result: SearchResult,
+        index: int,
+        show_snippets: bool = False,
+        verbose: bool = False,
+        context_lines: int = 2,
     ) -> str:
         """
         Format a single result as a snippet (compact by default).
@@ -674,6 +697,7 @@ class QueryOrchestrator:
             index: Result number (1-indexed)
             show_snippets: Whether to show code snippet previews
             verbose: Whether to show full details (confidence %, docs, full context)
+            context_lines: Number of context lines in snippets
 
         Returns:
             Formatted snippet
@@ -743,7 +767,7 @@ class QueryOrchestrator:
 
         # Code snippet preview (if enabled)
         if show_snippets:
-            snippet = self._extract_code_snippet(result.file, result.line)
+            snippet = self._extract_code_snippet(result.file, result.line, context_lines)
             if snippet:
                 lines.append(f"\n```elixir\n{snippet}\n```\n")
 
@@ -929,10 +953,10 @@ class QueryOrchestrator:
             active_filters.append(f"scope='{filters_applied['scope']}'")
         if filters_applied.get("recent"):
             active_filters.append("recent=true")
-        if filters_applied.get("filter_type") != "all":
-            active_filters.append(f"filter_type='{filters_applied['filter_type']}'")
-        if filters_applied.get("path_pattern"):
-            active_filters.append(f"path_pattern='{filters_applied['path_pattern']}'")
+        if filters_applied.get("result_type") != "all":
+            active_filters.append(f"result_type='{filters_applied['result_type']}'")
+        if filters_applied.get("glob"):
+            active_filters.append(f"glob='{filters_applied['glob']}'")
 
         if active_filters:
             suggestions.append(f"Try broadening: Remove filters ({', '.join(active_filters)})")
@@ -948,13 +972,15 @@ class QueryOrchestrator:
         query: str | list[str],
         scope: str = "all",
         recent: bool = False,
-        filter_type: str = "all",
+        result_type: str = "all",
         match_source: str = "all",
         max_results: int = 10,
-        path_pattern: str | None = None,
+        glob: str | None = None,
         arity: int | None = None,
         show_snippets: bool = False,
         verbose: bool = False,
+        offset: int = 0,
+        context_lines: int = 2,
     ) -> str:
         """
         Execute a query and return formatted results.
@@ -963,13 +989,15 @@ class QueryOrchestrator:
             query: Query string or list of strings
             scope: Scope filter ("all", "public", "private")
             recent: Filter to recently changed code only (last 14 days)
-            filter_type: Type filter ("all", "modules", "functions")
-            match_source: Match source filter ("all", "docs", "strings")
+            result_type: Type filter ("all", "modules", "functions")
+            match_source: Match source filter ("all", "docs", "strings", "comments")
             max_results: Maximum number of results to show
-            path_pattern: Optional glob pattern for file paths
+            glob: Optional glob pattern for file paths
             arity: Optional arity filter for functions
             show_snippets: Whether to show code snippet previews (default: False)
             verbose: Whether to show verbose output (default: False)
+            offset: Number of results to skip (pagination, default: 0)
+            context_lines: Number of context lines in snippets (default: 2)
 
         Returns:
             Markdown formatted report
@@ -982,19 +1010,21 @@ class QueryOrchestrator:
         options = QueryOptions(
             scope=scope,  # type: ignore
             recent=recent,
-            filter_type=filter_type,  # type: ignore
+            result_type=result_type,  # type: ignore
             match_source=match_source,  # type: ignore
             max_results=max_results,
-            path_pattern=path_pattern,
+            glob=glob,
             arity=arity,
             show_snippets=show_snippets,
+            offset=offset,
+            context_lines=context_lines,
         )
 
         # Analyze query
         strategy = self._analyze_query(query)
 
         # Call tools
-        raw_results = self._call_tools(strategy, options.filter_type, options.match_source)
+        raw_results = self._call_tools(strategy, options.result_type, options.match_source)
 
         # Apply filters
         filter_config = options.to_filter_config()
@@ -1012,15 +1042,22 @@ class QueryOrchestrator:
             filters_applied = {
                 "scope": options.scope,
                 "recent": options.recent,
-                "filter_type": options.filter_type,
-                "path_pattern": options.path_pattern,
+                "result_type": options.result_type,
+                "glob": options.glob,
             }
             suggestions = self._generate_zero_result_suggestions(query, filters_applied)
         else:
             # Generate normal suggestions based on results
             suggestions = self._generate_suggestions(query, ranked_results)
 
-        # Format report
+        # Format report with offset and context_lines
         return self._format_report(
-            ranked_results, suggestions, options.max_results, query, options.show_snippets, verbose
+            ranked_results,
+            suggestions,
+            options.max_results,
+            query,
+            options.show_snippets,
+            verbose,
+            options.offset,
+            options.context_lines,
         )

@@ -677,6 +677,9 @@ class FunctionSearchHandler:
         what_it_calls: bool = False,
         include_code_context: bool = False,
         format_opts: dict | None = None,
+        glob: str | None = None,
+        head_limit: int | None = None,
+        offset: int = 0,
     ) -> list[TextContent]:
         """
         Search for a function across all modules and return matches with call sites.
@@ -693,6 +696,9 @@ class FunctionSearchHandler:
         Args:
             function_name: Function name or pattern (can include module qualifier)
             module_path: Optional module path to prepend if function_name doesn't include it
+            glob: Optional glob pattern to filter results by file path
+            head_limit: Maximum number of results to return
+            offset: Number of results to skip (for pagination)
             (other params documented in tool definition)
         """
         from cicada.format import ModuleFormatter
@@ -797,6 +803,12 @@ class FunctionSearchHandler:
                         }
                     )
 
+        # Apply glob filter if specified
+        if glob:
+            from cicada.utils.path_utils import matches_glob_pattern
+
+            results = [r for r in results if matches_glob_pattern(r["file"], glob)]
+
         # Check index staleness (we'll need index_manager reference)
         # For now, we'll skip this or pass it from server
         staleness_info = None
@@ -821,6 +833,13 @@ class FunctionSearchHandler:
 
         # If still no results, generate suggestion for private function (for display only)
         private_suggestion = self._suggest_private_function(results, parsed_patterns, cutoff_date)
+
+        # Apply pagination (offset + head_limit)
+        total_results = len(results)
+        if offset > 0:
+            results = results[offset:]
+        if head_limit is not None and head_limit > 0:
+            results = results[:head_limit]
 
         # Get language from index metadata
         language = self.index.get("metadata", {}).get("language", "elixir")

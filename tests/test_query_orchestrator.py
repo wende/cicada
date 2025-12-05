@@ -191,8 +191,8 @@ class TestQueryOrchestrator:
     def test_scope_filter_public(self, sample_index):
         """Test scope='public' filters to public functions only."""
         orchestrator = QueryOrchestrator(sample_index)
-        # Use filter_type="functions" to ensure we get functions, not just modules
-        result = orchestrator.execute_query("auth", scope="public", filter_type="functions")
+        # Use result_type="functions" to ensure we get functions, not just modules
+        result = orchestrator.execute_query("auth", scope="public", result_type="functions")
 
         # Should have some public functions or at least not have private ones
         assert "hash_password" not in result  # private, should be excluded
@@ -203,7 +203,7 @@ class TestQueryOrchestrator:
         """Test scope='private' filters to private functions only."""
         orchestrator = QueryOrchestrator(sample_index)
         # Use password keyword which appears in private function
-        result = orchestrator.execute_query("password", scope="private", filter_type="functions")
+        result = orchestrator.execute_query("password", scope="private", result_type="functions")
 
         # Should not have public functions
         assert "verify_token" not in result  # public, should be excluded
@@ -220,20 +220,20 @@ class TestQueryOrchestrator:
         # hash_password is old, should be excluded
         assert "hash_password" not in result
 
-    def test_filter_type_modules(self, sample_index):
-        """Test filter_type='modules' returns only modules."""
+    def test_result_type_modules(self, sample_index):
+        """Test result_type='modules' returns only modules."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("auth", filter_type="modules")
+        result = orchestrator.execute_query("auth", result_type="modules")
 
         assert "MyApp.Auth" in result  # module
         # Functions should not be in top results (no function names with dots after module)
         # In compact format, just check that we got module names not function names
         assert "verify_token" not in result  # function name shouldn't appear
 
-    def test_filter_type_functions(self, sample_index):
-        """Test filter_type='functions' returns only functions."""
+    def test_result_type_functions(self, sample_index):
+        """Test result_type='functions' returns only functions."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("auth", filter_type="functions")
+        result = orchestrator.execute_query("auth", result_type="functions")
 
         # Functions should be present
         assert "verify_token" in result
@@ -258,10 +258,10 @@ class TestQueryOrchestrator:
             "verify_token" in result or "Found: 0" in result
         )  # May have 0 results depending on index
 
-    def test_path_pattern_filter(self, sample_index):
-        """Test path_pattern glob filtering."""
+    def test_glob_filter(self, sample_index):
+        """Test glob filtering."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("user", path_pattern="lib/**")
+        result = orchestrator.execute_query("user", glob="lib/**")
 
         # Should exclude test files
         assert "test/my_app/user_test.exs" not in result
@@ -269,34 +269,34 @@ class TestQueryOrchestrator:
         # Should have found something or nothing
         assert "Query:" in result
 
-    def test_path_pattern_exclude_tests(self, sample_index):
-        """Test path_pattern with specific path filter."""
+    def test_glob_exclude_tests(self, sample_index):
+        """Test glob with specific path filter."""
         orchestrator = QueryOrchestrator(sample_index)
-        # Use a specific path pattern to include only lib files
-        result = orchestrator.execute_query("auth", path_pattern="lib/**")
+        # Use a specific glob to include only lib files
+        result = orchestrator.execute_query("auth", glob="lib/**")
 
         # Should include lib files
         assert "MyApp.Auth" in result
         # Path pattern filtering applied (may or may not have results from test/)
         assert "Query:" in result
 
-    def test_path_pattern_include_all(self, sample_index):
-        """Test without path_pattern includes all files including tests."""
+    def test_glob_include_all(self, sample_index):
+        """Test without glob includes all files including tests."""
         orchestrator = QueryOrchestrator(sample_index)
         result = orchestrator.execute_query("user")
 
         # Should include both test and non-test files when no path filter
         assert "user" in result.lower()
 
-    def test_path_pattern_negation_excludes_tests(self, sample_index):
-        """Test negated path_pattern excludes matching files."""
+    def test_glob_negation_excludes_tests(self, sample_index):
+        """Test negated glob excludes matching files."""
         orchestrator = QueryOrchestrator(sample_index)
 
         # Query without filter (baseline)
         result_all = orchestrator.execute_query("user")
 
         # Query with negation to exclude test directory
-        result_no_tests = orchestrator.execute_query("user", path_pattern="!**/test/**")
+        result_no_tests = orchestrator.execute_query("user", glob="!**/test/**")
 
         # Both should have found something
         assert "Query:" in result_all
@@ -337,7 +337,7 @@ class TestQueryOrchestrator:
     def test_wildcard_pattern_matches_both_modules_and_functions(self):
         """
         Test that wildcard patterns without dots match both modules AND functions
-        when filter_type='all'.
+        when result_type='all'.
 
         Regression test for bug where patterns like 'execute*' or 'foo|bar' would
         only match modules and return early, never reaching the function-matching loop.
@@ -369,8 +369,8 @@ class TestQueryOrchestrator:
 
         orchestrator = QueryOrchestrator(index)
 
-        # Test wildcard pattern with filter_type='all' (default)
-        result = orchestrator.execute_query("execute*", filter_type="all")
+        # Test wildcard pattern with result_type='all' (default)
+        result = orchestrator.execute_query("execute*", result_type="all")
 
         # Should match module ExecuteHelper
         assert "ExecuteHelper" in result, "Should match ExecuteHelper module"
@@ -380,8 +380,8 @@ class TestQueryOrchestrator:
         assert "execute/2" in result, "Should match execute/2 function"
         assert "execute_query/2" in result, "Should match execute_query/2 function"
 
-        # Test OR pattern with filter_type='all'
-        result_or = orchestrator.execute_query("execute|run", filter_type="all")
+        # Test OR pattern with result_type='all'
+        result_or = orchestrator.execute_query("execute|run", result_type="all")
 
         # Should match functions with both names
         assert "execute/1" in result_or or "execute/2" in result_or
@@ -444,7 +444,7 @@ class TestQueryOrchestrator:
     def test_glob_pattern_recursive(self, sample_index):
         """Test ** glob pattern for recursive matching."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("user", path_pattern="**/*.ex")
+        result = orchestrator.execute_query("user", glob="**/*.ex")
 
         # Should not match .exs test files
         assert ".exs" not in result or "0 result" in result
@@ -453,7 +453,7 @@ class TestQueryOrchestrator:
     def test_glob_pattern_wildcard(self, sample_index):
         """Test * glob pattern for single-level wildcard."""
         orchestrator = QueryOrchestrator(sample_index)
-        result = orchestrator.execute_query("user", path_pattern="lib/my_app/*.ex")
+        result = orchestrator.execute_query("user", glob="lib/my_app/*.ex")
 
         # Should match files in lib/my_app/ directory
         assert "user.ex" in result or "auth.ex" in result or "MyApp" in result
@@ -479,7 +479,7 @@ class TestQueryOrchestrator:
         """Test that visibility information is included in results."""
         orchestrator = QueryOrchestrator(sample_index)
         # Use "password" which is a keyword that should match hash_password
-        result = orchestrator.execute_query("password", filter_type="functions")
+        result = orchestrator.execute_query("password", result_type="functions")
 
         # Should show visibility info if results found
         if "Function:" in result:
@@ -493,8 +493,8 @@ class TestQueryOrchestrator:
         result = orchestrator.execute_query(
             "auth",
             scope="public",
-            filter_type="functions",
-            path_pattern="lib/**",
+            result_type="functions",
+            glob="lib/**",
             max_results=5,
         )
 
@@ -679,8 +679,8 @@ end
         # Use restrictive filters that will yield 0 results
         result = orchestrator.execute_query(
             "nonexistent",
-            filter_type="functions",
-            path_pattern="lib/nonexistent/**",
+            result_type="functions",
+            glob="lib/nonexistent/**",
             scope="private",
         )
 
@@ -997,8 +997,8 @@ end
     def test_wildcard_pattern_suffix_with_wildcard(self, pattern_index):
         """Test that *.Agent* matches modules with Agent in the name."""
         orchestrator = QueryOrchestrator(pattern_index)
-        # Use filter_type="modules" to search module names with wildcards
-        result = orchestrator.execute_query("*Agent*.*", filter_type="modules")
+        # Use result_type="modules" to search module names with wildcards
+        result = orchestrator.execute_query("*Agent*.*", result_type="modules")
 
         # Should match all modules with "Agent" in the name
         assert "AgentExecutor" in result
@@ -1009,7 +1009,7 @@ end
         """Test that ThenvoiCom.Agent* matches ThenvoiCom.Agents.* modules."""
         orchestrator = QueryOrchestrator(pattern_index)
         # Use the correct pattern for module matching
-        result = orchestrator.execute_query("ThenvoiCom.Agent*.*", filter_type="modules")
+        result = orchestrator.execute_query("ThenvoiCom.Agent*.*", result_type="modules")
 
         # Should match modules that start with ThenvoiCom.Agent
         assert "AgentExecutor" in result
