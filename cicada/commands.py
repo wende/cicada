@@ -851,9 +851,7 @@ def handle_index_main(args) -> None:
         try:
             from cicada.setup import _run_generic_indexer
 
-            _run_generic_indexer(
-                repo_path, language, force_full=(force_enabled or tier_changed), verbose=verbose
-            )
+            _run_generic_indexer(repo_path, language, verbose=verbose)
         except Exception as e:
             if verbose:
                 print(f"  Warning: Generic file indexing failed: {e}")
