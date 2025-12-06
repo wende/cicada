@@ -406,6 +406,38 @@ class TestQueryOptions:
         assert options.glob is None
         assert options.arity is None
         assert options.show_snippets is False
+        assert options.offset == 0
+        assert options.context_lines == 2
+
+    def test_query_options_custom_offset_and_context_lines(self):
+        """Test QueryOptions with non-default offset and context_lines."""
+        options = QueryOptions(
+            scope="public",
+            recent=False,
+            result_type="functions",
+            match_source="docs",
+            max_results=5,
+            offset=10,
+            context_lines=5,
+        )
+
+        assert options.offset == 10
+        assert options.context_lines == 5
+
+    def test_filter_config_match_source_comments(self):
+        """Test FilterConfig with match_source='comments'."""
+        options = QueryOptions(
+            scope="public",
+            recent=True,
+            result_type="functions",
+            match_source="comments",
+            max_results=10,
+        )
+
+        config = options.to_filter_config()
+
+        assert isinstance(config, FilterConfig)
+        assert config.match_source == "comments"
 
 
 class TestFilterConfig:

@@ -631,10 +631,16 @@ class QueryOrchestrator:
 
         # Include offset info in header if pagination is active
         if offset > 0:
-            lines.append(
-                f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "
-                f"(showing {offset + 1}-{offset + showing})\n\n"
-            )
+            if showing == 0:
+                lines.append(
+                    f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "
+                    f"(no results at offset {offset})\n\n"
+                )
+            else:
+                lines.append(
+                    f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "
+                    f"(showing {offset + 1}-{offset + showing})\n\n"
+                )
         else:
             lines.append(
                 f"Query: {query_display} | {total} result{'s' if total != 1 else ''} "

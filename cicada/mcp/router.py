@@ -211,6 +211,12 @@ class ToolRouter:
         head_limit = arguments.get("head_limit")
         offset = arguments.get("offset", 0)
 
+        # Validate pagination parameters
+        if head_limit is not None and (not isinstance(head_limit, int) or head_limit < 1):
+            return [TextContent(type="text", text="'head_limit' must be a positive integer")]
+        if not isinstance(offset, int) or offset < 0:
+            return [TextContent(type="text", text="'offset' must be a non-negative integer")]
+
         if not module_name and not file_path:
             return [
                 TextContent(
@@ -285,6 +291,12 @@ class ToolRouter:
         effective_glob = resolve_glob_pattern(glob_pattern, path, None)
         head_limit = arguments.get("head_limit")
         offset = arguments.get("offset", 0)
+
+        # Validate pagination parameters
+        if head_limit is not None and (not isinstance(head_limit, int) or head_limit < 1):
+            return [TextContent(type="text", text="'head_limit' must be a positive integer")]
+        if not isinstance(offset, int) or offset < 0:
+            return [TextContent(type="text", text="'offset' must be a non-negative integer")]
 
         if not function_name:
             return [TextContent(type="text", text="'function_name' is required")]

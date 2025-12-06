@@ -71,6 +71,11 @@ class TestQueryToolValidation:
             ({"query": "auth", "match_source": "code"}, "'match_source' must be one of"),
             ({"query": "auth", "max_results": 0}, "'max_results' must be a positive integer"),
             ({"query": "auth", "show_snippets": "true"}, "'show_snippets' must be a boolean"),
+            ({"query": "auth", "offset": -1}, "'offset' must be a non-negative integer"),
+            ({"query": "auth", "offset": "1"}, "'offset' must be a non-negative integer"),
+            ({"query": "auth", "context_lines": -1}, "'context_lines' must be a non-negative integer"),
+            ({"query": "auth", "context_lines": "2"}, "'context_lines' must be a non-negative integer"),
+            ({"query": "auth", "regex": True}, "'regex' parameter is not yet implemented"),
         ],
     )
     @pytest.mark.asyncio
@@ -134,3 +139,61 @@ class TestQueryToolExecution:
             "context_lines": 2,
         }
         assert FakeOrchestrator.last_index == test_server.index_manager.index
+
+    @pytest.mark.asyncio
+    async def test_query_with_comments_match_source(self, test_server):
+        """Test that match_source='comments' is accepted and passed through."""
+        call_args = {}
+
+        class FakeOrchestrator:
+            def __init__(self, index):
+                pass
+
+            def execute_query(self, **kwargs):
+                nonlocal call_args
+                call_args |= kwargs
+                return "query result"
+
+        with patch("cicada.query.QueryOrchestrator", FakeOrchestrator):
+            result = await test_server.call_tool(
+                "query",
+                {
+                    "query": "TODO",
+                    "match_source": "comments",
+                },
+            )
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0].text == "query result"
+        assert call_args["match_source"] == "comments"
+
+    @pytest.mark.asyncio
+    async def test_query_with_custom_offset_and_context_lines(self, test_server):
+        """Test that custom offset and context_lines are passed through."""
+        call_args = {}
+
+        class FakeOrchestrator:
+            def __init__(self, index):
+                pass
+
+            def execute_query(self, **kwargs):
+                nonlocal call_args
+                call_args |= kwargs
+                return "query result"
+
+        with patch("cicada.query.QueryOrchestrator", FakeOrchestrator):
+            result = await test_server.call_tool(
+                "query",
+                {
+                    "query": "user",
+                    "offset": 10,
+                    "context_lines": 5,
+                },
+            )
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0].text == "query result"
+        assert call_args["offset"] == 10
+        assert call_args["context_lines"] == 5
