@@ -352,26 +352,8 @@ class GenericFileIndexer(BaseIndexer):
             else:
                 print("  Performing full index...")
 
-        # Initialize keyword extractor
-        keyword_extractor = None
-        if extract_keywords:
-            try:
-                extraction_method, _ = read_keyword_extraction_config(repo_path_obj)
-                if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
-
-                    keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
-                else:
-                    from cicada.extractors.keyword import RegularKeywordExtractor
-
-                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
-                self._log_timing("Keyword extractor initialization")
-            except Exception as e:
-                if self.verbose:
-                    print(f"    Warning: Keyword extractor initialization failed: {e}")
-
         # Build index
-        modules: dict = existing_index.get("modules", {}).copy() if not force_full else {}
+        modules: dict = {} if force_full else existing_index.get("modules", {}).copy()
 
         # Remove deleted files from index
         for deleted_file in deleted_files:
@@ -381,45 +363,11 @@ class GenericFileIndexer(BaseIndexer):
         # Determine which files to process
         files_to_process = relative_files if force_full else (new_files + modified_files)
 
-        # Index files
-        processed = 0
-        for rel_file in files_to_process:
-            file_path = repo_path_obj / rel_file
-            content = self._read_file_content(file_path)
-
-            if content is None:
-                continue
-
-            # Create module entry (file-level only)
-            module_data: dict = {
-                "file": rel_file,
-                "line": 1,
-                "functions": [],  # Generic files have no functions
-            }
-
-            # Extract keywords from file content
-            if keyword_extractor and content.strip():
-                try:
-                    result = keyword_extractor.extract_keywords(content, top_n=15)
-                    keywords = {}
-                    for keyword, score in result.get("top_keywords", []):
-                        keywords[keyword] = score
-                    if keywords:
-                        module_data["keywords"] = keywords
-                except Exception as e:
-                    if self.verbose:
-                        print(f"    Warning: Failed to extract keywords from {rel_file}: {e}")
-
-            modules[rel_file] = module_data
-            processed += 1
-
-            if self.verbose and processed % 100 == 0:
-                print(
-                    f"\r    Processed {processed}/{len(files_to_process)} files", end="", flush=True
-                )
-
-        if self.verbose and processed > 0:
-            print()  # New line after progress
+        # Index files using shared helper
+        processed_modules, processed = self._process_files_for_indexing(
+            repo_path_obj, files_to_process
+        )
+        modules.update(processed_modules)
 
         self._log_timing("File indexing")
 
@@ -458,6 +406,87 @@ class GenericFileIndexer(BaseIndexer):
             "files_indexed": processed,
             "errors": [],
         }
+
+    def _process_files_for_indexing(
+        self,
+        repo_path: Path,
+        files_to_process: list[str],
+        verbose_prefix: str = "  ",
+    ) -> tuple[dict, int]:
+        """
+        Process a list of files and extract keywords for each.
+
+        This helper method reduces duplication between incremental_index_repository
+        and merge_into_existing_index.
+
+        Args:
+            repo_path: Repository root path
+            files_to_process: List of relative file paths to process
+            verbose_prefix: Prefix for verbose output (for indentation)
+
+        Returns:
+            Tuple of (modules_dict, processed_count)
+        """
+        modules = {}
+        processed = 0
+
+        # Initialize keyword extractor
+        keyword_extractor = None
+        try:
+            extraction_method, _ = read_keyword_extraction_config(repo_path)
+            if extraction_method == "bert":
+                from cicada.extractors.keybert import KeyBERTExtractor
+
+                keyword_extractor = KeyBERTExtractor(verbose=False)
+            else:
+                from cicada.extractors.keyword import RegularKeywordExtractor
+
+                keyword_extractor = RegularKeywordExtractor(verbose=False)
+        except Exception:
+            from cicada.extractors.keyword import RegularKeywordExtractor
+
+            keyword_extractor = RegularKeywordExtractor(verbose=False)
+
+        for rel_file in files_to_process:
+            file_path = repo_path / rel_file
+            content = self._read_file_content(file_path)
+
+            if content is None:
+                continue
+
+            # Create module entry
+            module_data: dict = {
+                "file": rel_file,
+                "line": 1,
+                "functions": [],
+            }
+
+            # Extract keywords
+            if keyword_extractor and content.strip():
+                try:
+                    result = keyword_extractor.extract_keywords(content, top_n=15)
+                    keywords = {}
+                    for keyword, score in result.get("top_keywords", []):
+                        keywords[keyword] = score
+                    if keywords:
+                        module_data["keywords"] = keywords
+                except Exception:
+                    pass
+
+            modules[rel_file] = module_data
+            processed += 1
+
+            if self.verbose and processed % 100 == 0:
+                print(
+                    f"\r{verbose_prefix}Processed {processed}/{len(files_to_process)} files",
+                    end="",
+                    flush=True,
+                )
+
+        if self.verbose and processed > 0:
+            print()  # New line after progress
+
+        return modules, processed
 
     def merge_into_existing_index(
         self, existing_index_path: Path, repo_path: Path, verbose: bool = True
@@ -534,23 +563,6 @@ class GenericFileIndexer(BaseIndexer):
                 f"{len(modified_files)} modified, {len(deleted_files)} deleted"
             )
 
-        # Initialize keyword extractor
-        keyword_extractor = None
-        try:
-            extraction_method, _ = read_keyword_extraction_config(repo_path)
-            if extraction_method == "bert":
-                from cicada.extractors.keybert import KeyBERTExtractor
-
-                keyword_extractor = KeyBERTExtractor(verbose=False)
-            else:
-                from cicada.extractors.keyword import RegularKeywordExtractor
-
-                keyword_extractor = RegularKeywordExtractor(verbose=False)
-        except Exception:
-            from cicada.extractors.keyword import RegularKeywordExtractor
-
-            keyword_extractor = RegularKeywordExtractor(verbose=False)
-
         # Get modules from existing index
         modules = existing_index.get("modules", {})
 
@@ -559,38 +571,12 @@ class GenericFileIndexer(BaseIndexer):
             if deleted_file in modules:
                 del modules[deleted_file]
 
-        # Process new and modified files
+        # Process new and modified files using shared helper
         files_to_process = new_files + modified_files
-        processed = 0
-
-        for rel_file in files_to_process:
-            file_path = repo_path / rel_file
-            content = self._read_file_content(file_path)
-
-            if content is None:
-                continue
-
-            # Create module entry
-            module_data: dict = {
-                "file": rel_file,
-                "line": 1,
-                "functions": [],
-            }
-
-            # Extract keywords
-            if keyword_extractor and content.strip():
-                try:
-                    result = keyword_extractor.extract_keywords(content, top_n=15)
-                    keywords = {}
-                    for keyword, score in result.get("top_keywords", []):
-                        keywords[keyword] = score
-                    if keywords:
-                        module_data["keywords"] = keywords
-                except Exception:
-                    pass
-
-            modules[rel_file] = module_data
-            processed += 1
+        processed_modules, processed = self._process_files_for_indexing(
+            repo_path, files_to_process
+        )
+        modules.update(processed_modules)
 
         # Update the existing index
         existing_index["modules"] = modules

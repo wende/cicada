@@ -335,7 +335,7 @@ def _get_excluded_extensions_for_language(language: str) -> set[str]:
 
 
 def _run_generic_indexer(
-    repo_path: Path, language: str, force_full: bool = False, verbose: bool = True
+    repo_path: Path, language: str, verbose: bool = True
 ) -> None:
     """
     Run the generic file indexer after the primary language indexer.
@@ -343,7 +343,6 @@ def _run_generic_indexer(
     Args:
         repo_path: Path to the repository
         language: Primary programming language (to exclude its extensions)
-        force_full: If True, force full reindex
         verbose: Whether to print progress messages
     """
     from cicada.languages.generic import GenericFileIndexer
@@ -408,7 +407,7 @@ def index_repository(
 
         # Run generic file indexer to pick up non-code files (markdown, config, etc.)
         try:
-            _run_generic_indexer(repo_path, language, force_full=force_full, verbose=verbose)
+            _run_generic_indexer(repo_path, language, verbose=verbose)
         except Exception as e:
             if verbose:
                 print(f"  Warning: Generic file indexing failed: {e}")
