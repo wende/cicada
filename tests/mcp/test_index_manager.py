@@ -15,19 +15,7 @@ import pytest
 from cicada.mcp.handlers.index_manager import BackgroundRefreshManager, IndexManager
 
 
-@pytest.fixture(autouse=True)
-def patch_generic_indexing_for_mcp_index_manager():
-    with patch(
-        "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer"
-    ) as mock_runner:
-        mock_runner.return_value = {
-            "success": True,
-            "modules_count": 0,
-            "files_indexed": 0,
-            "errors": [],
-            "metadata": {},
-        }
-        yield mock_runner
+
 
 
 class TestIndexManagerKeywordDetection:
@@ -399,6 +387,52 @@ class TestBackgroundRefreshManager:
         assert result["success"] is False
         assert "Detection failed" in result["error"]
         assert result["elapsed_seconds"] >= 0
+
+    def test_force_refresh_prefers_generic_metadata(self, refresh_manager):
+        """Test that force_refresh uses generic metadata when available."""
+        mock_indexer = MagicMock()
+        mock_indexer.incremental_index_repository.return_value = {
+            "metadata": {"total_modules": 10, "total_functions": 100}
+        }
+
+        # Override the global patch for this test
+        with patch(
+            "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer"
+        ) as mock_generic:
+            mock_generic.return_value = {
+                "metadata": {"total_modules": 20, "total_functions": 200}
+            }
+
+            with patch(
+                "cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer
+            ):
+                with patch("cicada.setup.detect_project_language", return_value="python"):
+                    result = refresh_manager.force_refresh()
+
+        assert result["total_modules"] == 20
+        assert result["total_functions"] == 200
+
+    def test_force_refresh_falls_back_to_language_metadata(self, refresh_manager):
+        """Test that force_refresh falls back to language metadata when generic is empty."""
+        mock_indexer = MagicMock()
+        mock_indexer.incremental_index_repository.return_value = {
+            "metadata": {"total_modules": 10, "total_functions": 100}
+        }
+
+        # Override to return empty metadata
+        with patch(
+            "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer"
+        ) as mock_generic:
+            mock_generic.return_value = {"metadata": {}}
+
+            with patch(
+                "cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer
+            ):
+                with patch("cicada.setup.detect_project_language", return_value="python"):
+                    result = refresh_manager.force_refresh()
+
+        assert result["total_modules"] == 10
+        assert result["total_functions"] == 100
 
     def test_execute_refresh_when_stopped(self, refresh_manager):
         """Test that _execute_refresh returns early if stopped."""

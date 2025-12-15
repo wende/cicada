@@ -32,18 +32,7 @@ def parser():
     return get_argument_parser()
 
 
-@pytest.fixture(autouse=True)
-def patch_generic_indexing_for_cli():
-    """Prevent generic indexer from running during CLI unit tests."""
-    with patch("cicada.commands.run_generic_indexing_for_language_indexer") as mock_runner:
-        mock_runner.return_value = {
-            "success": True,
-            "modules_count": 0,
-            "files_indexed": 0,
-            "errors": [],
-            "metadata": {},
-        }
-        yield mock_runner
+
 
 
 @pytest.fixture

@@ -52,7 +52,7 @@ class GenericFileIndexer(BaseIndexer):
 
     def _load_gitignore(self, repo_path: Path) -> PathSpec:
         """Load gitignore patterns and ensure git metadata files are always ignored."""
-        patterns = [".git/", ".gitignore", ".gitmodules", ".gitattributes"]
+        patterns = [".git/", ".gitmodules", ".gitattributes"]
         gitignore_path = repo_path / ".gitignore"
         if gitignore_path.exists():
             with contextlib.suppress(OSError):
@@ -98,8 +98,7 @@ class GenericFileIndexer(BaseIndexer):
         return ("".join(content_parts), line_count)
 
     def _normalize_relative(self, repo_path: Path, target: Path) -> str:
-        rel = target.relative_to(repo_path).as_posix()
-        return rel
+        return target.relative_to(repo_path).as_posix()
 
     def _should_ignore(self, spec: PathSpec, relative_path: str) -> bool:
         return spec.match_file(relative_path) or spec.match_file(f"{relative_path}/")

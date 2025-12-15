@@ -5,11 +5,47 @@ Pytest configuration and fixtures for all tests.
 import json
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
 from .elixir_repo_factory import create_sample_elixir_repo
+
+
+@pytest.fixture(autouse=True)
+def patch_generic_indexing():
+    """
+    Prevent generic indexer from running during unit tests.
+    Patches the function in all known usage locations.
+    """
+    mock_result = {
+        "success": True,
+        "modules_count": 0,
+        "files_indexed": 0,
+        "errors": [],
+        "metadata": {},
+    }
+
+    targets = [
+        "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer",
+        "cicada.commands.run_generic_indexing_for_language_indexer",
+        "cicada.watcher.run_generic_indexing_for_language_indexer",
+        "cicada.setup.run_generic_indexing_for_language_indexer",
+    ]
+
+    shared_mock = MagicMock(return_value=mock_result)
+
+    patches = [patch(target, shared_mock) for target in targets]
+
+    for p in patches:
+        p.start()
+
+    yield shared_mock
+
+    for p in patches:
+        p.stop()
+
 
 
 @pytest.fixture(scope="session", autouse=True)

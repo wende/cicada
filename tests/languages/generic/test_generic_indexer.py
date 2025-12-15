@@ -44,6 +44,7 @@ def test_indexes_text_files_and_preserves_existing_modules(tmp_path):
 
     assert "README.md" in modules
     assert "docs/note.md" in modules
+    assert ".gitignore" in modules
     assert "docs/ignored.md" not in modules
     assert "script.py" not in modules
     assert "Existing.Module" in modules
@@ -55,7 +56,7 @@ def test_indexes_text_files_and_preserves_existing_modules(tmp_path):
     assert isinstance(readme_entry.get("keywords"), dict)
     assert readme_entry["keywords"]
 
-    assert result["files_indexed"] == 2
+    assert result["files_indexed"] == 3
     assert data["metadata"]["language"] == "elixir"
     assert data["metadata"]["total_modules"] == len(modules)
 

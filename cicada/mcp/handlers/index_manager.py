@@ -232,10 +232,10 @@ class BackgroundRefreshManager:
 
                 # Extract stats from result
                 metadata = {}
-                if generic_result:
-                    metadata = generic_result.get("metadata", {}) or metadata
-                if not metadata and result:
-                    metadata = result.get("metadata", {}) or metadata
+                if generic_result and generic_result.get("metadata"):
+                    metadata = generic_result["metadata"]
+                elif result and result.get("metadata"):
+                    metadata = result["metadata"]
                 return {
                     "success": True,
                     "elapsed_seconds": round(elapsed, 2),
