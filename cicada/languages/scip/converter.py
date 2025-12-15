@@ -1265,10 +1265,10 @@ class SCIPConverter:
             # For "utils/chain_add" -> "utils"
             # For "typing/List" -> "typing"
             module_path = descriptor.split("/")[0]
-            return module_path
+            return module_path.strip("`")
         elif descriptor:
             # For "operations" (after __init__ removal) -> "operations"
-            return descriptor
+            return descriptor.strip("`")
 
         return None
 
