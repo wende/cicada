@@ -1,4 +1,4 @@
-.PHONY: help install install-deps generate-scip-proto setup-fixtures setup-scip setup-scip-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments
+.PHONY: help install install-deps generate-scip-proto setup-fixtures setup-scip setup-scip-fixtures test test-verbose test-watch cover clean reset format lint pre-commit ci-test pr-comments dev
 
 # Default target
 help:
@@ -18,7 +18,7 @@ help:
 	@echo "  make lint-fix         - Auto-fix issues with ruff"
 	@echo "  make pre-commit       - Run all pre-commit checks (auto-installs dependencies)"
 	@echo "  make ci-test          - Run tests in CI environment (auto-installs dependencies)"
-	@echo "  make pr-comments      - Display all comments from PR for current branch"
+	@echo "  make pr-comments [PR=<number>] - Display all comments from PR for current branch (or specify PR number)"
 	@echo "  make clean            - Remove generated files"
 	@echo "  make reset            - Full reset (cache, models, .cicada dirs)"
 	@echo "  make dev              - Clean rebuild and install (avoids cache issues)"
@@ -227,25 +227,30 @@ reset: clean
 	@echo "To reinstall cicada:"
 	@echo "  uv tool install --editable . --force"
 
-# Display all comments from PR for current branch
+# Display all comments from PR for current branch (or specify PR number with PR=<number>)
 pr-comments:
-	@echo "Fetching PR comments for current branch..."
+	@echo "Fetching PR comments..."
 	@set -e; \
 	if ! command -v gh >/dev/null 2>&1; then \
 		echo "Error: 'gh' (GitHub CLI) is not installed. Please install it to use this command."; \
 		exit 1; \
 	fi; \
-	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ] || [ "$$BRANCH" = "master" ]; then \
-		echo "Error: Not on a feature branch (currently on $$BRANCH)"; \
-		exit 1; \
-	fi; \
-	echo "Current branch: $$BRANCH"; \
-	echo ""; \
-	PR_NUMBER=$$(gh pr list --head "$$BRANCH" --json number --jq '.[0].number'); \
-	if [ -z "$$PR_NUMBER" ]; then \
-		echo "Error: No PR found for branch $$BRANCH"; \
-		exit 1; \
+	if [ -n "$(PR)" ]; then \
+		PR_NUMBER=$(PR); \
+		echo "Using specified PR #$$PR_NUMBER"; \
+	else \
+		BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+		if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ] || [ "$$BRANCH" = "master" ]; then \
+			echo "Error: Not on a feature branch (currently on $$BRANCH)"; \
+			exit 1; \
+		fi; \
+		echo "Current branch: $$BRANCH"; \
+		echo ""; \
+		PR_NUMBER=$$(gh pr list --head "$$BRANCH" --json number --jq '.[0].number'); \
+		if [ -z "$$PR_NUMBER" ]; then \
+			echo "Error: No PR found for branch $$BRANCH"; \
+			exit 1; \
+		fi; \
 	fi; \
 	REPO=$$(gh repo view --json nameWithOwner --jq '.nameWithOwner'); \
 	CURRENT_COMMIT=$$(git rev-parse HEAD); \
