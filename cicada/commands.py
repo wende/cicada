@@ -206,6 +206,27 @@ def get_argument_parser():
         action="store_true",
         help="Initialize with default values (equivalent to --fast)",
     )
+    install_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Accept all defaults (non-interactive mode). Also enables PR indexing by default.",
+    )
+    install_parser.add_argument(
+        "--index-prs",
+        action="store_true",
+        help="Force enable PR indexing",
+    )
+    install_parser.add_argument(
+        "--no-index-prs",
+        action="store_true",
+        help="Force disable PR indexing",
+    )
+    install_parser.add_argument(
+        "--skip-optional",
+        action="store_true",
+        help="Skip all optional features (PR indexing, etc.)",
+    )
 
     server_parser = subparsers.add_parser(
         "server",
@@ -1243,6 +1264,7 @@ def handle_install(args) -> None:
 
     from cicada.setup import EditorType, setup
     from cicada.utils import get_config_path, get_index_path
+    from cicada.interactive_setup_helpers import run_pr_indexing, add_to_claude_md
 
     # Determine and validate repository path
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
@@ -1255,6 +1277,12 @@ def handle_install(args) -> None:
     # Validate tier flags
     validate_tier_flags(args)
 
+    # Handle automation flags
+    yes_mode = getattr(args, "yes", False)
+    skip_optional = getattr(args, "skip_optional", False)
+    force_index_prs = getattr(args, "index_prs", False)
+    force_no_index_prs = getattr(args, "no_index_prs", False)
+
     # Parse editor selection
     editor = _determine_editor_from_args(args)
 
@@ -1266,8 +1294,32 @@ def handle_install(args) -> None:
     index_path = get_index_path(repo_path)
     index_exists = config_path.exists() and index_path.exists()
 
-    # If no flags provided, use full interactive setup
-    if editor is None and extraction_method is None:
+    # Determine PR indexing preference based on flags
+    # If explicitly set, it overrides everything
+    # If yes_mode, defaults to True (unless skipped)
+    # If skip_optional, defaults to False
+    should_index_prs = None
+    should_add_to_claude = None
+
+    if force_index_prs:
+        should_index_prs = True
+    elif force_no_index_prs:
+        should_index_prs = False
+    elif skip_optional:
+        should_index_prs = False
+        should_add_to_claude = False
+    elif yes_mode:
+        should_index_prs = True
+        should_add_to_claude = True
+
+    # If no flags provided and no partial flags, use full interactive setup
+    if (
+        editor is None
+        and extraction_method is None
+        and not yes_mode
+        and should_index_prs is None
+        and should_add_to_claude is None
+    ):
         from cicada.interactive_setup import show_full_interactive_setup
 
         show_full_interactive_setup(repo_path)
@@ -1275,13 +1327,34 @@ def handle_install(args) -> None:
 
     # If only model flags provided (no editor), prompt for editor
     if editor is None:
-        editor = _prompt_for_editor()
+        if yes_mode:
+            # Default to Claude Code if --yes used without editor
+            editor = "claude"
+        else:
+            editor = _prompt_for_editor()
 
     # If only editor flag provided (no model), prompt for model (unless index exists)
     if extraction_method is None and not index_exists:
-        from cicada.interactive_setup import show_first_time_setup
+        if yes_mode:
+            # Default to regular/lemmi (handled by setup defaults if passed as None)
+            pass
+        else:
+            from cicada.interactive_setup import show_first_time_setup
 
-        extraction_method, expansion_method, _, _ = show_first_time_setup()
+            (
+                extraction_method,
+                expansion_method,
+                interactive_index_prs,
+                interactive_add_claude,
+            ) = show_first_time_setup(
+                default_index_prs=should_index_prs,
+                default_add_to_claude=should_add_to_claude,
+            )
+            
+            # Use interactive choices if not overridden by flags
+            # (If we passed defaults, interactive_* vars will match defaults)
+            should_index_prs = interactive_index_prs
+            should_add_to_claude = interactive_add_claude
 
     # If index exists but no model flags, use existing settings
     if extraction_method is None and index_exists:
@@ -1300,6 +1373,14 @@ def handle_install(args) -> None:
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Run post-setup actions
+    if should_index_prs:
+        run_pr_indexing(repo_path)
+    
+    if should_add_to_claude:
+        add_to_claude_md(repo_path)
+
 
 
 def _validate_project_language(repo_path: Path) -> str:

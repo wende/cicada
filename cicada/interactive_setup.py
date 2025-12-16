@@ -183,7 +183,11 @@ def _text_based_setup() -> tuple[str, str, bool, bool]:
     return (method, expansion_method, index_prs, add_to_claude_md_flag)
 
 
-def show_first_time_setup(show_welcome: bool = True) -> tuple[str, str, bool, bool]:
+def show_first_time_setup(
+    show_welcome: bool = True,
+    default_index_prs: bool | None = None,
+    default_add_to_claude: bool | None = None,
+) -> tuple[str, str, bool, bool]:
     """
     Display an interactive first-time setup menu for cicada.
 
@@ -191,6 +195,8 @@ def show_first_time_setup(show_welcome: bool = True) -> tuple[str, str, bool, bo
 
     Args:
         show_welcome: Whether to display the ASCII art banner and intro text.
+        default_index_prs: If set, skip PR indexing question and use this value.
+        default_add_to_claude: If set, skip CLAUDE.md question and use this value.
 
     Returns:
         tuple[str, str, bool, bool]: The selected extraction method, expansion method,
@@ -199,6 +205,7 @@ def show_first_time_setup(show_welcome: bool = True) -> tuple[str, str, bool, bo
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
+        # Pass defaults to text-based setup if needed (not implemented yet, but keeping consistent)
         return _text_based_setup()
 
     _print_first_time_intro(show_header=show_welcome)
@@ -218,35 +225,43 @@ def show_first_time_setup(show_welcome: bool = True) -> tuple[str, str, bool, bo
     display_tier_selection(tier_index)
 
     # Step 2: Ask about PR indexing
-    print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
-    print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
-    print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
-    print()
+    if default_index_prs is not None:
+        index_prs = default_index_prs
+    else:
+        print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
+        print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
+        print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
+        print()
 
-    pr_index = _select_with_menu(
-        PR_ITEMS,
-        f"{SELECTED}Setup cancelled. Exiting...{RESET}",
-    )
-    if pr_index is None:
-        return _handle_menu_unavailable()
+        pr_index = _select_with_menu(
+            PR_ITEMS,
+            f"{SELECTED}Setup cancelled. Exiting...{RESET}",
+        )
+        if pr_index is None:
+            return _handle_menu_unavailable()
 
-    index_prs = pr_index == 1
+        index_prs = pr_index == 1
+
     display_pr_indexing_selection(index_prs)
 
     # Step 3: Ask about adding to CLAUDE.md
-    print(f"{BOLD}Step 3/3: Augment CLAUDE.md for AI assistants?{RESET}")
-    print(f"{PRIMARY}   Add documentation to CLAUDE.md to help AI assistants{RESET}")
-    print(f"{PRIMARY}   understand when and how to use Cicada tools effectively{RESET}")
-    print()
+    if default_add_to_claude is not None:
+        add_to_claude_md_flag = default_add_to_claude
+    else:
+        print(f"{BOLD}Step 3/3: Augment CLAUDE.md for AI assistants?{RESET}")
+        print(f"{PRIMARY}   Add documentation to CLAUDE.md to help AI assistants{RESET}")
+        print(f"{PRIMARY}   understand when and how to use Cicada tools effectively{RESET}")
+        print()
 
-    claude_md_index = _select_with_menu(
-        CLAUDE_MD_ITEMS,
-        f"{SELECTED}Setup cancelled. Exiting...{RESET}",
-    )
-    if claude_md_index is None:
-        return _handle_menu_unavailable()
+        claude_md_index = _select_with_menu(
+            CLAUDE_MD_ITEMS,
+            f"{SELECTED}Setup cancelled. Exiting...{RESET}",
+        )
+        if claude_md_index is None:
+            return _handle_menu_unavailable()
 
-    add_to_claude_md_flag = claude_md_index == 0  # "Yes" is at index 0
+        add_to_claude_md_flag = claude_md_index == 0  # "Yes" is at index 0
+
     display_claude_md_selection(add_to_claude_md_flag)
 
     return (method, expansion_method, index_prs, add_to_claude_md_flag)
@@ -257,21 +272,32 @@ def _text_based_editor_selection() -> str:
     Fallback text-based editor selection for terminals that don't support simple-term-menu.
 
     Returns:
-        str: The selected editor ('claude', 'cursor', or 'vs')
+        str: The selected editor ('claude', 'cursor', 'vs', 'gemini', 'codex', or 'opencode')
     """
     print("1. Claude Code - AI-powered code editor")
     print("2. Cursor - AI-first code editor")
     print("3. VS Code - Visual Studio Code")
+    print("4. Gemini CLI - Google Gemini command line interface")
+    print("5. Codex - AI code editor")
+    print("6. OpenCode - Terminal-based AI coding agent")
     print()
 
     while True:
         try:
-            choice = input("Enter your choice (1, 2, or 3) [default: 1]: ").strip()
+            choice = input("Enter your choice (1-6) [default: 1]: ").strip()
             if not choice:
                 choice = "1"
-            if choice in EDITOR_MAP_TEXT:
-                return EDITOR_MAP_TEXT[choice]
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            if choice in ("1", "2", "3", "4", "5", "6"):
+                editor_map = {
+                    "1": "claude",
+                    "2": "cursor",
+                    "3": "vs",
+                    "4": "gemini",
+                    "5": "codex",
+                    "6": "opencode",
+                }
+                return editor_map[choice]
+            print("Invalid choice. Please enter 1-6.")
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
@@ -295,9 +321,19 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         extraction_method: str,
         expansion_method: str,
         index_exists: bool = False,
+        index_prs: bool = False,
+        add_to_claude_md: bool = False,
     ) -> None:
         try:
-            run_setup(editor, repo_path, extraction_method, expansion_method, index_exists)
+            run_setup(
+                editor,
+                repo_path,
+                extraction_method,
+                expansion_method,
+                index_exists=index_exists,
+                index_prs=index_prs,
+                add_to_claude_md=add_to_claude_md,
+            )
         except Exception as e:
             print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
             sys.exit(1)
@@ -389,47 +425,11 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     print(f"{BOLD}Running setup...{RESET}")
     print()
 
-    _run_setup_with_error_handling(editor, repo_path, extraction_method, expansion_method)
-
-    if index_prs:
-        run_pr_indexing(repo_path)
-
-    if add_to_claude_md_flag:
-        add_to_claude_md(repo_path)
-
-
-def _text_based_editor_selection() -> str:
-    """
-    Fallback text-based editor selection for terminals that don't support simple-term-menu.
-
-    Returns:
-        str: The selected editor ('claude', 'cursor', 'vs', 'gemini', 'codex', or 'opencode')
-    """
-    print("1. Claude Code - AI-powered code editor")
-    print("2. Cursor - AI-first code editor")
-    print("3. VS Code - Visual Studio Code")
-    print("4. Gemini CLI - Google Gemini command line interface")
-    print("5. Codex - AI code editor")
-    print("6. OpenCode - Terminal-based AI coding agent")
-    print()
-
-    while True:
-        try:
-            choice = input("Enter your choice (1-6) [default: 1]: ").strip()
-            if not choice:
-                choice = "1"
-            if choice in ("1", "2", "3", "4", "5", "6"):
-                editor_map = {
-                    "1": "claude",
-                    "2": "cursor",
-                    "3": "vs",
-                    "4": "gemini",
-                    "5": "codex",
-                    "6": "opencode",
-                }
-                return editor_map[choice]
-            print("Invalid choice. Please enter 1-6.")
-        except (KeyboardInterrupt, EOFError):
-            print()
-            print("Setup cancelled. Exiting...")
-            sys.exit(1)
+    _run_setup_with_error_handling(
+        editor,
+        repo_path,
+        extraction_method,
+        expansion_method,
+        index_prs=index_prs,
+        add_to_claude_md=add_to_claude_md_flag,
+    )
