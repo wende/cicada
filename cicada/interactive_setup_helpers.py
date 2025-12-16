@@ -204,6 +204,8 @@ def run_setup(
     extraction_method: str,
     expansion_method: str,
     index_exists: bool = False,
+    index_prs: bool = False,
+    add_to_claude_md: bool = False,
 ) -> None:
     """
     Run the setup.
@@ -214,6 +216,8 @@ def run_setup(
         extraction_method: Keyword extraction method
         expansion_method: Keyword expansion method
         index_exists: Whether the index already exists
+        index_prs: Whether to index PRs
+        add_to_claude_md: Whether to add to CLAUDE.md
 
     Raises:
         Exception: If setup fails
@@ -226,6 +230,8 @@ def run_setup(
         extraction_method=extraction_method,
         expansion_method=expansion_method,
         index_exists=index_exists,
+        index_prs=index_prs,
+        add_to_claude_md=add_to_claude_md,
     )
 
 

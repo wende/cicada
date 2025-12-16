@@ -1369,17 +1369,12 @@ def handle_install(args) -> None:
             extraction_method=extraction_method,
             expansion_method=expansion_method,
             index_exists=index_exists,
+            index_prs=should_index_prs or False,
+            add_to_claude_md=should_add_to_claude or False,
         )
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)
         sys.exit(1)
-
-    # Run post-setup actions
-    if should_index_prs:
-        run_pr_indexing(repo_path)
-    
-    if should_add_to_claude:
-        add_to_claude_md(repo_path)
 
 
 

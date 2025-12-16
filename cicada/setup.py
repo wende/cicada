@@ -502,6 +502,8 @@ def setup(
     extraction_method: str | None = None,
     expansion_method: str | None = None,
     index_exists: bool = False,
+    index_prs: bool = False,
+    add_to_claude_md: bool = False,
 ) -> None:
     """
     Run the complete setup for the specified editor.
@@ -512,6 +514,8 @@ def setup(
         extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
         expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
         index_exists: If True, skip banner and show condensed output (index already exists)
+        index_prs: If True, index pull requests
+        add_to_claude_md: If True, add Cicada guide to CLAUDE.md
     """
     # Determine repository path
     if repo_path is None:
@@ -623,7 +627,7 @@ def setup(
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
-    if editor == "claude":
+    if editor == "claude" and not add_to_claude_md:
         update_claude_md(repo_path)
 
     # Create or update .gitattributes for git function tracking
@@ -656,6 +660,25 @@ def setup(
         print()
         print(f"Restart {editor.upper()}.")
         print()
+
+    # Run PR indexing if requested
+    if index_prs:
+        # Import locally to avoid circular dependencies
+        try:
+            from cicada.interactive_setup_helpers import run_pr_indexing
+            run_pr_indexing(repo_path)
+        except ImportError:
+            # Fallback if module structure is different than expected
+            print("Warning: Could not import run_pr_indexing")
+
+    # Add guide to CLAUDE.md if requested
+    if add_to_claude_md:
+        # Import locally to avoid circular dependencies
+        try:
+            from cicada.interactive_setup_helpers import add_to_claude_md as doc_add_to_claude_md
+            doc_add_to_claude_md(repo_path)
+        except ImportError:
+            print("Warning: Could not import add_to_claude_md")
 
     # Check if running via uvx and suggest permanent installation
     import shutil
