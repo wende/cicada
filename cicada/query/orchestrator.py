@@ -812,7 +812,7 @@ class QueryOrchestrator:
                 result.file, result.line, context_lines, context_before, context_after
             )
             if snippet:
-                lines.append(f"\n```elixir\n{snippet}\n```\n")
+                lines.append(f"\n```\n{snippet}\n```\n")
 
         lines.append("\n")  # Blank line between results
 

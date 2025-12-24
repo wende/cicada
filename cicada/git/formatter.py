@@ -175,7 +175,7 @@ class GitFormatter:
             lines.append("")
 
             # Show code lines with 3-space indentation
-            lines.append("  ```elixir")
+            lines.append("  ```")
             for line_info in group["lines"]:
                 # Show line content with 5 spaces total (2 for block + 3 for content)
                 lines.append(f"     {line_info['content']}")

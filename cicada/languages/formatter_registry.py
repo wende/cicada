@@ -3,12 +3,12 @@ Language formatter registry.
 
 Provides a factory function to get the appropriate language-specific
 formatter based on the language identifier.
+
+This module delegates to LanguageRegistry.get_formatter() to ensure
+all language definitions are centralized in one place.
 """
 
-from cicada.languages.elixir.formatter import ElixirFormatter
-from cicada.languages.erlang.formatter import ErlangFormatter
 from cicada.languages.formatter_interface import BaseLanguageFormatter
-from cicada.languages.scip.formatter import PythonFormatter, TypeScriptFormatter
 
 
 def get_language_formatter(language: str) -> BaseLanguageFormatter:
@@ -33,16 +33,19 @@ def get_language_formatter(language: str) -> BaseLanguageFormatter:
         >>> formatter.format_function_identifier('MyModule', 'func', 2)
         'MyModule.func/2'
     """
-    formatters = {
-        "elixir": ElixirFormatter(),
-        "erlang": ErlangFormatter(),
-        "python": PythonFormatter(),
-        "typescript": TypeScriptFormatter(),
-    }
+    # Import here to avoid circular imports at module level
+    from cicada.languages import LanguageNotSupportedError, LanguageRegistry
 
-    if language not in formatters:
+    try:
+        return LanguageRegistry.get_formatter(language)
+    except LanguageNotSupportedError:
+        supported = LanguageRegistry.get_supported_languages()
         raise ValueError(
-            f"Unsupported language: '{language}'. Supported: {list(formatters.keys())}"
-        )
-
-    return formatters[language]
+            f"Unsupported language: '{language}'. Supported: {supported}"
+        ) from None
+    except ValueError as e:
+        # Re-raise with same message format for backwards compatibility
+        supported = LanguageRegistry.get_supported_languages()
+        raise ValueError(
+            f"Unsupported language: '{language}'. Supported: {supported}"
+        ) from e

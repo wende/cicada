@@ -80,3 +80,11 @@ class PythonFormatter(SCIPFormatter):
 
 class TypeScriptFormatter(SCIPFormatter):
     """Formatter for TypeScript language conventions."""
+
+
+class JavaScriptFormatter(SCIPFormatter):
+    """Formatter for JavaScript language conventions."""
+
+
+class RustFormatter(SCIPFormatter):
+    """Formatter for Rust language conventions."""

@@ -597,7 +597,7 @@ end
         result = orchestrator.execute_query("auth")
 
         # Should not have code snippet preview
-        assert "```elixir" not in result
+        assert "```\n" not in result
 
     def test_snippets_enabled_shows_code(self, sample_index_with_files):
         """Test that show_snippets=True displays code blocks."""
@@ -606,9 +606,8 @@ end
         result = orchestrator.execute_query(["verify", "token"], show_snippets=True)
 
         # Should have code blocks
-        assert "```elixir" in result
+        assert "```\n" in result
         assert "def verify_token" in result
-        assert "```elixir" in result
 
     def test_snippet_shows_context_lines(self, sample_index_with_files):
         """Test that snippets show context lines around the target."""
