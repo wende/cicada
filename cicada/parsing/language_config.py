@@ -7,6 +7,19 @@ Defines configuration settings that are specific to each programming language.
 from dataclasses import dataclass, field
 from typing import Any
 
+# Shared excluded directories for Node.js/JS/TS projects
+_NODE_EXCLUDED_DIRS = [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".nuxt",
+    "out",
+    ".cache",
+]
+
 
 @dataclass
 class LanguageConfig:
@@ -99,17 +112,7 @@ class LanguageConfig:
         return LanguageConfig(
             language="typescript",
             file_extensions=[".ts", ".tsx"],
-            excluded_dirs=[
-                "node_modules",
-                ".git",
-                "dist",
-                "build",
-                "coverage",
-                ".next",
-                ".nuxt",
-                "out",
-                ".cache",
-            ],
+            excluded_dirs=list(_NODE_EXCLUDED_DIRS),
             tree_sitter_grammar="tree-sitter-typescript",
             comment_syntax={
                 "line": "//",
@@ -124,17 +127,7 @@ class LanguageConfig:
         return LanguageConfig(
             language="javascript",
             file_extensions=[".js", ".jsx", ".mjs", ".cjs"],
-            excluded_dirs=[
-                "node_modules",
-                ".git",
-                "dist",
-                "build",
-                "coverage",
-                ".next",
-                ".nuxt",
-                "out",
-                ".cache",
-            ],
+            excluded_dirs=list(_NODE_EXCLUDED_DIRS),
             tree_sitter_grammar="tree-sitter-javascript",
             comment_syntax={
                 "line": "//",

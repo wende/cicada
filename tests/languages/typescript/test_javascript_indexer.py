@@ -50,10 +50,16 @@ class TestJavaScriptSCIPIndexer:
         # Common exclusion
         assert ".git" in excluded
 
-    def test_inherits_from_typescript_indexer(self, indexer):
-        """Should inherit from TypeScriptSCIPIndexer."""
-        from cicada.languages.typescript.indexer import TypeScriptSCIPIndexer
-        assert isinstance(indexer, TypeScriptSCIPIndexer)
+    def test_shares_base_class_with_typescript_indexer(self, indexer):
+        """Should share base class with TypeScriptSCIPIndexer."""
+        from cicada.languages.typescript.indexer import (
+            TypeScriptSCIPIndexer,
+            _ScipTypeScriptIndexerBase,
+        )
+        # Both indexers share the same base class
+        assert isinstance(indexer, _ScipTypeScriptIndexerBase)
+        ts_indexer = TypeScriptSCIPIndexer()
+        assert isinstance(ts_indexer, _ScipTypeScriptIndexerBase)
 
     def test_excluded_dirs_is_set(self, indexer):
         """Should have excluded_dirs as instance variable."""

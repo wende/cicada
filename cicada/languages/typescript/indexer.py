@@ -9,32 +9,31 @@ from pathlib import Path
 
 from cicada.languages.scip.indexer import GenericSCIPIndexer
 
+# Shared excluded directories for Node.js/TypeScript/JavaScript projects
+_NODE_EXCLUDED_DIRS = {
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".nuxt",
+    "out",
+    ".cache",
+}
 
-class TypeScriptSCIPIndexer(GenericSCIPIndexer):
-    """Index TypeScript repositories using scip-typescript."""
+
+class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
+    """Base class for TypeScript and JavaScript indexers using scip-typescript.
+
+    This class contains the shared logic for both TypeScript and JavaScript
+    indexing since they both use the same underlying scip-typescript tool.
+    """
 
     def __init__(self, verbose: bool = False):
-        """Initialize the TypeScript SCIP indexer."""
+        """Initialize the SCIP indexer."""
         super().__init__(verbose)
-        self.excluded_dirs = {
-            "node_modules",
-            ".git",
-            "dist",
-            "build",
-            "coverage",
-            ".next",
-            ".nuxt",
-            "out",
-            ".cache",
-        }
-
-    def get_language_name(self) -> str:
-        """Return language identifier."""
-        return "typescript"
-
-    def get_file_extensions(self) -> list[str]:
-        """Return TypeScript and JavaScript file extensions."""
-        return [".ts", ".tsx", ".js", ".jsx"]
+        self.excluded_dirs = _NODE_EXCLUDED_DIRS
 
     def get_excluded_dirs(self) -> list[str]:
         """Return directories to exclude from indexing."""
@@ -53,12 +52,23 @@ class TypeScriptSCIPIndexer(GenericSCIPIndexer):
         )
 
 
-class JavaScriptSCIPIndexer(TypeScriptSCIPIndexer):
+class TypeScriptSCIPIndexer(_ScipTypeScriptIndexerBase):
+    """Index TypeScript repositories using scip-typescript."""
+
+    def get_language_name(self) -> str:
+        """Return language identifier."""
+        return "typescript"
+
+    def get_file_extensions(self) -> list[str]:
+        """Return TypeScript and JavaScript file extensions."""
+        return [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+
+
+class JavaScriptSCIPIndexer(_ScipTypeScriptIndexerBase):
     """Index JavaScript repositories using scip-typescript.
 
-    This is a thin wrapper around TypeScriptSCIPIndexer that identifies
-    as JavaScript. The underlying scip-typescript tool handles both
-    languages identically.
+    Uses the same underlying scip-typescript tool as TypeScriptSCIPIndexer
+    but identifies as JavaScript and only returns JavaScript file extensions.
     """
 
     def get_language_name(self) -> str:
