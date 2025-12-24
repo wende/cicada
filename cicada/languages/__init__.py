@@ -255,14 +255,6 @@ LanguageRegistry.register_language(
     formatter_class="cicada.languages.scip.formatter.JavaScriptFormatter",
 )
 
-# Register JavaScript (SCIP-based, uses same tool as TypeScript)
-LanguageRegistry.register_language(
-    language="javascript",
-    parser_class=None,  # No parser needed for SCIP-based indexing
-    indexer_class="cicada.languages.typescript.indexer.JavaScriptSCIPIndexer",
-    config=LanguageConfig.default_javascript(),
-)
-
 # Register Rust (SCIP-based)
 LanguageRegistry.register_language(
     language="rust",
