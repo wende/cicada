@@ -69,12 +69,6 @@ class JavaScriptSCIPIndexer(_ScipTypeScriptIndexerBase):
 
     Uses the same underlying scip-typescript tool as TypeScriptSCIPIndexer
     but identifies as JavaScript and only returns JavaScript file extensions.
-class JavaScriptSCIPIndexer(TypeScriptSCIPIndexer):
-    """Index JavaScript repositories using scip-typescript.
-
-    This is a thin wrapper around TypeScriptSCIPIndexer that identifies
-    as JavaScript. The underlying scip-typescript tool handles both
-    languages identically.
     """
 
     def get_language_name(self) -> str:
