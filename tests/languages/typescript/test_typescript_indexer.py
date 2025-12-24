@@ -1,10 +1,10 @@
-"""Comprehensive tests for TypeScript SCIP indexer."""
+"""Comprehensive tests for TypeScript and JavaScript SCIP indexers."""
 
 import pytest
 import subprocess
 from unittest.mock import Mock, patch
 
-from cicada.languages.typescript.indexer import TypeScriptSCIPIndexer
+from cicada.languages.typescript.indexer import TypeScriptSCIPIndexer, JavaScriptSCIPIndexer
 
 
 class TestTypeScriptSCIPIndexer:
@@ -25,11 +25,13 @@ class TestTypeScriptSCIPIndexer:
         assert indexer.get_language_name() == "typescript"
 
     def test_get_file_extensions(self, indexer):
-        """Should return .ts and .tsx extensions."""
+        """Should return TypeScript and JavaScript extensions."""
         extensions = indexer.get_file_extensions()
-        assert extensions == [".ts", ".tsx"]
+        assert extensions == [".ts", ".tsx", ".js", ".jsx"]
         assert ".ts" in extensions
         assert ".tsx" in extensions
+        assert ".js" in extensions
+        assert ".jsx" in extensions
 
     def test_get_excluded_dirs(self, indexer):
         """Should return list of TypeScript-specific excluded directories."""

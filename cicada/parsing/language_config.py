@@ -119,6 +119,31 @@ class LanguageConfig:
         )
 
     @staticmethod
+    def default_javascript() -> "LanguageConfig":
+        """Create default JavaScript configuration."""
+        return LanguageConfig(
+            language="javascript",
+            file_extensions=[".js", ".jsx", ".mjs", ".cjs"],
+            excluded_dirs=[
+                "node_modules",
+                ".git",
+                "dist",
+                "build",
+                "coverage",
+                ".next",
+                ".nuxt",
+                "out",
+                ".cache",
+            ],
+            tree_sitter_grammar="tree-sitter-javascript",
+            comment_syntax={
+                "line": "//",
+                "block_start": "/*",
+                "block_end": "*/",
+            },
+        )
+
+    @staticmethod
     def default_rust() -> "LanguageConfig":
         """Create default Rust configuration."""
         return LanguageConfig(
