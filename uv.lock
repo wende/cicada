@@ -187,10 +187,8 @@ name = "cicada-mcp"
 version = "0.5.2"
 source = { editable = "." }
 dependencies = [
-    { name = "gensim" },
     { name = "gitpython" },
     { name = "jq" },
-    { name = "keybert" },
     { name = "lemminflect" },
     { name = "mcp" },
     { name = "pathspec" },
@@ -204,6 +202,12 @@ dependencies = [
     { name = "tree-sitter-elixir" },
     { name = "tree-sitter-language-pack" },
     { name = "watchdog" },
+]
+
+[package.optional-dependencies]
+ml = [
+    { name = "gensim" },
+    { name = "keybert" },
 ]
 
 [package.dev-dependencies]
@@ -221,10 +225,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gensim", specifier = ">=4.4.0" },
+    { name = "gensim", marker = "extra == 'ml'", specifier = ">=4.4.0" },
     { name = "gitpython", specifier = ">=3.1.0" },
     { name = "jq", specifier = ">=1.6.0" },
-    { name = "keybert", specifier = ">=0.8.0" },
+    { name = "keybert", marker = "extra == 'ml'", specifier = ">=0.8.0" },
     { name = "lemminflect", specifier = ">=0.2.3" },
     { name = "mcp", specifier = ">=0.1.0" },
     { name = "pathspec", specifier = ">=0.12.0" },
@@ -239,6 +243,7 @@ requires-dist = [
     { name = "tree-sitter-language-pack", specifier = ">=0.13.0" },
     { name = "watchdog", specifier = ">=3.0.0" },
 ]
+provides-extras = ["ml"]
 
 [package.metadata.requires-dev]
 dev = [

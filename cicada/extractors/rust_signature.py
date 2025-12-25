@@ -31,7 +31,9 @@ RUST_IMPL_PATTERN = re.compile(
 )
 
 # Matches: mod name
-RUST_MOD_PATTERN = re.compile(r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+([a-z_][a-z0-9_]*)", re.MULTILINE)
+RUST_MOD_PATTERN = re.compile(
+    r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+([a-z_][a-z0-9_]*)", re.MULTILINE
+)
 
 
 class RustSignatureExtractor(FunctionSignatureExtractor):
@@ -95,11 +97,11 @@ class RustSignatureExtractor(FunctionSignatureExtractor):
         signatures = set()
 
         # Track current impl block context
-        current_impl_type = None
+        current_impl_type: str | None = None
         lines = content.split("\n")
         impl_depth = 0
 
-        for i, line in enumerate(lines):
+        for _i, line in enumerate(lines):
             # Check for impl block start
             impl_match = RUST_IMPL_PATTERN.match(line)
             if impl_match:
@@ -152,11 +154,7 @@ class RustSignatureExtractor(FunctionSignatureExtractor):
 
         parts = [p.strip() for p in params.split(",") if p.strip()]
         # Exclude self/&self/&mut self from count
-        parts = [
-            p
-            for p in parts
-            if not p.startswith(("self", "&self", "&mut self", "mut self"))
-        ]
+        parts = [p for p in parts if not p.startswith(("self", "&self", "&mut self", "mut self"))]
         return len(parts)
 
 

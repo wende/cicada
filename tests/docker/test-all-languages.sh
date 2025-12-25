@@ -51,7 +51,7 @@ test_language() {
         cicada-base \
         bash -c "
             cd /workspace/project && \
-            uv run --directory /cicada cicada claude --fast 2>&1 || true
+            cicada claude --fast 2>&1 || true
         " 2>&1 | tee /tmp/cicada-test-$fixture_name.log
 
     # Check results

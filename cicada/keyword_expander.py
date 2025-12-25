@@ -153,7 +153,7 @@ class KeywordExpander:
             return self._model_cache[self.expansion_type]
 
         try:
-            import gensim.downloader as api
+            import gensim.downloader as api  # pyrefly: ignore[missing-import]
         except ImportError as e:
             raise ImportError(
                 f"gensim is not installed. This is required for {self.expansion_type} expansion (--regular and --max tiers).\n"

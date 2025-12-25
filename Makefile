@@ -119,7 +119,7 @@ setup-scip-fixtures:
 
 # Run tests
 test: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures
-	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=line --no-header -q 2>&1 | tail -1
+	@set -o pipefail; uv run pytest -n auto --dist loadgroup --disable-warnings --tb=short --no-header -q 2>&1 | tail -30
 
 # Run tests with verbose output
 test-verbose: install-deps generate-scip-proto setup-fixtures setup-scip-fixtures

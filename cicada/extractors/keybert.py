@@ -48,7 +48,7 @@ class KeyBERTExtractor(BaseKeywordExtractor):
         # Lazy import KeyBERT (only once per class)
         if KeyBERTExtractor._KeyBERT is None:
             try:
-                from keybert import KeyBERT
+                from keybert import KeyBERT  # pyrefly: ignore[missing-import]
 
                 KeyBERTExtractor._KeyBERT = KeyBERT
             except ImportError as e:

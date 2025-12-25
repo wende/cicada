@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 # Install scip-go
 ENV GOPATH=/root/go
 ENV PATH=$PATH:/root/go/bin
-RUN go install github.com/sourcegraph/scip-go@latest
+RUN go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
 
 # Verify scip-go is installed
 RUN scip-go --help > /dev/null 2>&1 && echo "✓ scip-go installed"

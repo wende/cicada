@@ -14,9 +14,6 @@ from cicada.setup import (
 )
 
 
-
-
-
 class TestGetMcpConfigForEditor:
     """Tests for get_mcp_config_for_editor function"""
 

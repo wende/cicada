@@ -719,6 +719,7 @@ def setup(
         # Import locally to avoid circular dependencies
         try:
             from cicada.interactive_setup_helpers import run_pr_indexing
+
             run_pr_indexing(repo_path)
         except ImportError:
             # Fallback if module structure is different than expected
@@ -729,6 +730,7 @@ def setup(
         # Import locally to avoid circular dependencies
         try:
             from cicada.interactive_setup_helpers import add_to_claude_md as doc_add_to_claude_md
+
             doc_add_to_claude_md(repo_path)
         except ImportError:
             print("Warning: Could not import add_to_claude_md")

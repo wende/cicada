@@ -1,7 +1,8 @@
 # Ruby + scip-ruby complete environment
 # Includes Ruby runtime and scip-ruby indexer
 
-FROM cicada-base
+ARG BASE_IMAGE=cicada-base
+FROM ${BASE_IMAGE}
 
 # Install Ruby
 RUN apt-get update && apt-get install -y \
@@ -11,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install scip-ruby (download binary from GitHub releases)
-RUN curl -L "https://github.com/sourcegraph/scip-ruby/releases/download/v0.4.7/scip-ruby-linux-amd64" \
+RUN curl -fL "https://github.com/sourcegraph/scip-ruby/releases/download/scip-ruby-v0.4.7/scip-ruby-x86_64-linux" \
     -o /usr/local/bin/scip-ruby && \
     chmod +x /usr/local/bin/scip-ruby
 

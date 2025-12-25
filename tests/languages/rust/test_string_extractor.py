@@ -33,10 +33,10 @@ class TestRustStringExtractor:
     def test_extract_multiline_source(self):
         """Test extracting strings from multiple lines."""
         extractor = RustStringExtractor()
-        source = '''fn main() {
+        source = """fn main() {
     let a = "first";
     let b = "second";
-}'''
+}"""
         result = extractor.extract_from_source(source)
 
         assert len(result) == 2
@@ -70,7 +70,7 @@ class TestRustStringExtractor:
         result = extractor.extract_from_source(source)
 
         assert len(result) == 1
-        assert result[0]["string"] == r'say \"hello\"'
+        assert result[0]["string"] == r"say \"hello\""
 
     def test_handle_escaped_backslash(self):
         """Test handling of escaped backslashes."""

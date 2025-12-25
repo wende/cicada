@@ -37,8 +37,8 @@ class DartSCIPIndexer(GenericSCIPIndexer):
 
     def _run_scip_indexer(self, repo_path: Path) -> Path:
         """Run scip_dart indexer."""
-        import subprocess
         import shutil
+        import subprocess
 
         # Check if dart and scip_dart are available
         dart_cmd = shutil.which("dart")
@@ -48,9 +48,7 @@ class DartSCIPIndexer(GenericSCIPIndexer):
             )
 
         if not shutil.which("scip_dart"):
-            raise RuntimeError(
-                "scip_dart not found. Install via: dart pub global activate scip"
-            )
+            raise RuntimeError("scip_dart not found. Install via: dart pub global activate scip")
 
         # Check if package_config.json exists, if not run dart pub get
         package_config = repo_path / ".dart_tool" / "package_config.json"
@@ -65,12 +63,11 @@ class DartSCIPIndexer(GenericSCIPIndexer):
                     text=True,
                     timeout=120,
                 )
-                if result.returncode != 0:
-                    if self.verbose:
-                        print(f"  Warning: dart pub get returned {result.returncode}")
-                        if result.stderr:
-                            print(f"  Stderr: {result.stderr.strip()[:200]}")
-                    # Continue anyway - scip_dart might still work
+                if result.returncode != 0 and self.verbose:
+                    print(f"  Warning: dart pub get returned {result.returncode}")
+                    if result.stderr:
+                        print(f"  Stderr: {result.stderr.strip()[:200]}")
+                # Continue anyway - scip_dart might still work
             except subprocess.TimeoutExpired:
                 if self.verbose:
                     print("  Warning: dart pub get timed out")

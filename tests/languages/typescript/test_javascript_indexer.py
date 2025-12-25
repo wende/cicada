@@ -56,6 +56,7 @@ class TestJavaScriptSCIPIndexer:
             TypeScriptSCIPIndexer,
             _ScipTypeScriptIndexerBase,
         )
+
         # Both indexers share the same base class
         assert isinstance(indexer, _ScipTypeScriptIndexerBase)
         ts_indexer = TypeScriptSCIPIndexer()

@@ -1,6 +1,6 @@
 [
   {
-    "directory": "/Users/wende/projects/cicada/tests/fixtures/sample_c",
+    "directory": "/workspace/project",
     "file": "calculator.c",
     "command": "cc -c calculator.c -o calculator.o"
   }

@@ -13,9 +13,6 @@ import pytest
 from cicada.watcher import FileWatcher
 
 
-
-
-
 class TestWatcherErrorScenarios:
     """Test Issue 2.1 fix - Dangerous Fallback with Broken Index"""
 

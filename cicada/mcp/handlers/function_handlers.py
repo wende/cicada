@@ -807,7 +807,7 @@ class FunctionSearchHandler:
         if glob:
             from cicada.utils.path_utils import matches_glob_pattern
 
-            results = [r for r in results if matches_glob_pattern(r["file"], glob)]
+            results = [r for r in results if matches_glob_pattern(str(r["file"]), glob)]
 
         # Check index staleness (we'll need index_manager reference)
         # For now, we'll skip this or pass it from server
@@ -835,7 +835,6 @@ class FunctionSearchHandler:
         private_suggestion = self._suggest_private_function(results, parsed_patterns, cutoff_date)
 
         # Apply pagination (offset + head_limit)
-        total_results = len(results)
         if offset > 0:
             results = results[offset:]
         if head_limit is not None and head_limit > 0:

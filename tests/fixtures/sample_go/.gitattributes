@@ -1,0 +1,3 @@
+# Cicada: Enable git function tracking for Elixir
+*.ex diff=elixir
+*.exs diff=elixir

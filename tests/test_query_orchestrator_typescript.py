@@ -487,9 +487,7 @@ class TestTypeScriptCombinedFilters:
     def test_result_type_and_glob(self, typescript_index):
         """Test result_type + glob combination."""
         orchestrator = QueryOrchestrator(typescript_index)
-        result = orchestrator.execute_query(
-            "add", result_type="functions", glob="operations.ts"
-        )
+        result = orchestrator.execute_query("add", result_type="functions", glob="operations.ts")
 
         # Verify multiple filters: if paths shown, only operations.ts should appear
         assert isinstance(result, str)

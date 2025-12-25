@@ -47,7 +47,6 @@ def patch_generic_indexing():
         p.stop()
 
 
-
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """

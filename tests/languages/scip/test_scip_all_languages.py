@@ -93,27 +93,35 @@ class TestImplementedLanguages:
     in the SCIP support for that language.
     """
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_language_is_registered(self, language: SCIPLanguage):
         """Verify the language is registered in LanguageRegistry."""
-        assert LanguageRegistry.is_language_supported(language.name), (
-            f"Language '{language.display_name}' is marked as implemented but not registered"
-        )
+        assert LanguageRegistry.is_language_supported(
+            language.name
+        ), f"Language '{language.display_name}' is marked as implemented but not registered"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_indexer_can_be_retrieved(self, language: SCIPLanguage):
         """Verify we can get an indexer for the language."""
         indexer = LanguageRegistry.get_indexer(language.name)
         assert indexer is not None
         assert indexer.get_language_name() == language.name
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_formatter_can_be_retrieved(self, language: SCIPLanguage):
         """Verify we can get a formatter for the language."""
         formatter = LanguageRegistry.get_formatter(language.name)
         assert formatter is not None
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_config_exists(self, language: SCIPLanguage):
         """Verify language config exists and has correct values."""
         config = LanguageRegistry.get_config(language.name)
@@ -122,22 +130,26 @@ class TestImplementedLanguages:
 
         # Check file extensions match
         for ext in language.file_extensions:
-            assert ext in config.file_extensions, (
-                f"Extension {ext} not in config for {language.display_name}"
-            )
+            assert (
+                ext in config.file_extensions
+            ), f"Extension {ext} not in config for {language.display_name}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_fixture_exists(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the language has a test fixture."""
         if language.fixture_dir is None:
             pytest.skip(f"No fixture directory defined for {language.display_name}")
 
         fixture_path = fixtures_dir / language.fixture_dir
-        assert fixture_path.exists(), (
-            f"Fixture directory '{language.fixture_dir}' does not exist for {language.display_name}"
-        )
+        assert (
+            fixture_path.exists()
+        ), f"Fixture directory '{language.fixture_dir}' does not exist for {language.display_name}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_scip_index_exists(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the language has a pre-generated SCIP index (skips if not present)."""
         if language.fixture_dir is None:
@@ -152,7 +164,9 @@ class TestImplementedLanguages:
         # If we get here, the index exists - test passes
         assert scip_file.exists()
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_index_has_modules(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the converted index has modules."""
         if language.fixture_dir is None:
@@ -163,11 +177,11 @@ class TestImplementedLanguages:
             pytest.skip(f"SCIP index not found for {language.display_name}")
 
         assert "modules" in index
-        assert len(index["modules"]) > 0, (
-            f"No modules extracted for {language.display_name}"
-        )
+        assert len(index["modules"]) > 0, f"No modules extracted for {language.display_name}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_index_has_metadata(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the converted index has proper metadata."""
         if language.fixture_dir is None:
@@ -183,11 +197,11 @@ class TestImplementedLanguages:
         # Required metadata fields
         required_fields = ["indexed_at", "version", "total_modules", "total_functions"]
         for field in required_fields:
-            assert field in metadata, (
-                f"Metadata missing '{field}' for {language.display_name}"
-            )
+            assert field in metadata, f"Metadata missing '{field}' for {language.display_name}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_index_has_calculator_class(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the index contains the Calculator class/module."""
         if language.fixture_dir is None:
@@ -199,16 +213,16 @@ class TestImplementedLanguages:
 
         # Look for Calculator (case-insensitive search)
         module_names = list(index["modules"].keys())
-        calculator_found = any(
-            "calculator" in name.lower() for name in module_names
-        )
+        calculator_found = any("calculator" in name.lower() for name in module_names)
 
         assert calculator_found, (
             f"Calculator class/module not found for {language.display_name}. "
             f"Found modules: {module_names}"
         )
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_calculator_has_functions(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the Calculator class has extracted functions."""
         if language.fixture_dir is None:
@@ -229,11 +243,13 @@ class TestImplementedLanguages:
             pytest.skip(f"Calculator not found for {language.display_name}")
 
         functions = calculator.get("functions", [])
-        assert len(functions) > 0, (
-            f"No functions extracted from Calculator for {language.display_name}"
-        )
+        assert (
+            len(functions) > 0
+        ), f"No functions extracted from Calculator for {language.display_name}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_functions_have_required_fields(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify functions have all required fields."""
         if language.fixture_dir is None:
@@ -260,11 +276,13 @@ class TestImplementedLanguages:
         required_fields = ["name", "arity", "line", "type"]
         for func in functions:
             for field in required_fields:
-                assert field in func, (
-                    f"Function missing '{field}' for {language.display_name}: {func}"
-                )
+                assert (
+                    field in func
+                ), f"Function missing '{field}' for {language.display_name}: {func}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_schema_validation(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the index passes strict schema validation."""
         if language.fixture_dir is None:
@@ -277,11 +295,11 @@ class TestImplementedLanguages:
         schema = UniversalIndexSchema.from_dict(index)
         is_valid, errors = schema.validate(strict=True)
 
-        assert is_valid, (
-            f"Schema validation failed for {language.display_name}: {errors}"
-        )
+        assert is_valid, f"Schema validation failed for {language.display_name}: {errors}"
 
-    @pytest.mark.parametrize("language", get_implemented_languages(), ids=implemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_implemented_languages(), ids=implemented_language_ids()
+    )
     def test_visibility_detection(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify public/private visibility is detected correctly."""
         if language.fixture_dir is None:
@@ -300,9 +318,9 @@ class TestImplementedLanguages:
 
         # Should use standard visibility types
         valid_types = {"public", "private"}
-        assert all_types.issubset(valid_types | {""}), (
-            f"Invalid visibility types for {language.display_name}: {all_types - valid_types}"
-        )
+        assert all_types.issubset(
+            valid_types | {""}
+        ), f"Invalid visibility types for {language.display_name}: {all_types - valid_types}"
 
 
 # =============================================================================
@@ -320,7 +338,9 @@ class TestUnimplementedLanguages:
     Each failing test is effectively a TODO item for implementing that language.
     """
 
-    @pytest.mark.parametrize("language", get_unimplemented_languages(), ids=unimplemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_unimplemented_languages(), ids=unimplemented_language_ids()
+    )
     @pytest.mark.xfail(reason="Language not yet implemented in Cicada", strict=True)
     def test_language_is_registered(self, language: SCIPLanguage):
         """[XFAIL] Verify the language is registered in LanguageRegistry."""
@@ -329,28 +349,36 @@ class TestUnimplementedLanguages:
             f"Implementation required: add to LanguageRegistry"
         )
 
-    @pytest.mark.parametrize("language", get_unimplemented_languages(), ids=unimplemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_unimplemented_languages(), ids=unimplemented_language_ids()
+    )
     @pytest.mark.xfail(reason="Language not yet implemented in Cicada", strict=True)
     def test_indexer_can_be_retrieved(self, language: SCIPLanguage):
         """[XFAIL] Verify we can get an indexer for the language."""
         indexer = LanguageRegistry.get_indexer(language.name)
         assert indexer is not None
 
-    @pytest.mark.parametrize("language", get_unimplemented_languages(), ids=unimplemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_unimplemented_languages(), ids=unimplemented_language_ids()
+    )
     @pytest.mark.xfail(reason="Language not yet implemented in Cicada", strict=True)
     def test_formatter_can_be_retrieved(self, language: SCIPLanguage):
         """[XFAIL] Verify we can get a formatter for the language."""
         formatter = LanguageRegistry.get_formatter(language.name)
         assert formatter is not None
 
-    @pytest.mark.parametrize("language", get_unimplemented_languages(), ids=unimplemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_unimplemented_languages(), ids=unimplemented_language_ids()
+    )
     @pytest.mark.xfail(reason="Language not yet implemented in Cicada", strict=True)
     def test_config_exists(self, language: SCIPLanguage):
         """[XFAIL] Verify language config exists."""
         config = LanguageRegistry.get_config(language.name)
         assert config is not None
 
-    @pytest.mark.parametrize("language", get_unimplemented_languages(), ids=unimplemented_language_ids())
+    @pytest.mark.parametrize(
+        "language", get_unimplemented_languages(), ids=unimplemented_language_ids()
+    )
     def test_fixture_source_exists(self, language: SCIPLanguage, fixtures_dir: Path):
         """Verify the language has source files in its fixture (this SHOULD pass)."""
         if language.fixture_dir is None:
@@ -418,25 +446,25 @@ class TestLanguageCoverage:
         print(f"Unimplemented languages: {[l.name for l in unimplemented]}")
 
         # This assertion is for documentation purposes
-        assert len(implemented) >= 4, (
-            "At least 4 languages should be implemented (Python, TypeScript, JavaScript, Rust)"
-        )
+        assert (
+            len(implemented) >= 4
+        ), "At least 4 languages should be implemented (Python, TypeScript, JavaScript, Rust)"
 
     def test_all_implemented_languages_have_fixtures(self, fixtures_dir: Path):
         """Verify all implemented languages have test fixtures."""
         for language in get_implemented_languages():
             if language.fixture_dir:
                 fixture_path = fixtures_dir / language.fixture_dir
-                assert fixture_path.exists(), (
-                    f"Missing fixture for implemented language: {language.display_name}"
-                )
+                assert (
+                    fixture_path.exists()
+                ), f"Missing fixture for implemented language: {language.display_name}"
 
     def test_language_status_consistency(self):
         """Verify language status matches actual implementation."""
         for language in get_implemented_languages():
-            assert language.cicada_indexer_class is not None, (
-                f"Implemented language {language.display_name} missing indexer class"
-            )
+            assert (
+                language.cicada_indexer_class is not None
+            ), f"Implemented language {language.display_name} missing indexer class"
 
             # Verify the class is actually importable
             try:
@@ -444,9 +472,7 @@ class TestLanguageCoverage:
                 module = __import__(module_path, fromlist=[class_name])
                 getattr(module, class_name)
             except (ImportError, AttributeError) as e:
-                pytest.fail(
-                    f"Indexer class for {language.display_name} not importable: {e}"
-                )
+                pytest.fail(f"Indexer class for {language.display_name} not importable: {e}")
 
 
 # =============================================================================
@@ -496,10 +522,7 @@ class TestCrossLanguageConsistency:
             if index is None:
                 continue
 
-            has_calculator = any(
-                "calculator" in name.lower()
-                for name in index["modules"].keys()
-            )
+            has_calculator = any("calculator" in name.lower() for name in index["modules"].keys())
 
             assert has_calculator, (
                 f"No Calculator found for {language.display_name}. "
@@ -531,11 +554,19 @@ class TestCrossLanguageConsistency:
         # Fields that should NOT appear in SCIP indexes
         forbidden_fields = {
             # Elixir-specific
-            "defdelegate", "defmacro", "defstruct", "behaviours", "module_attributes",
+            "defdelegate",
+            "defmacro",
+            "defstruct",
+            "behaviours",
+            "module_attributes",
             # Python-specific (if they were accidentally exposed)
-            "decorators", "is_async", "is_generator",
+            "decorators",
+            "is_async",
+            "is_generator",
             # TypeScript-specific
-            "is_interface", "is_abstract", "generic_params",
+            "is_interface",
+            "is_abstract",
+            "generic_params",
         }
 
         for language in get_implemented_languages():
@@ -549,9 +580,9 @@ class TestCrossLanguageConsistency:
             for module_name, module in index["modules"].items():
                 module_fields = set(module.keys())
                 leaked = module_fields & forbidden_fields
-                assert not leaked, (
-                    f"Language-specific fields leaked for {language.display_name}: {leaked}"
-                )
+                assert (
+                    not leaked
+                ), f"Language-specific fields leaked for {language.display_name}: {leaked}"
 
 
 # =============================================================================
@@ -565,12 +596,10 @@ class TestSCIPIndexerInfo:
     @pytest.mark.parametrize("language", get_all_languages(), ids=all_language_ids())
     def test_scip_indexer_documented(self, language: SCIPLanguage):
         """Verify each language has its SCIP indexer documented."""
-        assert language.scip_indexer, (
-            f"SCIP indexer not documented for {language.display_name}"
-        )
-        assert language.scip_indexer_repo, (
-            f"SCIP indexer repo not documented for {language.display_name}"
-        )
+        assert language.scip_indexer, f"SCIP indexer not documented for {language.display_name}"
+        assert (
+            language.scip_indexer_repo
+        ), f"SCIP indexer repo not documented for {language.display_name}"
 
     def test_print_scip_indexer_matrix(self):
         """Print a summary of all SCIP indexers and their status."""
@@ -582,9 +611,7 @@ class TestSCIPIndexerInfo:
         col_widths = [12, 20, 15, 40]
 
         # Print header
-        header_row = " | ".join(
-            h.ljust(w) for h, w in zip(headers, col_widths)
-        )
+        header_row = " | ".join(h.ljust(w) for h, w in zip(headers, col_widths))
         print(header_row)
         print("-" * len(header_row))
 
@@ -597,7 +624,7 @@ class TestSCIPIndexerInfo:
                 language.display_name.ljust(col_widths[0]),
                 language.scip_indexer.ljust(col_widths[1]),
                 status.ljust(col_widths[2]),
-                indexer_class[:col_widths[3]].ljust(col_widths[3]),
+                indexer_class[: col_widths[3]].ljust(col_widths[3]),
             ]
             print(" | ".join(row))
 

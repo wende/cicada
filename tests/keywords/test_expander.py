@@ -95,7 +95,9 @@ class TestKeywordExpanderModelLoading:
         with patch.dict("sys.modules", {"gensim.downloader": None}):
             with patch("builtins.__import__", side_effect=ImportError("No module")):
                 expander = KeywordExpander(expansion_type="fasttext", verbose=False)
-                with pytest.raises(ImportError, match="gensim is required"):
+                with pytest.raises(
+                    ImportError, match=r"gensim is not installed[\s\S]*cicada-mcp\[ml\]"
+                ):
                     expander._load_embedding_model()
 
     def test_verbose_model_loading(self, capsys):

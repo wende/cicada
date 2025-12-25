@@ -1,6 +1,6 @@
 [
   {
-    "directory": "/Users/wende/projects/cicada/tests/fixtures/sample_cpp",
+    "directory": "/workspace/project",
     "file": "calculator.cpp",
     "command": "c++ -std=c++17 -c calculator.cpp -o calculator.o"
   }

@@ -441,9 +441,7 @@ class TestApplyQueryFallbacks:
         transformations_seen = []
 
         def search_fn(opts):
-            transformations_seen.append(
-                (opts.match_source, opts.scope, opts.recent)
-            )
+            transformations_seen.append((opts.match_source, opts.scope, opts.recent))
             return []
 
         apply_query_fallbacks(options, search_fn)

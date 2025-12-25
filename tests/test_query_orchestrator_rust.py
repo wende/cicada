@@ -24,7 +24,9 @@ def rust_index():
     scip_path = fixture_path / "index.scip"
 
     if not scip_path.exists():
-        pytest.skip("Rust SCIP index not generated. Run: rust-analyzer scip tests/fixtures/sample_rust --output tests/fixtures/sample_rust/index.scip")
+        pytest.skip(
+            "Rust SCIP index not generated. Run: rust-analyzer scip tests/fixtures/sample_rust --output tests/fixtures/sample_rust/index.scip"
+        )
 
     # Read SCIP index
     reader = SCIPReader()
@@ -274,11 +276,7 @@ class TestRustCombinedFilters:
     def test_scope_and_result_type(self, rust_index):
         """Test combining scope and result_type filters."""
         orchestrator = QueryOrchestrator(rust_index)
-        result = orchestrator.execute_query(
-            "add",
-            scope="public",
-            result_type="functions"
-        )
+        result = orchestrator.execute_query("add", scope="public", result_type="functions")
 
         assert isinstance(result, str)
         assert "Query:" in result
@@ -287,11 +285,7 @@ class TestRustCombinedFilters:
         """Test combining all filter parameters."""
         orchestrator = QueryOrchestrator(rust_index)
         result = orchestrator.execute_query(
-            "calculator",
-            scope="public",
-            result_type="all",
-            max_results=5,
-            show_snippets=False
+            "calculator", scope="public", result_type="all", max_results=5, show_snippets=False
         )
 
         assert isinstance(result, str)
@@ -321,8 +315,7 @@ class TestRustIndexStructure:
         else:
             # Check that we have .rs files
             has_rust_files = any(
-                m.get("file", "").endswith(".rs")
-                for m in rust_index.get("modules", {}).values()
+                m.get("file", "").endswith(".rs") for m in rust_index.get("modules", {}).values()
             )
             assert has_rust_files
 

@@ -70,7 +70,7 @@ For detailed information on specific topics, see:
 - **[Python Support](agents/python-support.md)** - Class display, import detection configuration
 
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir, Python, and Erlang code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
   - YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery. `mcp__cicada__query`
@@ -91,4 +91,6 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
+
 - after successful commit always push

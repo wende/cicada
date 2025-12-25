@@ -484,7 +484,7 @@ class GenericSCIPIndexer(BaseIndexer, ABC):
                 if output_path.exists() and output_path.stat().st_size > 0:
                     # Output exists, just log the warning
                     if self.verbose:
-                        print(f"  Warning: Indexer returned non-zero exit code but produced output")
+                        print("  Warning: Indexer exited non-zero but produced output")
                         if result.stderr:
                             print(f"  Stderr: {result.stderr.strip()[:200]}")
                 else:

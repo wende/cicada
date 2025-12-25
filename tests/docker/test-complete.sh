@@ -22,23 +22,26 @@ echo "CICADA SCIP Language Complete E2E Tests"
 echo "=========================================="
 echo ""
 
-# Build base image once
-echo -e "${BLUE}━━━ Building Base Image ━━━${NC}"
+# Build base images (native and amd64 for tools without ARM binaries)
+echo -e "${BLUE}━━━ Building Base Images ━━━${NC}"
 docker build -t cicada-base -f "$SCRIPT_DIR/Dockerfile.base" "$REPO_ROOT"
+echo -e "${YELLOW}Building amd64 base image for tools without ARM binaries...${NC}"
+docker build --platform linux/amd64 -t cicada-base:amd64 -f "$SCRIPT_DIR/Dockerfile.base" "$REPO_ROOT"
 echo ""
 
 # Language configurations
-# Format: "name:fixture:dockerfile:image"
+# Format: "name:fixture:dockerfile:image:platform"
+# platform is optional - empty means native, "linux/amd64" forces x86_64 emulation
 LANGUAGES=(
-    "Go:sample_go:Dockerfile.go:cicada-go"
-    "Java:sample_java:Dockerfile.java:cicada-java"
-    "Scala:sample_scala:Dockerfile.scala:cicada-scala"
-    "Ruby:sample_ruby:Dockerfile.ruby:cicada-ruby"
-    "Dart:sample_dart:Dockerfile.dart:cicada-dart"
-    "C:sample_c:Dockerfile.c:cicada-c"
-    "C++:sample_cpp:Dockerfile.c:cicada-c"
-    "C#:sample_csharp:Dockerfile.dotnet:cicada-dotnet"
-    "VB:sample_vb:Dockerfile.dotnet:cicada-dotnet"
+    "Go:sample_go:Dockerfile.go:cicada-go:"
+    "Java:sample_java:Dockerfile.java:cicada-java:"
+    "Scala:sample_scala:Dockerfile.scala:cicada-scala:"
+    "Ruby:sample_ruby:Dockerfile.ruby:cicada-ruby:linux/amd64"
+    "Dart:sample_dart:Dockerfile.dart:cicada-dart:linux/amd64"
+    "C:sample_c:Dockerfile.c:cicada-c:linux/amd64"
+    "C++:sample_cpp:Dockerfile.c:cicada-c:linux/amd64"
+    "C#:sample_csharp:Dockerfile.dotnet:cicada-dotnet:"
+    "VB:sample_vb:Dockerfile.dotnet:cicada-dotnet:"
 )
 
 # Track results
@@ -104,18 +107,27 @@ echo -e "${BLUE}This caches SCIP tools for future runs${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Get unique dockerfiles and images
-declare -A IMAGES_TO_BUILD
+# Get unique dockerfiles, images, and platforms (bash 3.x compatible)
+UNIQUE_BUILDS=""
 for lang_config in "${LANGUAGES[@]}"; do
-    IFS=':' read -r lang_name fixture_name dockerfile image_name <<< "$lang_config"
-    IMAGES_TO_BUILD["$dockerfile"]="$image_name"
+    IFS=':' read -r lang_name fixture_name dockerfile image_name platform <<< "$lang_config"
+    build_entry="$dockerfile:$image_name:$platform"
+    # Check if already in list
+    if [[ ! "$UNIQUE_BUILDS" =~ "$build_entry" ]]; then
+        UNIQUE_BUILDS="$UNIQUE_BUILDS $build_entry"
+    fi
 done
 
 # Build each unique image
-for dockerfile in "${!IMAGES_TO_BUILD[@]}"; do
-    image_name="${IMAGES_TO_BUILD[$dockerfile]}"
+for build_entry in $UNIQUE_BUILDS; do
+    IFS=':' read -r dockerfile image_name platform <<< "$build_entry"
     echo -e "${YELLOW}Building: $image_name${NC}"
-    docker build -t "$image_name" -f "$SCRIPT_DIR/$dockerfile" "$REPO_ROOT"
+    if [ -n "$platform" ]; then
+        echo "  (using platform: $platform with amd64 base)"
+        docker build --platform "$platform" --build-arg BASE_IMAGE=cicada-base:amd64 -t "$image_name" -f "$SCRIPT_DIR/$dockerfile" "$REPO_ROOT"
+    else
+        docker build -t "$image_name" -f "$SCRIPT_DIR/$dockerfile" "$REPO_ROOT"
+    fi
     echo ""
 done
 
@@ -133,7 +145,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 for lang_config in "${LANGUAGES[@]}"; do
-    IFS=':' read -r lang_name fixture_name dockerfile image_name <<< "$lang_config"
+    IFS=':' read -r lang_name fixture_name dockerfile image_name platform <<< "$lang_config"
     fixture_path="$FIXTURES_DIR/$fixture_name"
 
     PHASE3_TOTAL=$((PHASE3_TOTAL + 1))
@@ -145,12 +157,20 @@ for lang_config in "${LANGUAGES[@]}"; do
         continue
     fi
 
-    # Run and capture output
-    docker run --rm \
-        -v "$fixture_path:/workspace/project" \
-        "$image_name" \
-        bash -c "cd /workspace/project && cicada claude --fast 2>&1" \
-        > /tmp/cicada-phase3-$fixture_name.log 2>&1
+    # Run and capture output (use platform flag if specified)
+    if [ -n "$platform" ]; then
+        docker run --rm --platform "$platform" \
+            -v "$fixture_path:/workspace/project" \
+            "$image_name" \
+            bash -c "cd /workspace/project && cicada claude --fast 2>&1" \
+            > /tmp/cicada-phase3-$fixture_name.log 2>&1
+    else
+        docker run --rm \
+            -v "$fixture_path:/workspace/project" \
+            "$image_name" \
+            bash -c "cd /workspace/project && cicada claude --fast 2>&1" \
+            > /tmp/cicada-phase3-$fixture_name.log 2>&1
+    fi
 
     # Check for success
     if grep -q "Indexed.*files" /tmp/cicada-phase3-$fixture_name.log; then

@@ -430,7 +430,9 @@ class PrefixWildcardFallback(FallbackStrategy):
 
 
 # Add new function fallbacks to the default list
-DEFAULT_FUNCTION_FALLBACKS.extend([
-    CamelSnakeFallback(),
-    PrefixWildcardFallback(),
-])
+DEFAULT_FUNCTION_FALLBACKS.extend(
+    [
+        CamelSnakeFallback(),
+        PrefixWildcardFallback(),
+    ]
+)

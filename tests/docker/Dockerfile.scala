@@ -3,20 +3,22 @@
 
 FROM cicada-base
 
-# Install Java and sbt
+# Install Java
 RUN apt-get update && apt-get install -y \
-    openjdk-17-jdk \
+    default-jdk \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install sbt
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list \
-    && echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee /etc/apt/sources.list.d/sbt_old.list \
-    && curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add \
+    && curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | gpg --dearmor -o /etc/apt/trusted.gpg.d/sbt.gpg \
     && apt-get update && apt-get install -y sbt \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Coursier (used by JVM indexer for scip-java fallback)
-RUN curl -fL "https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz" | gzip -d > /usr/local/bin/cs && \
+# Use JAR file for cross-platform support (no native arm64 Linux binary available)
+RUN curl -fLo /usr/local/lib/coursier.jar "https://github.com/coursier/coursier/releases/latest/download/coursier.jar" && \
+    echo '#!/bin/sh\nexec java -jar /usr/local/lib/coursier.jar "$@"' > /usr/local/bin/cs && \
     chmod +x /usr/local/bin/cs
 
 # Verify installations

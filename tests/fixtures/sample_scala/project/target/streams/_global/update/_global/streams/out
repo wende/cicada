@@ -1,0 +1,4 @@
+[warn] sbt-sourcegraph_2.12_1.0-0.4.4.jar no longer exists at /root/.cache/coursier/v1/https/repo1.maven.org/maven2/com/sourcegraph/sbt-sourcegraph_2.12_1.0/0.4.4/sbt-sourcegraph_2.12_1.0-0.4.4.jar
+[debug] not up to date. inChanged = false, force = false
+[debug] Updating ProjectRef(uri("file:/workspace/project/project/"), "project-build")...
+[debug] Done updating ProjectRef(uri("file:/workspace/project/project/"), "project-build")

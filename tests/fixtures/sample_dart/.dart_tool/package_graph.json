@@ -1,0 +1,14 @@
+{
+  "roots": [
+    "calculator"
+  ],
+  "packages": [
+    {
+      "name": "calculator",
+      "version": "1.0.0",
+      "dependencies": [],
+      "devDependencies": []
+    }
+  ],
+  "configVersion": 1
+}
