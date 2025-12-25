@@ -6,22 +6,22 @@
 `cicada` and `cicada-mcp` should support the same subcommands with identical behavior.
 The only difference is their default behavior when called without arguments:
 - `cicada` (no args) → Interactive setup
-- `cicada-mcp` (no args) → Equivalent to `cicada server --fast` (silent MCP server)
+- `cicada-mcp` (no args) → Equivalent to `cicada server --keywords` (silent MCP server)
 
 ## All Command Combinations
 
 ### 1. No Arguments (Default Behavior)
 
 ```bash
-cicada                    # Interactive setup (editor + model selection)
-uvx cicada-mcp            # Same as cicada-mcp (defaults to server --fast)
-cicada-mcp                # Equivalent to `cicada server --fast` (silent MCP server)
+cicada                    # Interactive setup (editor + mode selection)
+uvx cicada-mcp            # Same as cicada-mcp (defaults to server --keywords)
+cicada-mcp                # Equivalent to `cicada server --keywords` (silent MCP server)
 ```
 
 **Behavior:**
-- `cicada`: Shows interactive menu for editor and model selection
-- `uvx cicada-mcp`: Default behavior mirrors `cicada-mcp` (silent server --fast). Run `uvx cicada-mcp install` for the interactive flow.
-- `cicada-mcp`: Starts MCP server as if `cicada server --fast` were executed (no prompts, fast tier by default)
+- `cicada`: Shows interactive menu for editor and indexing mode selection
+- `uvx cicada-mcp`: Default behavior mirrors `cicada-mcp` (silent server --keywords). Run `uvx cicada-mcp install` for the interactive flow.
+- `cicada-mcp`: Starts MCP server as if `cicada server --keywords` were executed (no prompts, keywords mode by default)
 
 ### 2. Install Subcommand (Interactive Setup)
 
@@ -40,19 +40,18 @@ uvx cicada-mcp install            # Same behavior via uvx
 **Behavior:**
 - Always interactive
 - Shows editor selection menu
-- Shows model selection menu (if no index exists)
+- Shows indexing mode selection menu (if no index exists)
 - Creates MCP config for selected editor
-- Indexes repository with selected model
+- Indexes repository with selected mode
 
 **Options:**
 ```bash
 cicada install --claude           # Skip editor selection, use Claude
 cicada install --cursor           # Skip editor selection, use Cursor
 cicada install --vs               # Skip editor selection, use VS Code
-cicada install --fast             # Fast tier: Regular extraction + lemminflect (no downloads)
-cicada install --regular          # Regular tier: TF-IDF + GloVe (128MB, default)
-cicada install --max              # Max tier: KeyBERT large + FastText (958MB+)
-cicada install --claude --fast    # Combine: Claude + fast tier
+cicada install --keywords         # Keywords mode (default)
+cicada install --embeddings       # Embeddings mode (not implemented yet)
+cicada install --claude --keywords # Combine: Claude + keywords mode
 ```
 
 ### 3. Server Subcommand (Silent MCP Server)
@@ -72,7 +71,7 @@ uvx cicada-mcp server             # Same behavior via uvx
 **Behavior:**
 - ALWAYS SILENT (no interactive prompts)
 - Auto-setup if needed:
-  - Uses default model (Lemminflect) if no index exists
+  - Uses default indexing mode (keywords) if no index exists
   - Creates default MCP config if none exists
 - Starts MCP server on stdio
 - Indexes silently in background (if needed)
@@ -83,13 +82,12 @@ cicada server --claude            # Create Claude config before starting
 cicada server --cursor            # Create Cursor config before starting
 cicada server --vs                # Create VS Code config before starting
 cicada server --claude --vs       # Create both configs before starting
-cicada server --fast              # Fast tier (if reindexing needed)
-cicada server --regular           # Regular tier (if reindexing needed)
-cicada server --max               # Max tier (if reindexing needed)
+cicada server --keywords          # Keywords mode (if reindexing needed)
+cicada server --embeddings        # Embeddings mode (not implemented yet)
 ```
 
 **Default via `cicada-mcp`:**
-- Running `cicada-mcp` (or `uvx cicada-mcp`) with no subcommand is equivalent to `cicada server --fast`, guaranteeing a silent startup that favors the fast tier unless the user explicitly passes different flags.
+- Running `cicada-mcp` (or `uvx cicada-mcp`) with no subcommand is equivalent to `cicada server --keywords`, guaranteeing a silent startup that favors keywords unless the user explicitly passes different flags.
 
 **Key Difference from Install:**
 - Server mode is SILENT (no prompts, uses defaults)
@@ -110,22 +108,21 @@ cicada cursor /path/to/project    # Setup for Cursor in specified dir
 
 **Behavior:**
 - Uses existing index if available
-- Interactive model selection if no index exists
+- Interactive mode selection if no index exists
 - Creates/updates MCP config for specified editor
 
 **Options:**
 ```bash
-cicada claude --fast              # Fast tier: Regular extraction + lemminflect
-cicada claude --regular           # Regular tier: TF-IDF + GloVe (default)
-cicada claude --max               # Max tier: KeyBERT large + FastText
-cicada cursor --fast              # Same for Cursor
-cicada vs --max                   # Same for VS Code
+cicada claude --keywords          # Keywords mode (default)
+cicada claude --embeddings        # Embeddings mode (not implemented yet)
+cicada cursor --keywords          # Same for Cursor
+cicada vs --keywords              # Same for VS Code
 ```
 
 ### 5. Other Commands
 
 ```bash
-cicada index [path]               # Index repository (use -f/--force with --fast/--regular/--max)
+cicada index [path]               # Index repository (use -f/--force with --keywords/--embeddings)
 cicada index-pr [path]            # Index GitHub PRs
 cicada status                     # Show diagnostic information (index, PR index, links, agents)
 cicada stats [path]               # Display usage statistics (tool calls, tokens, execution times)
@@ -140,8 +137,8 @@ cicada clean --all                # Clean all projects
 | Command | Interactive? | Creates Config? | Starts Server? | Auto-indexes? |
 |---------|--------------|-----------------|----------------|---------------|
 | `cicada` | Yes | Yes | No | Yes |
-| `uvx cicada-mcp` | No (defaults to server --fast) | Yes (if needed) | Yes | Yes (silent, fast tier) |
-| `cicada-mcp` | No (server --fast) | Yes (if needed) | Yes | Yes (silent, fast tier) |
+| `uvx cicada-mcp` | No (defaults to server --keywords) | Yes (if needed) | Yes | Yes (silent, keywords) |
+| `cicada-mcp` | No (server --keywords) | Yes (if needed) | Yes | Yes (silent, keywords) |
 | `cicada install` | Yes | Yes | No | Yes |
 | `cicada server` | No | Yes (if needed) | Yes | Yes (silent) |
 | `cicada claude` | Conditional* | Yes | No | Yes |
@@ -245,18 +242,18 @@ cicada server                     # NEW: Explicit server command
 
 ## Default Command Injection
 
-The entry-point for `cicada-mcp` always injects `server --fast` when no explicit subcommand is passed. This guarantees MCP clients (and developers running `cicada-mcp` directly) immediately start the silent server with the fast tier, while still allowing all regular subcommands (`install`, `server --max`, etc.) when specified manually.
+The entry-point for `cicada-mcp` always injects `server --keywords` when no explicit subcommand is passed. This guarantees MCP clients (and developers running `cicada-mcp` directly) immediately start the silent server with keyword indexing, while still allowing all regular subcommands (`install`, `server --embeddings`, etc.) when specified manually.
 
-## Model Selection Defaults
+## Indexing Mode Defaults
 
 ### Interactive Mode (install)
-- Prompts user for model choice
-- Shows menu with fast, regular, and max tier options
+- Prompts user for indexing mode
+- Shows keywords and embeddings options
 - Defaults to user selection
 
 ### Silent Mode (server)
-- Uses fast tier as default (fastest, no downloads)
-- Can be overridden with `--fast`, `--regular`, or `--max` flags
+- Uses keywords mode by default
+- Can be overridden with `--keywords` or `--embeddings` flags
 - Never prompts
 
 ### Existing Index
@@ -286,14 +283,12 @@ cicada server                     # Error: Same (exits gracefully)
 
 ### Missing Dependencies
 ```bash
-cicada install --regular          # Downloads GloVe if needed (128MB)
-cicada server --max               # Downloads KeyBERT + FastText silently (958MB+)
+cicada install --embeddings       # Not implemented yet (errors with guidance)
 ```
 
 ### Conflicting Flags
 ```bash
-cicada install --fast --max       # Error: "Cannot specify multiple tier flags"
-cicada install --regular --max    # Error: "Cannot specify multiple tier flags"
+cicada install --keywords --embeddings  # Error: "Cannot specify multiple mode flags"
 ```
 
 ## Usage Examples
@@ -301,7 +296,7 @@ cicada install --regular --max    # Error: "Cannot specify multiple tier flags"
 ### First-Time User (uvx)
 ```bash
 cd ~/my-elixir-project
-uvx cicada-mcp install            # Interactive setup, selects Claude + tier (fast/regular/max)
+uvx cicada-mcp install            # Interactive setup, selects Claude + mode
 # Restart Claude Code
 # Start using Cicada MCP tools
 ```
@@ -315,15 +310,15 @@ cicada install                    # Interactive setup
 
 ### Quick Setup for Specific Editor
 ```bash
-cicada claude                     # Setup for Claude (interactive tier choice)
-cicada cursor --fast              # Setup for Cursor with fast tier
-cicada vs --max                   # Setup for VS Code with max tier
+cicada claude                     # Setup for Claude (interactive mode choice)
+cicada cursor --keywords          # Setup for Cursor with keywords mode
+cicada vs --keywords              # Setup for VS Code with keywords mode
 ```
 
 ### Development/Testing (Server Mode)
 ```bash
 cicada server . --claude          # Start server, create Claude config, use defaults
-cicada server --claude --vs --max # Start server, create both configs, use max tier
+cicada server --claude --vs --keywords # Start server, create both configs, use keywords mode
 ```
 
 ### MCP Client Integration
@@ -340,7 +335,7 @@ cicada server --claude --vs --max # Start server, create both configs, use max t
 }
 ```
 When an MCP client starts `cicada-mcp` with no arguments, the CLI:
-1. Injects `server --fast` so the silent server launches immediately
+1. Injects `server --keywords` so the silent server launches immediately
 2. Auto-setups with defaults if needed (silently)
 3. Starts MCP server on stdio
 4. Never prompts or prints to stdout
@@ -357,7 +352,7 @@ When an MCP client starts `cicada-mcp` with no arguments, the CLI:
 ### Phase 2: Shared Logic ✅ COMPLETED
 - [x] Extract common argument parsing
 - [x] Create silent setup mode in `setup.py`
-- [x] Add default command injection so `cicada-mcp` maps to `server --fast`
+- [x] Add default command injection so `cicada-mcp` maps to `server --keywords`
 - [x] Implement default behavior routing
 
 ### Phase 3: Commands Implementation ✅ COMPLETED
@@ -378,9 +373,9 @@ When an MCP client starts `cicada-mcp` with no arguments, the CLI:
 ## Open Questions ✅ RESOLVED
 
 1. **Should `cicada-mcp` with no args detect TTY and show interactive setup if in terminal?**
-   - ✅ **ANSWERED: Always run `server --fast`**
+   - ✅ **ANSWERED: Always run `server --keywords`**
    - Rationale: MCP clients expect silent startup, and developers can still run `cicada-mcp install` explicitly when they need the interactive flow.
-   - Result: `cicada-mcp` (no args) is equivalent to `cicada server --fast` in every environment.
+   - Result: `cicada-mcp` (no args) is equivalent to `cicada server --keywords` in every environment.
 
 2. **Should `server` mode accept a path as positional arg or require `--path`?**
    - ✅ **ANSWERED: Positional arg**
@@ -396,18 +391,18 @@ When an MCP client starts `cicada-mcp` with no arguments, the CLI:
 
 ### Files Created
 - **`cicada/mcp_entry.py`** - New entry point for `cicada-mcp` command
-  - Injects `server --fast` when no subcommand is supplied
+  - Injects `server --keywords` when no subcommand is supplied
   - Unified subcommand support
   - Default behavior routing (interactive flows always opt-in via explicit `install`)
 
 - **`cicada/commands/__init__.py`** - Command handlers package
 - **`cicada/commands/install.py`** - Interactive install command handler
-  - Supports flags to skip prompts (--claude, --cursor, --vs, --fast, --regular, --max)
+  - Supports flags to skip prompts (--claude, --cursor, --vs, --keywords, --embeddings)
   - Falls back to interactive menus when flags not provided
 
 - **`cicada/commands/server.py`** - Silent server command handler
   - No prompts, uses defaults
-  - Auto-setup if needed (default to fast tier)
+  - Auto-setup if needed (default to keywords mode)
   - Supports multiple editor configs (--claude --cursor --vs)
 
 ### Files Modified
@@ -432,7 +427,7 @@ When an MCP client starts `cicada-mcp` with no arguments, the CLI:
 | `cicada install` | ✅ Working | Explicit interactive setup |
 | `cicada server` | ✅ Working | Silent MCP server |
 | `cicada claude/cursor/vs` | ✅ Working | Editor shortcuts (backward compatible) |
-| `cicada-mcp` | ✅ Working | No-arg default runs `server --fast` (silent) |
+| `cicada-mcp` | ✅ Working | No-arg default runs `server --keywords` (silent) |
 | `cicada-mcp install` | ✅ Working | Same as `cicada install` |
 | `cicada-mcp server` | ✅ Working | Same as `cicada server` |
 | `cicada-mcp claude/cursor/vs` | ✅ Working | Same as `cicada` editor shortcuts |
@@ -462,7 +457,7 @@ When an MCP client starts `cicada-mcp` with no arguments, the CLI:
 1. **Full Integration Testing** - Test with actual Elixir project:
    - Test `cicada install` with interactive prompts
    - Test `cicada server` silent mode
-   - Test `cicada-mcp` default (`server --fast`) behavior with an MCP client simulation
+   - Test `cicada-mcp` default (`server --keywords`) behavior with an MCP client simulation
    - Test multiple editor flags: `cicada server --claude --vs`
 
 2. **Documentation Updates**:

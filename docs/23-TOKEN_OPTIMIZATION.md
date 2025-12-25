@@ -109,10 +109,9 @@ Auto-install scip-python locally (#178)
 ```
 No keywords found in index. Please rebuild the index with keyword extraction:
 
-  cicada index           # Default: reuse configured tier
-  cicada index --force --regular   # TF-IDF + GloVe (regular tier)
-  cicada index --force --fast      # Fast: Token-based + lemminflect
-  cicada index --force --max       # Max: BERT + FastText
+  cicada index           # Default: reuse configured mode
+  cicada index --force --keywords  # Keywords mode (default)
+  cicada index --force --embeddings  # Embeddings mode (not implemented yet)
 
 This will extract keywords from documentation for semantic search.
 ```

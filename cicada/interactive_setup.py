@@ -16,17 +16,17 @@ from cicada.interactive_setup_helpers import (
     CLAUDE_MD_ITEMS,
     EDITOR_ITEMS,
     EDITOR_MAP_TEXT,
+    MODE_ITEMS,
+    MODE_MAP,
+    MODE_MAP_TEXT,
     PR_ITEMS,
-    TIER_ITEMS,
-    TIER_MAP,
-    TIER_MAP_TEXT,
     UnsupportedProjectError,
     add_to_claude_md,
     check_elixir_project,
     display_claude_md_selection,
     display_editor_selection,
+    display_mode_selection,
     display_pr_indexing_selection,
-    display_tier_selection,
     get_existing_config,
     run_pr_indexing,
     run_setup,
@@ -55,7 +55,7 @@ def _print_first_time_intro(show_header: bool) -> None:
         print(f"{PRIMARY}{'=' * 70}{RESET}")
     print()
     print(f"This is your first time running CICADA in this project.{RESET}")
-    print(f"Let's configure keyword extraction for code intelligence.{RESET}")
+    print(f"Let's configure indexing for code intelligence.{RESET}")
     print()
 
 
@@ -89,7 +89,7 @@ def _prompt_menu_selection(items: list[str], cancel_message: str) -> int:
     return int(selection)
 
 
-def _handle_menu_unavailable() -> tuple[str, str, bool, bool]:
+def _handle_menu_unavailable() -> tuple[str, bool, bool]:
     """Fallback to text-based setup when TerminalMenu cannot be used."""
     print(
         f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
@@ -98,37 +98,36 @@ def _handle_menu_unavailable() -> tuple[str, str, bool, bool]:
     return _text_based_setup()
 
 
-def _text_based_setup() -> tuple[str, str, bool, bool]:
+def _text_based_setup() -> tuple[str, bool, bool]:
     """
     Fallback text-based setup for terminals that don't support simple-term-menu.
 
     Returns:
-        tuple[str, str, bool, bool]: The selected extraction method, expansion method,
-                                     whether to index PRs, and whether to add to CLAUDE.md
+        tuple[str, bool, bool]: The selected indexing mode, whether to index PRs,
+                                and whether to add to CLAUDE.md
     """
     _print_first_time_intro(show_header=True)
-    print(f"{BOLD}Step 1/3: Choose intelligence tier{RESET}")
+    print(f"{BOLD}Step 1/3: Choose indexing mode{RESET}")
     print()
-    print("1. Fast - Term frequency + inflections (no downloads)")
-    print("2. Balanced - TF-IDF + GloVe semantic expansion (128MB)")
-    print("3. Maximum - KeyBERT + FastText expansion (958MB)")
+    print("1. Keywords - Token-based extraction (default)")
+    print("2. Embeddings - Semantic vectors (not implemented yet)")
     print()
 
     while True:
         try:
-            tier_choice = input("Enter your choice (1, 2, or 3) [default: 1]: ").strip()
-            if not tier_choice:
-                tier_choice = "1"
-            if tier_choice in TIER_MAP_TEXT:
-                method, expansion_method = TIER_MAP_TEXT[tier_choice]
+            mode_choice = input("Enter your choice (1 or 2) [default: 1]: ").strip()
+            if not mode_choice:
+                mode_choice = "1"
+            if mode_choice in MODE_MAP_TEXT:
+                indexing_mode = MODE_MAP_TEXT[mode_choice]
                 break
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1 or 2.")
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
             sys.exit(1)
 
-    display_tier_selection(int(tier_choice) - 1)
+    display_mode_selection(int(mode_choice) - 1)
 
     # Step 2: Ask about PR indexing
     print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
@@ -180,14 +179,14 @@ def _text_based_setup() -> tuple[str, str, bool, bool]:
 
     display_claude_md_selection(add_to_claude_md_flag)
 
-    return (method, expansion_method, index_prs, add_to_claude_md_flag)
+    return (indexing_mode, index_prs, add_to_claude_md_flag)
 
 
 def show_first_time_setup(
     show_welcome: bool = True,
     default_index_prs: bool | None = None,
     default_add_to_claude: bool | None = None,
-) -> tuple[str, str, bool, bool]:
+) -> tuple[str, bool, bool]:
     """
     Display an interactive first-time setup menu for cicada.
 
@@ -199,9 +198,8 @@ def show_first_time_setup(
         default_add_to_claude: If set, skip CLAUDE.md question and use this value.
 
     Returns:
-        tuple[str, str, bool, bool]: The selected extraction method, expansion method,
-                                     whether to index PRs, and whether to add to CLAUDE.md
-                                     e.g., ('regular', 'lemmi', False, True) or ('bert', 'glove', True, True)
+        tuple[str, bool, bool]: The selected indexing mode, whether to index PRs,
+                                and whether to add to CLAUDE.md
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
@@ -209,7 +207,7 @@ def show_first_time_setup(
         return _text_based_setup()
 
     _print_first_time_intro(show_header=show_welcome)
-    print(f"{BOLD}Step 1/3: Choose intelligence tier{RESET}")
+    print(f"{BOLD}Step 1/3: Choose indexing mode{RESET}")
 
     def _select_with_menu(items: list[str], cancel_message: str) -> int | None:
         try:
@@ -217,12 +215,12 @@ def show_first_time_setup(
         except MenuUnavailableError:
             return None
 
-    tier_index = _select_with_menu(TIER_ITEMS, "Setup cancelled. Exiting...")
-    if tier_index is None:
+    mode_index = _select_with_menu(MODE_ITEMS, "Setup cancelled. Exiting...")
+    if mode_index is None:
         return _handle_menu_unavailable()
 
-    method, expansion_method = TIER_MAP[tier_index]
-    display_tier_selection(tier_index)
+    indexing_mode = MODE_MAP[mode_index]
+    display_mode_selection(mode_index)
 
     # Step 2: Ask about PR indexing
     if default_index_prs is not None:
@@ -230,7 +228,9 @@ def show_first_time_setup(
     else:
         print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
         print(f"{PRIMARY}   PR indexing enables fast offline lookup of GitHub PRs{RESET}")
-        print(f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}")
+        print(
+            f"{PRIMARY}   Useful for: finding which PR introduced code, viewing PR context{RESET}"
+        )
         print()
 
         pr_index = _select_with_menu(
@@ -264,7 +264,7 @@ def show_first_time_setup(
 
     display_claude_md_selection(add_to_claude_md_flag)
 
-    return (method, expansion_method, index_prs, add_to_claude_md_flag)
+    return (indexing_mode, index_prs, add_to_claude_md_flag)
 
 
 def _text_based_editor_selection() -> str:
@@ -318,8 +318,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     def _run_setup_with_error_handling(
         editor: str,
         repo_path: Path,
-        extraction_method: str,
-        expansion_method: str,
+        indexing_mode: str,
         index_exists: bool = False,
         index_prs: bool = False,
         add_to_claude_md: bool = False,
@@ -328,8 +327,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
             run_setup(
                 editor,
                 repo_path,
-                extraction_method,
-                expansion_method,
+                indexing_mode,
                 index_exists=index_exists,
                 index_prs=index_prs,
                 add_to_claude_md=add_to_claude_md,
@@ -412,15 +410,11 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     # Check if index already exists
     existing_config = get_existing_config(repo_path)
     if existing_config is not None:
-        extraction_method, expansion_method = existing_config
-        _run_setup_with_error_handling(
-            editor, repo_path, extraction_method, expansion_method, index_exists=True
-        )
+        indexing_mode = existing_config
+        _run_setup_with_error_handling(editor, repo_path, indexing_mode, index_exists=True)
         return
 
-    extraction_method, expansion_method, index_prs, add_to_claude_md_flag = show_first_time_setup(
-        show_welcome=False
-    )
+    indexing_mode, index_prs, add_to_claude_md_flag = show_first_time_setup(show_welcome=False)
 
     print(f"{BOLD}Running setup...{RESET}")
     print()
@@ -428,8 +422,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
     _run_setup_with_error_handling(
         editor,
         repo_path,
-        extraction_method,
-        expansion_method,
+        indexing_mode,
         index_prs=index_prs,
         add_to_claude_md=add_to_claude_md_flag,
     )

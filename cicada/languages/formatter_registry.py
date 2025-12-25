@@ -40,12 +40,8 @@ def get_language_formatter(language: str) -> BaseLanguageFormatter:
         return LanguageRegistry.get_formatter(language)
     except LanguageNotSupportedError:
         supported = LanguageRegistry.get_supported_languages()
-        raise ValueError(
-            f"Unsupported language: '{language}'. Supported: {supported}"
-        ) from None
+        raise ValueError(f"Unsupported language: '{language}'. Supported: {supported}") from None
     except ValueError as e:
         # Re-raise with same message format for backwards compatibility
         supported = LanguageRegistry.get_supported_languages()
-        raise ValueError(
-            f"Unsupported language: '{language}'. Supported: {supported}"
-        ) from e
+        raise ValueError(f"Unsupported language: '{language}'. Supported: {supported}") from e

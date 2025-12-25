@@ -11,13 +11,11 @@ from . import (
     rust_signature,  # noqa: F401
 )
 from .base_signature import FunctionSignatureExtractor, SignatureExtractorRegistry
-from .keybert import KeyBERTExtractor
 from .keyword import BaseKeywordExtractor, RegularKeywordExtractor
 
 __all__ = [
     "BaseKeywordExtractor",
     "FunctionSignatureExtractor",
-    "KeyBERTExtractor",
     "RegularKeywordExtractor",
     "SignatureExtractorRegistry",
 ]

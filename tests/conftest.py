@@ -47,7 +47,6 @@ def patch_generic_indexing():
         p.stop()
 
 
-
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """
@@ -294,8 +293,4 @@ def pytest_collection_modifyitems(items):
         # These tests have shared state issues (keyword extractor global state)
         # when run in parallel
         if "incremental" in item.name.lower() or "keyword" in item.name.lower():
-            item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))
-
-        # Also group tests in test_keybert.py (they all use the keyword extractor)
-        if "test_keybert" in str(item.fspath):
             item.add_marker(pytest.mark.xdist_group(name="indexer_serial"))

@@ -39,9 +39,7 @@ def get_index_info(repo_path: Path) -> dict[str, bool | str | int | None]:
         "exists": index_path.exists(),
         "path": str(index_path),
         "date": None,
-        "tier": None,
-        "extraction_method": None,
-        "expansion_method": None,
+        "mode": None,
         "file_size": None,
     }
 
@@ -57,21 +55,17 @@ def get_index_info(repo_path: Path) -> dict[str, bool | str | int | None]:
     except (OSError, ValueError):
         pass
 
-    # Get tier information from config
+    # Get indexing mode from config
     if config_path.exists():
         try:
             with open(config_path) as f:
-                config = yaml.safe_load(f)
+                config = yaml.safe_load(f) or {}
 
-            extraction_method = config.get("keyword_extraction", {}).get("method")
-            expansion_method = config.get("keyword_expansion", {}).get("method")
-
-            info["extraction_method"] = extraction_method
-            info["expansion_method"] = expansion_method
-
-            # Determine tier from extraction and expansion methods
-            if extraction_method and expansion_method:
-                info["tier"] = _determine_tier(extraction_method, expansion_method)
+            mode = config.get("indexing", {}).get("mode")
+            if mode in ("keywords", "embeddings"):
+                info["mode"] = mode
+            elif config.get("keyword_extraction") or config.get("keyword_expansion"):
+                info["mode"] = "keywords"
         except (OSError, yaml.YAMLError):
             pass
 
@@ -251,33 +245,6 @@ def find_mcp_files(repo_path: Path) -> dict:
     }
 
 
-def _determine_tier(extraction_method: str, expansion_method: str) -> str:
-    """
-    Determine tier name from extraction and expansion methods.
-
-    Args:
-        extraction_method: The extraction method (e.g., 'regular', 'bert_small', 'bert_large')
-        expansion_method: The expansion method (e.g., 'lemmi', 'glove', 'fasttext')
-
-    Returns:
-        Tier name ('fast', 'regular', or 'max')
-    """
-    # Fast tier: regular extraction + lemmi expansion
-    if extraction_method == "regular" and expansion_method == "lemmi":
-        return "fast"
-
-    # Regular tier: regular extraction + glove expansion
-    if extraction_method == "regular" and expansion_method == "glove":
-        return "regular"
-
-    # Max tier: bert_large extraction + fasttext expansion
-    if extraction_method == "bert_large" and expansion_method == "fasttext":
-        return "max"
-
-    # If we can't determine, return a descriptive string
-    return f"{extraction_method}/{expansion_method}"
-
-
 def check_repository(repo_path: Path) -> None:
     """
     Display diagnostic information about Cicada configuration for a repository.
@@ -314,12 +281,8 @@ def check_repository(repo_path: Path) -> None:
         if index_info["file_size"] and isinstance(index_info["file_size"], int):
             size_mb = index_info["file_size"] / (1024 * 1024)
             print(f"  Size: {size_mb:.2f} MB")
-        if index_info["tier"]:
-            print(f"  Tier: {index_info['tier']}")
-        if index_info["extraction_method"]:
-            print(f"  Extraction: {index_info['extraction_method']}")
-        if index_info["expansion_method"]:
-            print(f"  Expansion: {index_info['expansion_method']}")
+        if index_info["mode"]:
+            print(f"  Mode: {index_info['mode']}")
     else:
         print("✗ No index found")
     print()

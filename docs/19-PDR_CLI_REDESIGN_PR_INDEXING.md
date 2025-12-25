@@ -63,7 +63,7 @@ cicada install [repo]
   ↓
 Interactive prompts:
   1. Select editor (Claude/Cursor/VS Code)
-  2. Select model tier (fast/regular/max)
+  2. Select indexing mode (keywords/embeddings)
   ↓
 Creates config + indexes repository
   ↓
@@ -213,7 +213,7 @@ cicada install [repo]
   ↓
 Interactive prompts:
   1. Select editor
-  2. Select model tier
+  2. Select indexing mode
   ↓
 Creates config + indexes repository
   ↓

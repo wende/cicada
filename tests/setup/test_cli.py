@@ -22,15 +22,11 @@ from cicada.commands import (
 from cicada.cli import main
 
 
-
-
-
 def make_index_args(**overrides):
     """Build a MagicMock with sensible defaults for index command args."""
     defaults = {
-        "fast": False,
-        "max": False,
-        "regular": False,
+        "keywords": False,
+        "embeddings": False,
         "force": False,
         "default": False,
         "repo": ".",
@@ -206,9 +202,9 @@ class TestHandleEditorSetup:
         (tmp_path / "mix.exs").write_text("# Mock mix file")
         return tmp_path
 
-    def test_cannot_specify_multiple_tiers(self, mock_elixir_repo, capsys):
-        """Should error if multiple tier flags specified"""
-        args = make_index_args(fast=True, max=True)
+    def test_cannot_specify_multiple_modes(self, mock_elixir_repo, capsys):
+        """Should error if multiple mode flags specified"""
+        args = make_index_args(keywords=True, embeddings=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -218,7 +214,7 @@ class TestHandleEditorSetup:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "Can only specify one tier flag" in captured.err
+        assert "Can only specify one mode flag" in captured.err
 
     def test_requires_elixir_project(self, tmp_path, capsys):
         """Should error if not a supported project type"""
@@ -234,9 +230,9 @@ class TestHandleEditorSetup:
         captured = capsys.readouterr()
         assert "Could not detect project language" in captured.err
 
-    def test_fast_flag_sets_regular_extraction(self, mock_elixir_repo):
-        """--fast should set extraction to regular + lemmi expansion"""
-        args = make_index_args(fast=True)
+    def test_keywords_flag_sets_mode(self, mock_elixir_repo):
+        """--keywords should set indexing mode to keywords"""
+        args = make_index_args(keywords=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -244,29 +240,13 @@ class TestHandleEditorSetup:
         ):
             handle_editor_setup(args, "claude")
 
-            # Check that setup was called with regular extraction
+            # Check that setup was called with keywords mode
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "regular"
-            assert call_kwargs["expansion_method"] == "lemmi"
+            assert call_kwargs["indexing_mode"] == "keywords"
 
-    def test_regular_flag_sets_regular_glove(self, mock_elixir_repo):
-        """--regular should set extraction to regular + glove expansion"""
-        args = make_index_args(regular=True)
-
-        with (
-            patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
-            patch("cicada.setup.setup") as mock_setup,
-        ):
-            handle_editor_setup(args, "claude")
-
-            # Check that setup was called with regular + glove
-            call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "regular"
-            assert call_kwargs["expansion_method"] == "glove"
-
-    def test_max_flag_sets_bert_fasttext(self, mock_elixir_repo):
-        """--max should set extraction to bert + fasttext expansion"""
-        args = make_index_args(max=True)
+    def test_embeddings_flag_sets_mode(self, mock_elixir_repo):
+        """--embeddings should set indexing mode to embeddings"""
+        args = make_index_args(embeddings=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -275,8 +255,7 @@ class TestHandleEditorSetup:
             handle_editor_setup(args, "claude")
 
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "bert"
-            assert call_kwargs["expansion_method"] == "fasttext"
+            assert call_kwargs["indexing_mode"] == "embeddings"
 
     def test_no_flags_with_existing_index(self, mock_elixir_repo, tmp_path):
         """Should read existing config when no flags and index exists"""
@@ -293,10 +272,7 @@ class TestHandleEditorSetup:
             ),
             patch(
                 "yaml.safe_load",
-                return_value={
-                    "keyword_extraction": {"method": "bert"},
-                    "keyword_expansion": {"method": "glove"},
-                },
+                return_value={"indexing": {"mode": "embeddings"}},
             ),
         ):
             # Mock paths to exist
@@ -312,13 +288,12 @@ class TestHandleEditorSetup:
 
             # Check that setup was called with existing config
             call_kwargs = mock_setup.call_args[1]
-            assert call_kwargs["extraction_method"] == "bert"
-            assert call_kwargs["expansion_method"] == "glove"
+            assert call_kwargs["indexing_mode"] == "embeddings"
             assert call_kwargs["index_exists"] is True
 
     def test_setup_exception_exits(self, mock_elixir_repo, capsys):
         """Should exit with error if setup fails"""
-        args = make_index_args(fast=True)
+        args = make_index_args(keywords=True)
 
         with (
             patch("pathlib.Path.cwd", return_value=mock_elixir_repo),
@@ -341,9 +316,9 @@ class TestHandleIndex:
         (tmp_path / "mix.exs").write_text("# Mock")
         return tmp_path
 
-    def test_fast_flag_creates_config(self, mock_repo):
-        """--fast should create config with regular extraction and lemmi expansion"""
-        args = make_index_args(fast=True, force=True, repo=str(mock_repo))
+    def test_keywords_flag_creates_config(self, mock_repo):
+        """--keywords should create config with keywords mode"""
+        args = make_index_args(keywords=True, force=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -361,37 +336,10 @@ class TestHandleIndex:
 
             handle_index(args)
 
-            # Verify config was created with regular extraction
+            # Verify config was created with keywords mode
             mock_create_config.assert_called()
             call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
-            assert call_args[3] == "lemmi"  # expansion_method is 4th positional arg
-
-    def test_regular_flag_creates_config_with_regular_glove(self, mock_repo):
-        """--regular should create config with regular extraction and glove expansion"""
-        args = make_index_args(regular=True, force=True, repo=str(mock_repo))
-
-        with (
-            patch("cicada.version_check.check_for_updates"),
-            patch("cicada.utils.storage.get_config_path") as mock_get_config,
-            patch("cicada.utils.storage.create_storage_dir") as mock_storage,
-            patch("cicada.utils.storage.get_index_path"),
-            patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer"),
-        ):
-            mock_config_path = MagicMock()
-            mock_config_path.exists.return_value = False
-            mock_get_config.return_value = mock_config_path
-
-            mock_storage.return_value = mock_repo / ".cicada"
-
-            handle_index(args)
-
-            # Verify config was created with regular + glove
-            mock_create_config.assert_called()
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "regular"  # extraction_method is 3rd positional arg
-            assert call_args[3] == "glove"  # expansion_method is 4th positional arg
+            assert call_args[2] == "keywords"  # indexing_mode is 3rd positional arg
 
     def test_no_flags_no_config_shows_error(self, mock_repo, capsys):
         """Should show error message when no flags and no config"""
@@ -415,11 +363,11 @@ class TestHandleIndex:
 
         # Verify error message is shown
         captured = capsys.readouterr()
-        assert "No tier configured" in captured.err
+        assert "No indexing mode configured" in captured.err
         assert "--force" in captured.err
 
-    def test_force_requires_tier_flag(self, mock_repo, capsys):
-        """--force without a tier flag should exit with error."""
+    def test_force_requires_mode_flag(self, mock_repo, capsys):
+        """--force without a mode flag should exit with error."""
         args = make_index_args(force=True, repo=str(mock_repo))
 
         with (
@@ -433,11 +381,11 @@ class TestHandleIndex:
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert "--force requires specifying a tier flag" in captured.err
+        assert "--force requires specifying a mode flag" in captured.err
 
-    def test_tier_flag_without_force_errors(self, mock_repo, capsys):
-        """Tier flags without --force should exit with error."""
-        args = make_index_args(fast=True, repo=str(mock_repo))
+    def test_mode_flag_without_force_errors(self, mock_repo, capsys):
+        """Mode flags without --force should exit with error."""
+        args = make_index_args(keywords=True, repo=str(mock_repo))
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -450,89 +398,7 @@ class TestHandleIndex:
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert "Tier flags now require --force" in captured.err
-
-    def test_changing_method_updates_config_and_indexes(self, mock_repo):
-        """With --force, changing extraction method should update config and proceed with indexing"""
-        args = make_index_args(regular=True, force=True, repo=str(mock_repo))
-
-        with (
-            patch("cicada.version_check.check_for_updates"),
-            patch("cicada.utils.storage.get_config_path") as mock_get_config,
-            patch("cicada.utils.storage.create_storage_dir"),
-            patch("cicada.utils.storage.get_index_path"),
-            patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
-            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
-            patch("builtins.open", MagicMock()),
-            patch(
-                "yaml.safe_load",
-                return_value={
-                    "keyword_extraction": {"method": "regular"},
-                    "keyword_expansion": {"method": "lemmi"},
-                },
-            ),
-        ):
-            mock_config_path = MagicMock()
-            mock_config_path.exists.return_value = True
-            mock_get_config.return_value = mock_config_path
-
-            mock_indexer = MagicMock()
-            mock_indexer_class.return_value = mock_indexer
-            mock_get_indexer.return_value = mock_indexer
-
-            handle_index(args)
-
-            # Verify config was updated with new tier (regular + glove)
-            mock_create_config.assert_called_once()
-            # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "regular"  # extraction_method
-            assert call_args[3] == "glove"  # expansion_method
-
-            # Verify indexing proceeded normally
-            mock_indexer.incremental_index_repository.assert_called_once()
-
-    def test_changing_expansion_method_updates_config_and_indexes(self, mock_repo):
-        """With --force, changing expansion method should update config and proceed with indexing"""
-        args = make_index_args(max=True, force=True, repo=str(mock_repo))
-
-        with (
-            patch("cicada.version_check.check_for_updates"),
-            patch("cicada.utils.storage.get_config_path") as mock_get_config,
-            patch("cicada.utils.storage.create_storage_dir"),
-            patch("cicada.utils.storage.get_index_path"),
-            patch("cicada.setup.create_config_yaml") as mock_create_config,
-            patch("cicada.indexer.ElixirIndexer") as mock_indexer_class,
-            patch("cicada.languages.LanguageRegistry.get_indexer") as mock_get_indexer,
-            patch("builtins.open", MagicMock()),
-            patch(
-                "yaml.safe_load",
-                return_value={
-                    "keyword_extraction": {"method": "bert"},
-                    "keyword_expansion": {"method": "glove"},
-                },
-            ),
-        ):
-            mock_config_path = MagicMock()
-            mock_config_path.exists.return_value = True
-            mock_get_config.return_value = mock_config_path
-
-            mock_indexer = MagicMock()
-            mock_indexer_class.return_value = mock_indexer
-            mock_get_indexer.return_value = mock_indexer
-
-            handle_index(args)
-
-            # Verify config was updated with new expansion method (bert + fasttext)
-            mock_create_config.assert_called_once()
-            # create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
-            call_args = mock_create_config.call_args[0]
-            assert call_args[2] == "bert"  # extraction_method
-            assert call_args[3] == "fasttext"  # expansion_method
-
-            # Verify indexing proceeded normally
-            mock_indexer.incremental_index_repository.assert_called_once()
+        assert "Mode flags now require --force" in captured.err
 
 
 class TestHandleIndexPR:
@@ -755,7 +621,7 @@ class TestHandleWatch:
 
     def test_handle_watch_calls_version_check(self):
         """Should call version check before starting watcher"""
-        args = MagicMock(repo=".", fast=True, max=False, regular=False, debounce=2.0)
+        args = MagicMock(repo=".", keywords=True, embeddings=False, debounce=2.0)
 
         with (
             patch("cicada.version_check.check_for_updates") as mock_check,
@@ -768,7 +634,7 @@ class TestHandleWatch:
 
     def test_handle_watch_calls_setup_and_start_watcher(self):
         """Should call _setup_and_start_watcher with correct args"""
-        args = MagicMock(repo="/path/to/repo", fast=False, max=True, regular=False, debounce=3.0)
+        args = MagicMock(repo="/path/to/repo", keywords=False, embeddings=True, debounce=3.0)
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -780,7 +646,7 @@ class TestHandleWatch:
 
     def test_handle_watch_handles_exceptions(self, capsys):
         """Should handle exceptions from _setup_and_start_watcher"""
-        args = MagicMock(repo=".", fast=True, max=False, regular=False)
+        args = MagicMock(repo=".", keywords=True, embeddings=False)
 
         with (
             patch("cicada.version_check.check_for_updates"),
@@ -796,20 +662,19 @@ class TestHandleWatch:
 class TestSetupAndStartWatcher:
     """Tests for _setup_and_start_watcher() helper"""
 
-    def test_setup_and_start_watcher_validates_tier_flags(self, tmp_path):
-        """Should validate tier flags before starting"""
+    def test_setup_and_start_watcher_validates_mode_flags(self, tmp_path):
+        """Should validate mode flags before starting"""
         args = MagicMock(
-            fast=True,
-            max=True,
-            regular=False,
+            keywords=True,
+            embeddings=True,
             repo=".",
             debounce=2.0,
         )
 
         with (
-            patch("cicada.commands.validate_tier_flags") as mock_validate,
+            patch("cicada.commands.validate_mode_flags") as mock_validate,
             patch("cicada.utils.storage.get_config_path"),
-            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch("cicada.commands.determine_indexing_mode", return_value="keywords"),
             patch("cicada.watcher.FileWatcher"),
         ):
             try:
@@ -819,21 +684,23 @@ class TestSetupAndStartWatcher:
 
             mock_validate.assert_called_once_with(args, require_force=True)
 
-    def test_setup_and_start_watcher_determines_tier_from_args(self, tmp_path):
-        """Should determine tier from args or config"""
+    def test_setup_and_start_watcher_determines_mode_from_args(self, tmp_path):
+        """Should determine mode from args or config"""
         args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
+            keywords=True,
+            embeddings=False,
             debounce=2.0,
         )
 
         config_path = tmp_path / "config.yaml"
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="fast") as mock_determine,
+            patch(
+                "cicada.commands.determine_indexing_mode",
+                return_value="keywords",
+            ) as mock_determine,
             patch("cicada.watcher.FileWatcher") as mock_watcher_class,
         ):
             mock_watcher = MagicMock()
@@ -841,41 +708,39 @@ class TestSetupAndStartWatcher:
 
             _setup_and_start_watcher(args, str(tmp_path))
 
-            # Should call determine_tier with args and repo_path
+            # Should call determine_indexing_mode with args and repo_path
             mock_determine.assert_called_once()
             call_args = mock_determine.call_args[0]
             assert call_args[0] == args
             assert isinstance(call_args[1], Path)
 
-    def test_setup_and_start_watcher_error_when_no_tier_and_no_config(self, tmp_path, capsys):
-        """Should exit with error when no tier specified and no config exists"""
+    def test_setup_and_start_watcher_error_when_no_mode_and_no_config(self, tmp_path, capsys):
+        """Should exit with error when no mode specified and no config exists"""
         args = MagicMock(
-            fast=False,
-            max=False,
-            regular=False,
+            keywords=False,
+            embeddings=False,
             debounce=2.0,
         )
 
         config_path = tmp_path / "nonexistent" / "config.yaml"
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="regular"),
+            patch("cicada.commands.determine_indexing_mode", return_value="keywords"),
             pytest.raises(SystemExit) as exc_info,
         ):
             _setup_and_start_watcher(args, str(tmp_path))
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert "No tier configured" in captured.err
+        assert "No indexing mode configured" in captured.err
 
     def test_setup_and_start_watcher_creates_file_watcher(self, tmp_path):
         """Should create FileWatcher with correct parameters"""
         args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
+            keywords=True,
+            embeddings=False,
             debounce=3.5,
             verbose=True,
             quiet=False,
@@ -885,9 +750,12 @@ class TestSetupAndStartWatcher:
         config_path.write_text("test")
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch(
+                "cicada.commands.determine_indexing_mode",
+                return_value="keywords",
+            ),
             patch("cicada.watcher.FileWatcher") as mock_watcher_class,
         ):
             mock_watcher = MagicMock()
@@ -900,7 +768,7 @@ class TestSetupAndStartWatcher:
             call_kwargs = mock_watcher_class.call_args[1]
             assert call_kwargs["debounce_seconds"] == 3.5
             assert call_kwargs["verbose"] is True
-            assert call_kwargs["tier"] == "fast"
+            assert call_kwargs["indexing_mode"] == "keywords"
 
             # Should call start_watching
             mock_watcher.start_watching.assert_called_once()
@@ -908,9 +776,8 @@ class TestSetupAndStartWatcher:
     def test_setup_and_start_watcher_handles_debounce_param(self, tmp_path):
         """Should handle debounce parameter correctly"""
         args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
+            keywords=True,
+            embeddings=False,
             debounce=5.0,
         )
 
@@ -918,9 +785,12 @@ class TestSetupAndStartWatcher:
         config_path.write_text("test")
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch(
+                "cicada.commands.determine_indexing_mode",
+                return_value="keywords",
+            ),
             patch("cicada.watcher.FileWatcher") as mock_watcher_class,
         ):
             mock_watcher = MagicMock()
@@ -934,9 +804,8 @@ class TestSetupAndStartWatcher:
     def test_setup_and_start_watcher_handles_keyboard_interrupt(self, tmp_path, capsys):
         """Should handle KeyboardInterrupt gracefully"""
         args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
+            keywords=True,
+            embeddings=False,
             debounce=2.0,
         )
 
@@ -944,9 +813,12 @@ class TestSetupAndStartWatcher:
         config_path.write_text("test")
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch(
+                "cicada.commands.determine_indexing_mode",
+                return_value="keywords",
+            ),
             patch("cicada.watcher.FileWatcher") as mock_watcher_class,
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -963,9 +835,8 @@ class TestSetupAndStartWatcher:
     def test_setup_and_start_watcher_handles_exceptions(self, tmp_path, capsys):
         """Should handle exceptions from FileWatcher"""
         args = MagicMock(
-            fast=True,
-            max=False,
-            regular=False,
+            keywords=True,
+            embeddings=False,
             debounce=2.0,
         )
 
@@ -973,9 +844,12 @@ class TestSetupAndStartWatcher:
         config_path.write_text("test")
 
         with (
-            patch("cicada.commands.validate_tier_flags"),
+            patch("cicada.commands.validate_mode_flags"),
             patch("cicada.utils.storage.get_config_path", return_value=config_path),
-            patch("cicada.commands.determine_tier", return_value="fast"),
+            patch(
+                "cicada.commands.determine_indexing_mode",
+                return_value="keywords",
+            ),
             patch("cicada.watcher.FileWatcher") as mock_watcher_class,
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -1000,9 +874,8 @@ class TestHandleIndexWithWatch:
             test=False,
             test_expansion=False,
             watch=True,
-            fast=False,
-            max=False,
-            regular=False,
+            keywords=False,
+            embeddings=False,
             force=False,
         )
 
@@ -1022,9 +895,8 @@ class TestHandleIndexWithWatch:
             test=False,
             test_expansion=False,
             watch=True,
-            fast=False,
-            max=False,
-            regular=False,
+            keywords=False,
+            embeddings=False,
             force=False,
         )
 
@@ -1046,9 +918,8 @@ class TestHandleIndexWithWatch:
             test=False,
             test_expansion=False,
             watch=True,
-            fast=False,
-            max=False,
-            regular=False,
+            keywords=False,
+            embeddings=False,
             force=False,
         )
 

@@ -37,21 +37,18 @@ Quick test plan before merging to main.
 - [x] `cicada /path/to/other/project` - Setup in different directory
 
 ## Index - Basic
-- [x] `cicada index` - Interactive setup (no flags), choose tier
+- [x] `cicada index` - Interactive setup (no flags), choose mode
 - [x] `cicada index .` - Uses centralized storage path
 
-## Index - Tier Modes
-- [x] `cicada index --force --fast` - Fast tier: Regular extraction + lemminflect (no downloads)
-- [x] `cicada index --force --regular` - Regular tier: TF-IDF + GloVe (128MB, default)
-- [x] `cicada index --force --max` - Max tier: KeyBERT large + FastText (958MB+)
+## Index - Modes
+- [x] `cicada index --force --keywords` - Keywords mode (default)
+- [x] `cicada index --force --embeddings` - Embeddings mode (not implemented yet)
 
 ## Index - Error Cases
-- [x] `cicada index --force --fast --regular` - Should error: "Cannot specify multiple tier flags"
-- [x] `cicada index --force --regular --max` - Should error: "Cannot specify multiple tier flags"
-- [x] `cicada index --force --fast --max` - Should error: "Cannot specify multiple tier flags"
+- [x] `cicada index --force --keywords --embeddings` - Should error: "Cannot specify multiple mode flags"
 
 ## Index - Incremental
-- [x] Run `cicada index --force --regular` twice - Second run should be faster (incremental)
+- [x] Run `cicada index --force --keywords` twice - Second run should be faster (incremental)
 - [x] Modify 1-2 files, run again - Only changed files reprocessed
 - [x] Ctrl-C during indexing, run again - Resume from saved progress
 

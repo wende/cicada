@@ -326,15 +326,9 @@ class PythonSCIPIndexer(BaseIndexer):
                     extraction_method, expansion_method = read_keyword_extraction_config(
                         repo_path_obj
                     )
+                    from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    if extraction_method == "bert":
-                        from cicada.extractors.keybert import KeyBERTExtractor
-
-                        keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
-                    else:
-                        from cicada.extractors.keyword import RegularKeywordExtractor
-
-                        keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
                     # Initialize parallel keyword expander with streaming pipeline
                     from cicada.parallel_expander import ParallelKeywordExpander
@@ -343,6 +337,8 @@ class PythonSCIPIndexer(BaseIndexer):
                         expansion_type=expansion_method, verbose=self.verbose
                     )
                     self._log_timing("Keyword extractor initialization")
+                except NotImplementedError:
+                    raise
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Keyword extractor initialization failed: {e}")

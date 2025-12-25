@@ -2,13 +2,11 @@
 Tests for parallel keyword expansion.
 
 Validates that keyword expansion can be parallelized using ThreadPoolExecutor
-for improved indexing performance. Tests both lemminflect-only (lemmi) and
-GloVe embedding-based expansion.
+for improved indexing performance with lemminflect-only expansion.
 """
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,9 +14,9 @@ from cicada.keyword_expander import KeywordExpander
 from cicada.parallel_expander import ParallelKeywordExpander
 
 
-# ============================================================================
+# ==========================================================================
 # Correctness Tests
-# ============================================================================
+# ==========================================================================
 
 
 class TestParallelExpansionCorrectness:
@@ -52,39 +50,10 @@ class TestParallelExpansionCorrectness:
         for i, (seq, par) in enumerate(zip(sequential_results, parallel_results)):
             assert seq == par, f"Mismatch at batch {i}: {seq} != {par}"
 
-    @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
-    def test_glove_parallel_matches_sequential_mocked(
-        self, mock_load: MagicMock, sample_keyword_batches: list[list[str]]
-    ):
-        """Test GloVe expansion with mocked model produces identical results."""
-        mock_model = MagicMock()
-        mock_model.most_similar.return_value = [
-            ("similar1", 0.9),
-            ("similar2", 0.85),
-            ("similar3", 0.8),
-        ]
-        mock_load.return_value = mock_model
 
-        # Sequential
-        sequential_expander = KeywordExpander(expansion_type="glove", verbose=False)
-        sequential_expander._embedding_model = mock_model
-        sequential_results = [
-            sequential_expander.expand_keywords(batch) for batch in sample_keyword_batches
-        ]
-
-        # Parallel - use same mock model
-        parallel_expander = ParallelKeywordExpander(expansion_type="glove")
-        parallel_expander.expander._embedding_model = mock_model
-        parallel_results = parallel_expander.expand_keywords_parallel(sample_keyword_batches)
-
-        # Compare
-        for i, (seq, par) in enumerate(zip(sequential_results, parallel_results)):
-            assert seq == par, f"Mismatch at batch {i}"
-
-
-# ============================================================================
+# ==========================================================================
 # Performance Tests
-# ============================================================================
+# ==========================================================================
 
 
 class TestParallelExpansionPerformance:
@@ -125,64 +94,19 @@ class TestParallelExpansionPerformance:
 
         speedup = sequential_time / parallel_time if parallel_time > 0 else 0
 
-        print(f"\n=== Lemmi Performance ===")
+        print("\n=== Lemmi Performance ===")
         print(f"Batches:     {len(large_keyword_batches)}")
         print(f"Sequential:  {sequential_time:.3f}s")
         print(f"Parallel:    {parallel_time:.3f}s")
         print(f"Speedup:     {speedup:.2f}x")
 
-        # Note: lemminflect won't show speedup due to GIL (CPU-bound Python code)
-        # Just verify it doesn't crash and completes - speedup assertion removed
-        # because timing is too variable for small workloads
+        # Lemminflect is CPU-bound; speedup may vary.
         assert parallel_time > 0, "Parallel execution should complete"
 
-    @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
-    def test_parallel_expansion_speedup_glove_mocked(
-        self, mock_load: MagicMock, large_keyword_batches: list[list[str]]
-    ):
-        """Measure speedup from parallel expansion with mocked GloVe."""
-        # Mock model with slight delay to simulate real work
-        mock_model = MagicMock()
 
-        def slow_most_similar(word, topn=10):
-            time.sleep(0.001)  # 1ms delay
-            return [("similar", 0.9)]
-
-        mock_model.most_similar.side_effect = slow_most_similar
-        mock_load.return_value = mock_model
-
-        # Sequential
-        sequential_expander = KeywordExpander(expansion_type="glove", verbose=False)
-        sequential_expander._embedding_model = mock_model
-
-        start = time.perf_counter()
-        for batch in large_keyword_batches:
-            sequential_expander.expand_keywords(batch)
-        sequential_time = time.perf_counter() - start
-
-        # Parallel
-        parallel_expander = ParallelKeywordExpander(expansion_type="glove", max_workers=4)
-        parallel_expander.expander._embedding_model = mock_model
-
-        start = time.perf_counter()
-        parallel_expander.expand_keywords_parallel(large_keyword_batches)
-        parallel_time = time.perf_counter() - start
-
-        speedup = sequential_time / parallel_time if parallel_time > 0 else 0
-
-        print(f"\n=== GloVe (mocked) Performance ===")
-        print(f"Batches:     {len(large_keyword_batches)}")
-        print(f"Sequential:  {sequential_time:.3f}s")
-        print(f"Parallel:    {parallel_time:.3f}s")
-        print(f"Speedup:     {speedup:.2f}x")
-
-        # With I/O-like delays, we should see speedup
-        assert speedup > 1.0, f"Expected speedup > 1.0, got {speedup:.2f}x"
-
-
-# ============================================================================
+# ==========================================================================
 # Thread Safety Tests
-# ============================================================================
+# ==========================================================================
 
 
 class TestThreadSafety:
@@ -211,28 +135,6 @@ class TestThreadSafety:
             assert isinstance(result, dict)
             assert "words" in result
             assert len(result["words"]) > 0
-
-    @patch("cicada.keyword_expander.KeywordExpander._load_embedding_model")
-    def test_glove_concurrent_queries_no_crash(self, mock_load: MagicMock):
-        """Test that multiple threads can query mocked GloVe without crashing."""
-        mock_model = MagicMock()
-        mock_model.most_similar.return_value = [("similar", 0.9)]
-        mock_load.return_value = mock_model
-
-        expander = KeywordExpander(expansion_type="glove", verbose=False)
-        expander._embedding_model = mock_model
-
-        # Run 100 concurrent expansions
-        results: list = []
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [
-                executor.submit(expander.expand_keywords, [f"keyword{i}"]) for i in range(100)
-            ]
-            for future in as_completed(futures):
-                results.append(future.result())
-
-        # All should complete without exception
-        assert len(results) == 100
 
     def test_shared_expander_thread_safety(self):
         """Test that a single expander can be safely shared across threads."""
@@ -269,9 +171,9 @@ class TestThreadSafety:
         assert len(results) == 50
 
 
-# ============================================================================
+# ==========================================================================
 # ParallelKeywordExpander Additional Coverage Tests
-# ============================================================================
+# ==========================================================================
 
 
 class TestParallelKeywordExpanderEdgeCases:
@@ -307,7 +209,6 @@ class TestParallelKeywordExpanderEdgeCases:
     def test_shutdown_no_op(self):
         """Test shutdown method completes without error."""
         expander = ParallelKeywordExpander(expansion_type="lemmi")
-        # Should not raise
         expander.shutdown()
 
     def test_expand_keywords_parallel_with_scores(self):
@@ -335,9 +236,9 @@ class TestParallelKeywordExpanderEdgeCases:
         assert results == []
 
 
-# ============================================================================
+# ==========================================================================
 # StreamingExpansionPipeline Tests
-# ============================================================================
+# ==========================================================================
 
 
 class TestStreamingExpansionPipeline:
@@ -399,7 +300,6 @@ class TestStreamingExpansionPipeline:
     def test_pipeline_max_pending_blocks(self):
         """Test that pipeline blocks when at max capacity."""
         from cicada.parallel_expander import StreamingExpansionPipeline
-        import time
 
         expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=1)
 

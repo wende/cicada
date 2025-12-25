@@ -15,9 +15,6 @@ import pytest
 from cicada.mcp.handlers.index_manager import BackgroundRefreshManager, IndexManager
 
 
-
-
-
 class TestIndexManagerKeywordDetection:
     """Test IndexManager's keyword availability detection."""
 
@@ -399,13 +396,9 @@ class TestBackgroundRefreshManager:
         with patch(
             "cicada.mcp.handlers.index_manager.run_generic_indexing_for_language_indexer"
         ) as mock_generic:
-            mock_generic.return_value = {
-                "metadata": {"total_modules": 20, "total_functions": 200}
-            }
+            mock_generic.return_value = {"metadata": {"total_modules": 20, "total_functions": 200}}
 
-            with patch(
-                "cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer
-            ):
+            with patch("cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer):
                 with patch("cicada.setup.detect_project_language", return_value="python"):
                     result = refresh_manager.force_refresh()
 
@@ -425,9 +418,7 @@ class TestBackgroundRefreshManager:
         ) as mock_generic:
             mock_generic.return_value = {"metadata": {}}
 
-            with patch(
-                "cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer
-            ):
+            with patch("cicada.languages.LanguageRegistry.get_indexer", return_value=mock_indexer):
                 with patch("cicada.setup.detect_project_language", return_value="python"):
                     result = refresh_manager.force_refresh()
 

@@ -311,9 +311,9 @@ end
         assert len(index["modules"]["TestModule"]["keywords"]) > 0
         assert isinstance(index["modules"]["TestModule"]["keywords"], dict)
 
-        # Should print tier information
+        # Should print indexing mode information
         captured = capsys.readouterr()
-        assert "Tier:" in captured.out or "keywords" in captured.out.lower()
+        assert "Indexing mode:" in captured.out or "keywords" in captured.out.lower()
 
     def test_index_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test indexing when keyword extraction fails"""
@@ -671,8 +671,8 @@ end
         assert "TestModule" in index["modules"]
 
         captured = capsys.readouterr()
-        # Should print tier info
-        assert "Tier:" in captured.out
+        # Should print indexing mode info
+        assert "Indexing mode:" in captured.out
 
     def test_interrupted_during_parse_error(self, tmp_path, monkeypatch, capsys):
         """Test interruption that occurs during parse error handling"""
@@ -882,7 +882,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_yaml_parsing_error_returns_default(self, tmp_path, monkeypatch):
         """Test that YAML parsing errors return default config"""
-        from cicada.tier import read_keyword_extraction_config
+        from cicada.utils.keyword_utils import read_keyword_extraction_config
         from cicada.utils.storage import get_config_path
 
         # Create a config file with invalid YAML
@@ -902,7 +902,7 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
     def test_general_exception_returns_default(self, tmp_path, monkeypatch):
         """Test that general exceptions return default config"""
-        from cicada.tier import read_keyword_extraction_config
+        from cicada.utils.keyword_utils import read_keyword_extraction_config
 
         # Mock get_config_path to raise an exception
         def mock_get_config_path(x):
@@ -918,53 +918,6 @@ class TestReadKeywordExtractionConfigEdgeCases:
 
 class TestKeywordExtractionEdgeCases:
     """Tests for edge cases in keyword extraction during indexing"""
-
-    def test_extractor_initialization_exception_warning(self, tmp_path, monkeypatch, capsys):
-        """Test that extractor initialization errors show warning and continue"""
-        from cicada.indexer import ElixirIndexer
-
-        indexer = ElixirIndexer(verbose=True)
-
-        # Create a test file
-        test_file = tmp_path / "test.ex"
-        test_file.write_text(
-            """
-defmodule TestModule do
-  @moduledoc "Test module"
-  def test_func(x), do: x
-end
-"""
-        )
-
-        # Create config for keyword extraction
-        config_dir = tmp_path / ".cicada"
-        config_dir.mkdir()
-        config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: bert\n  tier: fast")
-
-        # Mock get_config_path
-        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
-
-        # Mock KeyBERT extractor to raise exception
-        def mock_keybert_init(*args, **kwargs):
-            raise Exception("Simulated extractor initialization failure")
-
-        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
-
-        output_path = tmp_path / "index.json"
-
-        # Should not crash, should show warning
-        index = indexer.incremental_index_repository(
-            str(tmp_path), str(output_path), extract_keywords=True
-        )
-
-        captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
-        assert "Continuing without keyword extraction" in captured.out
-
-        # Index should still be created
-        assert index is not None
-        assert "modules" in index
 
     def test_silent_module_keyword_extraction_failure(self, tmp_path, monkeypatch, capsys):
         """Test that module keyword extraction failures are silently handled"""
@@ -987,7 +940,7 @@ end
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
+        config_path.write_text("indexing:\n  mode: keywords\n")
 
         monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
@@ -1036,7 +989,7 @@ end
         config_dir = tmp_path / ".cicada"
         config_dir.mkdir()
         config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: lemminflect\n  tier: regular")
+        config_path.write_text("indexing:\n  mode: keywords\n")
 
         monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
 
@@ -1068,48 +1021,6 @@ end
         )
 
         # Index should still be created
-        assert index is not None
-        assert "modules" in index
-
-    def test_incremental_extractor_init_failure_continues(self, tmp_path, monkeypatch, capsys):
-        """Test that incremental indexing continues if extractor init fails"""
-        from cicada.indexer import ElixirIndexer
-
-        indexer = ElixirIndexer(verbose=True)
-
-        # Create initial index first
-        test_file = tmp_path / "test.ex"
-        test_file.write_text("defmodule TestModule, do: def test_func(x), do: x")
-
-        output_path = tmp_path / "index.json"
-        indexer.incremental_index_repository(str(tmp_path), str(output_path))
-
-        # Now modify file
-        test_file.write_text("defmodule TestModule, do: def updated_func(x), do: x * 2")
-
-        # Create config for keyword extraction
-        config_dir = tmp_path / ".cicada"
-        config_dir.mkdir()
-        config_path = config_dir / "config.yaml"
-        config_path.write_text("keyword_extraction:\n  method: bert\n  tier: regular")
-
-        monkeypatch.setattr("cicada.utils.storage.get_config_path", lambda x: config_path)
-
-        # Mock KeyBERT extractor to raise exception
-        def mock_keybert_init(*args, **kwargs):
-            raise RuntimeError("Simulated extractor initialization failure")
-
-        monkeypatch.setattr("cicada.extractors.keybert.KeyBERTExtractor", mock_keybert_init)
-
-        # Should not crash, should show warning
-        index = indexer.incremental_index_repository(
-            str(tmp_path), str(output_path), extract_keywords=True
-        )
-
-        captured = capsys.readouterr()
-        assert "Warning: Could not initialize keyword extractor/expander" in captured.out
-
-        # Index should still be updated
         assert index is not None
         assert "modules" in index
 

@@ -28,7 +28,7 @@ class WatchProcessManager:
     def __init__(
         self,
         repo_path: str | Path,
-        tier: str = "regular",
+        indexing_mode: str = "keywords",
         debounce: float = 2.0,
         register_atexit: bool = True,
     ):
@@ -37,12 +37,12 @@ class WatchProcessManager:
 
         Args:
             repo_path: Path to the repository to watch
-            tier: Indexing tier (fast, regular, or max)
+            indexing_mode: Indexing mode ("keywords" or "embeddings")
             debounce: Debounce interval in seconds
             register_atexit: Whether to register atexit cleanup handler (disable for testing)
         """
         self.repo_path = Path(repo_path).resolve()
-        self.tier = tier
+        self.indexing_mode = indexing_mode
         self.debounce = debounce
         self.process: subprocess.Popen[bytes] | None = None
         self._cleanup_registered = False
@@ -72,17 +72,15 @@ class WatchProcessManager:
                 "--quiet",  # Suppress progress output for background process
             ]
 
-            # Add tier flag
-            if self.tier == "fast":
-                cmd.append("--fast")
-            elif self.tier == "max":
-                cmd.append("--max")
+            # Add indexing mode flag
+            if self.indexing_mode == "embeddings":
+                cmd.append("--embeddings")
             else:
-                cmd.append("--regular")
+                cmd.append("--keywords")
 
             # Log to stderr so it doesn't interfere with MCP protocol
             print(
-                f"Starting watch process for {self.repo_path} (tier={self.tier}, debounce={self.debounce}s)...",
+                f"Starting watch process for {self.repo_path} (mode={self.indexing_mode}, debounce={self.debounce}s)...",
                 file=sys.stderr,
             )
 
@@ -291,7 +289,7 @@ def set_watch_manager(manager: WatchProcessManager | None) -> None:
 
 
 def start_watch_process(
-    repo_path: str | Path, tier: str = "regular", debounce: float = 2.0
+    repo_path: str | Path, indexing_mode: str = "keywords", debounce: float = 2.0
 ) -> bool:
     """
     Start a watch process for the given repository.
@@ -300,13 +298,13 @@ def start_watch_process(
 
     Args:
         repo_path: Path to the repository to watch
-        tier: Indexing tier (fast, regular, or max)
+        indexing_mode: Indexing mode ("keywords" or "embeddings")
         debounce: Debounce interval in seconds
 
     Returns:
         True if started successfully, False otherwise
     """
-    manager = WatchProcessManager(repo_path, tier, debounce)
+    manager = WatchProcessManager(repo_path, indexing_mode, debounce)
     if manager.start():
         set_watch_manager(manager)
         return True

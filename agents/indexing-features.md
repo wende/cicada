@@ -13,7 +13,7 @@ Cicada supports indexing string literals from function bodies in addition to doc
    - Module names, atoms, and all-caps strings ARE included
 
 2. **Keyword Extraction:**
-   - Applies the same keyword extraction pipeline (KeyBERT + expansion) to string content
+   - Applies the same keyword extraction pipeline (regular + lemminflect expansion) to string content
    - String keywords receive a **1.3x boost** to prioritize implementation over documentation
 
 3. **Index Storage:**

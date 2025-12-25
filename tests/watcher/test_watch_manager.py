@@ -46,16 +46,18 @@ class TestWatchProcessManager:
         manager = WatchProcessManager(elixir_repo, register_atexit=False)
 
         assert manager.repo_path == elixir_repo
-        assert manager.tier == "regular"
+        assert manager.indexing_mode == "keywords"
         assert manager.debounce == 2.0
         assert manager.process is None
         assert manager._cleanup_registered is False
 
     def test_initialization_with_custom_parameters(self, elixir_repo):
         """Test initialization with custom parameters"""
-        manager = WatchProcessManager(elixir_repo, tier="fast", debounce=5.0, register_atexit=False)
+        manager = WatchProcessManager(
+            elixir_repo, indexing_mode="embeddings", debounce=5.0, register_atexit=False
+        )
 
-        assert manager.tier == "fast"
+        assert manager.indexing_mode == "embeddings"
         assert manager.debounce == 5.0
 
     @patch("subprocess.Popen")
@@ -78,28 +80,27 @@ class TestWatchProcessManager:
         assert str(elixir_repo) in cmd
         assert "--debounce" in cmd
         assert "2.0" in cmd
-        assert "--regular" in cmd
+        assert "--keywords" in cmd
 
     @patch("subprocess.Popen")
-    def test_start_with_tier_flags(self, mock_popen, elixir_repo):
-        """Test that tier flags are passed correctly to the watch command"""
+    def test_start_with_mode_flags(self, mock_popen, elixir_repo):
+        """Test that mode flags are passed correctly to the watch command"""
         test_cases = [
-            ("fast", "--fast"),
-            ("max", "--max"),
-            ("regular", "--regular"),
+            ("keywords", "--keywords"),
+            ("embeddings", "--embeddings"),
         ]
 
-        for tier, expected_flag in test_cases:
+        for mode, expected_flag in test_cases:
             mock_popen.reset_mock()
             mock_process = make_mock_watch_process(pid=12345, running=True)
             mock_popen.return_value = mock_process
 
-            manager = WatchProcessManager(elixir_repo, tier=tier, register_atexit=False)
+            manager = WatchProcessManager(elixir_repo, indexing_mode=mode, register_atexit=False)
             manager.start()
 
             call_args = mock_popen.call_args
             cmd = call_args[0][0]
-            assert expected_flag in cmd, f"Expected {expected_flag} for tier {tier}"
+            assert expected_flag in cmd, f"Expected {expected_flag} for mode {mode}"
 
     @patch("subprocess.Popen")
     def test_start_already_running_returns_false(self, mock_popen, elixir_repo):
@@ -275,10 +276,10 @@ class TestGlobalWatchManager:
         assert manager.repo_path == elixir_repo
 
         # Test with custom parameters
-        result = start_watch_process(elixir_repo, tier="fast", debounce=5.0)
+        result = start_watch_process(elixir_repo, indexing_mode="embeddings", debounce=5.0)
         assert result is True
         manager = get_watch_manager()
-        assert manager.tier == "fast"
+        assert manager.indexing_mode == "embeddings"
         assert manager.debounce == 5.0
 
     @patch.object(WatchProcessManager, "start", return_value=False)
@@ -462,7 +463,9 @@ class TestMCPWatchIntegration:
 
         # Use REAL WatchProcessManager and actually spawn subprocess
         # This is the critical difference from unit tests - we verify real process behavior
-        success = start_watch_process(repo_path=str(elixir_repo), tier="fast", debounce=2.0)
+        success = start_watch_process(
+            repo_path=str(elixir_repo), indexing_mode="embeddings", debounce=2.0
+        )
 
         assert success, "Watch process should start successfully"
 

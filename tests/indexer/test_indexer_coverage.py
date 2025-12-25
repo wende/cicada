@@ -146,32 +146,6 @@ def test_extract_related_functions_with_invalid_signatures():
     assert result[0]["function"] == "Function"
 
 
-# ===== Keyword Extraction Initialization Errors =====
-
-
-def test_index_repository_keyword_extractor_init_failure(temp_repo, capsys):
-    """Test index_repository when keyword extractor initialization fails."""
-    indexer = ElixirIndexer(verbose=True)
-
-    with patch(
-        "cicada.indexer.read_keyword_extraction_config",
-        return_value=("bert", "glove"),
-    ):
-        with patch(
-            "cicada.extractors.keybert.KeyBERTExtractor",
-            side_effect=ImportError("No keybert"),
-        ):
-            # Should fall back to not extracting keywords
-            indexer._index_repository_full(
-                str(temp_repo),
-                str(temp_repo / "index.json"),
-                extract_keywords=True,
-            )
-
-            captured = capsys.readouterr()
-            assert "Warning: Could not initialize keyword extractor" in captured.out
-
-
 def test_index_repository_string_extractor_init_failure(temp_repo, capsys):
     """Test index_repository when string extractor initialization fails."""
     indexer = ElixirIndexer(verbose=True)

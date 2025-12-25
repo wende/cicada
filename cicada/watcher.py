@@ -102,7 +102,7 @@ class FileWatcher:
         repo_path: str,
         debounce_seconds: float = 2.0,
         verbose: bool = True,
-        tier: str = "regular",
+        indexing_mode: str = "keywords",
         register_signal_handlers: bool = True,
     ):
         """
@@ -112,13 +112,13 @@ class FileWatcher:
             repo_path: Path to the repository to watch
             debounce_seconds: Seconds to wait before triggering reindex after changes
             verbose: Whether to show detailed indexing progress
-            tier: Indexing tier (fast, regular, or max)
+        indexing_mode: Indexing mode ("keywords" or "embeddings")
             register_signal_handlers: Whether to register SIGINT/SIGTERM handlers (disable for testing)
         """
         self.repo_path = Path(repo_path).resolve()
         self.debounce_seconds = debounce_seconds
         self.verbose = verbose
-        self.tier = tier
+        self.indexing_mode = indexing_mode
 
         # Detect project language and get appropriate indexer
         self.language = detect_project_language(self.repo_path)

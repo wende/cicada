@@ -59,7 +59,7 @@ cicada-index --spacy-model medium
 **After:**
 ```bash
 cicada index .
-cicada index --force --fast  # Fast tier (token-based) or --regular (default), or --max (BERT large)
+cicada index --force --keywords  # Keywords mode (default)
 ```
 
 Note: `--output` option has been removed. Index files are now stored in `~/.cicada/projects/<repo_hash>/index.json`.
@@ -122,14 +122,14 @@ cicada --use-uv
 ### Index Subcommand
 
 ```bash
-# Default indexing (with BERT small model)
+# Default indexing (keywords mode)
 cicada index
 
-# Fast tier (token-based extraction, no model downloads)
-cicada index --force --fast
+# Keywords mode (explicit)
+cicada index --force --keywords
 
-# Max tier (BERT large model for best quality)
-cicada index --force --max
+# Embeddings mode (not implemented yet)
+cicada index --force --embeddings
 
 # Specify repository path
 cicada index /path/to/repo

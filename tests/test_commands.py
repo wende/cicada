@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 from cicada.commands import (
     get_argument_parser,
     handle_command,
-    _print_tier_requirement_error,
+    _print_mode_requirement_error,
     _validate_project_language,
     KNOWN_SUBCOMMANDS,
     KNOWN_SUBCOMMANDS_SET,
@@ -30,9 +30,6 @@ from cicada.logging_utils import get_verbose_flag, configure_logging
 def parser():
     """Shared argument parser fixture."""
     return get_argument_parser()
-
-
-
 
 
 @pytest.fixture
@@ -129,19 +126,19 @@ class TestArgumentParser:
 # ============================================================================
 
 
-class TestPrintTierRequirementError:
-    """Test _print_tier_requirement_error function."""
+class TestPrintModeRequirementError:
+    """Test _print_mode_requirement_error function."""
 
-    def test_print_tier_requirement_error_no_exception(self):
+    def test_print_mode_requirement_error_no_exception(self):
         """Test that function can be called without raising."""
         try:
-            _print_tier_requirement_error()
+            _print_mode_requirement_error()
         except Exception as e:
             pytest.fail(f"Function raised unexpected exception: {e}")
 
-    def test_print_tier_requirement_error_output(self, capsys):
+    def test_print_mode_requirement_error_output(self, capsys):
         """Test that error message is printed."""
-        _print_tier_requirement_error()
+        _print_mode_requirement_error()
         captured = capsys.readouterr()
         # Function should print something to stderr
         assert captured.err or captured.out  # Should have some output
@@ -279,12 +276,12 @@ class TestIndexPRAndDirCommands:
 
 
 # ============================================================================
-# SECTION 8: Test Configuration and Tier Handling
+# SECTION 8: Test Configuration and Mode Handling
 # ============================================================================
 
 
-class TestTierHandling:
-    """Test tier-related functions and configurations."""
+class TestModeHandling:
+    """Test mode-related functions and configurations."""
 
     def test_default_debounce_constant(self):
         """Test that debounce default is set."""
@@ -486,7 +483,7 @@ class TestVerboseFlag:
     @patch("cicada.languages.LanguageRegistry.get_indexer")
     def test_index_command_uses_verbose_flag(self, mock_get_indexer, parser):
         """Test that index command passes verbose flag."""
-        args = parser.parse_args(["index", "--verbose", "--force", "--fast"])
+        args = parser.parse_args(["index", "--verbose", "--force", "--keywords"])
 
         mock_indexer = MagicMock()
         mock_indexer.incremental_index_repository = MagicMock()
@@ -765,15 +762,13 @@ class TestLoadExistingConfig:
         config_path.write_text(
             yaml.dump(
                 {
-                    "keyword_extraction": {"method": "bert_small"},
-                    "keyword_expansion": {"method": "glove"},
+                    "indexing": {"mode": "embeddings"},
                 }
             )
         )
 
-        extraction, expansion = _load_existing_config(config_path)
-        assert extraction == "bert_small"
-        assert expansion == "glove"
+        indexing_mode = _load_existing_config(config_path)
+        assert indexing_mode == "embeddings"
 
     def test_load_error_returns_defaults(self, tmp_path, capsys):
         """Test loading invalid config returns defaults."""
@@ -782,9 +777,8 @@ class TestLoadExistingConfig:
         config_path = tmp_path / "config.yaml"
         config_path.write_text("invalid: yaml: [")
 
-        extraction, expansion = _load_existing_config(config_path)
-        assert extraction == "regular"
-        assert expansion == "lemmi"
+        indexing_mode = _load_existing_config(config_path)
+        assert indexing_mode == "keywords"
 
 
 class TestHandleIndexTestModes:
@@ -804,7 +798,7 @@ class TestHandleIndexTestModes:
         handler = getattr(commands, handler_name)
 
         with patch(f"cicada.keyword_test.{mock_func}") as mock_run:
-            args = parser.parse_args(["index", flag, "--fast"])
+            args = parser.parse_args(["index", flag, "--keywords"])
             handler(args)
             mock_run.assert_called_once()
 
@@ -820,7 +814,7 @@ class TestHandleIndexMain:
 
     @patch("cicada.languages.LanguageRegistry.get_indexer")
     def test_index_main_default_flag(self, mock_get_indexer, parser, elixir_project):
-        """Test --default flag converts to --force --fast."""
+        """Test --default flag converts to --force --keywords."""
         from cicada.commands import handle_index_main
 
         mock_indexer = MagicMock()
@@ -833,7 +827,7 @@ class TestHandleIndexMain:
             handle_index_main(args)
 
         assert args.force is True
-        assert args.fast is True
+        assert args.keywords is True
 
     @patch("cicada.languages.LanguageRegistry.get_indexer")
     def test_index_main_legacy_fallback(self, mock_get_indexer, parser, elixir_project):
@@ -845,7 +839,7 @@ class TestHandleIndexMain:
         mock_indexer.index_repository = MagicMock()
         mock_get_indexer.return_value = mock_indexer
 
-        args = parser.parse_args(["index", "--force", "--fast", str(elixir_project)])
+        args = parser.parse_args(["index", "--force", "--keywords", str(elixir_project)])
 
         with patch("cicada.setup.detect_project_language", return_value="elixir"):
             handle_index_main(args)
@@ -870,7 +864,7 @@ class TestHandleIndexMain:
 
         mock_get_indexer.return_value = mock_indexer
 
-        args = parser.parse_args(["index", "--force", "--fast", str(elixir_project)])
+        args = parser.parse_args(["index", "--force", "--keywords", str(elixir_project)])
 
         with patch("cicada.setup.detect_project_language", return_value="elixir"):
             with pytest.raises(SystemExit) as exc_info:
@@ -1396,10 +1390,10 @@ class TestHandleIndexWithWatch:
     @pytest.mark.parametrize(
         "args_list,handler_name",
         [
-            (["index", "--watch", "--fast"], "_setup_and_start_watcher"),
-            (["index", "--force", "--fast"], "handle_index_main"),
-            (["index", "--test", "--fast"], "handle_index_test_mode"),
-            (["index", "--test-expansion", "--fast"], "handle_index_test_expansion_mode"),
+            (["index", "--watch", "--keywords"], "_setup_and_start_watcher"),
+            (["index", "--force", "--keywords"], "handle_index_main"),
+            (["index", "--test", "--keywords"], "handle_index_test_mode"),
+            (["index", "--test-expansion", "--keywords"], "handle_index_test_expansion_mode"),
         ],
     )
     @patch("cicada.version_check.check_for_updates")
@@ -1423,34 +1417,34 @@ class TestHandleIndexConfigUpdate:
 
     @patch("cicada.setup.create_config_yaml")
     @patch("cicada.commands._load_existing_config")
-    def test_config_update_tier_changed(self, mock_load, mock_create, tmp_path):
-        """Test config update detects tier change."""
+    def test_config_update_mode_changed(self, mock_load, mock_create, tmp_path):
+        """Test config update detects mode change."""
         from cicada.commands import _handle_index_config_update
 
         config_path = tmp_path / "config.yaml"
         config_path.touch()
 
-        mock_load.return_value = ("bert_small", "glove")
+        mock_load.return_value = "embeddings"
 
-        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "keywords")
 
-        assert result is True  # Tier changed
+        assert result is True  # Mode changed
         mock_create.assert_called_once()
 
     @patch("cicada.setup.create_config_yaml")
     @patch("cicada.commands._load_existing_config")
-    def test_config_update_tier_unchanged(self, mock_load, mock_create, tmp_path):
-        """Test config update when tier unchanged."""
+    def test_config_update_mode_unchanged(self, mock_load, mock_create, tmp_path):
+        """Test config update when mode unchanged."""
         from cicada.commands import _handle_index_config_update
 
         config_path = tmp_path / "config.yaml"
         config_path.touch()
 
-        mock_load.return_value = ("regular", "lemmi")
+        mock_load.return_value = "keywords"
 
-        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "keywords")
 
-        assert result is False  # Tier unchanged
+        assert result is False  # Mode unchanged
         mock_create.assert_called_once()
 
     @patch("cicada.setup.create_config_yaml")
@@ -1461,7 +1455,7 @@ class TestHandleIndexConfigUpdate:
         config_path = tmp_path / "config.yaml"
         # Don't create the file - simulates new config
 
-        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "regular", "lemmi")
+        result = _handle_index_config_update(config_path, tmp_path, tmp_path, "keywords")
 
         assert result is False  # No existing config, so no "change"
         mock_create.assert_called_once()

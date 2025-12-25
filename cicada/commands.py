@@ -10,13 +10,12 @@ import argparse
 import sys
 from pathlib import Path
 
-# Import tier resolution functions from centralized module
+# Import indexing mode resolution functions from centralized module
 from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
-from cicada.tier import (
-    determine_tier,
-    get_extraction_expansion_methods,
-    tier_flag_specified,
-    validate_tier_flags,
+from cicada.index_mode import (
+    determine_indexing_mode,
+    mode_flag_specified,
+    validate_mode_flags,
 )
 
 # Default debounce interval for watch mode (in seconds)
@@ -58,20 +57,27 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
     from cicada.utils.storage import get_config_path
     from cicada.watcher import FileWatcher
 
-    # Validate tier flags
-    validate_tier_flags(args, require_force=True)
+    # Validate indexing mode flags
+    validate_mode_flags(args, require_force=True)
 
     # Resolve repository path
     repo_path = Path(repo_path_str).resolve()
     config_path = get_config_path(repo_path)
 
-    # Determine tier using helper
-    tier = determine_tier(args, repo_path)
+    # Determine indexing mode using helper
+    indexing_mode = determine_indexing_mode(args, repo_path)
+    from cicada.index_mode import ensure_supported_mode
 
-    # Check if config exists when no tier is specified
-    tier_specified = tier_flag_specified(args)
-    if not tier_specified and not config_path.exists():
-        _print_tier_requirement_error()
+    try:
+        ensure_supported_mode(indexing_mode)
+    except NotImplementedError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Check if config exists when no mode is specified
+    mode_specified = mode_flag_specified(args)
+    if not mode_specified and not config_path.exists():
+        _print_mode_requirement_error()
         print("\nRun 'cicada watch --help' for more information.", file=sys.stderr)
         sys.exit(2)
 
@@ -82,7 +88,7 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
             repo_path=str(repo_path),
             debounce_seconds=getattr(args, "debounce", DEFAULT_WATCH_DEBOUNCE),
             verbose=not getattr(args, "quiet", False),
-            tier=tier,
+            indexing_mode=indexing_mode,
         )
         watcher.start_watching()
     except KeyboardInterrupt:
@@ -93,22 +99,17 @@ def _setup_and_start_watcher(args, repo_path_str: str) -> None:
         sys.exit(1)
 
 
-def _add_tier_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add --fast, --regular, --max tier selection arguments."""
+def _add_indexing_mode_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add --keywords, --embeddings indexing mode arguments."""
     parser.add_argument(
-        "--fast",
+        "--keywords",
         action="store_true",
-        help="Fast tier: Regular extraction + lemmi expansion",
+        help="Keyword-based indexing (default)",
     )
     parser.add_argument(
-        "--regular",
+        "--embeddings",
         action="store_true",
-        help="Regular tier: KeyBERT small + GloVe expansion (default)",
-    )
-    parser.add_argument(
-        "--max",
-        action="store_true",
-        help="Max tier: KeyBERT large + FastText expansion",
+        help="Embeddings-based indexing (not implemented yet)",
     )
 
 
@@ -159,7 +160,7 @@ def _create_editor_subparser(
         description=f"One-command setup for {display_name} with keyword extraction",
         parents=[common_parser],
     )
-    _add_tier_arguments(parser)
+    _add_indexing_mode_arguments(parser)
     return parser
 
 
@@ -190,7 +191,7 @@ def get_argument_parser():
     install_parser = subparsers.add_parser(
         "install",
         help="Interactive setup for Cicada",
-        description="Interactive setup with editor and model selection",
+        description="Interactive setup with editor and indexing mode selection",
         parents=[common_parser],
     )
     install_parser.add_argument(
@@ -200,11 +201,11 @@ def get_argument_parser():
         help="Path to project repository (default: current directory)",
     )
     _add_editor_arguments(install_parser)
-    _add_tier_arguments(install_parser)
+    _add_indexing_mode_arguments(install_parser)
     install_parser.add_argument(
         "--default",
         action="store_true",
-        help="Initialize with default values (equivalent to --fast)",
+        help="Initialize with default values (equivalent to --keywords)",
     )
     install_parser.add_argument(
         "-y",
@@ -241,14 +242,14 @@ def get_argument_parser():
         help="Path to project repository (default: current directory)",
     )
     _add_editor_arguments(server_parser)
-    _add_tier_arguments(server_parser)
+    _add_indexing_mode_arguments(server_parser)
     server_parser.add_argument(
         "--watch",
         action="store_true",
         help="Start file watcher in a linked process for automatic reindexing",
     )
 
-    # Editor-specific subparsers (all have identical structure with tier args)
+    # Editor-specific subparsers (all have identical structure with mode args)
     for editor in ["claude", "cursor", "vs", "gemini", "codex"]:
         _create_editor_subparser(subparsers, editor, common_parser)
 
@@ -271,7 +272,7 @@ def get_argument_parser():
         metavar="SECONDS",
         help="Debounce interval in seconds to wait after file changes before reindexing (default: 2.0)",
     )
-    _add_tier_arguments(watch_parser)
+    _add_indexing_mode_arguments(watch_parser)
     watch_parser.add_argument(
         "--quiet",
         action="store_true",
@@ -290,17 +291,17 @@ def get_argument_parser():
         default=".",
         help="Path to the project repository to index (default: current directory)",
     )
-    _add_tier_arguments(index_parser)
+    _add_indexing_mode_arguments(index_parser)
     index_parser.add_argument(
         "-f",
         "--force",
         action="store_true",
-        help="Override configured tier (requires --fast, --regular, or --max)",
+        help="Override configured indexing mode (requires --keywords or --embeddings)",
     )
     index_parser.add_argument(
         "--default",
         action="store_true",
-        help="Initialize with default values (equivalent to --force --fast)",
+        help="Initialize with default values (equivalent to --force --keywords)",
     )
     index_parser.add_argument(
         "--test",
@@ -317,7 +318,7 @@ def get_argument_parser():
         type=float,
         default=0.3,
         metavar="SCORE",
-        help="Minimum score for keyword extraction (0.0-1.0). For KeyBERT: semantic similarity threshold. Default: 0.3",
+        help="Minimum score for keyword extraction (0.0-1.0). Default: 0.3",
     )
     index_parser.add_argument(
         "--min-score",
@@ -654,8 +655,8 @@ def handle_editor_setup(args, editor: str) -> None:
     from cicada.setup import EditorType, detect_project_language, setup
     from cicada.utils.storage import get_config_path, get_index_path
 
-    # Validate tier flags
-    validate_tier_flags(args)
+    # Validate indexing mode flags
+    validate_mode_flags(args)
 
     repo_path = Path.cwd()
 
@@ -670,19 +671,18 @@ def handle_editor_setup(args, editor: str) -> None:
     index_path = get_index_path(repo_path)
     index_exists = config_path.exists() and index_path.exists()
 
-    extraction_method, expansion_method = get_extraction_expansion_methods(args)
+    indexing_mode = determine_indexing_mode(args, repo_path)
 
-    # Load existing config if no tier specified but index exists
-    if extraction_method is None and index_exists:
-        extraction_method, expansion_method = _load_existing_config(config_path)
+    # Load existing config if no mode specified but index exists
+    if not mode_flag_specified(args) and index_exists:
+        indexing_mode = _load_existing_config(config_path)
 
     try:
         assert editor is not None
         setup(
             cast(EditorType, editor),
             repo_path,
-            extraction_method=extraction_method,
-            expansion_method=expansion_method,
+            indexing_mode=indexing_mode,
             index_exists=index_exists,
         )
     except Exception as e:
@@ -690,63 +690,69 @@ def handle_editor_setup(args, editor: str) -> None:
         sys.exit(1)
 
 
-def _load_existing_config(config_path: Path) -> tuple[str, str]:
-    """Load extraction and expansion methods from existing config.
+def _load_existing_config(config_path: Path) -> str:
+    """Load indexing mode from existing config.
 
     Args:
         config_path: Path to config.yaml
 
     Returns:
-        Tuple of (extraction_method, expansion_method)
+        Indexing mode string
     """
     import yaml
 
     try:
         with open(config_path) as f:
             existing_config = yaml.safe_load(f)
-            extraction_method = existing_config.get("keyword_extraction", {}).get(
-                "method", "regular"
-            )
-            expansion_method = existing_config.get("keyword_expansion", {}).get("method", "lemmi")
-            return extraction_method, expansion_method
+            indexing_mode = existing_config.get("indexing", {}).get("mode")
+            if indexing_mode in ("keywords", "embeddings"):
+                return indexing_mode
+
+            if existing_config.get("keyword_extraction") or existing_config.get(
+                "keyword_expansion"
+            ):
+                return "keywords"
+            return "keywords"
     except Exception as e:
         print(f"Warning: Could not load existing config: {e}", file=sys.stderr)
-        return "regular", "lemmi"
+        return "keywords"
 
 
 def handle_index_test_mode(args):
     """Handle interactive keyword extraction test mode."""
     from cicada.keyword_test import run_keywords_interactive
-    from cicada.tier import determine_tier, tier_to_methods
+    from cicada.index_mode import ensure_supported_mode
 
-    # Validate tier flags
-    validate_tier_flags(args)
+    # Validate indexing mode flags
+    validate_mode_flags(args)
 
-    # Get tier (includes fallback to 'regular' if not specified)
-    tier_name = determine_tier(args)
-
-    # Convert tier to extraction method
-    extraction_method, _ = tier_to_methods(tier_name)
+    indexing_mode = determine_indexing_mode(args)
+    try:
+        ensure_supported_mode(indexing_mode)
+    except NotImplementedError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     extraction_threshold = getattr(args, "extraction_threshold", None)
-    run_keywords_interactive(
-        method=extraction_method, tier=tier_name, extraction_threshold=extraction_threshold
-    )
+    run_keywords_interactive(method="regular", extraction_threshold=extraction_threshold)
 
 
 def handle_index_test_expansion_mode(args):
     """Handle interactive keyword expansion test mode."""
     from cicada.keyword_test import run_expansion_interactive
-    from cicada.tier import determine_tier, tier_to_methods
+    from cicada.index_mode import ensure_supported_mode
 
-    # Validate tier flags
-    validate_tier_flags(args)
+    # Validate indexing mode flags
+    validate_mode_flags(args)
 
-    # Get tier (includes fallback to 'regular' if not specified)
-    tier_name = determine_tier(args)
-
-    # Convert tier to extraction method and expansion type
-    extraction_method, expansion_type = tier_to_methods(tier_name)
+    indexing_mode = determine_indexing_mode(args)
+    try:
+        ensure_supported_mode(indexing_mode)
+    except NotImplementedError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+    extraction_method = "regular"
+    expansion_type = "lemmi"
 
     extraction_threshold = getattr(args, "extraction_threshold", 0.3)
     expansion_threshold = getattr(args, "expansion_threshold", 0.2)
@@ -754,7 +760,6 @@ def handle_index_test_expansion_mode(args):
     run_expansion_interactive(
         expansion_type=expansion_type,
         extraction_method=extraction_method,
-        extraction_tier=tier_name,
         extraction_threshold=extraction_threshold,
         expansion_threshold=expansion_threshold,
         min_score=min_score,
@@ -767,13 +772,13 @@ def handle_index_main(args) -> None:
     from cicada.setup import detect_project_language
     from cicada.utils.storage import create_storage_dir, get_config_path, get_index_path
 
-    # Handle --default flag: convert to --force --fast
+    # Handle --default flag: convert to --force --keywords
     if getattr(args, "default", False):
         args.force = True
-        args.fast = True
+        args.keywords = True
 
-    # Validate tier flags
-    validate_tier_flags(args, require_force=True)
+    # Validate indexing mode flags
+    validate_mode_flags(args, require_force=True)
 
     repo_path = Path(args.repo).resolve()
 
@@ -785,25 +790,32 @@ def handle_index_main(args) -> None:
     index_path = get_index_path(repo_path)
 
     force_enabled = getattr(args, "force", False) is True
-    extraction_method: str | None = None
-    expansion_method: str | None = None
-    tier_changed = False
+    indexing_mode: str | None = None
+    mode_changed = False
 
     if force_enabled:
-        extraction_method, expansion_method = get_extraction_expansion_methods(args)
-        assert extraction_method is not None
-        assert expansion_method is not None
-        tier_changed = _handle_index_config_update(
-            config_path, storage_dir, repo_path, extraction_method, expansion_method
+        indexing_mode = determine_indexing_mode(args, repo_path)
+        mode_changed = _handle_index_config_update(
+            config_path, storage_dir, repo_path, indexing_mode
         )
-        if tier_changed:
-            print("Tier configuration changed. Performing full reindex...")
+        if mode_changed:
+            print("Indexing mode changed. Performing full reindex...")
     elif not config_path.exists():
-        _print_tier_requirement_error()
+        _print_mode_requirement_error()
         sys.exit(2)
 
+    if indexing_mode is None:
+        indexing_mode = determine_indexing_mode(args, repo_path)
+    from cicada.index_mode import ensure_supported_mode
+
+    try:
+        ensure_supported_mode(indexing_mode)
+    except NotImplementedError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     # Perform indexing using unified interface
-    # If tier changed, force full reindex to ensure index consistency with new config
+    # If mode changed, force full reindex to ensure index consistency with new config
     indexer = LanguageRegistry.get_indexer(language)
     # CLI commands always show progress (only MCP server should be silent)
     verbose = True
@@ -814,8 +826,8 @@ def handle_index_main(args) -> None:
             # Co-change analysis is enabled by default for better search results
             # Can be disabled with --no-cochange flag
             extract_cochange = not getattr(args, "no_cochange", False)
-            # Force full reindex if --force flag was used OR tier changed
-            should_force = force_enabled or tier_changed
+            # Force full reindex if --force flag was used OR mode changed
+            should_force = force_enabled or mode_changed
             indexer.incremental_index_repository(
                 repo_path=str(repo_path),
                 output_path=str(index_path),
@@ -827,7 +839,7 @@ def handle_index_main(args) -> None:
             )
         else:
             # Fallback to basic interface for legacy indexers
-            should_force = force_enabled or tier_changed
+            should_force = force_enabled or mode_changed
             indexer.index_repository(
                 repo_path=str(repo_path),
                 output_path=str(index_path),
@@ -859,59 +871,49 @@ def _handle_index_config_update(
     config_path: Path,
     storage_dir: Path,
     repo_path: Path,
-    extraction_method: str,
-    expansion_method: str,
+    indexing_mode: str,
 ) -> bool:
     """Handle config creation or update during forced indexing.
 
     This function is only called when --force is used, so it always
-    updates the config to the specified extraction and expansion methods
-    without validation. This allows users to change tiers between indexing runs.
+    updates the config to the specified indexing mode
+    without validation. This allows users to change modes between indexing runs.
 
     Args:
         config_path: Path to config.yaml
         storage_dir: Storage directory path
         repo_path: Repository path
-        extraction_method: Extraction method to use
-        expansion_method: Expansion method to use
+        indexing_mode: Indexing mode to use
 
     Returns:
-        True if the tier was changed (requiring full reindex), False otherwise
+        True if the mode was changed (requiring full reindex), False otherwise
     """
     from cicada.setup import create_config_yaml
 
-    # Check if config exists and if tier has changed
-    tier_changed = False
+    # Check if config exists and if mode has changed
+    mode_changed = False
     if config_path.exists():
-        # Load existing config to check for tier changes
-        existing_extraction, existing_expansion = _load_existing_config(config_path)
-        tier_changed = (
-            existing_extraction != extraction_method or existing_expansion != expansion_method
-        )
+        # Load existing config to check for mode changes
+        existing_mode = _load_existing_config(config_path)
+        mode_changed = existing_mode != indexing_mode
 
-    # When --force is used, always update config to the new tier settings
-    # This allows changing tiers without requiring a separate clean step
-    create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method)
+    # When --force is used, always update config to the new mode settings
+    # This allows changing modes without requiring a separate clean step
+    create_config_yaml(repo_path, storage_dir, indexing_mode)
 
-    return tier_changed
+    return mode_changed
 
 
-def _print_tier_requirement_error() -> None:
-    """Print error message when no tier is specified."""
-    print("Error: No tier configured.", file=sys.stderr)
+def _print_mode_requirement_error() -> None:
+    """Print error message when no mode is specified."""
+    print("Error: No indexing mode configured.", file=sys.stderr)
+    print("\nUse '--force' with a mode flag to select indexing settings:", file=sys.stderr)
     print(
-        "\nUse '--force' with a tier flag to select keyword extraction settings:", file=sys.stderr
-    )
-    print(
-        "  cicada index --force --fast      Fast tier: Regular extraction + lemmi expansion",
+        "  cicada index --force --keywords   Keyword-based indexing (default)",
         file=sys.stderr,
     )
     print(
-        "  cicada index --force --regular   Regular tier: KeyBERT small + GloVe expansion (default)",
-        file=sys.stderr,
-    )
-    print(
-        "  cicada index --force --max       Max tier: KeyBERT large + FastText expansion",
+        "  cicada index --force --embeddings  Embeddings-based indexing (not implemented yet)",
         file=sys.stderr,
     )
     print("\nRun 'cicada index --help' for more information.", file=sys.stderr)
@@ -1202,7 +1204,7 @@ def handle_install(args) -> None:
 
     Behavior:
     - INTERACTIVE: shows prompts and menus
-    - Can skip prompts with flags (--claude, --cursor, --vs, --fast, --regular, --max)
+    - Can skip prompts with flags (--claude, --cursor, --vs, --keywords, --embeddings)
     - Creates editor config and indexes repository
     """
     from typing import cast
@@ -1215,12 +1217,12 @@ def handle_install(args) -> None:
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
     _validate_project_language(repo_path)
 
-    # Handle --default flag: convert to --fast
+    # Handle --default flag: convert to --keywords
     if getattr(args, "default", False):
-        args.fast = True
+        args.keywords = True
 
-    # Validate tier flags
-    validate_tier_flags(args)
+    # Validate indexing mode flags
+    validate_mode_flags(args)
 
     # Handle automation flags
     yes_mode = getattr(args, "yes", False)
@@ -1231,8 +1233,7 @@ def handle_install(args) -> None:
     # Parse editor selection
     editor = _determine_editor_from_args(args)
 
-    # Determine extraction and expansion methods from flags
-    extraction_method, expansion_method = get_extraction_expansion_methods(args)
+    indexing_mode = determine_indexing_mode(args, repo_path)
 
     # Check if index already exists
     config_path = get_config_path(repo_path)
@@ -1260,7 +1261,7 @@ def handle_install(args) -> None:
     # If no flags provided and no partial flags, use full interactive setup
     if (
         editor is None
-        and extraction_method is None
+        and not mode_flag_specified(args)
         and not yes_mode
         and should_index_prs is None
         and should_add_to_claude is None
@@ -1270,7 +1271,7 @@ def handle_install(args) -> None:
         show_full_interactive_setup(repo_path)
         return
 
-    # If only model flags provided (no editor), prompt for editor
+    # If only mode flags provided (no editor), prompt for editor
     if editor is None:
         if yes_mode:
             # Default to Claude Code if --yes used without editor
@@ -1278,32 +1279,31 @@ def handle_install(args) -> None:
         else:
             editor = _prompt_for_editor()
 
-    # If only editor flag provided (no model), prompt for model (unless index exists)
-    if extraction_method is None and not index_exists:
+    # If only editor flag provided (no mode), prompt for mode (unless index exists)
+    if not mode_flag_specified(args) and not index_exists:
         if yes_mode:
-            # Default to regular/lemmi (handled by setup defaults if passed as None)
+            # Default to keywords (handled by setup defaults if passed as None)
             pass
         else:
             from cicada.interactive_setup import show_first_time_setup
 
             (
-                extraction_method,
-                expansion_method,
+                indexing_mode,
                 interactive_index_prs,
                 interactive_add_claude,
             ) = show_first_time_setup(
                 default_index_prs=should_index_prs,
                 default_add_to_claude=should_add_to_claude,
             )
-            
+
             # Use interactive choices if not overridden by flags
             # (If we passed defaults, interactive_* vars will match defaults)
             should_index_prs = interactive_index_prs
             should_add_to_claude = interactive_add_claude
 
-    # If index exists but no model flags, use existing settings
-    if extraction_method is None and index_exists:
-        extraction_method, expansion_method = _load_existing_config(config_path)
+    # If index exists but no mode flags, use existing settings
+    if not mode_flag_specified(args) and index_exists:
+        indexing_mode = _load_existing_config(config_path)
 
     # Run setup
     assert editor is not None
@@ -1311,8 +1311,7 @@ def handle_install(args) -> None:
         setup(
             cast(EditorType, editor),
             repo_path,
-            extraction_method=extraction_method,
-            expansion_method=expansion_method,
+            indexing_mode=indexing_mode,
             index_exists=index_exists,
             index_prs=should_index_prs or False,
             add_to_claude_md=should_add_to_claude or False,
@@ -1320,7 +1319,6 @@ def handle_install(args) -> None:
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)
         sys.exit(1)
-
 
 
 def _validate_project_language(repo_path: Path) -> str:
@@ -1415,7 +1413,7 @@ def handle_server(args) -> None:
 
     Behavior:
     - SILENT: no prompts, no interactive menus
-    - Auto-setup if needed (uses default model: lemminflect)
+    - Auto-setup if needed (uses keywords mode by default)
     - Creates editor configs if flags provided (--claude, --cursor, --vs)
     - Starts MCP server on stdio
     """
@@ -1430,14 +1428,16 @@ def handle_server(args) -> None:
     repo_path = Path(args.repo).resolve() if args.repo else Path.cwd().resolve()
     _validate_project_language(repo_path)
 
-    # Validate tier flags
-    validate_tier_flags(args)
+    # Validate indexing mode flags
+    validate_mode_flags(args)
+
+    indexing_mode = determine_indexing_mode(args, repo_path)
+    from cicada.index_mode import ensure_supported_mode
+
+    ensure_supported_mode(indexing_mode)
 
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
-
-    # Determine extraction and expansion methods
-    extraction_method, expansion_method = get_extraction_expansion_methods(args)
 
     # Check if setup is needed
     config_path = get_config_path(repo_path)
@@ -1445,7 +1445,7 @@ def handle_server(args) -> None:
     needs_setup = not (config_path.exists() and index_path.exists())
 
     if needs_setup:
-        _perform_silent_setup(repo_path, storage_dir, extraction_method, expansion_method)
+        _perform_silent_setup(repo_path, storage_dir, indexing_mode)
 
     # Create editor configs if requested
     _configure_editors_if_requested(args, repo_path, storage_dir)
@@ -1469,29 +1469,24 @@ def handle_server(args) -> None:
             _cleanup_watch_process(logger)
 
 
-def _perform_silent_setup(
-    repo_path: Path, storage_dir: Path, extraction_method: str | None, expansion_method: str | None
-) -> None:
+def _perform_silent_setup(repo_path: Path, storage_dir: Path, indexing_mode: str) -> None:
     """Perform silent setup with defaults if needed.
 
     Args:
         repo_path: Repository path
         storage_dir: Storage directory path
-        extraction_method: Extraction method or None for defaults
-        expansion_method: Expansion method or None for defaults
+        indexing_mode: Indexing mode to use
     """
     from cicada.setup import create_config_yaml, detect_project_language, index_repository
+    from cicada.index_mode import ensure_supported_mode
 
     # Detect project language
     language = detect_project_language(repo_path)
 
-    # If no tier specified, default to fast tier (fastest, no downloads)
-    if extraction_method is None:
-        extraction_method = "regular"
-        expansion_method = "lemmi"
+    ensure_supported_mode(indexing_mode)
 
     # Create config.yaml (silent)
-    create_config_yaml(repo_path, storage_dir, extraction_method, expansion_method, verbose=False)
+    create_config_yaml(repo_path, storage_dir, indexing_mode, verbose=False)
 
     # Index repository (silent)
     try:
@@ -1540,12 +1535,17 @@ def _start_watch_for_server(args, repo_path: Path) -> None:
     """
     from cicada.watch_manager import start_watch_process
 
-    # Determine tier using helper
-    tier = determine_tier(args, repo_path)
+    # Determine mode using helper
+    indexing_mode = determine_indexing_mode(args, repo_path)
+    from cicada.index_mode import ensure_supported_mode
+
+    ensure_supported_mode(indexing_mode)
 
     # Start the watch process
     try:
-        if not start_watch_process(repo_path, tier=tier, debounce=DEFAULT_WATCH_DEBOUNCE):
+        if not start_watch_process(
+            repo_path, indexing_mode=indexing_mode, debounce=DEFAULT_WATCH_DEBOUNCE
+        ):
             print("ERROR: Failed to start watch process as requested", file=sys.stderr)
             print("Server startup aborted. Run without --watch or fix the issue.", file=sys.stderr)
             sys.exit(1)

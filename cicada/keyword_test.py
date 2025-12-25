@@ -10,7 +10,6 @@ import sys
 def run_expansion_interactive(
     expansion_type: str = "lemmi",
     extraction_method: str = "regular",
-    extraction_tier: str = "regular",
     extraction_threshold: float | None = 0.3,
     expansion_threshold: float = 0.2,
     min_score: float = 0.5,
@@ -21,9 +20,8 @@ def run_expansion_interactive(
     Shows the full pipeline: Text → Extracted Keywords → Expanded Keywords
 
     Args:
-        expansion_type: Expansion strategy ('lemmi', 'glove', or 'fasttext')
-        extraction_method: Extraction method ('regular' or 'bert')
-        extraction_tier: Model tier for extraction ('fast', 'regular', or 'max')
+        expansion_type: Expansion strategy ('lemmi')
+        extraction_method: Extraction method ('regular')
         extraction_threshold: Minimum score for extraction (default: 0.3)
         expansion_threshold: Minimum similarity score for expansion (default: 0.2)
         min_score: Minimum score threshold for keywords (default: 0.5)
@@ -33,8 +31,8 @@ def run_expansion_interactive(
     print(f"{'='*70}")
 
     # Map extraction method to display name
-    extraction_display = "REGULAR (token-based)" if extraction_method == "regular" else "BERT"
-    print(f"Extraction: {extraction_display} ({extraction_tier})")
+    extraction_display = "REGULAR (token-based)"
+    print(f"Extraction: {extraction_display}")
     print(f"Expansion: {expansion_type.upper()}")
     if extraction_threshold is not None:
         print(f"Extraction threshold: {extraction_threshold}")
@@ -45,8 +43,6 @@ def run_expansion_interactive(
     # Show strategy description
     expansion_descriptions = {
         "lemmi": "Inflected forms only (run → running, runs, ran)",
-        "glove": "GloVe embeddings + inflected forms (128MB download first time)",
-        "fasttext": "FastText embeddings + inflected forms (958MB download first time)",
     }
     print(f"Strategy: {expansion_descriptions.get(expansion_type, 'Unknown')}")
 
@@ -60,12 +56,10 @@ def run_expansion_interactive(
             from cicada.extractors.keyword import RegularKeywordExtractor
 
             extractor = RegularKeywordExtractor(verbose=True)
-        elif extraction_method == "bert":
-            from cicada.extractors.keybert import KeyBERTExtractor
-
-            extractor = KeyBERTExtractor(verbose=True)
         else:
-            raise ValueError(f"Unknown extraction method: {extraction_method}")
+            raise ValueError(
+                f"Unknown extraction method: {extraction_method} (only 'regular' is supported)"
+            )
         print()  # Add newline after initialization
     except Exception as e:
         print(f"Error initializing keyword extractor: {e}", file=sys.stderr)
@@ -76,15 +70,7 @@ def run_expansion_interactive(
         from cicada.keyword_expander import KeywordExpander
 
         expander = KeywordExpander(expansion_type=expansion_type, verbose=True)
-
-        # Force-load embedding model if using glove/fasttext
-        if expansion_type in ["glove", "fasttext"]:
-            print(f"\nPreloading {expansion_type} model...")
-            # Trigger model loading with a dummy keyword
-            _ = expander.expand_keywords(["test"], top_n=1, threshold=0.9)
-            print(f"✓ {expansion_type.title()} model ready\n")
-        else:
-            print()  # Add newline after initialization
+        print()  # Add newline after initialization
     except Exception as e:
         print(f"Error initializing keyword expander: {e}", file=sys.stderr)
         sys.exit(1)
@@ -330,9 +316,7 @@ def run_expansion_interactive(
         sys.exit(0)
 
 
-def run_keywords_interactive(
-    method: str = "regular", tier: str = "regular", extraction_threshold: float | None = None
-):
+def run_keywords_interactive(method: str = "regular", extraction_threshold: float | None = None):
     """
     Interactive keyword extraction testing mode.
 
@@ -340,8 +324,7 @@ def run_keywords_interactive(
     using the specified extraction method.
 
     Args:
-        method: Extraction method ('regular' or 'bert')
-        tier: Model tier ('fast', 'regular', or 'max')
+        method: Extraction method ('regular')
         extraction_threshold: Minimum score for extraction (None = no filtering)
     """
     print(f"\n{'='*70}")
@@ -349,9 +332,8 @@ def run_keywords_interactive(
     print(f"{'='*70}")
 
     # Map extraction method to display name
-    method_display = "REGULAR (token-based)" if method == "regular" else "BERT"
+    method_display = "REGULAR (token-based)"
     print(f"Method: {method_display}")
-    print(f"Tier: {tier}")
     if extraction_threshold is not None:
         print(f"Extraction threshold: {extraction_threshold}")
     print("\nPaste or type text, then press Ctrl-D (Unix) or Ctrl-Z+Enter (Windows)")
@@ -360,16 +342,12 @@ def run_keywords_interactive(
 
     # Initialize keyword extractor
     try:
-        if method == "regular":
-            from cicada.extractors.keyword import RegularKeywordExtractor
+        if method != "regular":
+            raise ValueError(f"Unknown extraction method: {method} (only 'regular' is supported)")
 
-            extractor = RegularKeywordExtractor(verbose=True)
-        elif method == "bert":
-            from cicada.extractors.keybert import KeyBERTExtractor
+        from cicada.extractors.keyword import RegularKeywordExtractor
 
-            extractor = KeyBERTExtractor(verbose=True)
-        else:
-            raise ValueError(f"Unknown extraction method: {method}")
+        extractor = RegularKeywordExtractor(verbose=True)
         print()  # Add newline after initialization
     except Exception as e:
         print(f"Error initializing keyword extractor: {e}", file=sys.stderr)

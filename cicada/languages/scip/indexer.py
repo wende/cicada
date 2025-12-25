@@ -206,21 +206,17 @@ class GenericSCIPIndexer(BaseIndexer, ABC):
                     extraction_method, expansion_method = read_keyword_extraction_config(
                         repo_path_obj
                     )
+                    from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    if extraction_method == "bert":
-                        from cicada.extractors.keybert import KeyBERTExtractor
-
-                        keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
-                    else:
-                        from cicada.extractors.keyword import RegularKeywordExtractor
-
-                        keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
                     from cicada.keyword_expander import KeywordExpander
 
                     keyword_expander = KeywordExpander(
                         expansion_type=expansion_method, verbose=self.verbose
                     )
+                except NotImplementedError:
+                    raise
                 except Exception as e:
                     if self.verbose:
                         print(f"    Warning: Keyword extractor initialization failed: {e}")

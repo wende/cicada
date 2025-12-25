@@ -17,16 +17,15 @@ class UnsupportedProjectError(Exception):
 NotElixirProjectError = UnsupportedProjectError
 
 
-# Tier configuration data
-_TIER_OPTIONS = (
-    ("Fast - Term frequency + inflections (no downloads)", ("regular", "lemmi")),
-    ("Balanced - TF-IDF + GloVe semantic expansion (128MB)", ("regular", "glove")),
-    ("Maximum - KeyBERT + FastText expansion (958MB)", ("bert", "fasttext")),
+# Indexing mode configuration data
+_MODE_OPTIONS = (
+    ("Keywords - Token-based extraction (default)", "keywords"),
+    ("Embeddings - Semantic vectors (not implemented yet)", "embeddings"),
 )
 
-TIER_ITEMS = [label for label, _ in _TIER_OPTIONS]
-TIER_MAP = {idx: methods for idx, (_, methods) in enumerate(_TIER_OPTIONS)}
-TIER_MAP_TEXT = {str(idx + 1): methods for idx, methods in TIER_MAP.items()}
+MODE_ITEMS = [label for label, _ in _MODE_OPTIONS]
+MODE_MAP = {idx: mode for idx, (_, mode) in enumerate(_MODE_OPTIONS)}
+MODE_MAP_TEXT = {str(idx + 1): mode for idx, mode in MODE_MAP.items()}
 
 # Editor configuration data
 _EDITOR_OPTIONS = (
@@ -101,28 +100,21 @@ def _generate_claude_docs() -> str:
 CICADA_DOCS = _generate_claude_docs()
 
 
-def display_tier_selection(tier_index: int) -> None:
+def display_mode_selection(mode_index: int) -> None:
     """
-    Display confirmation message for tier selection.
+    Display confirmation message for mode selection.
 
     Args:
-        tier_index: The selected tier index (0, 1, or 2)
+        mode_index: The selected mode index (0 or 1)
     """
     print()
-    if tier_index == 0:
-        print(f"{GREEN}✓{RESET} Selected: FAST tier")
-        print("   Term frequency extraction + inflections")
+    if mode_index == 0:
+        print(f"{GREEN}✓{RESET} Selected: KEYWORDS mode")
+        print("   Token-based keyword extraction")
         print("   Fast, lightweight, no model downloads")
-    elif tier_index == 1:
-        print(f"{GREEN}✓{RESET} Selected: BALANCED tier")
-        print("   KeyBERT semantic extraction (133MB)")
-        print("   GloVe semantic expansion (128MB)")
-        print("   Total: 261MB download")
-    else:  # tier_index == 2
-        print(f"{GREEN}✓{RESET} Selected: MAXIMUM tier")
-        print("   KeyBERT semantic extraction (133MB)")
-        print("   FastText semantic expansion (958MB)")
-        print("   Total: 1091MB download")
+    else:
+        print(f"{GREEN}✓{RESET} Selected: EMBEDDINGS mode")
+        print("   Not implemented yet (stub)")
     print()
 
 
@@ -168,7 +160,7 @@ def display_editor_selection(editor: str) -> None:
     print()
 
 
-def get_existing_config(repo_path: Path) -> tuple[str, str] | None:
+def get_existing_config(repo_path: Path) -> str | None:
     """
     Read existing configuration from the repository if it exists.
 
@@ -176,7 +168,7 @@ def get_existing_config(repo_path: Path) -> tuple[str, str] | None:
         repo_path: Path to the repository
 
     Returns:
-        Tuple of (extraction_method, expansion_method) if config exists, None otherwise
+        Indexing mode if config exists, None otherwise
     """
     from cicada.utils.storage import get_config_path, get_index_path
 
@@ -188,12 +180,15 @@ def get_existing_config(repo_path: Path) -> tuple[str, str] | None:
 
     try:
         with open(config_path) as f:
-            existing_config = yaml.safe_load(f)
-            extraction_method = existing_config.get("keyword_extraction", {}).get(
-                "method", "regular"
-            )
-            expansion_method = existing_config.get("keyword_expansion", {}).get("method", "lemmi")
-        return (extraction_method, expansion_method)
+            existing_config = yaml.safe_load(f) or {}
+            mode = existing_config.get("indexing", {}).get("mode")
+            if mode in ("keywords", "embeddings"):
+                return mode
+            if existing_config.get("keyword_extraction") or existing_config.get(
+                "keyword_expansion"
+            ):
+                return "keywords"
+        return "keywords"
     except Exception:
         return None
 
@@ -201,8 +196,7 @@ def get_existing_config(repo_path: Path) -> tuple[str, str] | None:
 def run_setup(
     editor: str,
     repo_path: Path,
-    extraction_method: str,
-    expansion_method: str,
+    indexing_mode: str,
     index_exists: bool = False,
     index_prs: bool = False,
     add_to_claude_md: bool = False,
@@ -213,8 +207,7 @@ def run_setup(
     Args:
         editor: The selected editor
         repo_path: Path to the repository
-        extraction_method: Keyword extraction method
-        expansion_method: Keyword expansion method
+        indexing_mode: Indexing mode
         index_exists: Whether the index already exists
         index_prs: Whether to index PRs
         add_to_claude_md: Whether to add to CLAUDE.md
@@ -227,8 +220,7 @@ def run_setup(
     setup(
         cast(EditorType, editor),
         repo_path,
-        extraction_method=extraction_method,
-        expansion_method=expansion_method,
+        indexing_mode=indexing_mode,
         index_exists=index_exists,
         index_prs=index_prs,
         add_to_claude_md=add_to_claude_md,

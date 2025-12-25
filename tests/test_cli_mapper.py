@@ -517,9 +517,7 @@ class TestRegisterToolSubparsers:
         assert args.context_after == 6
 
         # Test long flags still work
-        args = parser.parse_args(
-            ["query", "auth", "--context-lines", "3", "--context-before", "1"]
-        )
+        args = parser.parse_args(["query", "auth", "--context-lines", "3", "--context-before", "1"])
         assert args.context_lines == 3
         assert args.context_before == 1
 

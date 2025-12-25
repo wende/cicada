@@ -97,7 +97,7 @@ Uses your editor's built-in MCP management to install CICADA.
 - `cicada status` - Show index status, PR index, link status, agent files, MCP configs
 - `cicada stats [repo]` - Display usage statistics (tool calls, tokens, execution times)
 - `cicada watch` - Watch for file changes and automatically reindex
-- `cicada index` - Re-index code with custom options (`-f/--force` + --fast/--regular/--max, --watch)
+- `cicada index` - Re-index code with custom options (`-f/--force` + --keywords/--embeddings, --watch)
 - `cicada index-pr` - Index pull requests for PR attribution
 - `cicada run [tool]` - Execute any of the 7 MCP tools directly from CLI
 - `cicada agents install` - Install Claude Code agents to `./.claude/` directory
@@ -130,7 +130,7 @@ Ask your assistant:
   ```
   ~/.cicada/projects/<repo_hash>/
   ├─ index.json      # modules, functions, call sites, metadata
-  ├─ config.yaml     # indexing options + keyword tier
+  ├─ config.yaml     # indexing options + mode
   ├─ hashes.json     # incremental indexing cache
   └─ pr_index.json   # optional PR metadata + reviews
   ```
@@ -195,7 +195,7 @@ When watch mode is enabled:
 | `cicada status` | Check index health, link status, agent files | After setup, troubleshooting |
 | `cicada stats` | View usage statistics and token metrics | Monthly reviews, optimization |
 | `cicada watch` | Monitor files and auto-reindex on changes | During active development |
-| `cicada index --force --regular .` | Full rebuild w/ semantic keywords | After large refactors or enabling AI tier |
+| `cicada index --force --keywords .` | Full rebuild with keyword indexing | After large refactors or enabling keywords mode |
 | `cicada index-pr .` | Sync PR metadata/reviews | After new PRs merge |
 
 ### Troubleshooting
@@ -303,13 +303,15 @@ cicada index-pr --clean
 **Solution:**
 ```bash
 # Re-index with keyword extraction
-cicada index .  # or --fast or --max
+cicada index .  # or --keywords
 ```
 
 **Verify:**
 ```bash
 cat ~/.cicada/projects/<hash>/config.yaml
-# Should show keyword_extraction: enabled
+# Should show:
+# indexing:
+#   mode: keywords
 ```
 
 </details>
@@ -336,8 +338,8 @@ CICADA automatically installs scip-python via npm on first index. This may take 
 # Ensure .venv is excluded
 echo "/.venv/" >> .gitignore
 
-# Use --fast tier for quicker indexing
-cicada index --fast .
+# Use keywords mode for quickest indexing
+cicada index --keywords .
 ```
 
 **Report issues:** [GitHub Issues](https://github.com/wende/cicada/issues) with "Python" label

@@ -1444,66 +1444,6 @@ class TestIndexRepositoryErrorPaths:
                     assert "Failed to save file hashes" in captured.out
                     assert result["success"] is True
 
-    def test_bert_extractor_and_change_detection_logging(self, tmp_path):
-        """Should use BERT extractor when configured and log change detection."""
-        indexer = PythonSCIPIndexer(verbose=False)
-        verbose_indexer = PythonSCIPIndexer(verbose=True)
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        (repo / "new.py").touch()
-        output = tmp_path / "index.json"
-
-        scip_index = scip_pb2.Index()
-        scip_index.documents.add()
-        scip_file = tmp_path / "temp.scip"
-        with open(scip_file, "wb") as f:
-            f.write(scip_index.SerializeToString())
-
-        # Test BERT extractor
-        with patch.object(indexer, "_ensure_scip_python_installed"):
-            with patch.object(indexer, "_run_scip_python", return_value=scip_file):
-                with patch(
-                    "cicada.languages.python.indexer.read_keyword_extraction_config",
-                    return_value=("bert", "fasttext"),
-                ):
-                    with patch("cicada.extractors.keybert.KeyBERTExtractor") as mock_bert:
-                        # Mock ParallelKeywordExpander to avoid loading heavy models
-                        with patch("cicada.parallel_expander.ParallelKeywordExpander"):
-                            indexer.incremental_index_repository(
-                                repo_path=str(repo),
-                                output_path=str(output),
-                                extract_keywords=True,
-                                verbose=False,
-                            )
-                            mock_bert.assert_called_once()
-
-        # Test change detection - verify it runs without errors
-        # Note: We don't check capsys output in parallel tests as it's unreliable
-        scip_file = tmp_path / "temp2.scip"
-        with open(scip_file, "wb") as f:
-            f.write(scip_index.SerializeToString())
-
-        # Set up existing hashes so we can simulate changes
-        from cicada.utils.storage import get_hashes_path
-        from cicada.utils.hash_utils import save_file_hashes
-
-        hashes_path = get_hashes_path(repo)
-        # Existing hashes: modified.py has old hash, deleted.py exists
-        save_file_hashes(str(hashes_path), {"modified.py": "old_hash", "deleted.py": "del_hash"})
-
-        with patch.object(verbose_indexer, "_ensure_scip_python_installed"):
-            with patch.object(verbose_indexer, "_run_scip_python", return_value=scip_file):
-                # Mock hash computation: new.py (not in existing), modified.py (different hash)
-                with patch(
-                    "cicada.languages.python.indexer.compute_hashes_for_files",
-                    return_value={"new.py": "new_hash", "modified.py": "new_hash"},
-                ) as mock_hashes:
-                    # Mock keyword extraction to avoid loading heavy models
-                    with patch("cicada.parallel_expander.ParallelKeywordExpander"):
-                        result = verbose_indexer.index_repository(repo, output, verbose=True)
-                        mock_hashes.assert_called_once()
-                        assert result["success"] is True
-
 
 class TestHelperMethodEdgeCases:
     """Tests for edge cases in helper methods."""

@@ -277,8 +277,7 @@ def get_mcp_config_for_editor(
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
-    extraction_method: str | None = None,
-    expansion_method: str | None = None,
+    indexing_mode: str | None = None,
     verbose: bool = True,
 ) -> None:
     """
@@ -287,18 +286,14 @@ def create_config_yaml(
     Args:
         repo_path: Path to the repository
         storage_dir: Path to the storage directory
-        extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
-        expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
+        indexing_mode: Indexing mode ("keywords" or "embeddings"), None for default
         verbose: If True, print success message. If False, silently create config.
     """
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
 
-    # Default to regular extraction + lemmi expansion
-    if extraction_method is None:
-        extraction_method = "regular"
-    if expansion_method is None:
-        expansion_method = "lemmi"
+    if indexing_mode is None:
+        indexing_mode = "keywords"
 
     config_content = f"""repository:
   path: {repo_path}
@@ -306,11 +301,8 @@ def create_config_yaml(
 storage:
   index_path: {index_path}
 
-keyword_extraction:
-  method: {extraction_method}
-
-keyword_expansion:
-  method: {expansion_method}
+indexing:
+  mode: {indexing_mode}
 """
 
     with open(config_path, "w") as f:
@@ -338,6 +330,10 @@ def index_repository(
     try:
         index_path = get_index_path(repo_path)
         config_path = get_config_path(repo_path)
+        from cicada.index_mode import read_indexing_mode_config, ensure_supported_mode
+
+        indexing_mode = read_indexing_mode_config(repo_path)
+        ensure_supported_mode(indexing_mode)
 
         # Use standard indexer interface
         indexer = LanguageRegistry.get_indexer(language)
@@ -511,8 +507,7 @@ def _update_md_file(md_path: Path, tools) -> None:
 def setup(
     editor: EditorType,
     repo_path: Path | None = None,
-    extraction_method: str | None = None,
-    expansion_method: str | None = None,
+    indexing_mode: str | None = None,
     index_exists: bool = False,
     index_prs: bool = False,
     add_to_claude_md: bool = False,
@@ -523,8 +518,7 @@ def setup(
     Args:
         editor: Editor type (claude, cursor, vs)
         repo_path: Path to the repository (defaults to current directory)
-        extraction_method: Keyword extraction method ('regular' or 'bert'), None for default
-        expansion_method: Expansion method ('lemmi', 'glove', or 'fasttext'), None for default
+        indexing_mode: Indexing mode ("keywords" or "embeddings"), None for default
         index_exists: If True, skip banner and show condensed output (index already exists)
         index_prs: If True, index pull requests
         add_to_claude_md: If True, add Cicada guide to CLAUDE.md
@@ -539,22 +533,19 @@ def setup(
 
     # Create storage directory
     storage_dir = create_storage_dir(repo_path)
+    if indexing_mode is None:
+        from cicada.index_mode import read_indexing_mode_config
+
+        indexing_mode = read_indexing_mode_config(repo_path)
 
     # Show condensed output if index already exists
     if index_exists:
-        # Determine method for display
-        display_extraction = extraction_method if extraction_method else "regular"
-        display_expansion = expansion_method if expansion_method else "lemmi"
-        print(
-            f"✓ Found existing index ({display_extraction.upper()} + {display_expansion.upper()})"
-        )
+        print(f"✓ Found existing index (mode: {indexing_mode.upper()})")
         # Skip indexing when index_exists is True - we're just reusing it
         should_index = False
         force_full = False
         # Ensure config.yaml is up to date with current settings
-        create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
-        )
+        create_config_yaml(repo_path, storage_dir, indexing_mode, verbose=False)
     else:
         # Show full banner for new setup
         print("=" * 60)
@@ -577,21 +568,19 @@ def setup(
             try:
                 with open(config_path) as f:
                     existing_config = yaml.safe_load(f)
-                    existing_extraction = existing_config.get("keyword_extraction", {}).get(
-                        "method", "regular"
-                    )
-                    existing_expansion = existing_config.get("keyword_expansion", {}).get(
-                        "method", "lemmi"
-                    )
+                    existing_mode = existing_config.get("indexing", {}).get("mode")
+                    if existing_mode not in ("keywords", "embeddings"):
+                        if existing_config.get("keyword_extraction") or existing_config.get(
+                            "keyword_expansion"
+                        ):
+                            existing_mode = "keywords"
+                        else:
+                            existing_mode = "keywords"
 
-                    # Determine new methods (default to regular + lemmi if not specified)
-                    new_extraction = extraction_method if extraction_method else "regular"
-                    new_expansion = expansion_method if expansion_method else "lemmi"
+                    new_mode = indexing_mode
 
                     # Check if settings changed
-                    settings_changed = (existing_extraction != new_extraction) or (
-                        existing_expansion != new_expansion
-                    )
+                    settings_changed = existing_mode != new_mode
 
                     if settings_changed:
                         print("=" * 60)
@@ -599,11 +588,9 @@ def setup(
                         print("=" * 60)
                         print()
                         print(
-                            f"This repository already has an index with {existing_extraction.upper()} + {existing_expansion.upper()}."
+                            f"This repository already has an index with mode {existing_mode.upper()}."
                         )
-                        print(
-                            f"You are now switching to {new_extraction.upper()} + {new_expansion.upper()}."
-                        )
+                        print(f"You are now switching to {new_mode.upper()}.")
                         print()
                         print(
                             "This will require reindexing the ENTIRE codebase, which may take several minutes."
@@ -619,9 +606,7 @@ def setup(
                         force_full = True  # Force full reindex when settings change
                     else:
                         # Settings unchanged - just use existing index
-                        print(
-                            f"✓ Using existing index ({existing_extraction.upper()} + {existing_expansion.upper()})"
-                        )
+                        print(f"✓ Using existing index (mode: {existing_mode.upper()})")
                         print()
                         should_index = False
             except Exception:
@@ -629,13 +614,19 @@ def setup(
                 pass
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
-        create_config_yaml(
-            repo_path, storage_dir, extraction_method, expansion_method, verbose=False
-        )
+        create_config_yaml(repo_path, storage_dir, indexing_mode, verbose=False)
 
         # Index repository if needed
         if should_index:
-            index_repository(repo_path, language, force_full=force_full)
+            from cicada.index_mode import ensure_supported_mode
+
+            try:
+                ensure_supported_mode(indexing_mode)
+            except NotImplementedError as e:
+                print(f"⚠️  {e}")
+                print("Skipping indexing for embeddings mode.")
+            else:
+                index_repository(repo_path, language, force_full=force_full)
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)
@@ -678,6 +669,7 @@ def setup(
         # Import locally to avoid circular dependencies
         try:
             from cicada.interactive_setup_helpers import run_pr_indexing
+
             run_pr_indexing(repo_path)
         except ImportError:
             # Fallback if module structure is different than expected
@@ -688,6 +680,7 @@ def setup(
         # Import locally to avoid circular dependencies
         try:
             from cicada.interactive_setup_helpers import add_to_claude_md as doc_add_to_claude_md
+
             doc_add_to_claude_md(repo_path)
         except ImportError:
             print("Warning: Could not import add_to_claude_md")
@@ -702,7 +695,7 @@ def setup(
         print()
         print("   Benefits:")
         print("   • Faster MCP server startup (no uvx overhead)")
-        print("   • Access to cicada-index with enhanced keyword extraction (BERT/lemminflect)")
+        print("   • Access to cicada-index with keyword extraction")
         print("   • PR indexing with cicada-index-pr")
         print()
 

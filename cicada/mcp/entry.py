@@ -12,8 +12,8 @@ def main() -> None:
             version_prog_name="cicada-mcp",
             default_on_unknown="server",
             default_on_none="server",
-            default_on_unknown_args=["--fast"],
-            default_on_none_args=["--fast"],
+            default_on_unknown_args=["--keywords"],
+            default_on_none_args=["--keywords"],
         )
     except KeyboardInterrupt:
         # Suppress traceback on Ctrl+C while allowing command-level cleanup

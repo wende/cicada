@@ -25,10 +25,10 @@ class ParallelKeywordExpander:
     """Thread-parallel wrapper for KeywordExpander.
 
     Uses ThreadPoolExecutor to expand multiple keyword batches concurrently.
-    Thread-safe for GloVe/FastText (gensim KeyedVectors) and lemminflect.
+    Thread-safe for lemminflect expansion.
 
     Example:
-        >>> expander = ParallelKeywordExpander(expansion_type="glove", max_workers=4)
+        >>> expander = ParallelKeywordExpander(expansion_type="lemmi", max_workers=4)
         >>> batches = [["auth", "user"], ["db", "query"], ["cache", "redis"]]
         >>> results = expander.expand_keywords_parallel(batches)
     """
@@ -42,10 +42,13 @@ class ParallelKeywordExpander:
         """Initialize parallel expander.
 
         Args:
-            expansion_type: Type of expansion ("lemmi", "glove", "fasttext")
+            expansion_type: Type of expansion ("lemmi")
             max_workers: Maximum number of worker threads (default: 4)
             verbose: Whether to print progress messages
         """
+        if expansion_type != "lemmi":
+            raise ValueError("Only lemmi expansion is supported.")
+
         self.expander = KeywordExpander(expansion_type=expansion_type, verbose=verbose)
         self.max_workers = max_workers if max_workers is not None else get_default_workers()
         self.verbose = verbose
@@ -53,9 +56,7 @@ class ParallelKeywordExpander:
         # Set the total workers count for progress reporting
         KeywordExpander._total_workers = self.max_workers
 
-        # Pre-load the embedding model now so it's ready for parallel use
-        if expansion_type in ["glove", "fasttext"]:
-            self.expander._embedding_model = self.expander._load_embedding_model()
+        # No embedding model preload for lemmi expansion.
 
     def expand_keywords_parallel(
         self,

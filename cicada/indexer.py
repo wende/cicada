@@ -20,7 +20,7 @@ from cicada.languages.elixir.dependency_analyzer import (
 )
 from cicada.languages.elixir.parser import ElixirParser
 from cicada.parsing.base_indexer import BaseIndexer
-from cicada.tier import read_keyword_extraction_config
+from cicada.utils.keyword_utils import read_keyword_extraction_config
 from cicada.utils import (
     load_index,
     merge_indexes_incremental,
@@ -177,6 +177,10 @@ class ElixirIndexer(BaseIndexer):
                             ):
                                 self._apply_expansion_result(cb, res)
 
+            except NotImplementedError:
+                raise
+            except NotImplementedError:
+                raise
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Failed to extract keywords from {module_name}: {e}")
@@ -450,7 +454,7 @@ class ElixirIndexer(BaseIndexer):
 
         Args:
             identifier: The identifier to extract keywords from (e.g., "ThenvoiCom.LlmClientTest")
-            keyword_extractor: Keyword extractor instance (KeyBERT or Regular)
+            keyword_extractor: Keyword extractor instance (Regular)
             keyword_expander: Keyword expander instance
             boost_factor: Multiplier for name-derived keywords (default: 1.5x)
 
@@ -760,12 +764,10 @@ class ElixirIndexer(BaseIndexer):
         if self.verbose:
             print(f"Indexing repository: {repo_path_obj}")
             if extract_keywords:
-                # Read and display keyword extraction config
-                extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
-                from cicada.tier import methods_to_tier
+                from cicada.index_mode import read_indexing_mode_config
 
-                tier = methods_to_tier(extraction_method, expansion_method)
-                print(f"Tier: {tier.upper()}")
+                indexing_mode = read_indexing_mode_config(repo_path_obj)
+                print(f"Indexing mode: {indexing_mode.upper()}")
 
         # Set up signal handlers for graceful interruption
         # Only works in main thread - skip if called from background thread
@@ -785,16 +787,10 @@ class ElixirIndexer(BaseIndexer):
                 # Read keyword extraction config from config.yaml
                 extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
 
-                # Initialize extraction method
-                if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                # Initialize extraction method (now only regular is supported)
+                from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
-                else:
-                    # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
-
-                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+                keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
                 # Initialize expansion method (parallel for better performance)
                 from cicada.parallel_expander import ParallelKeywordExpander
@@ -1043,13 +1039,11 @@ class ElixirIndexer(BaseIndexer):
             )
 
         if self.verbose:
-            # Read and display keyword extraction config
-            extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
             print(f"Performing incremental index of: {repo_path_obj}")
-            from cicada.tier import methods_to_tier
+            from cicada.index_mode import read_indexing_mode_config
 
-            tier = methods_to_tier(extraction_method, expansion_method)
-            print(f"Tier: {tier.upper()}")
+            indexing_mode = read_indexing_mode_config(repo_path_obj)
+            print(f"Indexing mode: {indexing_mode.upper()}")
 
         # Set up signal handlers for graceful interruption
         # Only works in main thread - skip if called from background thread
@@ -1098,16 +1092,10 @@ class ElixirIndexer(BaseIndexer):
                 # Read keyword extraction config from config.yaml
                 extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
 
-                # Initialize extraction method
-                if extraction_method == "bert":
-                    from cicada.extractors.keybert import KeyBERTExtractor
+                # Initialize extraction method (now only regular is supported)
+                from cicada.extractors.keyword import RegularKeywordExtractor
 
-                    keyword_extractor = KeyBERTExtractor(verbose=self.verbose)
-                else:
-                    # Use regular (TF-based) extractor as default
-                    from cicada.extractors.keyword import RegularKeywordExtractor
-
-                    keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
+                keyword_extractor = RegularKeywordExtractor(verbose=self.verbose)
 
                 # Initialize expansion method (parallel for better performance)
                 from cicada.parallel_expander import ParallelKeywordExpander

@@ -380,11 +380,7 @@ class ToolRouter:
         context_after = arguments.get("context_after")
 
         # Auto-enable snippets if any context flag is explicitly set
-        if (
-            context_before is not None
-            or context_after is not None
-            or "context_lines" in arguments
-        ):
+        if context_before is not None or context_after is not None or "context_lines" in arguments:
             show_snippets = True
 
         context_lines = arguments.get("context_lines", 2)
@@ -444,14 +440,14 @@ class ToolRouter:
             return [TextContent(type="text", text="'show_snippets' must be a boolean")]
         if not isinstance(context_lines, int) or context_lines < 0:
             return [TextContent(type="text", text="'context_lines' must be a non-negative integer")]
-        if context_before is not None and (not isinstance(context_before, int) or context_before < 0):
+        if context_before is not None and (
+            not isinstance(context_before, int) or context_before < 0
+        ):
             return [
                 TextContent(type="text", text="'context_before' must be a non-negative integer")
             ]
         if context_after is not None and (not isinstance(context_after, int) or context_after < 0):
-            return [
-                TextContent(type="text", text="'context_after' must be a non-negative integer")
-            ]
+            return [TextContent(type="text", text="'context_after' must be a non-negative integer")]
 
         return await self.analysis_handler.query(
             query,

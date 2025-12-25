@@ -98,7 +98,7 @@ class SCIPConverter:
 
         Args:
             extract_keywords: If True, extract keywords from documentation
-            keyword_extractor: Keyword extractor instance (LightweightKeywordExtractor or KeyBERTExtractor)
+            keyword_extractor: Keyword extractor instance (RegularKeywordExtractor)
             extract_references: If True, extract call sites and references from SCIP occurrences (default: True)
             verbose: If True, print progress messages
             import_search_lines: Number of lines to search for imports (default: 50).

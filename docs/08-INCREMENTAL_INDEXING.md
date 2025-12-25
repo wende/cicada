@@ -1,13 +1,13 @@
 # Incremental Indexing - Fast Reindexing with File Hashing
 
-The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with lemminflect or BERT.
+The incremental indexing system allows you to reindex your Elixir codebase efficiently by only processing files that have changed since the last run. This dramatically speeds up reindexing, especially when using keyword extraction with lemminflect.
 
 ## How It Works
 
 1. **First Run (Full Index)**:
    - Indexes all Elixir files in your repository
    - Extracts modules, functions, documentation, dependencies
-   - Optionally extracts keywords using lemminflect or BERT
+   - Optionally extracts keywords using lemminflect
    - Computes MD5 hash for each processed file
    - Saves index to `~/.cicada/projects/<repo_hash>/index.json`
    - Saves file hashes to `~/.cicada/projects/<repo_hash>/hashes.json`
@@ -38,7 +38,7 @@ The incremental indexing system allows you to reindex your Elixir codebase effic
 
 ```bash
 # First run: full index with hash computation
-cicada index --force --regular
+cicada index --force --keywords
 
 # Subsequent runs: automatic incremental indexing
 cicada index  # Only processes changed files
@@ -47,19 +47,16 @@ cicada index  # Only processes changed files
 cicada index --full
 ```
 
-### Switching Keyword Extraction Methods
+### Switching Indexing Modes
 
-When switching between keyword extraction methods (token-based vs BERT), you should use `--full` to ensure consistent keywords across all files:
+When switching between indexing modes, use `--full` to ensure consistent keywords across all files:
 
 ```bash
-# Initially indexed with token-based extraction (fast tier)
-cicada index --force --fast
+# Initially indexed with keywords mode
+cicada index --force --keywords
 
-# Switching to BERT - use --full for consistency
-cicada index --force --max --full
-
-# Switching to standard BERT with different model - use --full again
-cicada index --force --regular --full
+# Switching modes (embeddings is not implemented yet)
+cicada index --force --embeddings --full
 ```
 
 **Why use `--full`?**
@@ -136,7 +133,7 @@ Press **Ctrl-C twice** to immediately terminate:
 Simply run the same command again:
 
 ```bash
-cicada index  # or cicada index --force --fast, or cicada index --force --max
+cicada index  # or cicada index --force --keywords
 ```
 
 The incremental indexing system will:
@@ -288,8 +285,7 @@ _handle_interrupt() called
 | **Speedup** | **23.2x** | **95.7% time saved** |
 
 **Why bigger speedup with keywords?**
-- Keyword extraction using lemminflect or BERT is CPU-intensive
-- Loading BERT models takes ~1-2 seconds
+- Keyword extraction using lemminflect is CPU-intensive
 - NLP processing adds ~0.2s per file with documentation
 - Incremental indexing amortizes model load time
 - Only processes changed files → huge savings
@@ -353,14 +349,9 @@ priv/           # Private resources
 
 **Solution:**
 ```bash
-# Force full reindex (with default BERT extraction)
+# Force full reindex (keywords mode)
 cicada index --full
-
-# With fast token-based keyword extraction
-cicada index --force --fast --full
-
-# With BERT keyword extraction (max tier)
-cicada index --force --max --full
+cicada index --force --keywords --full
 ```
 
 ### Issue: Incremental index not detecting changes
@@ -484,7 +475,7 @@ Even with incremental indexing, occasionally do a full reindex:
 
 ```bash
 # Weekly or after major refactors
-cicada index --full  # or cicada index --force --max --full for BERT extraction
+cicada index --full  # or cicada index --force --keywords --full
 ```
 
 This ensures:
@@ -591,7 +582,7 @@ MD5 collision probability is negligible for this use case:
 
 ## FAQ
 
-**Q: Does incremental indexing work with keyword extraction (`--fast`, `--regular`, `--max`)?**
+**Q: Does incremental indexing work with keyword extraction (`--keywords`)?**
 
 A: Yes! This is where it shines. Keyword extraction is CPU-intensive (~0.2s per file with docs), so incremental indexing provides the biggest speedup when using keyword extraction.
 

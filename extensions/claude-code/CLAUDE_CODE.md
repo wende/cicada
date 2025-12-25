@@ -256,9 +256,8 @@ For projects with 1000+ files:
 ### Keyword Search (Optional)
 Enable semantic search when ready:
 ```bash
-cicada index --force --fast     # Fast tier: No downloads
-cicada index --force --regular  # Regular tier: TF-IDF + GloVe (128MB)
-cicada index --force --max      # Max tier: KeyBERT large + FastText (958MB+)
+cicada index --force --keywords    # Keywords mode (default)
+cicada index --force --embeddings  # Embeddings mode (not implemented yet)
 ```
 
 ---

@@ -76,12 +76,30 @@ class TestQueryToolValidation:
             ({"query": "auth", "show_snippets": "true"}, "'show_snippets' must be a boolean"),
             ({"query": "auth", "offset": -1}, "'offset' must be a non-negative integer"),
             ({"query": "auth", "offset": "1"}, "'offset' must be a non-negative integer"),
-            ({"query": "auth", "context_lines": -1}, "'context_lines' must be a non-negative integer"),
-            ({"query": "auth", "context_lines": "2"}, "'context_lines' must be a non-negative integer"),
-            ({"query": "auth", "context_before": -1}, "'context_before' must be a non-negative integer"),
-            ({"query": "auth", "context_before": "3"}, "'context_before' must be a non-negative integer"),
-            ({"query": "auth", "context_after": -1}, "'context_after' must be a non-negative integer"),
-            ({"query": "auth", "context_after": "3"}, "'context_after' must be a non-negative integer"),
+            (
+                {"query": "auth", "context_lines": -1},
+                "'context_lines' must be a non-negative integer",
+            ),
+            (
+                {"query": "auth", "context_lines": "2"},
+                "'context_lines' must be a non-negative integer",
+            ),
+            (
+                {"query": "auth", "context_before": -1},
+                "'context_before' must be a non-negative integer",
+            ),
+            (
+                {"query": "auth", "context_before": "3"},
+                "'context_before' must be a non-negative integer",
+            ),
+            (
+                {"query": "auth", "context_after": -1},
+                "'context_after' must be a non-negative integer",
+            ),
+            (
+                {"query": "auth", "context_after": "3"},
+                "'context_after' must be a non-negative integer",
+            ),
             ({"query": "auth", "regex": True}, "'regex' parameter is not yet implemented"),
         ],
     )
