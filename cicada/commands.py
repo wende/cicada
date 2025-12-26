@@ -980,18 +980,39 @@ def handle_watch(args):
 
 def handle_index_pr(args):
     from cicada.github.pr_indexer import PRIndexer
-    from cicada.utils import get_pr_index_path
+    from cicada.index_mode import INDEX_MODE_EMBEDDINGS
+    from cicada.utils import get_config_path, get_pr_index_path
     from cicada.version_check import check_for_updates
 
     check_for_updates()
 
     try:
+        repo_path = Path(args.repo).resolve()
         output_path = str(get_pr_index_path(args.repo))
 
         indexer = PRIndexer(repo_path=args.repo)
-        indexer.index_repository(output_path=output_path, incremental=not args.clean)
+        pr_index = indexer.index_repository(output_path=output_path, incremental=not args.clean)
 
         print("\n✅ Indexing complete! You can now use the MCP tools for PR history lookups.")
+
+        # Check if we should generate PR embeddings (embeddings mode enabled)
+        config_path = get_config_path(repo_path)
+        if config_path.exists():
+            indexing_mode = _load_existing_config(config_path)
+            if indexing_mode == INDEX_MODE_EMBEDDINGS and pr_index:
+                print("\nGenerating PR embeddings for semantic search...")
+                try:
+                    from cicada.embeddings.indexer import EmbeddingsIndexer
+
+                    embeddings_indexer = EmbeddingsIndexer(
+                        repo_path, verbose=True, force=args.clean
+                    )
+                    embeddings_indexer.index_prs_from_pr_index(pr_index)
+                    print("PR embeddings generated successfully.")
+                except Exception as e:
+                    print(f"\n⚠️  Failed to generate PR embeddings: {e}")
+                    print("The PR index was created successfully.")
+                    print("To retry PR embeddings, run: cicada index-pr --clean")
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")

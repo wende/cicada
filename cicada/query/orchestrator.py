@@ -743,6 +743,7 @@ class QueryOrchestrator:
         context_before: int | None = None,
         context_after: int | None = None,
         fallback_note: str | None = None,
+        pr_results: list[Any] | None = None,
     ) -> str:
         """
         Format final report with results and suggestions.
@@ -759,11 +760,13 @@ class QueryOrchestrator:
             context_before: Override for lines before match (like -B)
             context_after: Override for lines after match (like -A)
             fallback_note: Note explaining what fallback was applied (if any)
+            pr_results: Optional list of PR search results (semantic)
 
         Returns:
             Markdown formatted report
         """
         lines = []
+        pr_results = pr_results or []
 
         # Apply offset and limit pagination
         paginated_results = results[offset : offset + max_results]
@@ -802,6 +805,20 @@ class QueryOrchestrator:
                     result, i, show_snippets, verbose, context_lines, context_before, context_after
                 )
             )
+
+        # Related PRs (from semantic search)
+        if pr_results:
+            lines.append("\n## Related PRs (semantic)\n\n")
+            for pr in pr_results:
+                state_icon = "✓" if pr.state == "merged" else "○" if pr.state == "open" else "×"
+                lines.append(f"- {state_icon} **PR #{pr.pr_number}**: {pr.title}\n")
+                if verbose and pr.author:
+                    lines.append(f"  by {pr.author}")
+                    if pr.merged_at:
+                        lines.append(" (merged)")
+                    elif pr.state:
+                        lines.append(f" ({pr.state})")
+                    lines.append("\n")
 
         # Suggestions
         if suggestions:
@@ -1106,6 +1123,30 @@ class QueryOrchestrator:
 
         return related[:max_terms]
 
+    def _search_prs_semantically(
+        self, query: str | list[str | list[str]], max_results: int = 5
+    ) -> list[Any]:
+        """
+        Search PRs semantically using embeddings.
+
+        Args:
+            query: Query string or list
+            max_results: Maximum number of PR results
+
+        Returns:
+            List of PRSearchResult objects
+        """
+        if not self.repo_path:
+            return []
+
+        try:
+            from cicada.embeddings.searcher import search_prs_semantically
+
+            query_str = self._normalize_query_text(query)
+            return search_prs_semantically(self.repo_path, query_str, top_n=max_results)
+        except Exception:
+            return []
+
     def _generate_zero_result_suggestions(
         self, query: str | list[str | list[str]], filters_applied: dict[str, Any]
     ) -> list[str]:
@@ -1265,6 +1306,11 @@ class QueryOrchestrator:
             # Generate normal suggestions based on results
             suggestions = self._generate_suggestions(query, ranked_results)
 
+        # Search PRs semantically if embeddings mode is enabled
+        pr_results = []
+        if self.use_embeddings and self.repo_path:
+            pr_results = self._search_prs_semantically(query)
+
         # Format report with offset and context_lines
         return self._format_report(
             ranked_results,
@@ -1278,4 +1324,5 @@ class QueryOrchestrator:
             options.context_before,
             options.context_after,
             fallback_note,
+            pr_results,
         )

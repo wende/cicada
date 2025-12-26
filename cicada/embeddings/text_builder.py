@@ -164,3 +164,72 @@ def build_metadata(
         meta["name"] = module_name
 
     return meta
+
+
+def build_pr_text(pr_data: dict[str, Any]) -> str:
+    """
+    Build text representation of a PR for embedding.
+
+    Combines PR title and description into a single text
+    suitable for semantic search.
+
+    Args:
+        pr_data: PR data dictionary with 'title' and 'description' keys
+
+    Returns:
+        Text representation for embedding
+    """
+    parts: list[str] = []
+
+    # PR title (most important for semantic matching)
+    title = pr_data.get("title", "")
+    if title:
+        parts.append(f"PR: {title}")
+
+    # PR description (stored as 'description' in pr_index.json)
+    description = pr_data.get("description", "")
+    if description and isinstance(description, str):
+        # Clean up and truncate if needed (embeddings have token limits)
+        desc_text = description.strip()
+        if len(desc_text) > 2000:
+            desc_text = desc_text[:2000] + "..."
+        if desc_text:
+            parts.append(desc_text)
+
+    return "\n\n".join(parts) if parts else ""
+
+
+def build_pr_document_id(pr_number: int) -> str:
+    """
+    Build a unique document ID for PR embedding storage.
+
+    Args:
+        pr_number: The PR number
+
+    Returns:
+        Unique document ID string
+    """
+    return f"pr:{pr_number}"
+
+
+def build_pr_metadata(pr_data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Build metadata dictionary for PR embedding storage.
+
+    Args:
+        pr_data: PR data dictionary
+
+    Returns:
+        Metadata dictionary for storage
+    """
+    pr_number = pr_data.get("number", 0)
+    return {
+        "type": "pr",
+        "name": f"PR #{pr_number}",
+        "pr_number": pr_number,
+        "title": pr_data.get("title", ""),
+        "state": pr_data.get("state", "unknown"),
+        "author": pr_data.get("author", "unknown"),
+        "merged_at": pr_data.get("merged_at"),
+        "created_at": pr_data.get("created_at"),
+    }

@@ -17,6 +17,9 @@ from cicada.embeddings.text_builder import (
     build_function_text,
     build_metadata,
     build_module_text,
+    build_pr_document_id,
+    build_pr_metadata,
+    build_pr_text,
 )
 from cicada.utils.storage import get_embeddings_path
 
@@ -211,3 +214,43 @@ class EmbeddingsIndexer:
             self.embeddings_path.unlink()
             if self.verbose:
                 print("Cleared embeddings store")
+
+    def index_prs_from_pr_index(self, pr_index: dict[str, Any]) -> None:
+        """
+        Index embeddings from PR index data.
+
+        Creates embeddings for PR titles and descriptions for semantic search.
+
+        Args:
+            pr_index: PR index dictionary with 'prs' key containing PR data
+        """
+        prs = pr_index.get("prs", {})
+        total_prs = len(prs)
+
+        if self.verbose:
+            print(f"Indexing embeddings for {total_prs} PRs...")
+
+        indexed_count = 0
+        skipped_count = 0
+
+        for i, (pr_number_str, pr_data) in enumerate(prs.items(), 1):
+            if self.verbose and i % 50 == 0:
+                print(f"  Processing PR {i}/{total_prs}...")
+
+            # Build text from title + description
+            pr_text = build_pr_text(pr_data)
+
+            # Skip PRs with empty text (no title or description)
+            if not pr_text.strip():
+                skipped_count += 1
+                continue
+
+            pr_number = int(pr_number_str)
+            pr_id = build_pr_document_id(pr_number)
+            pr_meta = build_pr_metadata(pr_data)
+
+            self.store.add(id=pr_id, text=pr_text, meta=pr_meta)
+            indexed_count += 1
+
+        if self.verbose:
+            print(f"Indexed {indexed_count} PRs ({skipped_count} skipped due to empty content)")
