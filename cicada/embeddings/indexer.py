@@ -162,7 +162,9 @@ class EmbeddingsIndexer:
         # Index the module itself
         module_text = build_module_text(module_name, module_data)
         module_id = build_document_id("module", module_name)
-        module_meta = build_metadata("module", module_name, file_path, module_line)
+        module_meta = build_metadata(
+            "module", module_name, file_path, module_line, module_data=module_data
+        )
 
         self.store.add(id=module_id, text=module_text, meta=module_meta)
 

@@ -136,15 +136,6 @@ class EmbeddingsSearcher:
 
         return result
 
-    def has_embeddings(self) -> bool:
-        """
-        Check if embeddings exist for this repository.
-
-        Returns:
-            True if embeddings file exists
-        """
-        return self.embeddings_path.exists()
-
 
 def has_embeddings(repo_path: str | Path) -> bool:
     """

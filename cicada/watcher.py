@@ -197,6 +197,11 @@ class FileWatcher:
             print("Running initial index...")
         try:
             self._run_indexer(index_path)
+
+            # Generate embeddings if in embeddings mode
+            if self.indexing_mode == "embeddings":
+                self._regenerate_embeddings(index_path)
+
             if self.verbose:
                 print("\nInitial indexing complete!")
                 print()
@@ -373,6 +378,44 @@ class FileWatcher:
             verbose=self.verbose,
         )
 
+    def _regenerate_embeddings(self, index_path: Path) -> None:
+        """Regenerate embeddings from the updated index.
+
+        Args:
+            index_path: Path to the index file
+        """
+        try:
+            # Load the updated index
+            with open(index_path) as f:
+                index = json.load(f)
+
+            if not index or not index.get("modules"):
+                if self.verbose:
+                    print("Skipping embeddings: no modules in index")
+                return
+
+            if self.verbose:
+                print("\nRegenerating embeddings for semantic search...")
+
+            from cicada.embeddings.indexer import EmbeddingsIndexer
+
+            # Force=True to regenerate embeddings from scratch
+            embeddings_indexer = EmbeddingsIndexer(self.repo_path, verbose=self.verbose, force=True)
+            embeddings_indexer.index_from_parsed_data(index)
+
+            if self.verbose:
+                print("Embeddings regenerated successfully.")
+
+        except ImportError as e:
+            if self.verbose:
+                print(f"Skipping embeddings: cicada-vector not available ({e})")
+        except Exception as e:
+            # Don't fail the whole reindex if embeddings fail
+            logger.warning(f"Failed to regenerate embeddings: {e}")
+            if self.verbose:
+                print(f"Warning: Failed to regenerate embeddings: {e}")
+                print("Keyword index was updated successfully.")
+
     def _on_file_change(self, event: FileSystemEvent) -> None:
         """
         Handle file change events with debouncing.
@@ -476,6 +519,11 @@ class FileWatcher:
 
                 index_path = get_index_path(self.repo_path)
                 self._run_indexer(index_path)
+
+                # Regenerate embeddings if in embeddings mode
+                if self.indexing_mode == "embeddings":
+                    self._regenerate_embeddings(index_path)
+
                 if self.verbose:
                     print()
                     print("=" * 70)

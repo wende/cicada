@@ -224,10 +224,131 @@ async def test_suggest_keywords_narrow_mode_no_suggestions(mock_index_with_keywo
 # ===== query Method Tests =====
 
 
+class MockEmbeddingsIndexManager:
+    """Mock index manager with embeddings support for testing."""
+
+    def __init__(
+        self,
+        index: dict,
+        has_keywords: bool = True,
+        indexing_mode: str = "keywords",
+        has_embeddings: bool = False,
+        repo_path: str | None = None,
+    ):
+        self._index = index
+        self._has_keywords = has_keywords
+        self._indexing_mode = indexing_mode
+        self._has_embeddings = has_embeddings
+        self._repo_path = repo_path
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def has_keywords(self):
+        return self._has_keywords
+
+    @property
+    def indexing_mode(self):
+        return self._indexing_mode
+
+    @property
+    def has_embeddings(self):
+        return self._has_embeddings
+
+    @property
+    def repo_path(self):
+        return self._repo_path
+
+
 @pytest.mark.asyncio
 async def test_query_without_keywords(mock_index_without_keywords):
     """Test query method when keywords are not available."""
     handler = AnalysisHandler(MockIndexManager(mock_index_without_keywords, has_keywords=False))
+
+    result = await handler.query(query="test", scope="all", result_type="all")
+
+    assert len(result) == 1
+    assert isinstance(result[0], TextContent)
+    assert "No search index available" in result[0].text
+    assert "cicada index" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_query_with_embeddings_enabled(mock_index_with_keywords):
+    """Test query when embeddings mode is enabled and embeddings are available."""
+    handler = AnalysisHandler(
+        MockEmbeddingsIndexManager(
+            mock_index_with_keywords,
+            has_keywords=True,
+            indexing_mode="embeddings",
+            has_embeddings=True,
+            repo_path="/fake/repo/path",
+        )
+    )
+
+    with patch("cicada.query.QueryOrchestrator") as mock_orch:
+        mock_instance = MagicMock()
+        mock_instance.execute_query.return_value = "test results"
+        mock_orch.return_value = mock_instance
+
+        result = await handler.query(query="test", scope="all", result_type="all")
+
+        # Verify QueryOrchestrator was called with use_embeddings=True and repo_path
+        mock_orch.assert_called_once()
+        call_kwargs = mock_orch.call_args.kwargs
+        assert call_kwargs["use_embeddings"] is True
+        assert call_kwargs["repo_path"] == "/fake/repo/path"
+
+        assert len(result) == 1
+        assert result[0].text == "test results"
+
+
+@pytest.mark.asyncio
+async def test_query_embeddings_mode_but_no_embeddings_falls_back_to_keywords(
+    mock_index_with_keywords,
+):
+    """Test query falls back to keyword search when embeddings mode but no embeddings file."""
+    handler = AnalysisHandler(
+        MockEmbeddingsIndexManager(
+            mock_index_with_keywords,
+            has_keywords=True,
+            indexing_mode="embeddings",
+            has_embeddings=False,  # Embeddings not available
+            repo_path="/fake/repo/path",
+        )
+    )
+
+    with patch("cicada.query.QueryOrchestrator") as mock_orch:
+        mock_instance = MagicMock()
+        mock_instance.execute_query.return_value = "keyword search results"
+        mock_orch.return_value = mock_instance
+
+        result = await handler.query(query="test", scope="all", result_type="all")
+
+        # Should still execute (not return "No search index available")
+        mock_orch.assert_called_once()
+        # Should use keyword search (use_embeddings=False)
+        call_kwargs = mock_orch.call_args.kwargs
+        assert call_kwargs["use_embeddings"] is False
+
+        assert len(result) == 1
+        assert result[0].text == "keyword search results"
+
+
+@pytest.mark.asyncio
+async def test_query_no_keywords_and_no_embeddings(mock_index_without_keywords):
+    """Test query returns error when no keywords AND no embeddings available."""
+    handler = AnalysisHandler(
+        MockEmbeddingsIndexManager(
+            mock_index_without_keywords,
+            has_keywords=False,
+            indexing_mode="embeddings",
+            has_embeddings=False,  # No embeddings either
+            repo_path="/fake/repo/path",
+        )
+    )
 
     result = await handler.query(query="test", scope="all", result_type="all")
 

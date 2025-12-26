@@ -34,7 +34,7 @@ def build_module_text(module_name: str, module_data: dict[str, Any]) -> str:
     moduledoc = module_data.get("moduledoc")
     if moduledoc and isinstance(moduledoc, str):
         # Clean up the doc - take first paragraph
-        doc_text = moduledoc.strip()
+        doc_text = moduledoc.strip().split("\n\n")[0]
         if doc_text:
             parts.append(doc_text)
 
@@ -132,6 +132,7 @@ def build_metadata(
     file_path: str,
     line: int,
     func_data: dict[str, Any] | None = None,
+    module_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build metadata dictionary for embedding storage.
@@ -142,6 +143,7 @@ def build_metadata(
         file_path: Path to the source file
         line: Line number in the source file
         func_data: Function data (optional, for functions)
+        module_data: Module data (optional, for modules)
 
     Returns:
         Metadata dictionary for storage
@@ -160,8 +162,17 @@ def build_metadata(
         meta["function"] = func_data.get("name", "unknown")
         meta["arity"] = func_data.get("arity", 0)
         meta["visibility"] = func_data.get("type", "def")
+        # Include function doc for display in results
+        doc = func_data.get("doc")
+        if doc and isinstance(doc, str):
+            meta["doc"] = doc.strip()
     else:
         meta["name"] = module_name
+        # Include moduledoc for display in results
+        if module_data:
+            moduledoc = module_data.get("moduledoc")
+            if moduledoc and isinstance(moduledoc, str):
+                meta["doc"] = moduledoc.strip()
 
     return meta
 
