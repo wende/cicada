@@ -9,6 +9,7 @@ members = ["packages/cicada-core", "packages/cicada-scip"]
 [tool.uv.sources]
 cicada-core = { workspace = true }
 cicada-scip = { workspace = true }
+cicada-vector = { git = "https://github.com/wende/cicada-vector" }
 
 [project]
 name = "cicada-mcp"
@@ -65,6 +66,7 @@ dependencies = [
     "watchdog>=3.0.0",
     "tree-sitter-language-pack>=0.13.0",  # Multi-language tree-sitter bindings (Erlang, etc.)
     "pathspec>=0.12.0",  # Gitignore-style path matching for generic file indexing
+    "cicada-vector",  # Semantic search with embeddings
 ]
 
 [project.optional-dependencies]

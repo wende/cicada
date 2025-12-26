@@ -127,6 +127,11 @@ class TestEnsureSupportedMode:
     def test_keywords_ok(self):
         ensure_supported_mode(INDEX_MODE_KEYWORDS)
 
-    def test_embeddings_raises(self):
-        with pytest.raises(NotImplementedError):
-            ensure_supported_mode(INDEX_MODE_EMBEDDINGS)
+    def test_embeddings_ok(self):
+        """Test that embeddings mode is now supported."""
+        ensure_supported_mode(INDEX_MODE_EMBEDDINGS)  # Should not raise
+
+    def test_invalid_mode_raises(self):
+        """Test that invalid mode raises ValueError."""
+        with pytest.raises(ValueError):
+            ensure_supported_mode("invalid_mode")

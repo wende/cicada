@@ -137,6 +137,22 @@ def get_pr_index_path(repo_path: str | Path) -> Path:
     return storage_dir / "pr_index.json"
 
 
+def get_embeddings_path(repo_path: str | Path) -> Path:
+    """
+    Get the path to the embeddings store for a repository.
+
+    If the repository is linked, returns the path to the source repository's embeddings.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        Path to the embeddings.jsonl file
+    """
+    storage_dir = resolve_storage_dir(repo_path)
+    return storage_dir / "embeddings.jsonl"
+
+
 def get_link_path(repo_path: str | Path) -> Path:
     """
     Get the path to the link file for a repository.

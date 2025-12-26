@@ -58,6 +58,21 @@ class AnalysisHandler:
         """Check if keywords are available in the current index."""
         return self.index_manager.has_keywords
 
+    @property
+    def has_embeddings(self) -> bool:
+        """Check if embeddings are available for this repository."""
+        return self.index_manager.has_embeddings
+
+    @property
+    def indexing_mode(self) -> str:
+        """Get the configured indexing mode."""
+        return self.index_manager.indexing_mode
+
+    @property
+    def repo_path(self):
+        """Get the repository path."""
+        return self.index_manager.repo_path
+
     async def search_by_keywords(
         self,
         keywords: list[str | list[str]],
@@ -258,14 +273,21 @@ class AnalysisHandler:
         """
         from cicada.query import QueryOrchestrator
 
-        # Check if keywords are available (if using keyword search)
-        if not self.has_keywords:
+        # Check if search capability is available
+        use_embeddings = self.indexing_mode == "embeddings" and self.has_embeddings
+        if not use_embeddings and not self.has_keywords:
             return [
-                TextContent(type="text", text="No keywords in index. Run 'cicada index' to enable.")
+                TextContent(
+                    type="text", text="No search index available. Run 'cicada index' to enable."
+                )
             ]
 
         # Create orchestrator and execute query
-        orchestrator = QueryOrchestrator(self.index)
+        orchestrator = QueryOrchestrator(
+            self.index,
+            repo_path=str(self.repo_path),
+            use_embeddings=use_embeddings,
+        )
 
         result = orchestrator.execute_query(
             query=query,

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from cicada.index_mode import (
+    INDEX_MODE_EMBEDDINGS,
     determine_indexing_mode,
     mode_flag_specified,
     validate_mode_flags,
@@ -110,7 +111,7 @@ def _add_indexing_mode_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--embeddings",
         action="store_true",
-        help="Embeddings-based indexing (not implemented yet)",
+        help="Embeddings-based indexing with semantic search",
     )
 
 
@@ -856,6 +857,25 @@ def handle_index_main(args) -> None:
             verbose=verbose,
         )
 
+        # If embeddings mode, generate embeddings after the regular index
+        if indexing_mode == INDEX_MODE_EMBEDDINGS:
+            import json
+
+            from cicada.embeddings.indexer import EmbeddingsIndexer
+
+            if verbose:
+                print("\nGenerating embeddings for semantic search...")
+
+            # Load the index we just created
+            with open(index_path) as f:
+                index_data = json.load(f)
+
+            embeddings_indexer = EmbeddingsIndexer(repo_path, verbose=verbose)
+            embeddings_indexer.index_from_parsed_data(index_data)
+
+            if verbose:
+                print("Embeddings generated successfully.")
+
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")
         # Handle interrupt during the initial, non-enrichment phase of indexing.
@@ -914,7 +934,7 @@ def _print_mode_requirement_error() -> None:
         file=sys.stderr,
     )
     print(
-        "  cicada index --force --embeddings  Embeddings-based indexing (not implemented yet)",
+        "  cicada index --force --embeddings  Embeddings-based indexing with semantic search",
         file=sys.stderr,
     )
     print("\nRun 'cicada index --help' for more information.", file=sys.stderr)

@@ -19,6 +19,7 @@ from .signature_builder import SignatureBuilder
 from .storage import (
     create_storage_dir,
     get_config_path,
+    get_embeddings_path,
     get_hashes_path,
     get_index_path,
     get_pr_index_path,
@@ -52,6 +53,7 @@ __all__ = [
     "create_storage_dir",
     "get_index_path",
     "get_config_path",
+    "get_embeddings_path",
     "get_hashes_path",
     "get_pr_index_path",
     "extract_text_from_node",

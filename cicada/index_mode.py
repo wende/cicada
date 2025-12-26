@@ -125,8 +125,6 @@ def determine_indexing_mode(args: argparse.Namespace, repo_path: Path | None = N
 
 
 def ensure_supported_mode(mode: str) -> None:
-    """Raise if the requested mode has no implementation yet."""
-    if mode == INDEX_MODE_EMBEDDINGS:
-        raise NotImplementedError(
-            "Embeddings mode is not implemented yet. Use --keywords to index."
-        )
+    """Validate that the requested mode is supported."""
+    if mode not in INDEX_MODE_OPTIONS:
+        raise ValueError(f"Invalid indexing mode: {mode}. Use 'keywords' or 'embeddings'.")

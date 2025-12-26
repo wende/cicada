@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cicada.utils import (
+    get_embeddings_path,
     get_hashes_path,
     get_index_path,
     get_pr_index_path,
@@ -73,7 +74,7 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
 
 def clean_index_only(repo_path: Path) -> None:
     """
-    Remove only the main index files (index.json and hashes.json).
+    Remove only the main index files (index.json, hashes.json, and embeddings.jsonl).
 
     Args:
         repo_path: Path to the repository
@@ -92,11 +93,14 @@ def clean_index_only(repo_path: Path) -> None:
 
     index_path = get_index_path(repo_path)
     hashes_path = get_hashes_path(repo_path)
+    embeddings_path = get_embeddings_path(repo_path)
 
     if index_path.exists():
         items_to_remove.append(CleanItem("Main index", index_path))
     if hashes_path.exists():
         items_to_remove.append(CleanItem("File hashes", hashes_path))
+    if embeddings_path.exists():
+        items_to_remove.append(CleanItem("Embeddings store", embeddings_path))
 
     # Show what will be removed
     if not items_to_remove:

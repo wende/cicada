@@ -122,7 +122,7 @@ class TestQueryToolExecution:
         class FakeOrchestrator:
             last_index = None
 
-            def __init__(self, index):
+            def __init__(self, index, **kwargs):
                 FakeOrchestrator.last_index = index
 
             def execute_query(self, **kwargs):
@@ -173,7 +173,7 @@ class TestQueryToolExecution:
         call_args = {}
 
         class FakeOrchestrator:
-            def __init__(self, index):
+            def __init__(self, index, **kwargs):
                 pass
 
             def execute_query(self, **kwargs):
@@ -201,7 +201,7 @@ class TestQueryToolExecution:
         call_args = {}
 
         class FakeOrchestrator:
-            def __init__(self, index):
+            def __init__(self, index, **kwargs):
                 pass
 
             def execute_query(self, **kwargs):
@@ -231,7 +231,7 @@ class TestQueryToolExecution:
         call_args = {}
 
         class FakeOrchestrator:
-            def __init__(self, index):
+            def __init__(self, index, **kwargs):
                 pass
 
             def execute_query(self, **kwargs):
@@ -266,7 +266,7 @@ class TestQueryToolExecution:
         call_args = {}
 
         class FakeOrchestrator:
-            def __init__(self, index):
+            def __init__(self, index, **kwargs):
                 pass
 
             def execute_query(self, **kwargs):

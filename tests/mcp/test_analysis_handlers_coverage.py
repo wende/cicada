@@ -30,6 +30,18 @@ class MockIndexManager:
     def has_keywords(self):
         return self._has_keywords
 
+    @property
+    def indexing_mode(self):
+        return "keywords"
+
+    @property
+    def has_embeddings(self):
+        return False
+
+    @property
+    def repo_path(self):
+        return None
+
 
 @pytest.fixture
 def mock_index_with_keywords():
@@ -221,7 +233,7 @@ async def test_query_without_keywords(mock_index_without_keywords):
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "No keywords in index" in result[0].text
+    assert "No search index available" in result[0].text
     assert "cicada index" in result[0].text
 
 

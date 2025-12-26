@@ -30,14 +30,23 @@ from cicada.utils.path_utils import matches_glob_pattern
 class QueryOrchestrator:
     """Intelligent orchestrator for broad code discovery."""
 
-    def __init__(self, index: dict[str, Any]):
+    def __init__(
+        self,
+        index: dict[str, Any],
+        repo_path: str | None = None,
+        use_embeddings: bool = False,
+    ):
         """
         Initialize the query orchestrator.
 
         Args:
             index: The Cicada index dictionary containing modules and metadata
+            repo_path: Optional repository path for embeddings search
+            use_embeddings: Whether to use embeddings-based semantic search
         """
         self.index = index
+        self.repo_path = repo_path
+        self.use_embeddings = use_embeddings
         # Will create keyword searcher on demand with appropriate match_source
 
     def _is_recent(self, result: SearchResult, cutoff: datetime) -> bool:
@@ -381,8 +390,30 @@ class QueryOrchestrator:
         """
         results: list[SearchResult] = []
 
-        # Keyword search
-        if strategy.use_keyword_search:
+        # Embeddings-based semantic search (when enabled and available)
+        if self.use_embeddings and strategy.use_keyword_search and self.repo_path:
+            try:
+                from cicada.embeddings.searcher import EmbeddingsSearcher
+
+                searcher = EmbeddingsSearcher(self.repo_path)
+                # Combine keywords into a query string
+                query_str = " ".join(
+                    str(k) if isinstance(k, str) else " ".join(k) for k in strategy.search_keywords
+                )
+                embedding_results = searcher.search(
+                    query=query_str,
+                    top_n=QueryConfig.INTERNAL_SEARCH_LIMIT,
+                    filter_type=filter_type,
+                )
+                # Convert dict results to SearchResult objects
+                for result in embedding_results:
+                    results.append(self._dict_to_search_result(result))
+            except FileNotFoundError:
+                # Fall back to keyword search if embeddings not available
+                pass
+
+        # Keyword search (fallback or when embeddings not used)
+        if not results and strategy.use_keyword_search:
             searcher = KeywordSearcher(self.index, match_source=match_source)
             keyword_results = searcher.search(
                 query_keywords=strategy.search_keywords,

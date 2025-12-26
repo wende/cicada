@@ -365,6 +365,26 @@ class IndexManager:
         """Check if keywords are available in the index."""
         return self._has_keywords
 
+    @property
+    def repo_path(self) -> Path:
+        """Get the repository path from config."""
+        return Path(self.config.get("repository", {}).get("path", "."))
+
+    @property
+    def indexing_mode(self) -> str:
+        """Get the configured indexing mode."""
+        from cicada.index_mode import read_indexing_mode_config
+
+        return read_indexing_mode_config(self.repo_path)
+
+    @property
+    def has_embeddings(self) -> bool:
+        """Check if embeddings are available for this repository."""
+        from cicada.utils.storage import get_embeddings_path
+
+        embeddings_path = get_embeddings_path(self.repo_path)
+        return embeddings_path.exists()
+
     def _load_index(self) -> dict[str, Any]:
         """Load the index from JSON file."""
         # Get repo path from config
