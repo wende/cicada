@@ -870,11 +870,18 @@ def handle_index_main(args) -> None:
             with open(index_path) as f:
                 index_data = json.load(f)
 
-            embeddings_indexer = EmbeddingsIndexer(repo_path, verbose=verbose)
-            embeddings_indexer.index_from_parsed_data(index_data)
+            try:
+                embeddings_indexer = EmbeddingsIndexer(
+                    repo_path, verbose=verbose, force=force_enabled
+                )
+                embeddings_indexer.index_from_parsed_data(index_data)
 
-            if verbose:
-                print("Embeddings generated successfully.")
+                if verbose:
+                    print("Embeddings generated successfully.")
+            except Exception as e:
+                print(f"\n⚠️  Failed to generate embeddings: {e}")
+                print("The code index was created successfully.")
+                print("To retry embeddings, run: cicada index --force --embeddings")
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Indexing interrupted by user.")

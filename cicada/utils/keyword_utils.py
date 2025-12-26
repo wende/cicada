@@ -14,8 +14,8 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
     """
     Read keyword extraction configuration from config.yaml.
 
-    The current implementation supports keyword indexing only. Embeddings mode is
-    defined in config but not implemented yet.
+    Returns ("none", "none") for embeddings mode to skip keyword extraction,
+    since embeddings are generated separately from the parsed index structure.
     """
     try:
         import yaml
@@ -29,17 +29,15 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
 
         mode = config.get("indexing", {}).get("mode")
         if mode == "embeddings":
-            raise NotImplementedError(
-                "Embeddings mode is not implemented yet. Use keywords indexing."
-            )
+            # Skip keyword extraction in embeddings mode - we still need to parse
+            # the code structure, but embeddings are generated separately
+            return ("none", "none")
 
         # Legacy configs used keyword_extraction/keyword_expansion; treat as keywords.
         if config.get("keyword_extraction") or config.get("keyword_expansion"):
             return ("regular", "lemmi")
 
         return ("regular", "lemmi")
-    except NotImplementedError:
-        raise
     except Exception:
         return ("regular", "lemmi")
 

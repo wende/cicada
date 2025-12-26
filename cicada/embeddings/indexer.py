@@ -64,6 +64,7 @@ class EmbeddingsIndexer:
         verbose: bool = False,
         ollama_host: str | None = None,
         model: str | None = None,
+        force: bool = False,
     ):
         """
         Initialize the embeddings indexer.
@@ -73,6 +74,7 @@ class EmbeddingsIndexer:
             verbose: Whether to print progress information
             ollama_host: Ollama host URL (reads from config if not provided)
             model: Embedding model name (reads from config if not provided)
+            force: Clear existing embeddings before indexing
         """
         self.repo_path = Path(repo_path).resolve()
         self.verbose = verbose
@@ -90,6 +92,10 @@ class EmbeddingsIndexer:
         # Ensure parent directory exists
         self.embeddings_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Clear existing embeddings if force is set
+        if force:
+            self._clear_embeddings()
+
         # Initialize the store with Ollama configuration
         self.store = Store(
             str(self.embeddings_path.parent),
@@ -99,6 +105,15 @@ class EmbeddingsIndexer:
 
         if self.verbose:
             print(f"Using Ollama at {self.ollama_host} with model {self.model}")
+
+    def _clear_embeddings(self) -> None:
+        """Clear existing embeddings files."""
+        storage_dir = self.embeddings_path.parent
+        vectors_file = storage_dir / "vectors.jsonl"
+        if vectors_file.exists():
+            vectors_file.unlink()
+            if self.verbose:
+                print("Cleared existing embeddings.")
 
     def index_from_parsed_data(self, index: dict[str, Any]) -> None:
         """
