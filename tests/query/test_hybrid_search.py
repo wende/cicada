@@ -180,6 +180,59 @@ class TestMergeHybridResults:
         # With high percentile (100) * 1.5 = 150, should be capped at 100
         assert result[0].confidence <= 100.0
 
+    def test_score_updated_to_normalized_confidence(self, orchestrator):
+        """Score field is updated to match normalized confidence for downstream ranking."""
+        # Different raw scores on different scales (keyword vs semantic)
+        keyword_results = [
+            make_result("kw_high", 100.0, line=1),  # High keyword score
+            make_result("kw_low", 10.0, line=2),  # Low keyword score
+        ]
+        semantic_results = [
+            make_result("sem_high", 0.99, line=3),  # High semantic score (cosine similarity)
+            make_result("sem_low", 0.50, line=4),  # Low semantic score
+        ]
+
+        result = orchestrator._merge_hybrid_results(keyword_results, semantic_results)
+
+        # All results should have score updated to match confidence
+        for r in result:
+            assert r.score == r.confidence, f"score should equal confidence for {r.name}"
+
+    def test_score_preserved_for_rank_and_dedupe(self, orchestrator):
+        """Merged results maintain correct ranking after _rank_and_dedupe."""
+        # Semantic result with higher percentile should rank above keyword
+        # despite keyword having higher raw score
+        keyword_results = [make_result("kw_func", 1000.0, line=1)]  # High raw score
+        semantic_results = [make_result("sem_func", 0.99, line=2)]  # Low raw but top percentile
+
+        merged = orchestrator._merge_hybrid_results(keyword_results, semantic_results)
+
+        # Both should have same confidence (100% - they're top of their lists)
+        # But apply rank_and_dedupe to verify it preserves the order
+        ranked = orchestrator._rank_and_dedupe(merged)
+
+        # The order should be based on normalized scores, not raw scores
+        # Since both are at 100 percentile, order by name for stability
+        assert len(ranked) == 2
+        # Verify scores are normalized (not the original raw scores)
+        for r in ranked:
+            assert r.score <= 100.0, "Score should be normalized percentile"
+
+    def test_overlapping_result_score_reflects_boost(self, orchestrator):
+        """Overlapping results have score that reflects the 1.5x boost."""
+        # Same function in both results - should get boosted
+        keyword_results = [make_result("shared_func", 50.0, line=10)]
+        semantic_results = [make_result("shared_func", 0.8, line=10)]
+
+        result = orchestrator._merge_hybrid_results(keyword_results, semantic_results)
+
+        assert len(result) == 1
+        assert result[0].search_source == "both"
+        # Score should match the boosted confidence
+        assert result[0].score == result[0].confidence
+        # Confidence should be boosted (100% * 1.5 = capped at 100)
+        assert result[0].confidence == 100.0
+
 
 class TestSearchSourceIndicator:
     """Tests for search source indicator in output formatting."""

@@ -508,6 +508,11 @@ class QueryOrchestrator:
             else:
                 merged[key] = r
 
+        # Update score field with normalized confidence so _rank_and_dedupe
+        # and other downstream consumers use the hybrid-weighted ranking
+        for r in merged.values():
+            r.score = r.confidence
+
         # Sort by confidence descending
         return sorted(merged.values(), key=lambda r: r.confidence, reverse=True)
 
