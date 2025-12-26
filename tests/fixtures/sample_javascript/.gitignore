@@ -1,0 +1,5 @@
+# Dependencies
+node_modules/
+
+# Auto-generated config (kept for running scip-typescript)
+# tsconfig.json is committed so the fixture works out of the box

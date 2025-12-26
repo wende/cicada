@@ -347,7 +347,87 @@ class GenericSCIPIndexer(BaseIndexer, ABC):
                 f"SCIP indexing timed out after {timeout} seconds. "
                 "Try indexing a smaller subset of the project."
             ) from e
+        except FileNotFoundError as e:
+            # Command not found - provide installation instructions
+            tool_name = command[0] if command else "unknown"
+            install_instructions = self._get_install_instructions(tool_name)
+            raise RuntimeError(
+                f"SCIP indexer '{tool_name}' not found.\n\n{install_instructions}"
+            ) from e
         except Exception:
             if output_path.exists():
                 output_path.unlink()
             raise
+
+    def _get_install_instructions(self, tool_name: str) -> str:
+        """Get installation instructions for a SCIP indexer tool."""
+        instructions = {
+            "scip-python": (
+                "To install scip-python:\n"
+                "  npm install -g @sourcegraph/scip-python\n\n"
+                "Or with pipx:\n"
+                "  pipx install scip-python\n\n"
+                "More info: https://github.com/sourcegraph/scip-python"
+            ),
+            "npx": (
+                "scip-typescript requires Node.js and npm.\n\n"
+                "Install Node.js from: https://nodejs.org/\n"
+                "Then the indexer will run via: npx @sourcegraph/scip-typescript"
+            ),
+            "scip-typescript": (
+                "To install scip-typescript:\n"
+                "  npm install -g @sourcegraph/scip-typescript\n\n"
+                "Or run directly with npx:\n"
+                "  npx @sourcegraph/scip-typescript index\n\n"
+                "More info: https://github.com/sourcegraph/scip-typescript"
+            ),
+            "scip-dotnet": (
+                "To install scip-dotnet:\n"
+                "  dotnet tool install -g scip-dotnet\n\n"
+                "Then add ~/.dotnet/tools to your PATH:\n"
+                '  export PATH="$PATH:$HOME/.dotnet/tools"\n\n'
+                "Add this to your ~/.zshrc or ~/.bashrc for persistence.\n"
+                "Requires .NET SDK 6.0 or later.\n"
+                "More info: https://github.com/sourcegraph/scip-dotnet"
+            ),
+            "scip-java": (
+                "To install scip-java:\n"
+                "  Download from: https://github.com/sourcegraph/scip-java/releases\n\n"
+                "Or use Coursier:\n"
+                "  cs install scip-java\n\n"
+                "More info: https://github.com/sourcegraph/scip-java"
+            ),
+            "scip-ruby": (
+                "To install scip-ruby:\n"
+                "  gem install scip-ruby\n\n"
+                "More info: https://github.com/sourcegraph/scip-ruby"
+            ),
+            "rust-analyzer": (
+                "To install rust-analyzer:\n"
+                "  rustup component add rust-analyzer\n\n"
+                "Or download from: https://rust-analyzer.github.io/\n\n"
+                "More info: https://github.com/rust-lang/rust-analyzer"
+            ),
+            "scip-go": (
+                "To install scip-go:\n"
+                "  go install github.com/sourcegraph/scip-go@latest\n\n"
+                "More info: https://github.com/sourcegraph/scip-go"
+            ),
+            "scip-clang": (
+                "To install scip-clang:\n"
+                "  Download from: https://github.com/nicklockwood/scip-clang/releases\n\n"
+                "Requires a compile_commands.json file in your project.\n"
+                "More info: https://github.com/nicklockwood/scip-clang"
+            ),
+            "dart": (
+                "scip-dart is built into the Dart SDK.\n\n"
+                "Make sure Dart is installed and in your PATH:\n"
+                "  https://dart.dev/get-dart\n\n"
+                "Then run: dart pub global activate scip_dart"
+            ),
+        }
+        return instructions.get(
+            tool_name,
+            f"The SCIP indexer '{tool_name}' is not installed or not in PATH.\n\n"
+            f"Visit https://scip.dev/ for installation instructions.",
+        )

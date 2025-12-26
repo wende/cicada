@@ -90,7 +90,7 @@ setup-scip:
 
 # Generate SCIP index files for test fixtures (uses local install if needed)
 setup-scip-fixtures:
-	@if [ -f tests/fixtures/sample_python/index.scip ] && [ -f tests/fixtures/sample_typescript/index.scip ]; then \
+	@if [ -f tests/fixtures/sample_python/index.scip ] && [ -f tests/fixtures/sample_typescript/index.scip ] && [ -f tests/fixtures/sample_javascript/index.scip ]; then \
 		echo "SCIP fixture indexes already exist"; \
 	else \
 		echo "Generating SCIP fixture indexes..."; \
@@ -115,6 +115,8 @@ setup-scip-fixtures:
 			if [ -x "$$SCIP_TS" ] || [ -f "$$SCIP_TS" ]; then \
 				echo "  Generating TypeScript SCIP index..."; \
 				(cd $(CURDIR)/tests/fixtures/sample_typescript && npm install --silent 2>/dev/null && "$$SCIP_TS" index . 2>/dev/null && echo "  ✓ TypeScript SCIP index generated") || echo "  ⚠ TypeScript SCIP index generation failed"; \
+				echo "  Generating JavaScript SCIP index..."; \
+				(cd $(CURDIR)/tests/fixtures/sample_javascript && npx @sourcegraph/scip-typescript index 2>/dev/null && echo "  ✓ JavaScript SCIP index generated successfully") || echo "  ⚠ JavaScript SCIP index generation failed"; \
 			fi; \
 		fi; \
 	fi

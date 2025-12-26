@@ -43,23 +43,22 @@ class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
     def _run_scip_indexer(self, repo_path: Path) -> Path:
         """Run scip-typescript indexer using shared subprocess helper.
 
-        Automatically generates a jsconfig.json if no tsconfig.json or
-        jsconfig.json exists, as scip-typescript requires one of these.
+        Automatically generates a tsconfig.json if no tsconfig.json exists,
+        as scip-typescript requires it for proper JavaScript indexing.
         """
         # Security audit: Command uses list-form arguments (not shell=True),
         # so no command injection risk. All arguments are hardcoded strings.
         cmd = ["npx", "@sourcegraph/scip-typescript", "index"]
         scip_file = repo_path / "index.scip"
 
-        # Check if config file exists
+        # Check if tsconfig exists - scip-typescript requires it
         tsconfig = repo_path / "tsconfig.json"
-        jsconfig = repo_path / "jsconfig.json"
         temp_config: Path | None = None
 
-        if not tsconfig.exists() and not jsconfig.exists():
-            # Generate a minimal jsconfig.json for JavaScript projects
-            temp_config = jsconfig
-            js_config_content = {
+        if not tsconfig.exists():
+            # Generate a minimal tsconfig.json for JavaScript projects
+            temp_config = tsconfig
+            ts_config_content = {
                 "compilerOptions": {
                     "allowJs": True,
                     "checkJs": False,
@@ -71,13 +70,20 @@ class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
                     "skipLibCheck": True,
                     "resolveJsonModule": True,
                 },
-                "include": ["**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs"],
+                "include": [
+                    "**/*.ts",
+                    "**/*.tsx",
+                    "**/*.js",
+                    "**/*.jsx",
+                    "**/*.mjs",
+                    "**/*.cjs",
+                ],
                 "exclude": ["node_modules", "dist", "build", ".git"],
             }
             with open(temp_config, "w", encoding="utf-8") as f:
-                json.dump(js_config_content, f, indent=2)
+                json.dump(ts_config_content, f, indent=2)
             if self.verbose:
-                print("  Generated temporary jsconfig.json for indexing")
+                print("  Generated temporary tsconfig.json for indexing")
 
         try:
             return self._run_scip_command(
@@ -88,7 +94,7 @@ class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
             if temp_config and temp_config.exists():
                 temp_config.unlink()
                 if self.verbose:
-                    print("  Cleaned up temporary jsconfig.json")
+                    print("  Cleaned up temporary tsconfig.json")
 
 
 class TypeScriptSCIPIndexer(_ScipTypeScriptIndexerBase):
