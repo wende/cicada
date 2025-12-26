@@ -29,9 +29,8 @@ def read_keyword_extraction_config(repo_path: Path) -> tuple[str, str]:
 
         mode = config.get("indexing", {}).get("mode")
         if mode == "embeddings":
-            # Skip keyword extraction in embeddings mode - we still need to parse
-            # the code structure, but embeddings are generated separately
-            return ("none", "none")
+            # Hybrid search: embeddings mode still needs keywords for combined results
+            return ("regular", "lemmi")
 
         # Legacy configs used keyword_extraction/keyword_expansion; treat as keywords.
         if config.get("keyword_extraction") or config.get("keyword_expansion"):

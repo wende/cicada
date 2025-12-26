@@ -54,6 +54,9 @@ class SearchResult:
     tier_description: str | None = None
     tier_rank: int | None = None
 
+    # Hybrid search source tracking
+    search_source: Literal["keyword", "semantic", "both"] = "keyword"
+
     def is_function(self) -> bool:
         """Check if this result is a function."""
         return self.type == "function"

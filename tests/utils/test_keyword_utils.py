@@ -24,8 +24,8 @@ def test_read_keyword_extraction_default(tmp_path, mock_home_dir):
     assert expansion_method == "lemmi"
 
 
-def test_read_keyword_extraction_embeddings_skips_keywords(tmp_path, mock_home_dir):
-    """Embeddings mode returns ('none', 'none') to skip keyword extraction."""
+def test_read_keyword_extraction_embeddings_enables_keywords(tmp_path, mock_home_dir):
+    """Embeddings mode returns ('regular', 'lemmi') for hybrid search."""
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
 
@@ -37,8 +37,9 @@ def test_read_keyword_extraction_embeddings_skips_keywords(tmp_path, mock_home_d
     with patch("cicada.utils.keyword_utils.get_config_path", return_value=config_path):
         extraction_method, expansion_method = read_keyword_extraction_config(repo_path)
 
-    assert extraction_method == "none"
-    assert expansion_method == "none"
+    # Hybrid search requires both keywords and embeddings
+    assert extraction_method == "regular"
+    assert expansion_method == "lemmi"
 
 
 def test_read_keyword_extraction_legacy_config(tmp_path, mock_home_dir):

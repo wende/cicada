@@ -390,30 +390,8 @@ class QueryOrchestrator:
         """
         results: list[SearchResult] = []
 
-        # Embeddings-based semantic search (when enabled and available)
-        if self.use_embeddings and strategy.use_keyword_search and self.repo_path:
-            try:
-                from cicada.embeddings.searcher import EmbeddingsSearcher
-
-                searcher = EmbeddingsSearcher(self.repo_path)
-                # Combine keywords into a query string
-                query_str = " ".join(
-                    str(k) if isinstance(k, str) else " ".join(k) for k in strategy.search_keywords
-                )
-                embedding_results = searcher.search(
-                    query=query_str,
-                    top_n=QueryConfig.INTERNAL_SEARCH_LIMIT,
-                    filter_type=filter_type,
-                )
-                # Convert dict results to SearchResult objects
-                for result in embedding_results:
-                    results.append(self._dict_to_search_result(result))
-            except FileNotFoundError:
-                # Fall back to keyword search if embeddings not available
-                pass
-
-        # Keyword search (fallback or when embeddings not used)
-        if not results and strategy.use_keyword_search:
+        # Keyword search (always run when requested)
+        if strategy.use_keyword_search:
             searcher = KeywordSearcher(self.index, match_source=match_source)
             keyword_results = searcher.search(
                 query_keywords=strategy.search_keywords,
@@ -423,6 +401,28 @@ class QueryOrchestrator:
             # Convert dict results to SearchResult objects
             for result in keyword_results:
                 results.append(self._dict_to_search_result(result))
+
+        # Embeddings-based semantic search (hybrid: merges with keyword results)
+        if self.use_embeddings and strategy.use_keyword_search and self.repo_path:
+            try:
+                from cicada.embeddings.searcher import EmbeddingsSearcher
+
+                embeddings_searcher = EmbeddingsSearcher(self.repo_path)
+                # Combine keywords into a query string
+                query_str = " ".join(
+                    str(k) if isinstance(k, str) else " ".join(k) for k in strategy.search_keywords
+                )
+                embedding_results = embeddings_searcher.search(
+                    query=query_str,
+                    top_n=QueryConfig.INTERNAL_SEARCH_LIMIT,
+                    filter_type=filter_type,
+                )
+                semantic_results = [self._dict_to_search_result(r) for r in embedding_results]
+                # Hybrid merge with percentile ranking and boost
+                results = self._merge_hybrid_results(results, semantic_results)
+            except FileNotFoundError:
+                # Embeddings not available, continue with keyword results only
+                pass
 
         # Pattern search
         if strategy.use_pattern_search:
@@ -452,7 +452,89 @@ class QueryOrchestrator:
             signature=result_dict.get("signature"),
             visibility=result_dict.get("visibility"),
             last_modified_at=result_dict.get("last_modified_at"),
+            search_source=result_dict.get("search_source", "keyword"),
         )
+
+    def _merge_hybrid_results(
+        self,
+        keyword_results: list[SearchResult],
+        semantic_results: list[SearchResult],
+    ) -> list[SearchResult]:
+        """
+        Merge keyword and semantic search results for hybrid search.
+
+        Uses percentile ranking for score normalization and applies a 1.5x boost
+        to results appearing in both search sources.
+
+        Args:
+            keyword_results: Results from keyword search
+            semantic_results: Results from semantic/embeddings search
+
+        Returns:
+            Merged and ranked results with search_source indicators
+        """
+        # Handle edge cases
+        if not keyword_results and not semantic_results:
+            return []
+        if not semantic_results:
+            for r in keyword_results:
+                r.search_source = "keyword"
+            return keyword_results
+        if not keyword_results:
+            for r in semantic_results:
+                r.search_source = "semantic"
+            return semantic_results
+
+        # Convert to percentile ranks (0-100)
+        keyword_ranked = self._to_percentile_ranks(keyword_results, "keyword")
+        semantic_ranked = self._to_percentile_ranks(semantic_results, "semantic")
+
+        # Build lookup by unique key (name+file+line)
+        merged: dict[tuple[str, str, int], SearchResult] = {}
+
+        # Add keyword results first
+        for r in keyword_ranked:
+            key = (r.name, r.file, r.line)
+            merged[key] = r
+
+        # Merge semantic results, boosting duplicates
+        for r in semantic_ranked:
+            key = (r.name, r.file, r.line)
+            if key in merged:
+                # Found in both - apply 1.5x boost, mark as "both"
+                existing = merged[key]
+                existing.confidence = min(100.0, existing.confidence * 1.5)
+                existing.search_source = "both"
+            else:
+                merged[key] = r
+
+        # Sort by confidence descending
+        return sorted(merged.values(), key=lambda r: r.confidence, reverse=True)
+
+    def _to_percentile_ranks(self, results: list[SearchResult], source: str) -> list[SearchResult]:
+        """
+        Convert raw scores to percentile ranks (0-100).
+
+        Args:
+            results: List of search results with raw scores
+            source: Search source to set ("keyword" or "semantic")
+
+        Returns:
+            Same results with confidence set to percentile rank
+        """
+        if not results:
+            return []
+
+        # Sort by score ascending for percentile calculation
+        sorted_results = sorted(results, key=lambda r: r.score)
+        n = len(sorted_results)
+
+        for i, r in enumerate(sorted_results):
+            # Percentile: position / total * 100
+            r.confidence = ((i + 1) / n) * 100
+            r.search_source = source  # type: ignore[assignment]
+
+        return sorted_results
 
     def _apply_filters(
         self, results: list[SearchResult], config: FilterConfig
@@ -782,8 +864,13 @@ class QueryOrchestrator:
         """
         lines = []
 
-        # Compact header: number, name, and confidence on first line
+        # Compact header: number, name, source indicator, and confidence on first line
+        source_indicators = {"keyword": "(k)", "semantic": "(s)", "both": "(k+s)"}
+        source_indicator = source_indicators.get(result.search_source, "")
+
         header_parts = [f"{index}. {result.name}"]
+        if source_indicator:
+            header_parts[0] += f" {source_indicator}"
 
         # Add confidence % by default, include tier label in verbose mode
         if result.percentile is not None:
