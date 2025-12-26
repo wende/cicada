@@ -111,6 +111,7 @@ class TestGetEmbeddingsPath:
 
         result = get_embeddings_path(tmp_path)
 
-        assert result.name == "embeddings.jsonl"
+        # cicada-vector uses vectors.jsonl as its storage format
+        assert result.name == "vectors.jsonl"
         assert ".cicada" in str(result)
         assert "projects" in str(result)
