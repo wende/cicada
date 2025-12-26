@@ -357,7 +357,9 @@ class IndexManager:
 
             # Use new storage structure only
             pr_index_path = get_pr_index_path(repo_path)
-            self._pr_index = load_index(pr_index_path, verbose=True, raise_on_error=False)
+            self._pr_index = load_index(
+                pr_index_path, verbose=True, raise_on_error=False, index_name="PR index"
+            )
         return self._pr_index
 
     @property

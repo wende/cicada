@@ -110,8 +110,8 @@ class TestLoadIndex:
         result = load_index(nonexistent, verbose=True)
         assert result is None
         captured = capsys.readouterr()
-        assert "Warning: Index not found" in captured.err
-        assert str(nonexistent) in captured.err
+        assert "Warning:" in captured.err
+        assert "not found" in captured.err
 
     def test_load_nonexistent_file_raise_on_error(self, tmp_path):
         """Test loading nonexistent file with raise_on_error=True"""

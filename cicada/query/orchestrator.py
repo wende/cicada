@@ -744,13 +744,14 @@ class QueryOrchestrator:
         context_after: int | None = None,
         fallback_note: str | None = None,
         pr_results: list[Any] | None = None,
+        zero_result_hints: list[str] | None = None,
     ) -> str:
         """
         Format final report with results and suggestions.
 
         Args:
             results: Search results
-            suggestions: Suggested next steps
+            suggestions: Suggested next steps (shown with header for results with matches)
             max_results: Maximum number of results to show
             query: Original query
             show_snippets: Whether to show code snippet previews
@@ -761,6 +762,7 @@ class QueryOrchestrator:
             context_after: Override for lines after match (like -A)
             fallback_note: Note explaining what fallback was applied (if any)
             pr_results: Optional list of PR search results (semantic)
+            zero_result_hints: Hints for zero results (shown inline without header)
 
         Returns:
             Markdown formatted report
@@ -820,7 +822,13 @@ class QueryOrchestrator:
                         lines.append(f" ({pr.state})")
                     lines.append("\n")
 
-        # Suggestions
+        # Zero-result hints (inline, no header)
+        if zero_result_hints:
+            lines.append("\n")
+            for hint in zero_result_hints:
+                lines.append(f"{hint}\n")
+
+        # Suggestions for drilldown (with header, for results with matches)
         if suggestions:
             lines.append("\n## Suggested Next Steps\n\n")
             for suggestion in suggestions:
@@ -947,17 +955,64 @@ class QueryOrchestrator:
                 # Compact: just list keywords with source indicators
                 self._append_keyword_list(lines, result)
 
-        # Code snippet preview (if enabled)
+        # Code snippet preview
         if show_snippets:
+            # Full context when show_snippets is enabled
             snippet = self._extract_code_snippet(
                 result.file, result.line, context_lines, context_before, context_after
             )
             if snippet:
                 lines.append(f"\n```\n{snippet}\n```\n")
+        else:
+            # Show code line for pattern matches, doc excerpt for keyword matches
+            if result.pattern_match:
+                # Pattern match - show the code definition line
+                single_line = self._extract_code_snippet(result.file, result.line, 0, 0, 0)
+                if single_line:
+                    lines.append(f"   {single_line}\n")
+            elif result.doc and result.matched_keywords:
+                # Keyword match from docs - show doc excerpt with keyword
+                excerpt = self._extract_doc_excerpt(result.doc, result.matched_keywords)
+                if excerpt:
+                    lines.append(f'   "{excerpt}"\n')
 
         lines.append("\n")  # Blank line between results
 
         return "".join(lines)
+
+    def _extract_doc_excerpt(self, doc: str, keywords: list[str], max_len: int = 80) -> str | None:
+        """Extract a short excerpt from documentation containing the first matched keyword."""
+        if not doc or not keywords:
+            return None
+
+        doc_lower = doc.lower()
+
+        # Find the first keyword that appears in the doc
+        for kw in keywords:
+            kw_lower = kw.lower()
+            pos = doc_lower.find(kw_lower)
+            if pos >= 0:
+                # Extract context around the keyword
+                start = max(0, pos - 30)
+                end = min(len(doc), pos + len(kw) + 50)
+                excerpt = doc[start:end].strip()
+
+                # Clean up: replace newlines, collapse whitespace
+                excerpt = " ".join(excerpt.split())
+
+                # Add ellipsis if truncated
+                if start > 0:
+                    excerpt = "..." + excerpt
+                if end < len(doc):
+                    excerpt = excerpt + "..."
+
+                # Truncate if still too long
+                if len(excerpt) > max_len:
+                    excerpt = excerpt[: max_len - 3] + "..."
+
+                return excerpt
+
+        return None
 
     def _append_keyword_list(self, lines: list[str], result: SearchResult) -> None:
         """Append compact keyword list to lines."""
@@ -972,6 +1027,33 @@ class QueryOrchestrator:
         if len(result.matched_keywords) > QueryConfig.MAX_KEYWORDS_TO_SHOW:
             matched_str += f" +{len(result.matched_keywords) - QueryConfig.MAX_KEYWORDS_TO_SHOW}"
         lines.append(f"   {matched_str}\n")
+
+    def _resolve_file_path(self, file_path: str) -> str:
+        """Resolve a relative file path using the repo_path from index metadata."""
+        import os
+
+        # If already absolute, use as-is
+        if os.path.isabs(file_path):
+            return file_path
+
+        repo_path = self.index.get("metadata", {}).get("repo_path")
+        if not repo_path:
+            return file_path
+
+        # Try repo root first
+        full_path = os.path.join(repo_path, file_path)
+        if os.path.exists(full_path):
+            return full_path
+
+        # Try common source directories (SCIP indexers often store relative to src root)
+        # Check for package directories (e.g., cicada/) and common patterns
+        for subdir in ["cicada", "src", "lib", "app"]:
+            candidate = os.path.join(repo_path, subdir, file_path)
+            if os.path.exists(candidate):
+                return candidate
+
+        # Fall back to original path
+        return file_path
 
     def _extract_code_snippet(
         self,
@@ -995,7 +1077,8 @@ class QueryOrchestrator:
             Formatted code snippet with line numbers, or None if file not readable
         """
         try:
-            with open(file_path, encoding="utf-8") as f:
+            resolved_path = self._resolve_file_path(file_path)
+            with open(resolved_path, encoding="utf-8") as f:
                 lines = f.readlines()
 
             # Convert to 0-indexed
@@ -1023,46 +1106,6 @@ class QueryOrchestrator:
             # File doesn't exist, not readable, or line out of range
             return None
 
-    def _generate_query_variants(self, query: str) -> list[str]:
-        """
-        Generate structural formatting variants of a query term.
-
-        Since keyword search is case-insensitive, only suggests variants that differ
-        in structure (e.g., "openrouter" → "open_router"), not case-only variants.
-
-        Args:
-            query: Query string
-
-        Returns:
-            List of structurally different variant strings, deduplicated case-insensitively
-        """
-        variants = []
-        seen_normalized = {query.lower()}  # Track case-insensitive duplicates
-
-        # snake_case variant (with underscores)
-        snake = query.lower().replace(" ", "_").replace("-", "_")
-        if snake.lower() not in seen_normalized:
-            variants.append(snake)
-            seen_normalized.add(snake.lower())
-
-        # PascalCase variant (for module names)
-        # Only suggest if the original didn't have underscores (structural difference)
-        if "_" not in query and "-" not in query:
-            parts = query.replace("_", " ").replace("-", " ").split()
-            if parts and len(parts) > 1:  # Only for multi-word terms
-                pascal = "".join(word.capitalize() for word in parts)
-                if pascal.lower() not in seen_normalized:
-                    variants.append(pascal)
-                    seen_normalized.add(pascal.lower())
-
-        # hyphen-case variant (another common format)
-        hyphen = query.lower().replace(" ", "-").replace("_", "-")
-        if hyphen.lower() not in seen_normalized and hyphen != query.lower():
-            variants.append(hyphen)
-            seen_normalized.add(hyphen.lower())
-
-        return variants[: QueryConfig.MAX_QUERY_VARIANTS]
-
     def _find_related_terms(
         self,
         query: str,
@@ -1070,7 +1113,7 @@ class QueryOrchestrator:
         match_source: str = "all",
     ) -> list[str]:
         """
-        Find related terms from the index using simple string similarity.
+        Find related terms from the index using substring matching.
 
         Args:
             query: Query string
@@ -1102,24 +1145,11 @@ class QueryOrchestrator:
                 if match_source in ["all", "comments"] and func.get("comment_keywords"):
                     all_keywords.update(k.lower() for k in func["comment_keywords"])
 
-        # Find terms with simple similarity (substring match or character overlap)
+        # Find terms where query is a substring of the keyword
+        # (i.e., keyword contains the query, suggesting more specific terms)
         for keyword in all_keywords:
-            # Substring match
-            if query_lower in keyword or keyword in query_lower:
-                if keyword != query_lower:
-                    related.append(keyword)
-            # Simple character overlap check
-            elif (
-                len(query_lower) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
-                and len(keyword) > QueryConfig.MIN_TERM_LENGTH_FOR_SIMILARITY
-            ):
-                # Check if significant overlap
-                overlap = sum(1 for c in query_lower if c in keyword)
-                if (
-                    overlap >= len(query_lower) * QueryConfig.RELATED_TERM_SIMILARITY_THRESHOLD
-                    and keyword not in related
-                ):
-                    related.append(keyword)
+            if query_lower in keyword and keyword != query_lower:
+                related.append(keyword)
 
         return related[:max_terms]
 
@@ -1165,18 +1195,13 @@ class QueryOrchestrator:
         # Convert query to string for analysis (flatten nested lists)
         query_str = self._normalize_query_text(query)
 
-        # 1. Suggest case/formatting variants
-        variants = self._generate_query_variants(query_str)
-        if variants:
-            suggestions.append(f"Try variants: {', '.join(f'`{v}`' for v in variants)}")
-
-        # 2. Find related terms from index (respecting match_source filter)
+        # 1. Find similar terms from index (substring matching only)
         match_source = filters_applied.get("match_source", "all")
-        related = self._find_related_terms(query_str, match_source=match_source)
-        if related:
-            suggestions.append(f"Related terms in codebase: {', '.join(f'`{t}`' for t in related)}")
+        similar = self._find_related_terms(query_str, match_source=match_source)
+        if similar:
+            suggestions.append(f"Did you mean: {', '.join(f'`{t}`' for t in similar)}?")
 
-        # 3. Suggest removing/broadening filters
+        # 2. Suggest removing/broadening filters
         active_filters = []
         if filters_applied.get("scope") != "all":
             active_filters.append(f"scope='{filters_applied['scope']}'")
@@ -1190,7 +1215,7 @@ class QueryOrchestrator:
         if active_filters:
             suggestions.append(f"Try broadening: Remove filters ({', '.join(active_filters)})")
 
-        # 4. Suggest trying pattern search if keyword search
+        # 3. Suggest trying pattern search if keyword search
         if isinstance(query, str) and not self._is_pattern_query(query):
             suggestions.append(f"Try pattern search: `{query}*` or `*.{query}*`")
 
@@ -1292,8 +1317,10 @@ class QueryOrchestrator:
                 fallback_note = fallback_result.note
 
         # Generate suggestions based on final results
+        zero_result_hints: list[str] = []
+        suggestions: list[str] = []
         if len(ranked_results) == 0:
-            # Generate zero-result suggestions
+            # Generate zero-result hints (shown inline, not as "next steps")
             filters_applied = {
                 "scope": options.scope,
                 "recent": options.recent,
@@ -1301,7 +1328,7 @@ class QueryOrchestrator:
                 "match_source": options.match_source,
                 "glob": options.glob,
             }
-            suggestions = self._generate_zero_result_suggestions(query, filters_applied)
+            zero_result_hints = self._generate_zero_result_suggestions(query, filters_applied)
         else:
             # Generate normal suggestions based on results
             suggestions = self._generate_suggestions(query, ranked_results)
@@ -1325,4 +1352,5 @@ class QueryOrchestrator:
             options.context_after,
             fallback_note,
             pr_results,
+            zero_result_hints,
         )

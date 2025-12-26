@@ -642,23 +642,17 @@ end
 
         # Should indicate 0 results
         assert "0 result" in result.lower() or "no results" in result.lower()
-        # Should have suggestions section (compact format has no emoji)
-        assert "Suggested Next Steps" in result or "Try:" in result
+        # Should have inline hints (no header for zero results)
+        assert "Try pattern search" in result or "Did you mean" in result
 
-    def test_zero_results_suggests_structural_variants(self, sample_index):
-        """Test that zero results suggests structural formatting variants (not case-only)."""
+    def test_zero_results_suggests_pattern_search(self, sample_index):
+        """Test that zero results suggests pattern search."""
         orchestrator = QueryOrchestrator(sample_index)
-        # Use multi-word query to get structural variants
+        # Use a term that won't match anything
         result = orchestrator.execute_query("open router")
 
-        # Should suggest structural variants (underscores, hyphens, PascalCase)
-        # but NOT case-only variants since keyword search is case-insensitive
-        assert (
-            "open_router" in result  # snake_case
-            or "OpenRouter" in result  # PascalCase
-            or "open-router" in result  # hyphen-case
-            or "variants" in result.lower()
-        )
+        # Should suggest pattern search for keyword queries
+        assert "Try pattern search" in result or "Did you mean" in result
 
     def test_zero_results_suggests_related_terms(self, sample_index):
         """Test that zero results suggests related terms from the index."""

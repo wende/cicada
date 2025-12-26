@@ -20,6 +20,7 @@ def load_index(
     index_path: str | Path,
     verbose: bool = False,
     raise_on_error: bool = False,
+    index_name: str | None = None,
 ) -> dict[str, Any] | None:
     """
     Load a JSON index file.
@@ -28,6 +29,7 @@ def load_index(
         index_path: Path to the index file
         verbose: If True, print warning messages
         raise_on_error: If True, raise exceptions instead of returning None
+        index_name: Optional human-readable name for the index (e.g., "PR index")
 
     Returns:
         Index dictionary, or None if file doesn't exist or can't be loaded
@@ -43,7 +45,8 @@ def load_index(
         if raise_on_error:
             raise FileNotFoundError(f"Index file not found: {index_path}")
         if verbose:
-            print(f"Warning: Index not found at {index_path}", file=sys.stderr)
+            name = index_name or "Index"
+            print(f"Warning: {name} not found", file=sys.stderr)
         return None
 
     try:

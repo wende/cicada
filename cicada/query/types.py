@@ -212,11 +212,6 @@ class QueryConfig:
     # Search limits
     INTERNAL_SEARCH_LIMIT = 100  # Fetch this many from search, then filter/rank
     MAX_SUGGESTIONS = 2  # Maximum suggestions to show (keep focused)
-    MAX_QUERY_VARIANTS = 3  # Maximum case/format variants to generate
-
-    # Similarity thresholds
-    RELATED_TERM_SIMILARITY_THRESHOLD = 0.6  # 60% character overlap for related terms
-    MIN_TERM_LENGTH_FOR_SIMILARITY = 3  # Only check similarity for terms this long
 
     # Snippet extraction
     DEFAULT_CONTEXT_LINES = 2  # Lines of context around target line
