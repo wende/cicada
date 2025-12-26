@@ -11,6 +11,7 @@ from typing import Any
 
 from cicada_vector import Store
 
+from cicada.embeddings.ollama import DEFAULT_EMBEDDING_MODEL, DEFAULT_OLLAMA_HOST
 from cicada.embeddings.text_builder import (
     build_document_id,
     build_function_text,
@@ -20,6 +21,36 @@ from cicada.embeddings.text_builder import (
 from cicada.utils.storage import get_embeddings_path
 
 
+def _read_embeddings_config(repo_path: Path) -> dict[str, str]:
+    """
+    Read embeddings configuration from config.yaml.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        Dictionary with 'ollama_host' and 'model' keys
+    """
+    import yaml
+
+    from cicada.utils.storage import get_config_path
+
+    config_path = get_config_path(repo_path)
+    if not config_path.exists():
+        return {"ollama_host": DEFAULT_OLLAMA_HOST, "model": DEFAULT_EMBEDDING_MODEL}
+
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f) or {}
+            embeddings_config = config.get("embeddings", {})
+            return {
+                "ollama_host": embeddings_config.get("ollama_host", DEFAULT_OLLAMA_HOST),
+                "model": embeddings_config.get("model", DEFAULT_EMBEDDING_MODEL),
+            }
+    except Exception:
+        return {"ollama_host": DEFAULT_OLLAMA_HOST, "model": DEFAULT_EMBEDDING_MODEL}
+
+
 class EmbeddingsIndexer:
     """
     Indexes code into cicada-vector Store for semantic search.
@@ -27,23 +58,47 @@ class EmbeddingsIndexer:
     Creates embeddings for modules and functions from an already-parsed index.
     """
 
-    def __init__(self, repo_path: str | Path, verbose: bool = False):
+    def __init__(
+        self,
+        repo_path: str | Path,
+        verbose: bool = False,
+        ollama_host: str | None = None,
+        model: str | None = None,
+    ):
         """
         Initialize the embeddings indexer.
 
         Args:
             repo_path: Path to the repository
             verbose: Whether to print progress information
+            ollama_host: Ollama host URL (reads from config if not provided)
+            model: Embedding model name (reads from config if not provided)
         """
         self.repo_path = Path(repo_path).resolve()
         self.verbose = verbose
         self.embeddings_path = get_embeddings_path(repo_path)
 
+        # Read config if parameters not provided
+        if ollama_host is None or model is None:
+            config = _read_embeddings_config(self.repo_path)
+            ollama_host = ollama_host or config["ollama_host"]
+            model = model or config["model"]
+
+        self.ollama_host = ollama_host
+        self.model = model
+
         # Ensure parent directory exists
         self.embeddings_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Initialize the store
-        self.store = Store(str(self.embeddings_path.parent))
+        # Initialize the store with Ollama configuration
+        self.store = Store(
+            str(self.embeddings_path.parent),
+            ollama_host=self.ollama_host,
+            ollama_model=self.model,
+        )
+
+        if self.verbose:
+            print(f"Using Ollama at {self.ollama_host} with model {self.model}")
 
     def index_from_parsed_data(self, index: dict[str, Any]) -> None:
         """

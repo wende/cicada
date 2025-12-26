@@ -1,5 +1,6 @@
 """Interactive first-time setup menu for cicada."""
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ except ImportError:
     TerminalMenu = None  # type: ignore
     has_terminal_menu = False
 
-from cicada.format import BOLD, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
+from cicada.format import BOLD, GREEN, GREY, PRIMARY, RESET, SELECTED, generate_gradient_ascii_art
 from cicada.interactive_setup_helpers import (
     CLAUDE_MD_ITEMS,
     EDITOR_ITEMS,
@@ -23,6 +24,7 @@ from cicada.interactive_setup_helpers import (
     check_elixir_project,
     display_claude_md_selection,
     display_editor_selection,
+    display_embeddings_config_selection,
     display_mode_selection,
     display_pr_indexing_selection,
     get_existing_config,
@@ -86,7 +88,7 @@ def _prompt_menu_selection(items: list[str], cancel_message: str) -> int:
     return int(selection)
 
 
-def _handle_menu_unavailable() -> tuple[str, bool, bool]:
+def _handle_menu_unavailable() -> tuple[str, bool, bool, dict[str, str] | None]:
     """Fallback to text-based setup when TerminalMenu cannot be used."""
     print(
         f"\n{GREY}Note: Terminal menu not supported, using text-based input{RESET}\n",
@@ -95,19 +97,19 @@ def _handle_menu_unavailable() -> tuple[str, bool, bool]:
     return _text_based_setup()
 
 
-def _text_based_setup() -> tuple[str, bool, bool]:
+def _text_based_setup() -> tuple[str, bool, bool, dict[str, str] | None]:
     """
     Fallback text-based setup for terminals that don't support simple-term-menu.
 
     Returns:
-        tuple[str, bool, bool]: The selected indexing mode, whether to index PRs,
-                                and whether to add to CLAUDE.md
+        tuple[str, bool, bool, dict | None]: The selected indexing mode, whether to index PRs,
+                                              whether to add to CLAUDE.md, and embeddings config
     """
     _print_first_time_intro(show_header=True)
     print(f"{BOLD}Step 1/3: Choose indexing mode{RESET}")
     print()
     print("1. Keywords - Token-based extraction (default)")
-    print("2. Embeddings - Semantic vectors (not implemented yet)")
+    print("2. Embeddings - Semantic search via Ollama")
     print()
 
     while True:
@@ -125,6 +127,11 @@ def _text_based_setup() -> tuple[str, bool, bool]:
             sys.exit(1)
 
     display_mode_selection(int(mode_choice) - 1)
+
+    # Configure embeddings if selected
+    embeddings_config = None
+    if indexing_mode == "embeddings":
+        embeddings_config = _configure_embeddings()
 
     # Step 2: Ask about PR indexing
     print(f"{BOLD}Step 2/3: Index pull requests?{RESET}")
@@ -176,14 +183,180 @@ def _text_based_setup() -> tuple[str, bool, bool]:
 
     display_claude_md_selection(add_to_claude_md_flag)
 
-    return (indexing_mode, index_prs, add_to_claude_md_flag)
+    return (indexing_mode, index_prs, add_to_claude_md_flag, embeddings_config)
+
+
+def _prompt_ollama_url() -> str:
+    """Prompt user for Ollama host URL with validation."""
+    from cicada.embeddings.ollama import DEFAULT_OLLAMA_HOST, check_ollama_connection
+
+    print(f"{BOLD}Ollama Configuration{RESET}")
+    print(f"{PRIMARY}   Embeddings require Ollama running locally or remotely{RESET}")
+    print()
+
+    while True:
+        try:
+            url = input(f"Enter Ollama URL [{DEFAULT_OLLAMA_HOST}]: ").strip()
+            if not url:
+                url = DEFAULT_OLLAMA_HOST
+
+            # Validate URL format
+            if not url.startswith(("http://", "https://")):
+                print(f"{PRIMARY}Invalid URL format. Must start with http:// or https://{RESET}")
+                continue
+
+            # Check connection
+            print(f"{GREY}   Checking connection to {url}...{RESET}")
+            if check_ollama_connection(url):
+                print(f"{GREEN}✓{RESET} Connected to Ollama")
+                return url
+            else:
+                print(f"{PRIMARY}⚠ Cannot connect to Ollama at {url}{RESET}")
+                print(f"{GREY}   Make sure Ollama is running: ollama serve{RESET}")
+                retry = input("Try again? [Y/n]: ").strip().lower()
+                if retry == "n":
+                    print(f"{GREY}   Using {url} anyway (connection may work later){RESET}")
+                    return url
+
+        except (KeyboardInterrupt, EOFError):
+            print()
+            print("Setup cancelled. Exiting...")
+            sys.exit(1)
+
+
+def _prompt_model_selection_text(ollama_host: str) -> str:
+    """Text-based model selection for terminals without menu support."""
+    from cicada.embeddings.ollama import DEFAULT_EMBEDDING_MODEL, get_embedding_models
+
+    print()
+    print(f"{BOLD}Select Embedding Model{RESET}")
+
+    try:
+        models = get_embedding_models(ollama_host)
+        if not models:
+            print(f"{PRIMARY}No models found. Using default: {DEFAULT_EMBEDDING_MODEL}{RESET}")
+            print(f"{GREY}   Install with: ollama pull {DEFAULT_EMBEDDING_MODEL}{RESET}")
+            return DEFAULT_EMBEDDING_MODEL
+
+        # Show available models
+        print(f"{PRIMARY}Available models:{RESET}")
+        for i, model in enumerate(models[:10], 1):  # Show max 10
+            marker = " (recommended)" if model == DEFAULT_EMBEDDING_MODEL else ""
+            print(f"  {i}. {model}{marker}")
+
+        if len(models) > 10:
+            print(f"  ... and {len(models) - 10} more")
+
+        print()
+        while True:
+            choice = input(f"Enter model number or name [{DEFAULT_EMBEDDING_MODEL}]: ").strip()
+            if not choice:
+                return DEFAULT_EMBEDDING_MODEL
+
+            # Try as number
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(models):
+                    return models[idx]
+                print("Invalid number. Please try again.")
+            except ValueError:
+                # Try as name
+                if choice in models:
+                    return choice
+                # Allow any model name (user might type one not in list)
+                confirm = (
+                    input(f"Model '{choice}' not in list. Use anyway? [y/N]: ").strip().lower()
+                )
+                if confirm in ("y", "yes"):
+                    return choice
+                continue
+
+    except ConnectionError:
+        print(f"{PRIMARY}Cannot fetch models. Using default: {DEFAULT_EMBEDDING_MODEL}{RESET}")
+        return DEFAULT_EMBEDDING_MODEL
+    except (KeyboardInterrupt, EOFError):
+        print()
+        print("Setup cancelled. Exiting...")
+        sys.exit(1)
+
+
+def _prompt_model_selection_menu(ollama_host: str) -> str | None:
+    """Menu-based model selection. Returns None if menu unavailable."""
+    from cicada.embeddings.ollama import DEFAULT_EMBEDDING_MODEL, get_embedding_models
+
+    if TerminalMenu is None:
+        return None
+
+    print()
+    print(f"{BOLD}Select Embedding Model{RESET}")
+
+    try:
+        models = get_embedding_models(ollama_host)
+        if not models:
+            print(f"{PRIMARY}No models found. Using default: {DEFAULT_EMBEDDING_MODEL}{RESET}")
+            print(f"{GREY}   Install with: ollama pull {DEFAULT_EMBEDDING_MODEL}{RESET}")
+            return DEFAULT_EMBEDDING_MODEL
+
+        # Build menu items with recommendations
+        menu_items = []
+        for model in models[:15]:  # Limit to 15 for usability
+            if model == DEFAULT_EMBEDDING_MODEL:
+                menu_items.append(f"{model} (recommended)")
+            else:
+                menu_items.append(model)
+
+        menu = TerminalMenu(menu_items, **MENU_STYLE)  # type: ignore[arg-type]
+        selection = menu.show()
+
+        if selection is None:
+            print()
+            print("Setup cancelled. Exiting...")
+            sys.exit(1)
+
+        if isinstance(selection, tuple):
+            selection = selection[0]
+
+        return models[int(selection)]
+
+    except ConnectionError:
+        print(f"{PRIMARY}Cannot fetch models. Using default: {DEFAULT_EMBEDDING_MODEL}{RESET}")
+        return DEFAULT_EMBEDDING_MODEL
+    except Exception:
+        # Fall back to text-based selection
+        return None
+
+
+def _configure_embeddings() -> dict[str, str]:
+    """
+    Interactive configuration for embeddings.
+
+    Returns:
+        Dictionary with 'ollama_host' and 'model' keys
+    """
+    print()
+
+    # Step 1: Get Ollama URL
+    ollama_host = _prompt_ollama_url()
+
+    # Step 2: Select model
+    model = None
+    if has_terminal_menu:
+        with contextlib.suppress(Exception):
+            model = _prompt_model_selection_menu(ollama_host)
+
+    if model is None:
+        model = _prompt_model_selection_text(ollama_host)
+
+    display_embeddings_config_selection(ollama_host, model)
+
+    return {"ollama_host": ollama_host, "model": model}
 
 
 def show_first_time_setup(
     show_welcome: bool = True,
     default_index_prs: bool | None = None,
     default_add_to_claude: bool | None = None,
-) -> tuple[str, bool, bool]:
+) -> tuple[str, bool, bool, dict[str, str] | None]:
     """
     Display an interactive first-time setup menu for cicada.
 
@@ -195,8 +368,8 @@ def show_first_time_setup(
         default_add_to_claude: If set, skip CLAUDE.md question and use this value.
 
     Returns:
-        tuple[str, bool, bool]: The selected indexing mode, whether to index PRs,
-                                and whether to add to CLAUDE.md
+        tuple[str, bool, bool, dict | None]: The selected indexing mode, whether to index PRs,
+                                              whether to add to CLAUDE.md, and embeddings config
     """
     # Check if terminal menu is available and supported
     if not has_terminal_menu:
@@ -218,6 +391,11 @@ def show_first_time_setup(
 
     indexing_mode = MODE_MAP[mode_index]
     display_mode_selection(mode_index)
+
+    # Configure embeddings if selected
+    embeddings_config = None
+    if indexing_mode == "embeddings":
+        embeddings_config = _configure_embeddings()
 
     # Step 2: Ask about PR indexing
     if default_index_prs is not None:
@@ -261,7 +439,7 @@ def show_first_time_setup(
 
     display_claude_md_selection(add_to_claude_md_flag)
 
-    return (indexing_mode, index_prs, add_to_claude_md_flag)
+    return (indexing_mode, index_prs, add_to_claude_md_flag, embeddings_config)
 
 
 def _text_based_editor_selection() -> str:
@@ -319,6 +497,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         index_exists: bool = False,
         index_prs: bool = False,
         add_to_claude_md: bool = False,
+        embeddings_config: dict[str, str] | None = None,
     ) -> None:
         try:
             run_setup(
@@ -328,6 +507,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                 index_exists=index_exists,
                 index_prs=index_prs,
                 add_to_claude_md=add_to_claude_md,
+                embeddings_config=embeddings_config,
             )
         except Exception as e:
             print(f"\n{PRIMARY}Error: Setup failed: {e}{RESET}")
@@ -411,7 +591,9 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         _run_setup_with_error_handling(editor, repo_path, indexing_mode, index_exists=True)
         return
 
-    indexing_mode, index_prs, add_to_claude_md_flag = show_first_time_setup(show_welcome=False)
+    indexing_mode, index_prs, add_to_claude_md_flag, embeddings_config = show_first_time_setup(
+        show_welcome=False
+    )
 
     print(f"{BOLD}Running setup...{RESET}")
     print()
@@ -422,4 +604,5 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
         indexing_mode,
         index_prs=index_prs,
         add_to_claude_md=add_to_claude_md_flag,
+        embeddings_config=embeddings_config,
     )

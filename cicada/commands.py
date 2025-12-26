@@ -1266,6 +1266,7 @@ def handle_install(args) -> None:
     # If skip_optional, defaults to False
     should_index_prs = None
     should_add_to_claude = None
+    embeddings_config = None
 
     if force_index_prs:
         should_index_prs = True
@@ -1307,6 +1308,7 @@ def handle_install(args) -> None:
                 indexing_mode,
                 interactive_index_prs,
                 interactive_add_claude,
+                interactive_embeddings_config,
             ) = show_first_time_setup(
                 default_index_prs=should_index_prs,
                 default_add_to_claude=should_add_to_claude,
@@ -1316,6 +1318,7 @@ def handle_install(args) -> None:
             # (If we passed defaults, interactive_* vars will match defaults)
             should_index_prs = interactive_index_prs
             should_add_to_claude = interactive_add_claude
+            embeddings_config = interactive_embeddings_config
 
     # If index exists but no mode flags, use existing settings
     if not mode_flag_specified(args) and index_exists:
@@ -1331,6 +1334,7 @@ def handle_install(args) -> None:
             index_exists=index_exists,
             index_prs=should_index_prs or False,
             add_to_claude_md=should_add_to_claude or False,
+            embeddings_config=embeddings_config,
         )
     except Exception as e:
         print(f"\nError: Setup failed: {e}", file=sys.stderr)

@@ -12,6 +12,7 @@ from typing import Any
 
 from cicada_vector import Store
 
+from cicada.embeddings.indexer import _read_embeddings_config
 from cicada.utils.storage import get_embeddings_path
 
 
@@ -42,8 +43,15 @@ class EmbeddingsSearcher:
                 f"Run 'cicada index --force --embeddings' first."
             )
 
-        # Initialize the store for searching
-        self.store = Store(str(self.embeddings_path.parent))
+        # Read embeddings configuration
+        config = _read_embeddings_config(self.repo_path)
+
+        # Initialize the store for searching with same Ollama config
+        self.store = Store(
+            str(self.embeddings_path.parent),
+            ollama_host=config["ollama_host"],
+            ollama_model=config["model"],
+        )
 
     def search(
         self,

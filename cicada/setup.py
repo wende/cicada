@@ -320,6 +320,7 @@ def create_config_yaml(
     storage_dir: Path,
     indexing_mode: str | None = None,
     verbose: bool = True,
+    embeddings_config: dict[str, str] | None = None,
 ) -> None:
     """
     Create config.yaml in storage directory.
@@ -329,6 +330,7 @@ def create_config_yaml(
         storage_dir: Path to the storage directory
         indexing_mode: Indexing mode ("keywords" or "embeddings"), None for default
         verbose: If True, print success message. If False, silently create config.
+        embeddings_config: Optional embeddings configuration with 'ollama_host' and 'model'
     """
     config_path = get_config_path(repo_path)
     index_path = get_index_path(repo_path)
@@ -344,6 +346,16 @@ storage:
 
 indexing:
   mode: {indexing_mode}
+"""
+
+    # Add embeddings configuration if provided
+    if embeddings_config:
+        ollama_host = embeddings_config.get("ollama_host", "http://localhost:11434")
+        model = embeddings_config.get("model", "nomic-embed-text")
+        config_content += f"""
+embeddings:
+  ollama_host: {ollama_host}
+  model: {model}
 """
 
     with open(config_path, "w") as f:
@@ -552,6 +564,7 @@ def setup(
     index_exists: bool = False,
     index_prs: bool = False,
     add_to_claude_md: bool = False,
+    embeddings_config: dict[str, str] | None = None,
 ) -> None:
     """
     Run the complete setup for the specified editor.
@@ -563,6 +576,7 @@ def setup(
         index_exists: If True, skip banner and show condensed output (index already exists)
         index_prs: If True, index pull requests
         add_to_claude_md: If True, add Cicada guide to CLAUDE.md
+        embeddings_config: Optional embeddings configuration with 'ollama_host' and 'model'
     """
     # Determine repository path
     if repo_path is None:
@@ -586,7 +600,13 @@ def setup(
         should_index = False
         force_full = False
         # Ensure config.yaml is up to date with current settings
-        create_config_yaml(repo_path, storage_dir, indexing_mode, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            indexing_mode,
+            verbose=False,
+            embeddings_config=embeddings_config,
+        )
     else:
         # Show full banner for new setup
         print("=" * 60)
@@ -655,19 +675,38 @@ def setup(
                 pass
 
         # Create/update config.yaml BEFORE indexing (indexer reads this to determine keyword method)
-        create_config_yaml(repo_path, storage_dir, indexing_mode, verbose=False)
+        create_config_yaml(
+            repo_path,
+            storage_dir,
+            indexing_mode,
+            verbose=False,
+            embeddings_config=embeddings_config,
+        )
 
         # Index repository if needed
         if should_index:
-            from cicada.index_mode import ensure_supported_mode
+            from cicada.index_mode import INDEX_MODE_EMBEDDINGS, ensure_supported_mode
 
-            try:
-                ensure_supported_mode(indexing_mode)
-            except NotImplementedError as e:
-                print(f"⚠️  {e}")
-                print("Skipping indexing for embeddings mode.")
-            else:
-                index_repository(repo_path, language, force_full=force_full)
+            ensure_supported_mode(indexing_mode)
+            index_repository(repo_path, language, force_full=force_full)
+
+            # Run embeddings indexing if embeddings mode is selected
+            if indexing_mode == INDEX_MODE_EMBEDDINGS:
+                import json as json_module
+
+                from cicada.embeddings.indexer import EmbeddingsIndexer
+
+                print("Creating embeddings via Ollama...")
+                embeddings_indexer = EmbeddingsIndexer(repo_path, verbose=True)
+
+                # Load the index data for embeddings
+                index_path = get_index_path(repo_path)
+                with open(index_path) as f:
+                    index_data = json_module.load(f)
+
+                embeddings_indexer.index_from_parsed_data(index_data)
+                print("✓ Embeddings created")
+
             print()
 
     # Update CLAUDE.md with cicada instructions (only for Claude Code editor)

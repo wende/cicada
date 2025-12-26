@@ -20,7 +20,7 @@ NotElixirProjectError = UnsupportedProjectError
 # Indexing mode configuration data
 _MODE_OPTIONS = (
     ("Keywords - Token-based extraction (default)", "keywords"),
-    ("Embeddings - Semantic vectors (not implemented yet)", "embeddings"),
+    ("Embeddings - Semantic search via Ollama", "embeddings"),
 )
 
 MODE_ITEMS = [label for label, _ in _MODE_OPTIONS]
@@ -114,7 +114,23 @@ def display_mode_selection(mode_index: int) -> None:
         print("   Fast, lightweight, no model downloads")
     else:
         print(f"{GREEN}✓{RESET} Selected: EMBEDDINGS mode")
-        print("   Not implemented yet (stub)")
+        print("   Semantic search via Ollama embeddings")
+        print("   Requires Ollama running locally or remotely")
+    print()
+
+
+def display_embeddings_config_selection(ollama_host: str, model: str) -> None:
+    """
+    Display confirmation message for embeddings configuration.
+
+    Args:
+        ollama_host: The Ollama host URL
+        model: The selected embedding model
+    """
+    print()
+    print(f"{GREEN}✓{RESET} Embeddings configuration:")
+    print(f"   Ollama host: {ollama_host}")
+    print(f"   Model: {model}")
     print()
 
 
@@ -200,6 +216,7 @@ def run_setup(
     index_exists: bool = False,
     index_prs: bool = False,
     add_to_claude_md: bool = False,
+    embeddings_config: dict[str, str] | None = None,
 ) -> None:
     """
     Run the setup.
@@ -211,6 +228,7 @@ def run_setup(
         index_exists: Whether the index already exists
         index_prs: Whether to index PRs
         add_to_claude_md: Whether to add to CLAUDE.md
+        embeddings_config: Optional embeddings configuration with 'ollama_host' and 'model'
 
     Raises:
         Exception: If setup fails
@@ -224,6 +242,7 @@ def run_setup(
         index_exists=index_exists,
         index_prs=index_prs,
         add_to_claude_md=add_to_claude_md,
+        embeddings_config=embeddings_config,
     )
 
 
