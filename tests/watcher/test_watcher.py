@@ -672,6 +672,197 @@ class TestFileWatcherEdgeCases:
         watcher._trigger_reindex()
 
 
+class TestEmbeddingsRegeneration:
+    """Tests for embeddings regeneration in watch mode."""
+
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    @patch("cicada.watcher.Observer")
+    def test_embeddings_regenerated_on_initial_index(
+        self, mock_observer_class, mock_get_indexer, elixir_repo
+    ):
+        """Test that embeddings are regenerated during initial indexing in embeddings mode."""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        # Mock the indexer
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_indexer.get_file_extensions.return_value = [".ex", ".exs"]
+        mock_indexer.get_excluded_dirs.return_value = ["deps", "_build", ".git"]
+        mock_get_indexer.return_value = mock_indexer
+
+        # Mock observer
+        mock_observer = Mock()
+        mock_observer_class.return_value = mock_observer
+
+        # Pre-create index
+        create_storage_dir(elixir_repo)
+        index_path = get_index_path(elixir_repo)
+        index_path.write_text('{"modules": {"TestModule": {}}, "pr_index": {}}')
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=False,
+            indexing_mode="embeddings",  # Enable embeddings mode
+            register_signal_handlers=False,
+        )
+
+        # Make the event loop exit immediately
+        watcher.shutdown_event.set()
+
+        with patch.object(watcher, "_regenerate_embeddings") as mock_regen:
+            watcher.start_watching()
+            mock_regen.assert_called_once_with(index_path)
+
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_embeddings_regenerated_on_reindex(
+        self, mock_get_index_path, mock_get_indexer, elixir_repo
+    ):
+        """Test that embeddings are regenerated when files change in embeddings mode."""
+        index_path = elixir_repo / "index.json"
+        mock_get_index_path.return_value = index_path
+        index_path.write_text('{"modules": {"TestModule": {}}, "pr_index": {}}')
+
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_get_indexer.return_value = mock_indexer
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=False,
+            indexing_mode="embeddings",  # Enable embeddings mode
+            register_signal_handlers=False,
+        )
+        watcher.indexer = mock_indexer
+
+        with patch.object(watcher, "_regenerate_embeddings") as mock_regen:
+            watcher._trigger_reindex()
+            mock_regen.assert_called_once_with(index_path)
+
+    @patch("cicada.watcher.LanguageRegistry.get_indexer")
+    @patch("cicada.utils.storage.get_index_path")
+    def test_embeddings_not_regenerated_in_keywords_mode(
+        self, mock_get_index_path, mock_get_indexer, elixir_repo
+    ):
+        """Test that embeddings are NOT regenerated in keywords mode."""
+        index_path = elixir_repo / "index.json"
+        mock_get_index_path.return_value = index_path
+        index_path.write_text('{"modules": {}, "pr_index": {}}')
+
+        mock_indexer = Mock()
+        mock_indexer.supports_incremental = True
+        mock_get_indexer.return_value = mock_indexer
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=False,
+            indexing_mode="keywords",  # Keywords mode - no embeddings
+            register_signal_handlers=False,
+        )
+        watcher.indexer = mock_indexer
+
+        with patch.object(watcher, "_regenerate_embeddings") as mock_regen:
+            watcher._trigger_reindex()
+            mock_regen.assert_not_called()
+
+    def test_regenerate_embeddings_calls_embeddings_indexer(self, elixir_repo):
+        """Test that _regenerate_embeddings calls EmbeddingsIndexer correctly."""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        create_storage_dir(elixir_repo)
+        index_path = get_index_path(elixir_repo)
+        index_path.write_text('{"modules": {"TestModule": {"name": "TestModule"}}, "pr_index": {}}')
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=False,
+            indexing_mode="embeddings",
+            register_signal_handlers=False,
+        )
+
+        with patch("cicada.embeddings.indexer.EmbeddingsIndexer") as mock_indexer_class:
+            mock_indexer = Mock()
+            mock_indexer_class.return_value = mock_indexer
+
+            watcher._regenerate_embeddings(index_path)
+
+            mock_indexer_class.assert_called_once_with(elixir_repo, verbose=False, force=True)
+            mock_indexer.index_from_parsed_data.assert_called_once()
+
+    def test_regenerate_embeddings_skips_empty_index(self, elixir_repo, capsys):
+        """Test that _regenerate_embeddings skips indexing when no modules exist."""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        create_storage_dir(elixir_repo)
+        index_path = get_index_path(elixir_repo)
+        index_path.write_text('{"modules": {}, "pr_index": {}}')
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=True,
+            indexing_mode="embeddings",
+            register_signal_handlers=False,
+        )
+
+        with patch("cicada.embeddings.indexer.EmbeddingsIndexer") as mock_indexer_class:
+            watcher._regenerate_embeddings(index_path)
+            mock_indexer_class.assert_not_called()
+
+        captured = capsys.readouterr()
+        assert "Skipping embeddings: no modules in index" in captured.out
+
+    def test_regenerate_embeddings_handles_import_error(self, elixir_repo, capsys):
+        """Test that _regenerate_embeddings handles missing cicada-vector gracefully."""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        create_storage_dir(elixir_repo)
+        index_path = get_index_path(elixir_repo)
+        index_path.write_text('{"modules": {"Test": {}}, "pr_index": {}}')
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=True,
+            indexing_mode="embeddings",
+            register_signal_handlers=False,
+        )
+
+        with patch(
+            "cicada.embeddings.indexer.EmbeddingsIndexer",
+            side_effect=ImportError("No cicada_vector"),
+        ):
+            # Should not raise - handles gracefully
+            watcher._regenerate_embeddings(index_path)
+
+        captured = capsys.readouterr()
+        assert "Skipping embeddings" in captured.out or "cicada-vector" in captured.out
+
+    def test_regenerate_embeddings_handles_indexer_error(self, elixir_repo, capsys):
+        """Test that _regenerate_embeddings handles indexer errors gracefully."""
+        from cicada.utils.storage import create_storage_dir, get_index_path
+
+        create_storage_dir(elixir_repo)
+        index_path = get_index_path(elixir_repo)
+        index_path.write_text('{"modules": {"Test": {}}, "pr_index": {}}')
+
+        watcher = FileWatcher(
+            repo_path=str(elixir_repo),
+            verbose=True,
+            indexing_mode="embeddings",
+            register_signal_handlers=False,
+        )
+
+        with patch("cicada.embeddings.indexer.EmbeddingsIndexer") as mock_indexer_class:
+            mock_indexer = Mock()
+            mock_indexer.index_from_parsed_data.side_effect = Exception("Ollama down")
+            mock_indexer_class.return_value = mock_indexer
+
+            # Should not raise - handles gracefully
+            watcher._regenerate_embeddings(index_path)
+
+        captured = capsys.readouterr()
+        assert "Warning: Failed to regenerate embeddings" in captured.out
+
+
 class TestConcurrentReindexPrevention:
     """Tests for preventing concurrent reindexing operations."""
 
