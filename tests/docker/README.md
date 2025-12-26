@@ -1,142 +1,156 @@
-# SCIP Language E2E Docker Tests
+# SCIP Language Docker Tests
 
-This directory contains end-to-end tests for all SCIP languages in clean Docker environments.
-
-## Test Philosophy
-
-These tests are designed to:
-1. **Start from a clean slate** - Base image with only Cicada and git
-2. **Copy a real project** - Use our fixture projects
-3. **Try to index** - Run `cicada claude`
-4. **Document what fails** - Capture missing dependencies
+End-to-end tests for all SCIP languages in clean Docker environments.
 
 ## Quick Start
 
-### Test All Languages
+### Recommended: Fast All-in-One Tests
 
 ```bash
+# Test all languages (builds once, runs fast)
+./test-scip-languages.sh
+
+# Test specific languages
+./test-scip-languages.sh go java ruby
+```
+
+This uses a single Docker image with all SCIP indexers pre-installed but isolated.
+PATH manipulation enables/disables each indexer per test.
+
+### Legacy: Per-Language Dockerfiles
+
+```bash
+# Slower - builds separate image per language
+./test-single-language.sh go
 ./test-all-languages.sh
 ```
 
-### Test Single Language
+## Test Philosophy
+
+Each language is tested in two scenarios:
+
+1. **Without deps** (SCIP_ENABLE unset) - Indexer hidden from PATH
+   - Verifies graceful failure with helpful error message
+   - Should show installation instructions
+
+2. **With deps** (SCIP_ENABLE=<lang>) - Indexer in PATH
+   - Verifies successful indexing
+   - Should show "Indexed N files" message
+
+## Architecture
+
+### All-in-One Image (`Dockerfile.all-scip`)
+
+Single image with everything pre-installed:
+- All language runtimes (Go, Java, Ruby, Dart, .NET, C/C++ tools)
+- All SCIP indexers in isolated directories:
+  - `/opt/scip/go/bin/scip-go`
+  - `/opt/scip/java/bin/cs` (coursier)
+  - `/opt/scip/ruby/bin/scip-ruby`
+  - `/opt/scip/dart/bin/scip_dart`
+  - `/opt/scip/dotnet/bin/scip-dotnet`
+  - `/opt/scip/clang/bin/scip-clang`
+
+### Entrypoint (`scip-entrypoint.sh`)
+
+Manipulates PATH based on `SCIP_ENABLE` environment variable:
 
 ```bash
-./test-single-language.sh go
-./test-single-language.sh java
-# etc.
+# No indexers in PATH
+docker run cicada-all-scip cicada claude
+
+# Go indexer in PATH
+docker run -e SCIP_ENABLE=go cicada-all-scip cicada claude
+
+# Multiple indexers
+docker run -e SCIP_ENABLE=go,java cicada-all-scip cicada claude
+
+# All indexers
+docker run -e SCIP_ENABLE=all cicada-all-scip cicada claude
 ```
 
-## Test Structure
+## Language Mapping
 
-### Base Image (`Dockerfile.base`)
+| Language | SCIP_ENABLE | Indexer | Shared With | arm64 Support |
+|----------|-------------|---------|-------------|---------------|
+| Go | `go` | scip-go | - | ✅ |
+| Java | `java` | coursier (cs) | Scala | ✅ |
+| Scala | `scala` | coursier (cs) | Java | ✅ |
+| Ruby | `ruby` | scip-ruby | - | ❌ (x86_64 only) |
+| Dart | `dart` | scip_dart | - | ✅ |
+| C | `c` | scip-clang | C++ | ❌ (x86_64 only) |
+| C++ | `cpp` | scip-clang | C | ❌ (x86_64 only) |
+| C# | `csharp` | scip-dotnet | VB | ✅ |
+| VB | `vb` | scip-dotnet | C# | ✅ |
 
-Minimal environment:
-- Python 3.11
-- Git (required by Cicada)
-- uv (for installing Cicada)
-- Cicada installed from source
+> **Note:** Ruby and C/C++ tests will fail on arm64 Linux (Docker on Apple Silicon) because
+> the upstream SCIP indexers only provide x86_64-linux binaries. There is no arm64-linux
+> support from Sourcegraph for these tools. Ruby has arm64-darwin (macOS native) but not
+> arm64-linux. CI runs on amd64 where all languages are tested.
 
-**Does NOT include:**
-- Language runtimes (Go, Java, Ruby, etc.)
-- SCIP indexers (scip-go, scip-java, etc.)
-- Build tools (sbt, gradle, etc.)
+## Expected Results
 
-### Per-Language Tests
+### Without Deps (Graceful Failure)
 
-Each language test:
-1. Uses the base image
-2. Mounts the fixture directory as read-only
-3. Tries to run `python -m cicada claude`
-4. Captures output to `/tmp/cicada-test-{language}.log`
-
-## Expected Failures
-
-In the base environment, **all languages should fail** because:
-
-### Go
-- Missing: `scip-go` binary
-- Error: `[Errno 2] No such file or directory: 'scip-go'`
-
-### Java
-- Missing: `coursier` or `scip-java`
-- Error: `scip-java not found. Install via: brew install coursier/formulas/coursier`
-
-### Scala
-- Missing: `sbt`, `coursier`
-- Error: Same as Java + sbt version issues
-
-### Ruby
-- Missing: `scip-ruby` binary
-- Error: `[Errno 2] No such file or directory: 'scip-ruby'`
-
-### Dart
-- Missing: `dart` SDK, `scip_dart`
-- Error: `dart command not found. Install Dart SDK: https://dart.dev/get-dart`
-
-### C/C++
-- Missing: `scip-clang` binary
-- Error: `[Errno 2] No such file or directory: 'scip-clang'`
-
-### C#/VB
-- Missing: `.NET SDK`, `scip-dotnet`
-- Error: `[Errno 2] No such file or directory: 'scip-dotnet'`
-
-## What We Learn
-
-These tests expose:
-1. **Missing tool detection** - Are our error messages helpful?
-2. **Installation instructions** - Do we guide users to the right place?
-3. **Dependency chains** - What tools depend on what?
-4. **Auto-setup limits** - What can we auto-install vs. what needs docs?
-
-## Future: Per-Language Dockerfiles
-
-Each language should have a `Dockerfile.{language}` that:
-```dockerfile
-FROM cicada-base
-
-# Install language runtime
-RUN apt-get update && apt-get install -y golang-go
-
-# Install SCIP indexer
-RUN go install github.com/sourcegraph/scip-go@latest
-
-# Test
-COPY tests/fixtures/sample_go /workspace/project
-RUN cd /workspace/project && python -m cicada claude
+```
+$ docker run cicada-all-scip cicada claude
+[scip-entrypoint] No SCIP indexers enabled (SCIP_ENABLE not set)
+Go indexer not found. Install via: go install github.com/sourcegraph/scip-go@latest
 ```
 
-This documents the **minimum required setup** for each language.
+### With Deps (Success)
 
-## Running Tests
+```
+$ docker run -e SCIP_ENABLE=go cicada-all-scip cicada claude
+[scip-entrypoint] Enabled: go (PATH += /opt/scip/go/bin)
+Indexed 1 files, 1 modules, 6 functions
+```
 
-### Prerequisites
-- Docker installed and running
-- From cicada repo root
-
-### Commands
+## Building the Image
 
 ```bash
-cd tests/docker
+# Build all-in-one image
+docker build -t cicada-all-scip -f Dockerfile.all-scip ../..
 
-# Test all (expect failures)
-./test-all-languages.sh
-
-# Test one language
-./test-single-language.sh go
-
-# View detailed logs
-cat /tmp/cicada-test-sample_go.log
+# Or let the test script build it
+./test-scip-languages.sh
 ```
 
-## Success Criteria
+## Output
 
-A test "passes" when:
-1. ✅ Clear error message about missing tool
-2. ✅ Helpful installation instructions
-3. ✅ No confusing stack traces
+The test script produces a summary table:
 
-A test "fails" when:
-1. ❌ Cryptic error message
-2. ❌ No guidance on what to install
-3. ❌ Stack trace without context
+```
+═══════════════════════════════════════════
+                  SUMMARY
+═══════════════════════════════════════════
+Language   No Deps         With Deps
+──────────────────────────────────────────
+go         PASS            PASS
+java       PASS            PASS
+ruby       PASS            PASS
+...
+```
+
+## CI Integration
+
+SCIP language tests run automatically on push and PR via GitHub Actions.
+
+The CI workflow (`.github/workflows/test-scip-languages.yml`) installs indexers directly
+on the runner (no Docker) for faster execution. Each language runs as a separate matrix job.
+
+**Docker is for local testing** - provides clean isolated environment with PATH manipulation.
+**CI uses direct installation** - faster since runners are already ephemeral.
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `Dockerfile.all-scip` | All-in-one image with all SCIP indexers |
+| `scip-entrypoint.sh` | PATH manipulation entrypoint |
+| `test-scip-languages.sh` | Fast test runner (recommended) |
+| `Dockerfile.base` | Minimal Cicada-only image |
+| `Dockerfile.*` | Per-language images (legacy) |
+| `test-single-language.sh` | Single language test (legacy) |
+| `test-all-languages.sh` | All languages test (legacy) |
+| `../../.github/workflows/test-scip-languages.yml` | CI workflow |

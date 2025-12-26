@@ -21,7 +21,7 @@ from cicada.languages.typescript.indexer import JavaScriptSCIPIndexer
 pytestmark = pytest.mark.timeout(60)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def js_fixture_source():
     """Path to the original JavaScript fixture (do not modify directly)."""
     path = Path(__file__).parent.parent.parent / "fixtures" / "sample_javascript"
@@ -34,11 +34,39 @@ def js_fixture_source():
     return path
 
 
+@pytest.fixture(scope="module")
+def js_indexed_fixture(js_fixture_source, tmp_path_factory):
+    """Index the JavaScript fixture once and share across all tests.
+
+    Returns a dict with:
+        - result: The indexer result dict
+        - index: The parsed index JSON
+        - fixture_path: Path to the copied fixture
+    """
+    tmp_path = tmp_path_factory.mktemp("js_fixture")
+    test_dir = tmp_path / "sample_javascript"
+    shutil.copytree(js_fixture_source, test_dir)
+
+    output_path = tmp_path / "index.json"
+    indexer = JavaScriptSCIPIndexer(verbose=False)
+    result = indexer.index_repository(test_dir, output_path, force=True, verbose=False)
+
+    with open(output_path) as f:
+        index = json.load(f)
+
+    return {
+        "result": result,
+        "index": index,
+        "fixture_path": test_dir,
+        "output_path": output_path,
+    }
+
+
 @pytest.fixture
 def js_fixture_path(js_fixture_source, tmp_path):
     """Copy the JavaScript fixture to a temp dir for testing.
 
-    This is needed because the indexer deletes the SCIP file after processing.
+    Use this for tests that need a fresh copy (e.g., edge cases).
     """
     test_dir = tmp_path / "sample_javascript"
     shutil.copytree(js_fixture_source, test_dir)
@@ -54,27 +82,21 @@ def indexer():
 class TestJavaScriptIntegration:
     """Integration tests for JavaScript indexing with real SCIP data."""
 
-    def test_index_javascript_repository(self, indexer, js_fixture_path, tmp_path):
+    def test_index_javascript_repository(self, js_indexed_fixture):
         """Should successfully index a JavaScript repository."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
 
         assert result["success"] is True
         assert result["modules_count"] >= 1
         assert result["functions_count"] >= 1
-        assert output_path.exists()
+        assert js_indexed_fixture["output_path"].exists()
 
-    def test_index_extracts_classes(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_classes(self, js_indexed_fixture):
         """Should extract JavaScript classes as modules."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         modules = index.get("modules", {})
 
@@ -83,16 +105,12 @@ class TestJavaScriptIntegration:
         calc_module = modules["Calculator"]
         assert calc_module["file"] == "src/calculator.js"
 
-    def test_index_extracts_class_methods(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_class_methods(self, js_indexed_fixture):
         """Should extract methods from JavaScript classes."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         calc_module = index["modules"].get("Calculator", {})
         functions = calc_module.get("functions", [])
@@ -104,16 +122,12 @@ class TestJavaScriptIntegration:
         assert "multiply" in func_names, f"multiply not found. Functions: {func_names}"
         assert "getValue" in func_names, f"getValue not found. Functions: {func_names}"
 
-    def test_index_extracts_standalone_functions(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_standalone_functions(self, js_indexed_fixture):
         """Should extract standalone functions from JavaScript files."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         # Find the utils file module
         utils_module = None
@@ -132,16 +146,12 @@ class TestJavaScriptIntegration:
         assert "sum" in func_names, f"sum not found. Functions: {func_names}"
         assert "average" in func_names, f"average not found. Functions: {func_names}"
 
-    def test_index_extracts_function_line_numbers(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_function_line_numbers(self, js_indexed_fixture):
         """Should extract correct line numbers for functions."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         calc_module = index["modules"].get("Calculator", {})
         functions = {f["name"]: f for f in calc_module.get("functions", [])}
@@ -151,16 +161,12 @@ class TestJavaScriptIntegration:
             assert "line" in func_data, f"{func_name} missing line number"
             assert func_data["line"] > 0, f"{func_name} has invalid line number"
 
-    def test_index_extracts_keywords_for_modules(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_keywords_for_modules(self, js_indexed_fixture):
         """Should extract keywords for JavaScript modules."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         # Calculator class should have keywords
         calc_module = index["modules"].get("Calculator", {})
@@ -171,16 +177,12 @@ class TestJavaScriptIntegration:
         keyword_names = list(keywords.keys())
         assert len(keyword_names) >= 1, f"Expected keywords, got: {keyword_names}"
 
-    def test_index_extracts_keywords_for_file_modules(self, indexer, js_fixture_path, tmp_path):
+    def test_index_extracts_keywords_for_file_modules(self, js_indexed_fixture):
         """Should extract keywords for file-level modules."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         # Find utils file module
         utils_module = None
@@ -194,16 +196,12 @@ class TestJavaScriptIntegration:
 
         assert keywords, "Utils module should have keywords"
 
-    def test_index_creates_metadata(self, indexer, js_fixture_path, tmp_path):
+    def test_index_creates_metadata(self, js_indexed_fixture):
         """Should create proper metadata in the index."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
+        index = js_indexed_fixture["index"]
 
         assert result["success"] is True
-
-        with open(output_path) as f:
-            index = json.load(f)
 
         metadata = index.get("metadata", {})
         assert "total_functions" in metadata or result["functions_count"] >= 0
@@ -211,8 +209,6 @@ class TestJavaScriptIntegration:
     def test_auto_generates_tsconfig_when_missing(self, indexer, js_fixture_path, tmp_path):
         """Should auto-generate tsconfig.json when it doesn't exist."""
         # Create a copy of the fixture without tsconfig
-        import shutil
-
         test_dir = tmp_path / "js_project"
         shutil.copytree(js_fixture_path, test_dir)
 
@@ -234,8 +230,6 @@ class TestJavaScriptIntegration:
             scip_file.write_bytes(b"")
 
             # Capture the tsconfig that gets generated
-            original_run = mock_run.side_effect
-
             tsconfig_content = None
 
             def capture_tsconfig(*args, **kwargs):
@@ -261,22 +255,18 @@ class TestJavaScriptIntegration:
 class TestJavaScriptIndexerResult:
     """Tests for JavaScript indexer result format."""
 
-    def test_result_contains_required_fields(self, indexer, js_fixture_path, tmp_path):
+    def test_result_contains_required_fields(self, js_indexed_fixture):
         """Result should contain all required fields."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
 
         assert "success" in result
         assert "modules_count" in result
         assert "functions_count" in result
         assert "errors" in result
 
-    def test_result_includes_index_data(self, indexer, js_fixture_path, tmp_path):
+    def test_result_includes_index_data(self, js_indexed_fixture):
         """Result should include the index data."""
-        output_path = tmp_path / "index.json"
-
-        result = indexer.index_repository(js_fixture_path, output_path, force=True, verbose=False)
+        result = js_indexed_fixture["result"]
 
         assert result["success"] is True
         assert "index" in result

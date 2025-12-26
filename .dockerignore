@@ -41,6 +41,7 @@ docs/
 
 # Test files
 tests/
+!tests/docker/scip-entrypoint.sh
 test-*
 
 # Development

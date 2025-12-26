@@ -1,0 +1,265 @@
+name: SCIP Language Tests
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/cicada-scip/**'
+      - 'tests/fixtures/sample_*/**'
+      - 'tests/docker/**'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'packages/cicada-scip/**'
+      - 'tests/fixtures/sample_*/**'
+      - 'tests/docker/**'
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      languages: ${{ steps.filter.outputs.languages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect which languages to test
+        id: filter
+        run: |
+          # Get changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.event.pull_request.base.ref }}
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Check if SCIP core code changed (run all languages)
+          if echo "$CHANGED_FILES" | grep -qE '^packages/cicada-scip/|^tests/docker/'; then
+            echo "SCIP core code changed - testing all languages"
+            echo 'languages=["go", "java", "scala", "ruby", "dart", "c", "cpp", "csharp", "vb", "python", "typescript", "javascript", "rust"]' >> $GITHUB_OUTPUT
+          else
+            # Check which specific fixtures changed
+            LANGS='['
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_go/'; then LANGS+='"go",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_java/'; then LANGS+='"java",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_scala/'; then LANGS+='"scala",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_ruby/'; then LANGS+='"ruby",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_dart/'; then LANGS+='"dart",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_c/'; then LANGS+='"c",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_cpp/'; then LANGS+='"cpp",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_csharp/'; then LANGS+='"csharp",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_vb/'; then LANGS+='"vb",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_python/'; then LANGS+='"python",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_typescript/'; then LANGS+='"typescript",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_javascript/'; then LANGS+='"javascript",'; fi
+            if echo "$CHANGED_FILES" | grep -q '^tests/fixtures/sample_rust/'; then LANGS+='"rust",'; fi
+            LANGS=${LANGS%,}']'
+
+            if [ "$LANGS" = "]" ]; then
+              echo "No relevant changes detected"
+              LANGS='[]'
+            else
+              echo "Testing specific languages: $LANGS"
+            fi
+
+            echo "languages=$LANGS" >> $GITHUB_OUTPUT
+          fi
+
+  test-languages:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.languages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJson(needs.detect-changes.outputs.languages) }}
+        include:
+          - language: go
+            fixture: sample_go
+          - language: java
+            fixture: sample_java
+          - language: scala
+            fixture: sample_scala
+          - language: ruby
+            fixture: sample_ruby
+          - language: dart
+            fixture: sample_dart
+          - language: c
+            fixture: sample_c
+          - language: cpp
+            fixture: sample_cpp
+          - language: csharp
+            fixture: sample_csharp
+          - language: vb
+            fixture: sample_vb
+          - language: python
+            fixture: sample_python
+          - language: typescript
+            fixture: sample_typescript
+          - language: javascript
+            fixture: sample_javascript
+          - language: rust
+            fixture: sample_rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Generate SCIP protobuf files
+        run: |
+          cd packages/cicada-scip/src/cicada_scip
+          protoc --python_out=. --pyi_out=. scip.proto
+
+      - name: Install Cicada with SCIP support
+        run: uv sync --extra scip
+
+      # Language-specific indexer installation
+      - name: Install Go indexer
+        if: matrix.language == 'go'
+        run: |
+          go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Install Java/Scala indexer (coursier)
+        if: matrix.language == 'java' || matrix.language == 'scala'
+        run: |
+          curl -fL "https://github.com/coursier/launchers/raw/master/cs-x86_64-pc-linux.gz" | gzip -d > cs
+          chmod +x cs
+          sudo mv cs /usr/local/bin/
+          # Install sbt for Scala
+          if [ "${{ matrix.language }}" = "scala" ]; then
+            echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
+            curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/sbt.gpg
+            sudo apt-get update && sudo apt-get install -y sbt
+          fi
+
+      - name: Install Ruby indexer
+        if: matrix.language == 'ruby'
+        run: |
+          curl -fL "https://github.com/sourcegraph/scip-ruby/releases/download/scip-ruby-v0.4.7/scip-ruby-x86_64-linux" -o scip-ruby
+          chmod +x scip-ruby
+          sudo mv scip-ruby /usr/local/bin/
+
+      - name: Install Dart indexer
+        if: matrix.language == 'dart'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-transport-https
+          wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/dart.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | sudo tee /etc/apt/sources.list.d/dart_stable.list
+          sudo apt-get update && sudo apt-get install -y dart
+          export PATH="$PATH:/usr/lib/dart/bin"
+          echo "/usr/lib/dart/bin" >> $GITHUB_PATH
+          dart pub global activate scip_dart
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Install C/C++ indexer
+        if: matrix.language == 'c' || matrix.language == 'cpp'
+        run: |
+          curl -fL "https://github.com/sourcegraph/scip-clang/releases/download/v0.3.2/scip-clang-x86_64-linux" -o scip-clang
+          chmod +x scip-clang
+          sudo mv scip-clang /usr/local/bin/
+
+          # Generate compile_commands.json with absolute paths for scip-clang
+          FIXTURE_DIR="${{ github.workspace }}/tests/fixtures/${{ matrix.fixture }}"
+          if [ "${{ matrix.language }}" = "c" ]; then
+            echo '[{"directory": "'$FIXTURE_DIR'", "file": "calculator.c", "command": "cc -c calculator.c -o calculator.o"}]' > "$FIXTURE_DIR/compile_commands.json"
+          else
+            echo '[{"directory": "'$FIXTURE_DIR'", "file": "calculator.cpp", "command": "c++ -std=c++17 -c calculator.cpp -o calculator.o"}]' > "$FIXTURE_DIR/compile_commands.json"
+          fi
+
+      - name: Install .NET indexer
+        if: matrix.language == 'csharp' || matrix.language == 'vb'
+        run: |
+          wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+          chmod +x ./dotnet-install.sh
+          ./dotnet-install.sh --channel 8.0
+          echo "$HOME/.dotnet" >> $GITHUB_PATH
+          export PATH="$HOME/.dotnet:$PATH"
+          dotnet tool install --global scip-dotnet
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Install Python indexer
+        if: matrix.language == 'python'
+        run: |
+          npm install -g @sourcegraph/scip-python
+          cd tests/fixtures/sample_python
+          scip-python index .
+
+      - name: Install TypeScript/JavaScript indexer
+        if: matrix.language == 'typescript' || matrix.language == 'javascript'
+        run: |
+          npm install -g @sourcegraph/scip-typescript
+          if [ "${{ matrix.language }}" = "typescript" ]; then
+            cd tests/fixtures/sample_typescript
+            npm install --silent
+            scip-typescript index .
+          else
+            cd tests/fixtures/sample_javascript
+            scip-typescript index .
+          fi
+
+      - name: Install Rust indexer
+        if: matrix.language == 'rust'
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source "$HOME/.cargo/env"
+          rustup component add rust-analyzer
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          cd tests/fixtures/sample_rust
+          rust-analyzer scip . --output index.scip
+
+      - name: Test indexing
+        run: |
+          cd tests/fixtures/${{ matrix.fixture }}
+          # Use --no-project for Python to avoid creating a venv in the fixture dir
+          if [ "${{ matrix.language }}" = "python" ]; then
+            uv run --no-project cicada claude 2>&1 | tee output.log
+          else
+            uv run cicada claude 2>&1 | tee output.log
+          fi
+
+          # Check for successful indexing
+          if grep -qi "indexed.*file" output.log; then
+            echo "✅ ${{ matrix.language }}: Indexing succeeded"
+            grep -i "indexed" output.log | head -1
+          else
+            echo "❌ ${{ matrix.language }}: Indexing failed"
+            cat output.log
+            exit 1
+          fi
+
+  summary:
+    needs: test-languages
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "═══════════════════════════════════════════"
+          echo "         SCIP Language Test Summary         "
+          echo "═══════════════════════════════════════════"
+          echo "Check individual job results above."

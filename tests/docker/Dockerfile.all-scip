@@ -1,0 +1,130 @@
+# All SCIP indexers in one image
+# Each indexer is installed in /opt/scip/<name>/bin/ for PATH-based enable/disable
+#
+# Usage:
+#   # Test without indexer (graceful failure):
+#   docker run cicada-all-scip cicada claude
+#
+#   # Test with Go indexer:
+#   docker run -e SCIP_ENABLE=go cicada-all-scip cicada claude
+
+FROM python:3.11-slim
+
+# Install system dependencies for all languages
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    # Go
+    golang-go \
+    # Java
+    default-jdk \
+    unzip \
+    # Ruby
+    ruby \
+    ruby-dev \
+    build-essential \
+    # Dart
+    apt-transport-https \
+    wget \
+    gnupg \
+    # .NET
+    libicu-dev \
+    # C/C++
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Dart SDK (detect architecture)
+RUN ARCH=$(dpkg --print-architecture) && \
+    wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/dart.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/dart.gpg arch=$ARCH] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main" | tee /etc/apt/sources.list.d/dart_stable.list && \
+    apt-get update && apt-get install -y dart && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install .NET SDK
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+    && chmod +x ./dotnet-install.sh \
+    && ./dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet \
+    && ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
+    && rm dotnet-install.sh
+
+# Install Gradle (for Java projects)
+ENV GRADLE_VERSION=8.11.1
+RUN curl -fL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip && \
+    unzip gradle.zip -d /opt && \
+    rm gradle.zip && \
+    ln -s /opt/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle
+
+# Install sbt (for Scala projects)
+RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | tee /etc/apt/sources.list.d/sbt.list && \
+    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | gpg --dearmor -o /etc/apt/trusted.gpg.d/sbt.gpg && \
+    apt-get update && apt-get install -y sbt && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create SCIP directories
+RUN mkdir -p /opt/scip/go/bin \
+             /opt/scip/java/bin \
+             /opt/scip/ruby/bin \
+             /opt/scip/dart/bin \
+             /opt/scip/dotnet/bin \
+             /opt/scip/clang/bin
+
+# === Install SCIP indexers into isolated directories ===
+
+# Go: scip-go
+ENV GOPATH=/root/go
+RUN go install github.com/sourcegraph/scip-go/cmd/scip-go@latest \
+    && mv /root/go/bin/scip-go /opt/scip/go/bin/
+
+# Java/Scala: coursier (cs)
+RUN curl -fLo /opt/scip/java/bin/coursier.jar "https://github.com/coursier/coursier/releases/latest/download/coursier.jar" \
+    && echo '#!/bin/sh\nexec java -jar /opt/scip/java/bin/coursier.jar "$@"' > /opt/scip/java/bin/cs \
+    && chmod +x /opt/scip/java/bin/cs
+
+# Ruby: scip-ruby
+# Note: Only x86_64-linux and arm64-darwin binaries are available upstream.
+# There is no arm64-linux binary, so Ruby indexing won't work in arm64 Docker containers.
+# See: https://rubygems.org/gems/scip-ruby
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        curl -fL "https://github.com/sourcegraph/scip-ruby/releases/download/scip-ruby-v0.4.7/scip-ruby-x86_64-linux" \
+            -o /opt/scip/ruby/bin/scip-ruby && \
+        chmod +x /opt/scip/ruby/bin/scip-ruby; \
+    else \
+        echo "scip-ruby: arm64-linux binary not available (only x86_64-linux and arm64-darwin exist upstream)"; \
+    fi
+
+# Dart: scip_dart (installed via pub, then symlinked)
+ENV PATH="/usr/lib/dart/bin:$PATH"
+RUN dart pub global activate scip_dart \
+    && ln -s /root/.pub-cache/bin/scip_dart /opt/scip/dart/bin/scip_dart
+
+# .NET: scip-dotnet
+RUN dotnet tool install --global scip-dotnet \
+    && ln -s /root/.dotnet/tools/scip-dotnet /opt/scip/dotnet/bin/scip-dotnet
+
+# C/C++: scip-clang (x86_64 only - skip on arm64)
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        curl -fL "https://github.com/sourcegraph/scip-clang/releases/download/v0.3.2/scip-clang-x86_64-linux" \
+            -o /opt/scip/clang/bin/scip-clang && \
+        chmod +x /opt/scip/clang/bin/scip-clang; \
+    else \
+        echo "scip-clang not available for $ARCH - skipping"; \
+    fi
+
+# === Install uv and Cicada ===
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /cicada
+COPY . .
+RUN uv sync --no-dev --extra scip
+ENV PATH="/cicada/.venv/bin:$PATH"
+
+# === Entrypoint script for PATH manipulation ===
+COPY tests/docker/scip-entrypoint.sh /usr/local/bin/scip-entrypoint.sh
+RUN chmod +x /usr/local/bin/scip-entrypoint.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/scip-entrypoint.sh"]
+CMD ["/bin/bash"]
