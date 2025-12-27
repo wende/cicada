@@ -125,9 +125,19 @@ class EmbeddingsIndexer:
         Iterates through all modules and functions in the index and creates
         embeddings for each one.
 
+        Note: This method does NOT remove stale embeddings from deleted
+        modules/functions. Use --force flag to clear all embeddings first.
+        See: https://github.com/wende/cicada-vector/issues/XX for selective
+        deletion support.
+
         Args:
             index: Parsed index dictionary with modules and metadata
         """
+        # TODO: Remove stale embeddings from deleted modules/functions
+        # Currently requires --force to clear all embeddings, which also
+        # removes PR embeddings. Needs cicada-vector support for selective
+        # deletion by ID prefix (module:*, function:*).
+
         modules = index.get("modules", {})
         total_modules = len(modules)
         total_functions = 0
