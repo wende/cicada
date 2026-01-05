@@ -62,12 +62,13 @@ git commit -m "Add gh CLI dependency check"
 
 For detailed information on specific topics, see:
 
-- **[Release Process](agents/release-process.md)** - Version management, tagging, PyPI publishing
-- **[Storage & Config](agents/storage-and-config.md)** - Storage structure, environment variables, MCP config
-- **[Indexing Features](agents/indexing-features.md)** - String indexing, co-occurrence, co-change analysis
-- **[Git History](agents/git-history.md)** - Unified git_history tool usage and parameters
-- **[Search Syntax](agents/search-syntax.md)** - Query types, patterns, wildcards, filters
-- **[Python Support](agents/python-support.md)** - Class display, import detection configuration
+- **[Publishing Guide](PUBLISHING.md)** - Distribution, version management, PyPI publishing
+- **[Installation Guide](codebook/INSTALLATION.md)** - Editor setup, storage structure, configuration
+- **[Git History](codebook/GIT_HISTORY.md)** - Unified git_history tool, PR indexing, blame analysis
+- **[Keyword Search](codebook/KEYWORD_SEARCH.md)** - Query syntax, patterns, wildcards, filters
+- **[String Indexing](codebook/STRING_INDEXING.md)** - Index string literals from code
+- **[Keyword Indexing](codebook/KEYWORD_INDEXING.md)** - Extract keywords from docs and code
+- **[Language Support](codebook/LANGUAGE_SUPPORT.md)** - All 15 languages including Python-specific features
 
 <cicada>
   **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
@@ -91,14 +92,6 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
-
-
-
-
-
-
-
-- after successful commit always push
 
 ## Task Management with Codebook
 

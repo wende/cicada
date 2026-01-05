@@ -2,6 +2,12 @@
 
 **CICADA** - Code Intelligence: Contextual Analysis, Discovery, and Attribution
 
+## Getting Started
+1. [Installation](INSTALLATION.md) - Step-by-step setup for all supported editors
+2. [Workflows](WORKFLOWS.md) - Real-world examples of chaining tools together
+3. [Architecture](ARCHITECTURE.md) - Design decisions and system overview
+4. [Performance](PERFORMANCE.md) - Optimization tips and performance characteristics
+
 ## Language Support
 1. [Language Support](LANGUAGE_SUPPORT.md) - Comprehensive guide to all 14 supported languages
 2. Elixir Support - Full AST-level indexing with module, function, and macro extraction
@@ -103,3 +109,10 @@
 4. Repository Linking - Link repositories to share indexes
 5. Co-occurrence Keywords - Intelligent keyword suggestions based on patterns
 6. REST API Server - HTTP access to all MCP tools with OpenAPI docs
+
+## AI Agents Integration
+1. [AI Agents Integration](AI_AGENTS.md) - Pre-built agents for specialized code exploration
+2. Cicada Code Explorer - Fast code discovery agent optimized with Haiku
+3. Agent Installation - One-command setup via `cicada agents install`
+4. Template System - Extensible agent templates with YAML configuration
+5. Workflow Optimization - Task-focused tools and best practices
