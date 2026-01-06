@@ -317,7 +317,7 @@ cat ~/.cicada/projects/<hash>/config.yaml
 
 </details>
 
-More detail: [docs/PR_INDEXING.md](docs/PR_INDEXING.md), [docs/08-INCREMENTAL_INDEXING.md](docs/08-INCREMENTAL_INDEXING.md).
+More detail: [PR Indexing](codebook/tasks/202511192143-PR_INDEXING.md), [Incremental Indexing](codebook/tasks/202512251907-INCREMENTAL_INDEXING.md).
 
 <details>
 <summary><b>Python Indexing</b></summary>
@@ -364,7 +364,7 @@ CICADA ships 7 focused MCP tools designed for efficient code exploration across 
 | Drill down into results | `expand_result` | Auto-expands modules or functions from query results |
 | Advanced index queries | `query_jq` | Custom jq queries for power users |
 
-**Want to see these tools in action?** Check out [Complete Workflow Examples](docs/WORKFLOW_EXAMPLES.md) with pro tips and real-world scenarios.
+**Want to see these tools in action?** Check out [Complete Workflow Examples](codebook/WORKFLOWS.md) with pro tips and real-world scenarios.
 
 ### Core Tools
 
@@ -431,12 +431,17 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ## Documentation
 
-- [docs/17-WORKFLOW_EXAMPLES.md](docs/17-WORKFLOW_EXAMPLES.md) 
-- [docs/12-TOOL_DISCOVERABILITY_TASKS.md](docs/12-TOOL_DISCOVERABILITY_TASKS.md).
-- [CHANGELOG.md](CHANGELOG.md) – release notes.
-- [docs/01-KEYWORD_EXTRACTION_ANALYSIS.md](docs/01-KEYWORD_EXTRACTION_ANALYSIS.md) – semantic search internals.
-- [docs/09-PR_INDEXING.md](docs/09-PR_INDEXING.md) – GitHub integration details.
-- [docs/16-MCP_TOOL_CALL_BENCHMARKING.md](docs/16-MCP_TOOL_CALL_BENCHMARKING.md) – token/time benchmarks.
+- **[Codebook](codebook/README.md)** – Complete feature reference and user guides
+- **[Workflows](codebook/WORKFLOWS.md)** – Real-world examples chaining tools together
+- **[Installation](codebook/INSTALLATION.md)** – Step-by-step setup for all editors
+- **[Contributing](CONTRIBUTING.md)** – Development guidelines and architecture
+- [CHANGELOG.md](CHANGELOG.md) – Release notes
+
+**Deep Dives:**
+- [Keyword Extraction Analysis](codebook/RandD/202511052055-KEYWORD_EXTRACTION_ANALYSIS.md) – Semantic search internals
+- [PR Indexing](codebook/tasks/202511192143-PR_INDEXING.md) – GitHub integration details
+- [MCP Tool Call Benchmarking](codebook/RandD/202511052055-MCP_TOOL_CALL_BENCHMARKING.md) – Token/time benchmarks
+- [Tool Discoverability](codebook/RandD/202512242110-TOOL_DISCOVERABILITY_TASKS.md) – UX improvements research
 
 ---
 

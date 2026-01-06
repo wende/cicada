@@ -72,7 +72,7 @@ Tool Usage Across All Tests:
 
 ## Full Documentation
 
-See [docs/MCP_TOOL_CALL_BENCHMARKING.md](../../docs/MCP_TOOL_CALL_BENCHMARKING.md) for:
+See [MCP Tool Call Benchmarking](../../codebook/RandD/202511052055-MCP_TOOL_CALL_BENCHMARKING.md) for:
 - Detailed usage instructions
 - Claude Code configuration options
 - Tool call detection methods

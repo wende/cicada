@@ -261,7 +261,7 @@ cicada .
 
 ### Extension Setup
 
-Zed requires a Rust-based extension wrapper. See the [Zed Extension Guide](../extensions/zed/ZED.md) for detailed instructions on:
+Zed requires a Rust-based extension wrapper. See the [Zed Extensions section in PUBLISHING.md](../PUBLISHING.md#zed-extensions) for detailed instructions on:
 - Forking zed-industries/extensions
 - Creating the Rust extension wrapper
 - Submitting to Zed extension registry

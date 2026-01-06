@@ -208,8 +208,6 @@ VSCode extensions work by:
 4. Package extension: `vsce package`
 5. Publish: `vsce publish`
 
-Detailed guide: See `extensions/vscode/VSCODE.md`
-
 ---
 
 ## Zed Extensions
@@ -245,8 +243,6 @@ Zed extensions are Rust code compiled to WebAssembly:
 2. Create `extensions/cicada/` directory
 3. Write Rust wrapper with `zed_extension_api`
 4. Submit PR to zed-industries/extensions
-
-Detailed guide: See `extensions/zed/ZED.md`
 
 ---
 
