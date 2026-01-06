@@ -543,8 +543,8 @@ indexer.incremental_index_repository(
 
 ## Related Features
 
-- **[PR Indexing](PR_INDEXING.md)**: Also supports incremental updates
-- **[Extended Git History](EXTENDED_GIT_HISTORY.md)**: Works with incrementally built indexes
+- **[PR Indexing](202511192143-PR_INDEXING.md)**: Also supports incremental updates
+- **[Extended Git History](202511052055-EXTENDED_GIT_HISTORY.md)**: Works with incrementally built indexes
 - **Keyword Search**: Major beneficiary of incremental indexing (keyword extraction is slow)
 
 ## Implementation Notes

@@ -17,13 +17,13 @@ index c764d5d..b9dc752 100644
 --- a/codebook/README.md
 +++ b/codebook/README.md
 @@ -22,8 +22,8 @@
- 1. [AST-Level Indexing](AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
- 2. [Incremental Indexing](INCREMENTAL_INDEXING.md) - Only reindexes changed files for fast updates (includes Watch Mode)
- 3. [Automatic Language Detection](AUTOMATIC_LANGUAGE_DETECTION.md) - Detects project type from mix.exs or pyproject.toml
+ 1. [AST-Level Indexing](../AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
+ 2. [Incremental Indexing](../INCREMENTAL_INDEXING.md) - Only reindexes changed files for fast updates (includes Watch Mode)
+ 3. [Automatic Language Detection](../AUTOMATIC_LANGUAGE_DETECTION.md) - Detects project type from mix.exs or pyproject.toml
 -4. Configurable Keyword Tiers - Fast, Regular, or Max tiers for keyword extraction quality
 -5. String-Based Indexing - Indexes string literals from function bodies (SQL, error messages, etc.)
 +4. Keyword-Based Indexing - Keyword extraction from module names, function names, parameter names, docstrings, strings and inline comments
-+5. [String-Based Indexing](STRING_INDEXING.md) - Indexes string literals from function bodies (SQL, error messages, etc.)
++5. [String-Based Indexing](../STRING_INDEXING.md) - Indexes string literals from function bodies (SQL, error messages, etc.)
  
  ## Semantic Search
  1. Keyword Search - Find code by concept using KeyBERT-based semantic matching

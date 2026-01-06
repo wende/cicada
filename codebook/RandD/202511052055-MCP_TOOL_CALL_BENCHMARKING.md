@@ -380,7 +380,7 @@ Potential improvements:
 
 ## Related Documentation
 
-- [MCP Tools Reference](MCP-Tools-Reference.md)
+- [MCP Tools Reference](../MCP_TOOLS.md)
 - [Claude Code Headless Mode](https://docs.claude.com/en/docs/claude-code/headless)
 - [Model Context Protocol](https://modelcontextprotocol.io)
 

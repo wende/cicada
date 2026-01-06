@@ -44,7 +44,7 @@ index 0000000..04cc823
 +   - `search_function` - Function definitions and call sites
 +
 +3. **Utility Tools**: Index management and advanced queries
-+   - `git_history` - Git history and PR attribution (see [GIT_HISTORY.md](GIT_HISTORY.md))
++   - `git_history` - Git history and PR attribution (see [GIT_HISTORY.md](../GIT_HISTORY.md))
 +   - `refresh_index` - Force index refresh
 +   - `query_jq` - Advanced jq queries against the index
 +
@@ -439,7 +439,7 @@ index 0000000..04cc823
 +
 +**Unified tool for all git history queries.**
 +
-+See [GIT_HISTORY.md](GIT_HISTORY.md) for comprehensive documentation on git history and PR indexing features.
++See [GIT_HISTORY.md](../GIT_HISTORY.md) for comprehensive documentation on git history and PR indexing features.
 +
 +---
 +
@@ -514,7 +514,7 @@ index ded22ca..5900edd 100644
  15. Dart Support - SCIP-based indexing
  
 +## MCP Tools
-+1. [MCP Tools Reference](MCP_TOOLS.md) - Comprehensive guide to all MCP tools
++1. [MCP Tools Reference](../MCP_TOOLS.md) - Comprehensive guide to all MCP tools
 +2. query - Smart code discovery with keyword/pattern auto-detection
 +3. search_module - View complete module API with dependency analysis
 +4. search_function - Find function definitions and all call sites
@@ -524,8 +524,8 @@ index ded22ca..5900edd 100644
 +8. query_jq - Execute custom jq queries against the index
 +
  ## Code Indexing
- 1. [AST-Level Indexing](AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
- 2. [Incremental Indexing](INCREMENTAL_INDEXING.md) - Only reindexes changed files for fast updates (includes Watch Mode)
+ 1. [AST-Level Indexing](../AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
+ 2. [Incremental Indexing](../INCREMENTAL_INDEXING.md) - Only reindexes changed files for fast updates (includes Watch Mode)
 @@ -78,15 +88,6 @@
  8. Run Command - Execute MCP tools directly from command line
  9. Serve Command - Start REST API server for HTTP access to tools

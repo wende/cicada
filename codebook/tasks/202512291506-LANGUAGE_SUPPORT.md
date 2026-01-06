@@ -586,9 +586,9 @@ index 0000000..6473eb0
 +
 +## Related Features
 +
-+- **[Automatic Language Detection](AUTOMATIC_LANGUAGE_DETECTION.md)** - How Cicada detects project language
-+- **[AST-Level Indexing](AST_INDEXING.md)** - How tree-sitter parsing works
-+- **[Incremental Indexing](INCREMENTAL_INDEXING.md)** - Fast re-indexing for all languages
++- **[Automatic Language Detection](../AUTOMATIC_LANGUAGE_DETECTION.md)** - How Cicada detects project language
++- **[AST-Level Indexing](../AST_INDEXING.md)** - How tree-sitter parsing works
++- **[Incremental Indexing](../INCREMENTAL_INDEXING.md)** - Fast re-indexing for all languages
 ```
 </diff>
 
@@ -616,7 +616,7 @@ index 95c77e6..341f75a 100644
 -12. C# Support - SCIP-based indexing for .NET projects
 -13. Visual Basic Support - SCIP-based indexing for .NET projects
 -14. Dart Support - SCIP-based indexing
-+1. [Language Support](LANGUAGE_SUPPORT.md) - Comprehensive guide to all 14 supported languages
++1. [Language Support](../LANGUAGE_SUPPORT.md) - Comprehensive guide to all 14 supported languages
 +2. Elixir Support - Full AST-level indexing with module, function, and macro extraction
 +3. Python Support - SCIP-based indexing with class and method detection
 +4. Erlang Support - Tree-sitter based parsing with EDoc extraction
@@ -633,7 +633,7 @@ index 95c77e6..341f75a 100644
 +15. Dart Support - SCIP-based indexing
  
  ## Code Indexing
- 1. [AST-Level Indexing](AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
+ 1. [AST-Level Indexing](../AST_INDEXING.md) - Extracts module, function, and class definitions with signatures and specs
 ```
 </diff>
 

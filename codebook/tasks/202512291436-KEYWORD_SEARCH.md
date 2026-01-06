@@ -276,17 +276,17 @@ index b9dc752..e5d720a 100644
 --- a/codebook/README.md
 +++ b/codebook/README.md
 @@ -26,10 +26,10 @@
- 5. [String-Based Indexing](STRING_INDEXING.md) - Indexes string literals from function bodies (SQL, error messages, etc.)
+ 5. [String-Based Indexing](../STRING_INDEXING.md) - Indexes string literals from function bodies (SQL, error messages, etc.)
  
  ## Semantic Search
 -1. Keyword Search - Find code by concept using KeyBERT-based semantic matching
 -2. Pattern Search - Find code using wildcards (*) and OR patterns (|)
 -3. Mixed Queries - Combine keywords and patterns in a single search
 -4. Match Source Filtering - Search in docs, strings, or comments separately
-+1. [Keyword Search](KEYWORD_SEARCH.md) - Find code by matching query terms against pre-extracted keywords
-+2. [Pattern Search](KEYWORD_SEARCH.md#wildcard-patterns) - Find code using wildcards (*) and OR patterns (|)
-+3. [Mixed Queries](KEYWORD_SEARCH.md#synonym-groups) - Combine keywords and patterns in a single search
-+4. [Match Source Filtering](KEYWORD_SEARCH.md#match-source-filtering) - Search in docs, strings, or comments separately
++1. [Keyword Search](../KEYWORD_SEARCH.md) - Find code by matching query terms against pre-extracted keywords
++2. [Pattern Search](../KEYWORD_SEARCH.md#wildcard-patterns) - Find code using wildcards (*) and OR patterns (|)
++3. [Mixed Queries](../KEYWORD_SEARCH.md#synonym-groups) - Combine keywords and patterns in a single search
++4. [Match Source Filtering](../KEYWORD_SEARCH.md#match-source-filtering) - Search in docs, strings, or comments separately
  5. Scope Filtering - Filter by public/private visibility
  6. Path Filtering - Filter results by file path using glob patterns
  7. Recent Changes Filter - Filter to code changed in the last 14 days

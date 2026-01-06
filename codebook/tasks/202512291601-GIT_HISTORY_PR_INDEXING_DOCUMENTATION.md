@@ -522,7 +522,7 @@ index 8a35250..ded22ca 100644
 --- a/codebook/README.md
 +++ b/codebook/README.md
 @@ -37,18 +37,20 @@
- 1. [Code Analysis](CODE_ANALYSIS.md) - Module and function analysis with dependency tracking and call site discovery
+ 1. [Code Analysis](../CODE_ANALYSIS.md) - Module and function analysis with dependency tracking and call site discovery
  
  ## Git History & Attribution
 -1. Line Blame - Find who wrote a specific line and in which PR
@@ -531,7 +531,7 @@ index 8a35250..ded22ca 100644
 -4. File PR History - View all PRs that modified a file
 -5. Author Filtering - Filter history by author name
 -6. Time Filtering - View recent, older, or all-time history
-+1. [Git History & PR Indexing](GIT_HISTORY.md) - Comprehensive guide to git history analysis and PR attribution
++1. [Git History & PR Indexing](../GIT_HISTORY.md) - Comprehensive guide to git history analysis and PR attribution
 +2. Line Blame - Find who wrote a specific line and in which PR
 +3. Range Blame - Group consecutive lines by authorship with PR enrichment
 +4. Function Evolution - Track how a function has changed over time
@@ -544,7 +544,7 @@ index 8a35250..ded22ca 100644
 -2. PR Descriptions - Access PR descriptions and commit messages
 -3. Review Comments - Access PR review comments and discussions
 -4. Incremental PR Updates - Only fetch new PRs since last index
-+1. [Git History & PR Indexing](GIT_HISTORY.md) - Unified documentation for PR indexing and git history
++1. [Git History & PR Indexing](../GIT_HISTORY.md) - Unified documentation for PR indexing and git history
 +2. PR Index - Index GitHub pull requests for offline lookup
 +3. PR Descriptions - Access PR descriptions and commit messages
 +4. Review Comments - Access PR review comments and discussions

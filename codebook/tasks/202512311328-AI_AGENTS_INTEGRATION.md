@@ -349,7 +349,7 @@ index d53df57..5c7905e 100644
  6. REST API Server - HTTP access to all MCP tools with OpenAPI docs
 +
 +## AI Agents Integration
-+1. [AI Agents Integration](AI_AGENTS.md) - Pre-built agents for specialized code exploration
++1. [AI Agents Integration](../AI_AGENTS.md) - Pre-built agents for specialized code exploration
 +2. Cicada Code Explorer - Fast code discovery agent optimized with Haiku
 +3. Agent Installation - One-command setup via `cicada agents install`
 +4. Template System - Extensible agent templates with YAML configuration
