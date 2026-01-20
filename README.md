@@ -1,31 +1,18 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="360"/>
+<img src="https://raw.githubusercontent.com/wende/cicada/main/public/cicada.png" alt="CICADA Logo" width="280"/>
 
 # CICADA
 
-### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
+**C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
-**Context compaction for AI code assistants** – Give your AI structured, token-efficient access to 17+ languages including Elixir, Python, TypeScript, JavaScript, Rust, and more.
+Context compaction for AI code assistants — 17+ languages supported
 
-> [**Up to 50% less waiting · Up to 70% less tokens · Up to 99% less explanations to do**](https://cicada-mcp.vercel.app/#benchmark-section)
-> **Tighter context = Better Quality**
-
-[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
+[![codecov](https://codecov.io/gh/wende/cicada/branch/main/graph/badge.svg)](https://codecov.io/gh/wende/cicada)
 
-[![Elixir Support](https://img.shields.io/badge/Elixir-✓-blueviolet.svg)](https://elixir-lang.org/)
-[![Python Support](https://img.shields.io/badge/Python-✓-blue.svg)](https://www.python.org/)
-[![TypeScript Support](https://img.shields.io/badge/TypeScript-✓-blue.svg)](https://www.typescriptlang.org/)
-[![JavaScript Support](https://img.shields.io/badge/JavaScript-✓-yellow.svg)](https://www.javascript.com/)
-[![Rust Support](https://img.shields.io/badge/Rust-✓-orange.svg)](https://www.rust-lang.org/)
-[![+12 More](https://img.shields.io/badge/Languages-17+_Total-green.svg)](#)
-
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
-
-[Quick Install](#quick-install) · [Security](#privacy--security) · [Developers](#for-developers) · [AI Assistants](#for-ai-assistants) · [Docs](#documentation)
+[Install](#install) · [Why CICADA?](#why-cicada) · [Docs](#documentation) · [Comparison](#comparison-to-alternatives)
 
 </div>
 
@@ -58,6 +45,26 @@ Instead of raw text dumps, CICADA gives your AI **structured, pre-indexed knowle
 
 ---
 
+## Comparison to Alternatives
+
+| Feature | CICADA | [Serena](https://github.com/oraios/serena) | [Codicil](https://github.com/E-xyza/codicil) (Elixir-only) |
+|---------|--------|--------|---------|
+| **Analysis Method** | SCIP (static index) | LSP (real-time server) | LLM summaries + embeddings |
+| **Code Editing** | ❌ | ✅ | ❌ |
+| **Git Context** | ✅ PR history, blame, evolution | ❌ | ❌ |
+| **Resource Usage** | Low (read from disk) | High (persistent server processes) | Medium (API calls) |
+| **Privacy** | 100% local | 100% local | Requires external LLM APIs |
+| **Semantic Search** | Local Ollama or keywords | ❌ | OpenAI/Anthropic embeddings |
+| **Call Graph** | Bidirectional with alias resolution | LSP-based | ❌ |
+
+**When to choose CICADA:** You want local-first operation with rich git context (PR attribution, blame, function evolution tracking) and efficient token usage.
+
+**When to choose Serena:** You need code editing capabilities through LSP and can accept higher resource usage.
+
+**When to choose Codicil:** You have an Elixir project and prefer LLM-powered semantic summaries (Elixir-only).
+
+---
+
 ## Install
 
 ```bash
@@ -69,30 +76,26 @@ uv tool install cicada-mcp
 cicada claude   # or: cicada cursor, cicada vs, cicada gemini, cicada codex, cicada opencode, cicada zed
 ```
 
-<div align="left">
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=cicada&config=eyJjb21tYW5kIjoidXZ4IGNpY2FkYS1tY3AgLiJ9)
+
+<details>
 <summary><strong>Try before installing permanently</strong></summary>
+
 Runs CICADA on demand (worse indexing quality, but zero install).
 
 ```bash
 uvx cicada-mcp claude   # or cursor, vs
 ```
-or
 
-```
+Or use your editor's built-in MCP management:
+
+```bash
 claude mcp add cicada uvx cicada-mcp
-```   
-```
 gemini mcp add cicada uvx cicada-mcp
-```  
-```
 codex mcp add cicada uvx cicada-mcp
-```  
-
-
-Uses your editor's built-in MCP management to install CICADA.
+```
 
 </details>
-</div>
 
 **Available commands after installation:**
 - `cicada [claude|cursor|vs|gemini|codex|opencode|zed]` - One-command interactive setup per project
@@ -168,7 +171,7 @@ Unlocks questions like "Which PR introduced line 42?" or "What did reviewers say
 
 Enable automatic reindexing when files change by starting the MCP server with the `--watch` flag:
 
-** .mcp.json**
+**.mcp.json**
 ```json
 {
   "mcpServers": {
@@ -430,9 +433,6 @@ All tools return structured Markdown/JSON snippets (signatures, call sites, PR m
 
 ---
 
-
----
-
 ## Documentation
 
 - **[Codebook](codebook/README.md)** – Complete feature reference and user guides
@@ -502,6 +502,6 @@ MIT – see [LICENSE](LICENSE).
 
 **Stop wasting context on blind searches. Give your AI CICADA.**
 
-[Get Started](#quick-install) · [Report Issues](https://github.com/wende/cicada/issues)
+[Get Started](#install) · [Report Issues](https://github.com/wende/cicada/issues)
 
 </div>
