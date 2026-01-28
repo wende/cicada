@@ -14,14 +14,14 @@ import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from cicada_core import BaseIndexer
-from cicada_core.utils.hash_utils import (
+from cicada.core import (
+    BaseIndexer,
     compute_hashes_for_files,
     detect_file_changes,
+    get_hashes_path,
     load_file_hashes,
     save_file_hashes,
 )
-from cicada_core.utils.storage import get_hashes_path
 
 from cicada_scip.converter import SCIPConverter
 from cicada_scip.reader import SCIPReader

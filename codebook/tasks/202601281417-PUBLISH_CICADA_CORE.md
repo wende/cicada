@@ -1,106 +1,78 @@
 ---
 reviewed:
-- .github/workflows/publish-pypi.yml:80eeec601bed5289e99a8e2f08545307bc764ecb
+- .github/workflows/publish-pypi.yml
+- cicada/core/__init__.py
+- cicada/core/base_indexer.py
+- cicada/core/hash_utils.py
+- cicada/core/storage.py
+- packages/cicada-scip/pyproject.toml
+- packages/cicada-scip/src/cicada_scip/indexer.py
+- packages/cicada-scip/src/cicada_scip/formatter.py
 ---
 
-# Publish cicada-core to PyPI
+# Consolidate cicada-core into cicada-mcp
 
 This document describes the changes made to fix the `ModuleNotFoundError` when installing `cicada-mcp` from PyPI.
 
 ## Problem
 
-The `cicada-core` package was declared as a dependency in `pyproject.toml` but never published to PyPI. When users installed `cicada-mcp` from PyPI:
+The `cicada-core` package was declared as a dependency but:
+1. Was never published to PyPI
+2. The name `cicada-core` is already taken on PyPI by another project (a CI/CD tool)
 
-```bash
-pip install cicada-mcp
-# or
-uv tool install cicada-mcp
-```
-
-They would get:
-
+When users installed `cicada-mcp` from PyPI, they would get:
 ```
 ModuleNotFoundError: No module named 'cicada_core'
 ```
 
-This happened because:
-1. `cicada-mcp` depends on `cicada-core` (declared in `pyproject.toml`)
-2. `cicada-core` is a workspace package under `packages/cicada-core/`
-3. UV's workspace feature resolves it locally during development
-4. But the publish workflow only published `cicada-mcp`, not `cicada-core`
-5. PyPI couldn't find `cicada-core` since it was never published
-
 ## Solution
 
-Updated `.github/workflows/publish-pypi.yml` to publish `cicada-core` before `cicada-mcp`.
+Instead of publishing a separate `cicada-core` package, we consolidated all shared code into `cicada-mcp` directly:
 
-### Changes to Publish Workflow
+1. **Created `cicada/core/` module** with all shared code:
+   - `base_indexer.py` - BaseIndexer ABC
+   - `hash_utils.py` - File hashing for incremental indexing
+   - `storage.py` - Storage path utilities
+   - `__init__.py` - Exports all utilities
 
-All three publish jobs were updated:
-- `test-publish` (TestPyPI)
-- `publish` (PyPI after TestPyPI)
-- `publish-direct` (PyPI direct)
+2. **Updated `cicada-scip`** to import from `cicada.core` instead of `cicada_core`
 
-Each job now:
+3. **Updated `cicada-scip` dependency** from `cicada-core>=0.1.0` to `cicada-mcp>=0.6.0`
 
-1. **Builds cicada-core first**
-   ```yaml
-   - name: Build cicada-core
-     run: |
-       cd packages/cicada-core
-       uv build
-   ```
+4. **Removed `cicada-core`** from workspace and publish workflow
 
-2. **Publishes cicada-core**
-   ```yaml
-   - name: Publish cicada-core to PyPI
-     run: |
-       cd packages/cicada-core
-       uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-core version may already exist"
-   ```
-
-3. **Waits for availability** (30 seconds for PyPI propagation)
-
-4. **Then builds and publishes cicada-mcp** (which can now resolve cicada-core from PyPI)
-
-### Package Structure (unchanged)
+### New Package Structure
 
 ```
-packages/
-└── cicada-core/
-    ├── pyproject.toml
-    └── src/cicada_core/
-        ├── __init__.py
-        ├── base_indexer.py          # BaseIndexer ABC
-        ├── formatter_interface.py   # BaseLanguageFormatter ABC
-        └── utils/
-            ├── __init__.py
-            ├── hash_utils.py        # File hashing utilities
-            └── storage.py           # Storage path utilities
+cicada/
+├── core/
+│   ├── __init__.py          # Exports all shared utilities
+│   ├── base_indexer.py      # BaseIndexer ABC
+│   ├── hash_utils.py        # File hashing utilities
+│   └── storage.py           # Storage path utilities
+└── languages/
+    └── formatter_interface.py  # BaseLanguageFormatter (canonical source)
 ```
 
 ## Files Changed
 
-- `.github/workflows/publish-pypi.yml` - Added cicada-core build and publish steps to all jobs
-
-## Related
-
-- PR #225 (temporary fix by inlining BaseLanguageFormatter) - can be closed
-- `codebook/tasks/202512262109-MONOREPO_SPLIT.md` - Original monorepo split design
+- `cicada/core/` - New module with consolidated shared code
+- `cicada/languages/formatter_interface.py` - Updated comment
+- `packages/cicada-scip/pyproject.toml` - Depends on cicada-mcp instead of cicada-core
+- `packages/cicada-scip/src/cicada_scip/indexer.py` - Import from cicada.core
+- `packages/cicada-scip/src/cicada_scip/formatter.py` - Import from cicada.core
+- `pyproject.toml` - Removed cicada-core from workspace
+- `.github/workflows/publish-pypi.yml` - Removed cicada-core publishing
 
 ## Verification
 
-After the next release tag (e.g., `v0.6.1`), verify:
+After the next release:
 
 ```bash
-# cicada-mcp works standalone (BaseLanguageFormatter is inlined)
+# cicada-mcp works standalone
 pip install cicada-mcp
-python -c "from cicada.languages.formatter_interface import BaseLanguageFormatter; print('OK')"
+python -c "from cicada.core import BaseIndexer, BaseLanguageFormatter; print('OK')"
 
-# cicada-core is available on PyPI for cicada-scip users
-pip install cicada-core
-python -c "from cicada_core import BaseLanguageFormatter; print('OK')"
-
-# cicada-scip can be installed (depends on cicada-core from PyPI)
+# cicada-scip can be installed (now depends on cicada-mcp)
 pip install cicada-mcp[scip]
 ```
