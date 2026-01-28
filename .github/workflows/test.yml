@@ -25,6 +25,12 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-extras
 
+    - name: Generate version hash stub
+      run: |
+        echo '"""Auto-generated stub for type checking."""' > cicada/_version_hash.py
+        echo 'GIT_TAG = "dev"' >> cicada/_version_hash.py
+        echo 'GIT_HASH = "000000"' >> cicada/_version_hash.py
+
     - name: Check formatting with black
       run: uv run black --check cicada tests
 
