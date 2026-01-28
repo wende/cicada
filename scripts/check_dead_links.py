@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import sys
 
 # Regex to find markdown links: [text](url)
-MARKDOWN_LINK_REGEX = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+MARKDOWN_LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
 
 def find_markdown_files(root_dir: Path) -> List[Path]:
@@ -31,7 +31,7 @@ def extract_links(file_path: Path) -> List[Tuple[str, str, int]]:
     """
     links = []
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
                 for match in MARKDOWN_LINK_REGEX.finditer(line):
                     text = match.group(1)
@@ -46,12 +46,12 @@ def extract_links(file_path: Path) -> List[Tuple[str, str, int]]:
 def is_external_url(url: str) -> bool:
     """Check if a URL is external (http/https)."""
     parsed = urlparse(url)
-    return parsed.scheme in ('http', 'https')
+    return parsed.scheme in ("http", "https")
 
 
 def is_anchor_link(url: str) -> bool:
     """Check if a URL is an anchor link (#section)."""
-    return url.startswith('#')
+    return url.startswith("#")
 
 
 def resolve_relative_path(source_file: Path, relative_url: str, repo_root: Path) -> Path:
@@ -66,7 +66,7 @@ def resolve_relative_path(source_file: Path, relative_url: str, repo_root: Path)
         Resolved absolute path
     """
     # Remove anchor if present
-    url_without_anchor = relative_url.split('#')[0]
+    url_without_anchor = relative_url.split("#")[0]
 
     if not url_without_anchor:
         # Just an anchor, no file path
@@ -86,7 +86,7 @@ def check_local_link(source_file: Path, url: str, repo_root: Path) -> Tuple[bool
         (is_valid, error_message)
     """
     # Remove anchor
-    url_without_anchor = url.split('#')[0]
+    url_without_anchor = url.split("#")[0]
 
     if not url_without_anchor:
         # Just an anchor - we'll consider this valid
@@ -106,7 +106,9 @@ def check_local_link(source_file: Path, url: str, repo_root: Path) -> Tuple[bool
     return True, ""
 
 
-def check_dead_links(repo_root: Path, check_external: bool = False) -> Dict[str, List[Tuple[str, str, int, str]]]:
+def check_dead_links(
+    repo_root: Path, check_external: bool = False
+) -> Dict[str, List[Tuple[str, str, int, str]]]:
     """Check for dead links in all markdown files.
 
     Returns:
@@ -126,7 +128,7 @@ def check_dead_links(repo_root: Path, check_external: bool = False) -> Dict[str,
     for md_file in md_files:
         # Skip files in certain directories
         relative_path = md_file.relative_to(repo_root)
-        if any(part.startswith('.') for part in relative_path.parts):
+        if any(part.startswith(".") for part in relative_path.parts):
             # Skip hidden directories like .git, .claude
             continue
 
@@ -151,9 +153,7 @@ def check_dead_links(repo_root: Path, check_external: bool = False) -> Dict[str,
                 if str(relative_path) not in broken_links:
                     broken_links[str(relative_path)] = []
 
-                broken_links[str(relative_path)].append(
-                    (link_text, link_url, line_num, error)
-                )
+                broken_links[str(relative_path)].append((link_text, link_url, line_num, error))
 
     return broken_links
 
@@ -161,9 +161,7 @@ def check_dead_links(repo_root: Path, check_external: bool = False) -> Dict[str,
 def main():
     parser = argparse.ArgumentParser(description="Check for dead links in markdown files")
     parser.add_argument(
-        "--check-external",
-        action="store_true",
-        help="Also check external HTTP/HTTPS links (slow)"
+        "--check-external", action="store_true", help="Also check external HTTP/HTTPS links (slow)"
     )
     args = parser.parse_args()
 

@@ -12,25 +12,25 @@ import sys
 
 # Map of simple names to actual files in codebook/
 CODEBOOK_FILES = {
-    'AST_INDEXING.md': '../AST_INDEXING.md',
-    'INCREMENTAL_INDEXING.md': '../INCREMENTAL_INDEXING.md',
-    'AUTOMATIC_LANGUAGE_DETECTION.md': '../AUTOMATIC_LANGUAGE_DETECTION.md',
-    'STRING_INDEXING.md': '../STRING_INDEXING.md',
-    'KEYWORD_SEARCH.md': '../KEYWORD_SEARCH.md',
-    'KEYWORD_INDEXING.md': '../KEYWORD_INDEXING.md',
-    'LANGUAGE_SUPPORT.md': '../LANGUAGE_SUPPORT.md',
-    'CODE_ANALYSIS.md': '../CODE_ANALYSIS.md',
-    'GIT_HISTORY.md': '../GIT_HISTORY.md',
-    'MCP_TOOLS.md': '../MCP_TOOLS.md',
-    'CLI_TOOLS.md': '../CLI_TOOLS.md',
-    'AI_AGENTS.md': '../AI_AGENTS.md',
-    'WORKFLOWS.md': '../WORKFLOWS.md',
-    'INSTALLATION.md': '../INSTALLATION.md',
-    'ARCHITECTURE.md': '../ARCHITECTURE.md',
-    'PERFORMANCE.md': '../PERFORMANCE.md',
-    'MCP-Tools-Reference.md': '../MCP_TOOLS.md',  # Rename
-    'PR_INDEXING.md': '202511192143-PR_INDEXING.md',  # It's in the same dir
-    'EXTENDED_GIT_HISTORY.md': '202511052055-EXTENDED_GIT_HISTORY.md',  # It's in the same dir
+    "AST_INDEXING.md": "../AST_INDEXING.md",
+    "INCREMENTAL_INDEXING.md": "../INCREMENTAL_INDEXING.md",
+    "AUTOMATIC_LANGUAGE_DETECTION.md": "../AUTOMATIC_LANGUAGE_DETECTION.md",
+    "STRING_INDEXING.md": "../STRING_INDEXING.md",
+    "KEYWORD_SEARCH.md": "../KEYWORD_SEARCH.md",
+    "KEYWORD_INDEXING.md": "../KEYWORD_INDEXING.md",
+    "LANGUAGE_SUPPORT.md": "../LANGUAGE_SUPPORT.md",
+    "CODE_ANALYSIS.md": "../CODE_ANALYSIS.md",
+    "GIT_HISTORY.md": "../GIT_HISTORY.md",
+    "MCP_TOOLS.md": "../MCP_TOOLS.md",
+    "CLI_TOOLS.md": "../CLI_TOOLS.md",
+    "AI_AGENTS.md": "../AI_AGENTS.md",
+    "WORKFLOWS.md": "../WORKFLOWS.md",
+    "INSTALLATION.md": "../INSTALLATION.md",
+    "ARCHITECTURE.md": "../ARCHITECTURE.md",
+    "PERFORMANCE.md": "../PERFORMANCE.md",
+    "MCP-Tools-Reference.md": "../MCP_TOOLS.md",  # Rename
+    "PR_INDEXING.md": "202511192143-PR_INDEXING.md",  # It's in the same dir
+    "EXTENDED_GIT_HISTORY.md": "202511052055-EXTENDED_GIT_HISTORY.md",  # It's in the same dir
 }
 
 
@@ -41,7 +41,7 @@ def fix_links_in_file(file_path: Path) -> int:
         Number of fixes made
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
         print(f"Error reading {file_path}: {e}", file=sys.stderr)
@@ -52,25 +52,25 @@ def fix_links_in_file(file_path: Path) -> int:
 
     for simple_name, correct_path in CODEBOOK_FILES.items():
         # Match [text](SIMPLE_NAME) or [text](SIMPLE_NAME#anchor)
-        pattern = rf'\]\(({re.escape(simple_name)}(?:#[^)]*)?)\)'
+        pattern = rf"\]\(({re.escape(simple_name)}(?:#[^)]*)?)\)"
 
         def replace_func(match):
             nonlocal fixes
             url = match.group(1)
             # Preserve anchor if present
-            if '#' in url:
-                anchor = url.split('#', 1)[1]
+            if "#" in url:
+                anchor = url.split("#", 1)[1]
                 new_url = f"{correct_path}#{anchor}"
             else:
                 new_url = correct_path
             fixes += 1
-            return f']({new_url})'
+            return f"]({new_url})"
 
         content = re.sub(pattern, replace_func, content)
 
     if content != original_content:
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             print(f"Fixed {fixes} link(s) in {file_path}")
             return fixes
@@ -103,13 +103,13 @@ def main():
     cicada_agent_file = codebook_dir / "tasks" / "202512242110-CICADA_AGENT.md"
     if cicada_agent_file.exists():
         try:
-            with open(cicada_agent_file, 'r', encoding='utf-8') as f:
+            with open(cicada_agent_file, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Fix placeholder link [Link to full PR](url)
-            if '](url)' in content:
-                content = content.replace('](url)', '](https://github.com/wende/cicada/pull/XXX)')
-                with open(cicada_agent_file, 'w', encoding='utf-8') as f:
+            if "](url)" in content:
+                content = content.replace("](url)", "](https://github.com/wende/cicada/pull/XXX)")
+                with open(cicada_agent_file, "w", encoding="utf-8") as f:
                     f.write(content)
                 print(f"Fixed placeholder link in {cicada_agent_file}")
                 total_fixes += 1
