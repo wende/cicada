@@ -462,7 +462,7 @@ class IndexManager:
 
     def _get_newest_file_mtime(self, modules_to_check: list, repo_path: Path) -> float:
         """Get the newest modification time among sampled files."""
-        newest_mtime = 0
+        newest_mtime = 0.0
         for module_data in modules_to_check:
             file_path = repo_path / module_data["file"]
             if file_path.exists():

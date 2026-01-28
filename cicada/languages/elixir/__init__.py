@@ -2,4 +2,4 @@
 
 from cicada.languages.elixir.parser import ElixirParser
 
-__all__ = ["ElixirParser", "dependency_analyzer", "extractors", "format"]
+__all__ = ["ElixirParser"]

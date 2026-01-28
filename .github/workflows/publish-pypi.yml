@@ -101,10 +101,30 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      - name: Build package
+      # Build and publish cicada-core first (cicada-mcp depends on it)
+      - name: Build cicada-core
+        run: |
+          cd packages/cicada-core
+          uv build
+
+      - name: Publish cicada-core to TestPyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          cd packages/cicada-core
+          uv publish \
+            --publish-url https://test.pypi.org/legacy/ \
+            --token $UV_PUBLISH_TOKEN || echo "cicada-core may already exist on TestPyPI"
+
+      # Wait for cicada-core to be available on TestPyPI
+      - name: Wait for cicada-core availability
+        run: sleep 30
+
+      # Build and publish cicada-mcp
+      - name: Build cicada-mcp
         run: uv build
 
-      - name: Publish to TestPyPI
+      - name: Publish cicada-mcp to TestPyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
@@ -177,10 +197,28 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      - name: Build package
+      # Build and publish cicada-core first (cicada-mcp depends on it)
+      - name: Build cicada-core
+        run: |
+          cd packages/cicada-core
+          uv build
+
+      - name: Publish cicada-core to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          cd packages/cicada-core
+          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-core version may already exist on PyPI"
+
+      # Wait for cicada-core to be available on PyPI
+      - name: Wait for cicada-core availability
+        run: sleep 30
+
+      # Build and publish cicada-mcp
+      - name: Build cicada-mcp
         run: uv build
 
-      - name: Publish to PyPI
+      - name: Publish cicada-mcp to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
@@ -251,10 +289,28 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      - name: Build package
+      # Build and publish cicada-core first (cicada-mcp depends on it)
+      - name: Build cicada-core
+        run: |
+          cd packages/cicada-core
+          uv build
+
+      - name: Publish cicada-core to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          cd packages/cicada-core
+          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-core version may already exist on PyPI"
+
+      # Wait for cicada-core to be available on PyPI
+      - name: Wait for cicada-core availability
+        run: sleep 30
+
+      # Build and publish cicada-mcp
+      - name: Build cicada-mcp
         run: uv build
 
-      - name: Publish to PyPI
+      - name: Publish cicada-mcp to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
