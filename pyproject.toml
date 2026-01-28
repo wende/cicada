@@ -51,7 +51,6 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "cicada-core",
     # cicada-scip is optional - see [project.optional-dependencies]
     "mcp>=0.1.0",
     "pyyaml>=6.0",

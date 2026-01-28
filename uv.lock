@@ -313,7 +313,6 @@ name = "cicada-mcp"
 version = "0.6.0"
 source = { editable = "." }
 dependencies = [
-    { name = "cicada-core" },
     { name = "cicada-vector" },
     { name = "fastapi" },
     { name = "gitpython" },
@@ -366,7 +365,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cicada-core", editable = "packages/cicada-core" },
     { name = "cicada-scip", marker = "extra == 'all'", editable = "packages/cicada-scip" },
     { name = "cicada-scip", marker = "extra == 'dev'", editable = "packages/cicada-scip" },
     { name = "cicada-scip", marker = "extra == 'scip'", editable = "packages/cicada-scip" },
