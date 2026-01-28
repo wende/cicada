@@ -93,9 +93,14 @@ packages/
 After the next release tag (e.g., `v0.6.1`), verify:
 
 ```bash
-# Should succeed without errors
+# cicada-mcp works standalone (BaseLanguageFormatter is inlined)
 pip install cicada-mcp
+python -c "from cicada.languages.formatter_interface import BaseLanguageFormatter; print('OK')"
 
-# Should import successfully
+# cicada-core is available on PyPI for cicada-scip users
+pip install cicada-core
 python -c "from cicada_core import BaseLanguageFormatter; print('OK')"
+
+# cicada-scip can be installed (depends on cicada-core from PyPI)
+pip install cicada-mcp[scip]
 ```

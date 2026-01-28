@@ -118,7 +118,16 @@ jobs:
 
       # Wait for cicada-core to be available on TestPyPI
       - name: Wait for cicada-core availability
-        run: sleep 30
+        run: |
+          echo "Waiting for cicada-core to be available on TestPyPI..."
+          for i in {1..12}; do
+            if pip index versions cicada-core --index-url https://test.pypi.org/simple/ 2>/dev/null; then
+              echo "cicada-core is available!"
+              break
+            fi
+            echo "Attempt $i/12: Not yet available, waiting 10s..."
+            sleep 10
+          done
 
       # Build and publish cicada-mcp
       - name: Build cicada-mcp
@@ -212,7 +221,16 @@ jobs:
 
       # Wait for cicada-core to be available on PyPI
       - name: Wait for cicada-core availability
-        run: sleep 30
+        run: |
+          echo "Waiting for cicada-core to be available on PyPI..."
+          for i in {1..12}; do
+            if pip index versions cicada-core 2>/dev/null; then
+              echo "cicada-core is available!"
+              break
+            fi
+            echo "Attempt $i/12: Not yet available, waiting 10s..."
+            sleep 10
+          done
 
       # Build and publish cicada-mcp
       - name: Build cicada-mcp
@@ -304,7 +322,16 @@ jobs:
 
       # Wait for cicada-core to be available on PyPI
       - name: Wait for cicada-core availability
-        run: sleep 30
+        run: |
+          echo "Waiting for cicada-core to be available on PyPI..."
+          for i in {1..12}; do
+            if pip index versions cicada-core 2>/dev/null; then
+              echo "cicada-core is available!"
+              break
+            fi
+            echo "Attempt $i/12: Not yet available, waiting 10s..."
+            sleep 10
+          done
 
       # Build and publish cicada-mcp
       - name: Build cicada-mcp
