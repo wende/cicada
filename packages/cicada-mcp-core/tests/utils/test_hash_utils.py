@@ -2,14 +2,14 @@
 # This test file was duplicated from the main cicada tests.
 # Once these tests pass independently, the originals can be cleaned up.
 """
-Tests for cicada_core.utils.hash_utils
+Tests for cicada_mcp_core.utils.hash_utils
 """
 
 import json
 
 import pytest
 
-from cicada_core.utils.hash_utils import (
+from cicada_mcp_core.utils.hash_utils import (
     compute_file_hash,
     compute_hashes_for_files,
     detect_file_changes,
@@ -433,7 +433,7 @@ class TestDetectFileChanges:
 
         # Mock compute_file_hash to raise an error
         with mock.patch(
-            "cicada_core.utils.hash_utils.compute_file_hash", side_effect=OSError("Read error")
+            "cicada_mcp_core.utils.hash_utils.compute_file_hash", side_effect=OSError("Read error")
         ):
             new_files, modified_files, deleted_files = detect_file_changes(
                 current_files, old_hashes, str(tmp_path)

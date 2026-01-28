@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 # Workspace configuration for monorepo
 [tool.uv.workspace]
-members = ["packages/cicada-core", "packages/cicada-scip"]
+members = ["packages/cicada-mcp-core", "packages/cicada-scip"]
 
 [tool.uv.sources]
-cicada-core = { workspace = true }
+cicada-mcp-core = { workspace = true }
 cicada-scip = { workspace = true }
 cicada-vector = { git = "https://github.com/wende/cicada-vector" }
 

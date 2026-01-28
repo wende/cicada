@@ -3,14 +3,14 @@
 # Only includes tests for functions available in cicada-core's storage module.
 # Once these tests pass independently, the originals can be cleaned up.
 """
-Tests for cicada_core.utils.storage
+Tests for cicada_mcp_core.utils.storage
 """
 
 from pathlib import Path
 
 import pytest
 
-from cicada_core.utils.storage import (
+from cicada_mcp_core.utils.storage import (
     create_storage_dir,
     get_config_path,
     get_hashes_path,

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cicada-core"
+name = "cicada-mcp-core"
 version = "0.1.0"
 description = "Core utilities and interfaces for Cicada code intelligence"
 readme = "README.md"
@@ -24,7 +24,7 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cicada_core"]
+packages = ["src/cicada_mcp_core"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/cicada_core"]
+include = ["src/cicada_mcp_core"]

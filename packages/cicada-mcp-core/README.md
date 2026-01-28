@@ -1,18 +1,18 @@
-# cicada-core
+# cicada-mcp-core
 
 Core utilities and interfaces for Cicada code intelligence packages.
 
 ## Installation
 
 ```bash
-pip install cicada-core
+pip install cicada-mcp-core
 ```
 
 ## Usage
 
 ```python
-from cicada_core import BaseIndexer
-from cicada_core.utils import get_storage_dir, compute_file_hash
+from cicada_mcp_core import BaseIndexer
+from cicada_mcp_core.utils import get_storage_dir, compute_file_hash
 ```
 
 ## Components

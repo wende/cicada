@@ -2,7 +2,7 @@
 # This test file was duplicated from the main cicada tests.
 # Once these tests pass independently, the originals can be cleaned up.
 """
-Tests for cicada_core.BaseIndexer
+Tests for cicada_mcp_core.BaseIndexer
 
 Tests cover the concrete methods of BaseIndexer and verify the interface contract.
 """
@@ -10,7 +10,7 @@ Tests cover the concrete methods of BaseIndexer and verify the interface contrac
 import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from cicada_core import BaseIndexer
+from cicada_mcp_core import BaseIndexer
 
 
 # ============================================================================

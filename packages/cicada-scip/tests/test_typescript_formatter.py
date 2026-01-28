@@ -9,7 +9,7 @@ conventions (parentheses notation, not Elixir's /arity notation).
 
 import pytest
 
-from cicada_core import BaseLanguageFormatter
+from cicada_mcp_core import BaseLanguageFormatter
 from cicada_scip.reader import SCIPReader
 from cicada_scip.converter import SCIPConverter
 

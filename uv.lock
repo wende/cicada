@@ -9,8 +9,8 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "cicada-core",
     "cicada-mcp",
+    "cicada-mcp-core",
     "cicada-scip",
 ]
 
@@ -289,26 +289,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cicada-core"
-version = "0.1.0"
-source = { editable = "packages/cicada-core" }
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-]
-yaml = [
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pyyaml", marker = "extra == 'yaml'", specifier = ">=6.0" },
-]
-provides-extras = ["yaml", "dev"]
-
-[[package]]
 name = "cicada-mcp"
 version = "0.6.0"
 source = { editable = "." }
@@ -407,11 +387,31 @@ dev = [
 ]
 
 [[package]]
+name = "cicada-mcp-core"
+version = "0.1.0"
+source = { editable = "packages/cicada-mcp-core" }
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+yaml = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pyyaml", marker = "extra == 'yaml'", specifier = ">=6.0" },
+]
+provides-extras = ["yaml", "dev"]
+
+[[package]]
 name = "cicada-scip"
 version = "0.1.0"
 source = { editable = "packages/cicada-scip" }
 dependencies = [
-    { name = "cicada-core" },
+    { name = "cicada-mcp-core" },
     { name = "protobuf" },
 ]
 
@@ -422,7 +422,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cicada-core", editable = "packages/cicada-core" },
+    { name = "cicada-mcp-core", editable = "packages/cicada-mcp-core" },
     { name = "protobuf", specifier = ">=4.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
 ]

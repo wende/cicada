@@ -6,7 +6,7 @@ common formatting conventions. Both Python and TypeScript use () notation
 for function identifiers, regardless of arity.
 """
 
-from cicada_core import BaseLanguageFormatter
+from cicada_mcp_core import BaseLanguageFormatter
 
 
 class SCIPFormatter(BaseLanguageFormatter):

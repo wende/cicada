@@ -8,8 +8,8 @@ This package provides:
 - Hash utilities: File hashing for incremental indexing
 """
 
-from cicada_core.base_indexer import BaseIndexer
-from cicada_core.formatter_interface import BaseLanguageFormatter
+from cicada_mcp_core.base_indexer import BaseIndexer
+from cicada_mcp_core.formatter_interface import BaseLanguageFormatter
 
 __version__ = "0.1.0"
 __all__ = ["BaseIndexer", "BaseLanguageFormatter"]

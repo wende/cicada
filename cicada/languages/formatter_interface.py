@@ -4,9 +4,9 @@ Formatter interface for language-specific formatting.
 Each language implementation should provide its own formatter
 that implements these methods.
 
-Note: This class is inlined here (rather than imported from cicada-core) so that
-cicada-mcp can be installed standalone without requiring cicada-core. The canonical
-source is packages/cicada-core/src/cicada_core/formatter_interface.py - keep both
+Note: This class is inlined here (rather than imported from cicada-mcp-core) so that
+cicada-mcp can be installed standalone without requiring cicada-mcp-core. The canonical
+source is packages/cicada-mcp-core/src/cicada_mcp_core/formatter_interface.py - keep both
 in sync if changes are needed.
 """
 

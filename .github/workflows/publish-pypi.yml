@@ -101,28 +101,28 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      # Build and publish cicada-core first (cicada-mcp depends on it)
-      - name: Build cicada-core
+      # Build and publish cicada-mcp-core first (cicada-mcp depends on it)
+      - name: Build cicada-mcp-core
         run: |
-          cd packages/cicada-core
+          cd packages/cicada-mcp-core
           uv build
 
-      - name: Publish cicada-core to TestPyPI
+      - name: Publish cicada-mcp-core to TestPyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
         run: |
-          cd packages/cicada-core
+          cd packages/cicada-mcp-core
           uv publish \
             --publish-url https://test.pypi.org/legacy/ \
-            --token $UV_PUBLISH_TOKEN || echo "cicada-core may already exist on TestPyPI"
+            --token $UV_PUBLISH_TOKEN || echo "cicada-mcp-core may already exist on TestPyPI"
 
-      # Wait for cicada-core to be available on TestPyPI
-      - name: Wait for cicada-core availability
+      # Wait for cicada-mcp-core to be available on TestPyPI
+      - name: Wait for cicada-mcp-core availability
         run: |
-          echo "Waiting for cicada-core to be available on TestPyPI..."
+          echo "Waiting for cicada-mcp-core to be available on TestPyPI..."
           for i in {1..12}; do
-            if pip index versions cicada-core --index-url https://test.pypi.org/simple/ 2>/dev/null; then
-              echo "cicada-core is available!"
+            if pip index versions cicada-mcp-core --index-url https://test.pypi.org/simple/ 2>/dev/null; then
+              echo "cicada-mcp-core is available!"
               break
             fi
             echo "Attempt $i/12: Not yet available, waiting 10s..."
@@ -206,26 +206,26 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      # Build and publish cicada-core first (cicada-mcp depends on it)
-      - name: Build cicada-core
+      # Build and publish cicada-mcp-core first (cicada-mcp depends on it)
+      - name: Build cicada-mcp-core
         run: |
-          cd packages/cicada-core
+          cd packages/cicada-mcp-core
           uv build
 
-      - name: Publish cicada-core to PyPI
+      - name: Publish cicada-mcp-core to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          cd packages/cicada-core
-          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-core version may already exist on PyPI"
+          cd packages/cicada-mcp-core
+          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-mcp-core version may already exist on PyPI"
 
-      # Wait for cicada-core to be available on PyPI
-      - name: Wait for cicada-core availability
+      # Wait for cicada-mcp-core to be available on PyPI
+      - name: Wait for cicada-mcp-core availability
         run: |
-          echo "Waiting for cicada-core to be available on PyPI..."
+          echo "Waiting for cicada-mcp-core to be available on PyPI..."
           for i in {1..12}; do
-            if pip index versions cicada-core 2>/dev/null; then
-              echo "cicada-core is available!"
+            if pip index versions cicada-mcp-core 2>/dev/null; then
+              echo "cicada-mcp-core is available!"
               break
             fi
             echo "Attempt $i/12: Not yet available, waiting 10s..."
@@ -307,26 +307,26 @@ jobs:
           "
           cat cicada/_version_hash.py
 
-      # Build and publish cicada-core first (cicada-mcp depends on it)
-      - name: Build cicada-core
+      # Build and publish cicada-mcp-core first (cicada-mcp depends on it)
+      - name: Build cicada-mcp-core
         run: |
-          cd packages/cicada-core
+          cd packages/cicada-mcp-core
           uv build
 
-      - name: Publish cicada-core to PyPI
+      - name: Publish cicada-mcp-core to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          cd packages/cicada-core
-          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-core version may already exist on PyPI"
+          cd packages/cicada-mcp-core
+          uv publish --token $UV_PUBLISH_TOKEN || echo "cicada-mcp-core version may already exist on PyPI"
 
-      # Wait for cicada-core to be available on PyPI
-      - name: Wait for cicada-core availability
+      # Wait for cicada-mcp-core to be available on PyPI
+      - name: Wait for cicada-mcp-core availability
         run: |
-          echo "Waiting for cicada-core to be available on PyPI..."
+          echo "Waiting for cicada-mcp-core to be available on PyPI..."
           for i in {1..12}; do
-            if pip index versions cicada-core 2>/dev/null; then
-              echo "cicada-core is available!"
+            if pip index versions cicada-mcp-core 2>/dev/null; then
+              echo "cicada-mcp-core is available!"
               break
             fi
             echo "Attempt $i/12: Not yet available, waiting 10s..."

@@ -5,7 +5,7 @@ This document describes the changes made to split cicada into a monorepo structu
 ## Overview
 
 The cicada project has been restructured into a monorepo with two sub-packages:
-- **cicada-core**: Base classes and utilities shared across all languages
+- **cicada-mcp-core**: Base classes and utilities shared across all languages
 - **cicada-scip**: SCIP-based language indexing (Python, TypeScript, Go, Rust, etc.)
 
 Tree-sitter based languages (Elixir, Erlang) now work without requiring cicada-scip.
@@ -14,9 +14,9 @@ Tree-sitter based languages (Elixir, Erlang) now work without requiring cicada-s
 
 ```
 packages/
-├── cicada-core/
+├── cicada-mcp-core/
 │   ├── pyproject.toml
-│   ├── src/cicada_core/
+│   ├── src/cicada_mcp_core/
 │   │   ├── __init__.py
 │   │   ├── base_indexer.py          # BaseIndexer ABC
 │   │   ├── formatter_interface.py   # BaseLanguageFormatter ABC
@@ -152,7 +152,7 @@ uv sync --dev
 ```toml
 [project]
 dependencies = [
-    "cicada-core",
+    "cicada-mcp-core",
     # cicada-scip is optional - see [project.optional-dependencies]
     "mcp>=0.1.0",
     # ... other deps (protobuf removed - it's a dependency of cicada-scip)
@@ -173,10 +173,10 @@ dev = [
 ### UV workspace configuration
 ```toml
 [tool.uv.workspace]
-members = ["packages/cicada-core", "packages/cicada-scip"]
+members = ["packages/cicada-mcp-core", "packages/cicada-scip"]
 
 [tool.uv.sources]
-cicada-core = { workspace = true }
+cicada-mcp-core = { workspace = true }
 cicada-scip = { workspace = true }
 ```
 
@@ -195,8 +195,8 @@ make test
 
 ### Package-specific tests
 ```bash
-# cicada-core (72 tests)
-cd packages/cicada-core && uv run pytest
+# cicada-mcp-core (72 tests)
+cd packages/cicada-mcp-core && uv run pytest
 
 # cicada-scip (158 pass, 111 skipped - skipped tests require full cicada)
 cd packages/cicada-scip && uv run pytest
@@ -228,7 +228,7 @@ print(f"Supported languages: {LanguageRegistry.get_supported_languages()}")
 ## Files Changed
 
 ### New files
-- `packages/cicada-core/` - entire directory
+- `packages/cicada-mcp-core/` - entire directory
 - `packages/cicada-scip/` - entire directory
 - `cicada/languages/scip/scip_pb2.py` - re-export module (was generated, now tracked)
 - `cicada/languages/scip/scip_pb2.pyi` - re-export type stubs
@@ -244,4 +244,4 @@ print(f"Supported languages: {LanguageRegistry.get_supported_languages()}")
 - `cicada/languages/scip/indexer.py` - re-export module
 - `cicada/languages/scip/formatter.py` - re-export module
 - `cicada/languages/scip/language_adapters.py` - re-export module
-- `cicada/languages/formatter_interface.py` - imports from cicada_core
+- `cicada/languages/formatter_interface.py` - imports from cicada_mcp_core
