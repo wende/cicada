@@ -9,6 +9,13 @@ from cicada.languages.formatter_interface import BaseLanguageFormatter
 from cicada.parsing.language_config import LanguageConfig
 
 
+# Languages that require cicada-scip package
+SCIP_LANGUAGES = {
+    "python", "typescript", "javascript", "rust", "go",
+    "java", "scala", "c", "cpp", "ruby", "csharp", "vb", "dart"
+}
+
+
 class LanguageNotSupportedError(Exception):
     """Raised when a requested language is not supported."""
 
@@ -75,6 +82,23 @@ class LanguageRegistry:
         return getattr(module, class_name)
 
     @classmethod
+    def _get_not_supported_message(cls, language: str) -> str:
+        """Generate a helpful error message for unsupported languages."""
+        supported = ", ".join(sorted(cls._languages.keys()))
+        base_msg = f"Language '{language}' is not supported. Supported languages: {supported}"
+
+        # Check if this is a SCIP language that could be enabled
+        from cicada.languages.scip import SCIP_AVAILABLE
+
+        if language in SCIP_LANGUAGES and not SCIP_AVAILABLE:
+            base_msg += (
+                f"\n\nTo enable {language} support, install the cicada-scip package:\n"
+                f"  uv tool install cicada-mcp --with cicada-scip --force"
+            )
+
+        return base_msg
+
+    @classmethod
     def get_parser(cls, language: str) -> BaseParser:
         """
         Get a parser instance for the specified language.
@@ -89,10 +113,7 @@ class LanguageRegistry:
             LanguageNotSupportedError: If language is not registered
         """
         if language not in cls._languages:
-            supported = ", ".join(cls._languages.keys())
-            raise LanguageNotSupportedError(
-                f"Language '{language}' is not supported. Supported languages: {supported}"
-            )
+            raise LanguageNotSupportedError(cls._get_not_supported_message(language))
 
         # Check cache first
         if language in cls._parser_cache:
@@ -120,10 +141,7 @@ class LanguageRegistry:
             LanguageNotSupportedError: If language is not registered
         """
         if language not in cls._languages:
-            supported = ", ".join(cls._languages.keys())
-            raise LanguageNotSupportedError(
-                f"Language '{language}' is not supported. Supported languages: {supported}"
-            )
+            raise LanguageNotSupportedError(cls._get_not_supported_message(language))
 
         # Check cache first
         if language in cls._indexer_cache:
@@ -151,10 +169,7 @@ class LanguageRegistry:
             LanguageNotSupportedError: If language is not registered
         """
         if language not in cls._languages:
-            supported = ", ".join(cls._languages.keys())
-            raise LanguageNotSupportedError(
-                f"Language '{language}' is not supported. Supported languages: {supported}"
-            )
+            raise LanguageNotSupportedError(cls._get_not_supported_message(language))
 
         return cls._languages[language].get("config")
 
@@ -174,10 +189,7 @@ class LanguageRegistry:
             ValueError: If language has no formatter registered
         """
         if language not in cls._languages:
-            supported = ", ".join(cls._languages.keys())
-            raise LanguageNotSupportedError(
-                f"Language '{language}' is not supported. Supported languages: {supported}"
-            )
+            raise LanguageNotSupportedError(cls._get_not_supported_message(language))
 
         formatter_path = cls._languages[language].get("formatter")
         if not formatter_path:
