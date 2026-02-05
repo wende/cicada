@@ -74,7 +74,7 @@ class TestEditorSpecs:
     def test_editor_specs_contains_all_editors(self):
         """Should contain specs for all supported editors"""
         editor_names = {spec.name for spec in EDITOR_SPECS}
-        expected_names = {"claude", "cursor", "vs", "gemini", "codex", "opencode"}
+        expected_names = {"claude", "cursor", "vs", "gemini", "codex", "opencode", "kimi"}
         assert editor_names == expected_names
 
     def test_editor_specs_immutable(self):
@@ -145,6 +145,15 @@ class TestEditorSpecs:
         assert opencode_spec.needs_dir is False
         assert opencode_spec.cli_available is False
 
+    def test_kimi_spec(self):
+        """Should have correct Kimi spec"""
+        kimi_spec = next(s for s in EDITOR_SPECS if s.name == "kimi")
+        assert kimi_spec.cli_help == "Setup Cicada for Kimi Code CLI"
+        assert kimi_spec.config_relpath == Path(".mcp.json")
+        assert kimi_spec.config_key == "mcpServers"
+        assert kimi_spec.needs_dir is False
+        assert kimi_spec.cli_available is False
+
 
 class TestEditorSpecByName:
     """Tests for EDITOR_SPEC_BY_NAME dictionary"""
@@ -163,6 +172,7 @@ class TestEditorSpecByName:
         assert EDITOR_SPEC_BY_NAME["gemini"].name == "gemini"
         assert EDITOR_SPEC_BY_NAME["codex"].name == "codex"
         assert EDITOR_SPEC_BY_NAME["opencode"].name == "opencode"
+        assert EDITOR_SPEC_BY_NAME["kimi"].name == "kimi"
 
 
 class TestCliEditorSpecs:
@@ -172,7 +182,8 @@ class TestCliEditorSpecs:
         """Should exclude editors with cli_available=False"""
         cli_names = {spec.name for spec in CLI_EDITOR_SPECS}
         assert "opencode" not in cli_names
-        assert len(CLI_EDITOR_SPECS) == len(EDITOR_SPECS) - 1
+        assert "kimi" not in cli_names
+        assert len(CLI_EDITOR_SPECS) == len(EDITOR_SPECS) - 2
 
     def test_cli_editor_specs_includes_available(self):
         """Should include all CLI-available editors"""
@@ -204,9 +215,11 @@ class TestEditorPromptOptions:
         assert EDITOR_PROMPT_OPTIONS == expected_labels
 
     def test_editor_prompt_options_excludes_non_cli(self):
-        """Should not include opencode prompt label"""
+        """Should not include opencode or kimi prompt labels"""
         opencode_label = next(s.prompt_label for s in EDITOR_SPECS if s.name == "opencode")
+        kimi_label = next(s.prompt_label for s in EDITOR_SPECS if s.name == "kimi")
         assert opencode_label not in EDITOR_PROMPT_OPTIONS
+        assert kimi_label not in EDITOR_PROMPT_OPTIONS
 
 
 class TestGetEditorSpecs:
@@ -238,7 +251,15 @@ class TestGetEditorSpecs:
 
     def test_get_editor_specs_all_editors(self):
         """Should work with all editor names"""
-        all_names: list[EditorType] = ["claude", "cursor", "vs", "gemini", "codex", "opencode"]
+        all_names: list[EditorType] = [
+            "claude",
+            "cursor",
+            "vs",
+            "gemini",
+            "codex",
+            "opencode",
+            "kimi",
+        ]
         specs = get_editor_specs(all_names)
-        assert len(specs) == 6
+        assert len(specs) == 7
         assert [s.name for s in specs] == all_names

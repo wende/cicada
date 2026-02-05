@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode"]
+EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode", "kimi"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +75,16 @@ EDITOR_SPECS: tuple[EditorSpec, ...] = (
         cli_help="Setup Cicada for OpenCode",
         cli_description="Configure Cicada MCP for OpenCode",
         prompt_label="OpenCode (experimental)",
+        config_relpath=Path(".mcp.json"),
+        config_key="mcpServers",
+        needs_dir=False,
+        cli_available=False,
+    ),
+    EditorSpec(
+        name="kimi",
+        cli_help="Setup Cicada for Kimi Code CLI",
+        cli_description="Configure Cicada MCP for Kimi Code CLI",
+        prompt_label="Kimi Code CLI (Moonshot AI assistant)",
         config_relpath=Path(".mcp.json"),
         config_key="mcpServers",
         needs_dir=False,

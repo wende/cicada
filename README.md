@@ -87,6 +87,9 @@ gemini mcp add cicada uvx cicada-mcp
 ```
 codex mcp add cicada uvx cicada-mcp
 ```  
+```
+kimi mcp add --transport stdio cicada -- cicada-mcp
+```  
 
 
 Uses your editor's built-in MCP management to install CICADA.

@@ -25,6 +25,7 @@ That's it! Cicada is now configured for your editor.
 - **Cursor** - One-click install or automatic via `.mcp.json`
 - **VS Code (Cline)** - Automatic detection of `.mcp.json`
 - **Zed** - Manual configuration required
+- **Kimi Code CLI** - Automatic detection of `.mcp.json`
 
 ---
 
