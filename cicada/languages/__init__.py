@@ -8,11 +8,21 @@ from cicada.languages.base import BaseIndexer, BaseParser
 from cicada.languages.formatter_interface import BaseLanguageFormatter
 from cicada.parsing.language_config import LanguageConfig
 
-
 # Languages that require cicada-scip package
 SCIP_LANGUAGES = {
-    "python", "typescript", "javascript", "rust", "go",
-    "java", "scala", "c", "cpp", "ruby", "csharp", "vb", "dart"
+    "python",
+    "typescript",
+    "javascript",
+    "rust",
+    "go",
+    "java",
+    "scala",
+    "c",
+    "cpp",
+    "ruby",
+    "csharp",
+    "vb",
+    "dart",
 }
 
 
