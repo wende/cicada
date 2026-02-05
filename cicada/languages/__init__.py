@@ -88,13 +88,15 @@ class LanguageRegistry:
         base_msg = f"Language '{language}' is not supported. Supported languages: {supported}"
 
         # Check if this is a SCIP language that could be enabled
-        from cicada.languages.scip import SCIP_AVAILABLE
+        from cicada.languages.scip import SCIP_AVAILABLE, SCIP_IMPORT_ERROR
 
         if language in SCIP_LANGUAGES and not SCIP_AVAILABLE:
             base_msg += (
                 f"\n\nTo enable {language} support, install the cicada-scip package:\n"
                 f"  uv tool install cicada-mcp --with cicada-scip --force"
             )
+            if SCIP_IMPORT_ERROR:
+                base_msg += f"\n\nDiagnostic info: {SCIP_IMPORT_ERROR}"
 
         return base_msg
 

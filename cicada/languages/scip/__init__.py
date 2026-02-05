@@ -12,6 +12,7 @@ language indexers will not be available.
 
 __all__ = []
 SCIP_AVAILABLE = False
+SCIP_IMPORT_ERROR: str | None = None
 
 try:
     # Re-export from new package for backward compatibility
@@ -58,10 +59,11 @@ try:
         "DartFormatter",
         "scip_pb2",
         "SCIP_AVAILABLE",
+        "SCIP_IMPORT_ERROR",
     ]
 
     SCIP_AVAILABLE = True
 
-except ImportError:
-    # cicada_scip not installed - SCIP functionality not available
-    pass
+except ImportError as e:
+    # Capture the error for diagnostic purposes
+    SCIP_IMPORT_ERROR = str(e)
