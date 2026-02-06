@@ -68,6 +68,7 @@ dependencies = [
     "cicada-vector",  # Semantic search with embeddings
     "fastapi>=0.115.0",  # REST API server for MCP tools
     "uvicorn>=0.32.0",  # ASGI server for FastAPI
+    "python-ripgrep>=0.0.9",  # Fast text search fallback when keyword search fails
 ]
 
 [project.optional-dependencies]

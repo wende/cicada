@@ -1316,7 +1316,16 @@ class QueryOrchestrator:
                 fallback_filtered = self._apply_filters(fallback_raw, fallback_filter_config)
                 return self._rank_and_dedupe(fallback_filtered)
 
-            fallback_result = apply_query_fallbacks(options, search_with_options)
+            # Build context for fallback strategies (including ripgrep)
+            fallback_context = {
+                "has_results": len(ranked_results) > 0,
+                "original_query": query,
+                "index": self.index,
+            }
+
+            fallback_result = apply_query_fallbacks(
+                options, search_with_options, context=fallback_context
+            )
             if fallback_result.results:
                 ranked_results = self._attach_tier_info(fallback_result.results)
                 fallback_note = fallback_result.note
