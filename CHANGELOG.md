@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Local `.cicada/` Storage Option** ([#227](https://github.com/wende/cicada/pull/227))
+  - New `--local` flag for `cicada index` and `cicada install` commands
+  - Store indexes in `.cicada/` inside the repo for portability
+  - Auto-detect existing `.cicada/index.json` and use local storage
+  - New `get_local_storage_dir()` and `has_local_storage()` storage utilities
+  - `.local` marker file for local storage detection before index exists
+  - Migration support: copy existing global index to local with `--local` flag
+  - Interactive setup Step 4 for storage location selection (menu and text-based)
+  - Enables sharing indexes across team members and proper git worktree support
+
+- **Kimi Code CLI Editor Support** ([#233](https://github.com/wende/cicada/pull/233))
+  - Added Kimi Code CLI (Moonshot AI assistant) to supported editors
+  - Uses `.mcp.json` config file with `mcpServers` key
+  - Updated INSTALLATION.md and README.md with Kimi setup instructions
+
+### Changed
+
+- **Improved SCIP Language Error Messages** ([#234](https://github.com/wende/cicada/pull/234))
+  - When `cicada-scip` is not installed, error now explains how to enable support
+  - Includes install instructions: `uv tool install cicada-mcp --with cicada-scip --force`
+  - Captures and surfaces actual `ImportError` diagnostic details
+  - Fixes [#232](https://github.com/wende/cicada/issues/232)
+
+- **README: Added Comparison to Alternatives** - New comparison table showing CICADA vs Serena vs Codicil across features like analysis method, git context, privacy, and resource usage
+
+### Internal
+
+- Improved PyPI publish workflow to fail on real errors while allowing "already exists" ([794b2ef](https://github.com/wende/cicada/commit/794b2ef))
+- Added RELEASE.md documenting monorepo package publishing and cicada-mcp-core error handling
+
 ## [0.6.1] - 2026-01-30
 
 ### Changed
@@ -1071,7 +1103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Issues](https://github.com/wende/cicada/issues)
 - [MCP Documentation](https://modelcontextprotocol.io)
 
-[Unreleased]: https://github.com/wende/cicada/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/wende/cicada/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/wende/cicada/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/wende/cicada/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/wende/cicada/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wende/cicada/compare/v0.5.0...v0.5.1
