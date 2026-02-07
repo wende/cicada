@@ -101,7 +101,7 @@ class TestJavaScriptSCIPIndexer:
         # Verify subprocess call uses scip-typescript
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["npx", "@sourcegraph/scip-typescript", "index"]
+        assert call_args[0][0] == ["npx", "--yes", "@sourcegraph/scip-typescript", "index"]
 
     @patch("subprocess.run")
     def test_run_scip_indexer_creates_tsconfig_when_missing(self, mock_run, indexer, tmp_path):

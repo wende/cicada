@@ -48,7 +48,7 @@ class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
         """
         # Security audit: Command uses list-form arguments (not shell=True),
         # so no command injection risk. All arguments are hardcoded strings.
-        cmd = ["npx", "@sourcegraph/scip-typescript", "index"]
+        cmd = ["npx", "--yes", "@sourcegraph/scip-typescript", "index"]
         scip_file = repo_path / "index.scip"
 
         # Check if tsconfig exists - scip-typescript requires it

@@ -5,7 +5,7 @@ including SCIP parsing, conversion to Cicada format, and keyword extraction.
 
 To regenerate the SCIP index for the fixture:
     cd tests/fixtures/sample_javascript
-    npx @sourcegraph/scip-typescript index
+    npx --yes @sourcegraph/scip-typescript index
 """
 
 import json
@@ -29,7 +29,7 @@ def js_fixture_source():
     if not scip_file.exists():
         pytest.skip(
             "JavaScript SCIP index not found. Run: "
-            "cd tests/fixtures/sample_javascript && npx @sourcegraph/scip-typescript index"
+            "cd tests/fixtures/sample_javascript && npx --yes @sourcegraph/scip-typescript index"
         )
     return path
 
