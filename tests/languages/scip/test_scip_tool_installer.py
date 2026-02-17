@@ -169,7 +169,16 @@ class TestGEMInstall:
                 "scip-ruby": "/usr/local/bin/scip-ruby",
             }.get(cmd)
             with patch("cicada.languages.scip.installer.subprocess.run") as mock_run:
-                mock_run.return_value = Mock(returncode=0)
+                # Handle multiple subprocess calls: gem install, then gem environment queries
+                def subprocess_side_effect(cmd, **kwargs):
+                    if cmd[0] == "gem" and cmd[1] == "install":
+                        return Mock(returncode=0)
+                    elif cmd[0] == "gem" and cmd[1] == "environment":
+                        # Return empty string for gem environment queries
+                        return Mock(returncode=0, stdout="")
+                    return Mock(returncode=0)
+
+                mock_run.side_effect = subprocess_side_effect
                 result = SCIPToolInstaller.try_install(config)
                 assert result == "/usr/local/bin/scip-ruby"
 

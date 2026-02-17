@@ -71,6 +71,9 @@ def _dart_pre_index_hook(repo_path: Path, verbose: bool) -> None:
 # Common excluded directories
 _COMMON_EXCLUDED = {".git", "node_modules"}
 
+# Cached install configs (lazy initialization to avoid circular imports)
+_INSTALL_CONFIGS: dict[str, InstallConfig] | None = None
+
 
 def _make_install_configs() -> dict[str, InstallConfig]:
     """Build install configs lazily to avoid circular imports."""
@@ -122,8 +125,10 @@ def _make_install_configs() -> dict[str, InstallConfig]:
 
 def _get_install_config(language: str) -> InstallConfig | None:
     """Get install config for a language, or None if not supported."""
-    configs = _make_install_configs()
-    return configs.get(language)
+    global _INSTALL_CONFIGS
+    if _INSTALL_CONFIGS is None:
+        _INSTALL_CONFIGS = _make_install_configs()
+    return _INSTALL_CONFIGS.get(language)
 
 
 LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {

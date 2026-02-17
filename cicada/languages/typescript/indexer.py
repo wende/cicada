@@ -48,6 +48,9 @@ class _ScipTypeScriptIndexerBase(GenericSCIPIndexer):
         """
         # Security audit: Command uses list-form arguments (not shell=True),
         # so no command injection risk. All arguments are hardcoded strings.
+        # Note: --yes flag requires npm 7+ (bundled with Node 15+). Older versions
+        # will fail with an unrecognized flag error. Node 14 LTS ended April 2023,
+        # so npm 7+ is a reasonable minimum requirement.
         cmd = ["npx", "--yes", "@sourcegraph/scip-typescript", "index"]
         scip_file = repo_path / "index.scip"
 

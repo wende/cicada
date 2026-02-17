@@ -4,6 +4,7 @@ Auto-installs SCIP indexer tools for supported languages using their
 native package managers (npm, go, gem, etc.).
 """
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -127,6 +128,8 @@ class SCIPToolInstaller:
 
         path = shutil.which(config.executable)
         if path:
+            if verbose:
+                print(f"  Installed {config.executable} at {path}")
             return path
 
         return None
@@ -146,6 +149,39 @@ class SCIPToolInstaller:
                 print(f"  gem install failed: {result.stderr}")
             return None
 
+        # Probe standard gem bin directories first, then fall back to PATH.
+        # Gem bin dirs may not be on PATH in some environments (CI, containers).
+        gem_bin_dirs: set[Path] = set()
+
+        # Query gem environment for installation directories
+        for key in ("gemdir", "user_gemdir"):
+            try:
+                env_result = subprocess.run(
+                    ["gem", "environment", key],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if env_result.returncode == 0:
+                    value = env_result.stdout.strip()
+                    if value:
+                        gem_bin_dirs.add(Path(value) / "bin")
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+
+        # Common fallback: ~/.gem/bin
+        # Path.home() can raise RuntimeError if $HOME is not set
+        with contextlib.suppress(RuntimeError):
+            gem_bin_dirs.add(Path.home() / ".gem" / "bin")
+
+        for bin_dir in gem_bin_dirs:
+            candidate = bin_dir / config.executable
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                if verbose:
+                    print(f"  Installed {config.executable} to {candidate}")
+                return str(candidate)
+
+        # Fall back to PATH
         path = shutil.which(config.executable)
         if path:
             if verbose:
@@ -177,6 +213,8 @@ class SCIPToolInstaller:
 
         path = shutil.which(config.executable)
         if path:
+            if verbose:
+                print(f"  Installed {config.executable} at {path}")
             return path
 
         return None
@@ -204,6 +242,8 @@ class SCIPToolInstaller:
 
         path = shutil.which(config.executable)
         if path:
+            if verbose:
+                print(f"  Installed {config.executable} at {path}")
             return path
 
         return None
@@ -240,6 +280,9 @@ class SCIPToolInstaller:
                 print("  Neither cs nor coursier found - cannot install")
             return None
 
+        # Security audit: cs_cmd is validated via shutil.which() (returns None or
+        # valid executable path). config.package comes from hardcoded InstallConfig
+        # values in configs.py, not user input. No command injection risk.
         result = subprocess.run(
             [cs_cmd, "install", config.package],
             capture_output=True,
