@@ -319,7 +319,6 @@ class TestIndexRepository:
                     repo_path=str(mock_repo),
                     output_path=str(index_path),
                     extract_keywords=True,
-                    extract_string_keywords=True,
                     compute_timestamps=True,
                     extract_cochange=True,
                     force_full=False,

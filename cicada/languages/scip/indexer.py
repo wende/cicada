@@ -99,7 +99,6 @@ class GenericSCIPIndexer(BaseIndexer):
             repo_path=str(repo_path),
             output_path=str(output_path),
             extract_keywords=True,
-            extract_string_keywords=True,
             compute_timestamps=True,
             extract_cochange=False,
             force_full=force,
@@ -111,7 +110,6 @@ class GenericSCIPIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
         extract_cochange: bool = False,
         force_full: bool = False,
@@ -130,8 +128,7 @@ class GenericSCIPIndexer(BaseIndexer):
         Args:
             repo_path: Path to repository root
             output_path: Path to save index.json
-            extract_keywords: If True, extract keywords from documentation
-            extract_string_keywords: If True, extract keywords from string literals
+            extract_keywords: If True, extract keywords from documentation, strings, and comments
             compute_timestamps: If True, compute git timestamps for functions
             extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, force full reindex even if up-to-date
@@ -221,15 +218,10 @@ class GenericSCIPIndexer(BaseIndexer):
                         print(f"    Warning: Failed to save file hashes: {e}")
 
             # Step 5: Run enrichment pipeline if requested
-            if (
-                extract_keywords
-                or extract_string_keywords
-                or compute_timestamps
-                or extract_cochange
-            ):
+            if extract_keywords or compute_timestamps or extract_cochange:
                 keyword_extractor = None
                 keyword_expander = None
-                if extract_keywords or extract_string_keywords:
+                if extract_keywords:
                     try:
                         from cicada.utils.keyword_utils import create_keyword_extractor
 
@@ -248,14 +240,8 @@ class GenericSCIPIndexer(BaseIndexer):
                             print(f"  Warning: Could not initialize keyword extractor: {e}")
                             print("  Continuing without keyword extraction...")
                         extract_keywords = False
-                        extract_string_keywords = False
 
-                if (
-                    extract_keywords
-                    or extract_string_keywords
-                    or compute_timestamps
-                    or extract_cochange
-                ):
+                if extract_keywords or compute_timestamps or extract_cochange:
                     if self.verbose:
                         print("  Running enrichment pipeline...")
 
@@ -263,7 +249,6 @@ class GenericSCIPIndexer(BaseIndexer):
                         cicada_index,
                         repo_path_obj,
                         extract_keywords=extract_keywords,
-                        extract_string_keywords=extract_string_keywords,
                         extract_comment_keywords=extract_keywords,
                         compute_timestamps=compute_timestamps,
                         extract_cochange=extract_cochange,

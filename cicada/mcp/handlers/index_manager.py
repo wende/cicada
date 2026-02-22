@@ -147,7 +147,6 @@ class BackgroundRefreshManager:
             repo_path=str(self.repo_path),
             output_path=str(self.index_path),
             extract_keywords=True,
-            extract_string_keywords=True,
             force_full=False,
             verbose=False,
         )
@@ -196,7 +195,6 @@ class BackgroundRefreshManager:
                         repo_path=str(self.repo_path),
                         output_path=str(self.index_path),
                         extract_keywords=True,
-                        extract_string_keywords=True,
                         verbose=False,
                     )
                 else:
@@ -204,7 +202,6 @@ class BackgroundRefreshManager:
                         repo_path=str(self.repo_path),
                         output_path=str(self.index_path),
                         extract_keywords=True,
-                        extract_string_keywords=True,
                         force_full=False,
                         verbose=False,
                     )

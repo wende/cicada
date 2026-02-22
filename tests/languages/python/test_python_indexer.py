@@ -1341,7 +1341,7 @@ class TestIndexRepositoryErrorPaths:
             (
                 "_extract_string_keywords",
                 "String keyword extraction failed",
-                {"extract_string_keywords": True},
+                {"extract_keywords": True},
             ),
             ("_compute_timestamps", "Timestamp computation failed", {"compute_timestamps": True}),
             ("_extract_cochange", "Co-change analysis failed", {"extract_cochange": True}),
@@ -1590,7 +1590,6 @@ class TestPythonIndexerIntegration:
                                     repo_path=str(repo),
                                     output_path=str(output),
                                     extract_keywords=True,
-                                    extract_string_keywords=True,
                                     compute_timestamps=True,
                                     extract_cochange=True,
                                     verbose=False,
@@ -1701,7 +1700,7 @@ class TestInterruptibleEnrichmentPhases:
                         result = indexer.incremental_index_repository(
                             repo_path=str(repo),
                             output_path=str(output),
-                            extract_string_keywords=True,
+                            extract_keywords=True,
                             compute_timestamps=True,
                             verbose=False,
                         )
@@ -1742,7 +1741,7 @@ class TestInterruptibleEnrichmentPhases:
                                 result = indexer.incremental_index_repository(
                                     repo_path=str(repo),
                                     output_path=str(output),
-                                    extract_string_keywords=True,
+                                    extract_keywords=True,
                                     compute_timestamps=True,
                                     extract_cochange=True,
                                     verbose=False,

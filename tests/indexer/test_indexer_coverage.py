@@ -157,7 +157,7 @@ def test_index_repository_string_extractor_init_failure(temp_repo, capsys):
         indexer._index_repository_full(
             str(temp_repo),
             str(temp_repo / "index.json"),
-            extract_string_keywords=True,
+            extract_keywords=True,
         )
 
         captured = capsys.readouterr()

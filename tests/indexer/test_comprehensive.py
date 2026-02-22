@@ -375,7 +375,6 @@ end
             repo_path,
             output_path=".cicada/index.json",
             extract_keywords=False,
-            extract_string_keywords=False,
             compute_timestamps=True,
             extract_cochange=False,
         ):
@@ -390,7 +389,6 @@ end
                 repo_path,
                 output_path,
                 extract_keywords,
-                extract_string_keywords,
                 compute_timestamps,
                 extract_cochange,
             )
@@ -1048,7 +1046,6 @@ end
             str(tmp_path),
             str(tmp_path / ".cicada" / "index.json"),
             extract_keywords=True,
-            extract_string_keywords=True,
         )
 
         assert "TestModule" in index["modules"]

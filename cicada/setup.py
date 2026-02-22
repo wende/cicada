@@ -401,7 +401,6 @@ def index_repository(
                 repo_path=str(repo_path),
                 output_path=str(index_path),
                 extract_keywords=True,
-                extract_string_keywords=True,
                 compute_timestamps=True,
                 extract_cochange=True,
                 force_full=force_full,

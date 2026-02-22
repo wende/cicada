@@ -226,7 +226,6 @@ class TestBackgroundRefreshManager:
         config = {
             "indexing": {
                 "extract_keywords": False,
-                "extract_string_keywords": False,
             }
         }
         return BackgroundRefreshManager(

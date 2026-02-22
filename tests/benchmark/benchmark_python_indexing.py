@@ -82,7 +82,6 @@ class PythonIndexingBenchmark:
                 repo_path=str(self.repo_path),
                 output_path=temp_output,
                 extract_keywords=extract_keywords,
-                extract_string_keywords=False,
                 compute_timestamps=True,
                 extract_cochange=False,
                 force_full=True,  # Force full index for accurate benchmark

@@ -232,7 +232,6 @@ class GenericFileIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,  # noqa: ARG002 - interface compatibility
-        extract_string_keywords: bool = False,  # noqa: ARG002
         compute_timestamps: bool = False,  # noqa: ARG002
         extract_cochange: bool = False,  # noqa: ARG002
         force_full: bool = False,  # noqa: ARG002
