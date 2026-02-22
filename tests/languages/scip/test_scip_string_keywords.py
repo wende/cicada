@@ -350,9 +350,7 @@ class TestExtractStringKeywordsVerbose:
 
         index = {"modules": {"Bad": {"file": "bad.ts", "functions": []}}}
 
-        result = indexer._extract_string_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        result = indexer._extract_string_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         # Should handle error gracefully
         assert result >= 0
@@ -363,9 +361,7 @@ class TestExtractStringKeywordsVerbose:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_string_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        result = indexer._extract_string_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         assert result == 0
 
@@ -377,9 +373,7 @@ class TestExtractStringKeywordsVerbose:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_string_keywords(
-            index, tmp_path, self.extractor, None
-        )
+        result = indexer._extract_string_keywords(index, tmp_path, self.extractor, None)
 
         assert result == 1
         assert "string_keywords" in index["modules"]["App"]
@@ -410,9 +404,7 @@ class TestExtractCommentKeywordsVerbose:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_comment_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        result = indexer._extract_comment_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         assert result == 0
 
@@ -424,9 +416,7 @@ class TestExtractCommentKeywordsVerbose:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_comment_keywords(
-            index, tmp_path, self.extractor, None
-        )
+        result = indexer._extract_comment_keywords(index, tmp_path, self.extractor, None)
 
         assert result == 1
         assert "comment_keywords" in index["modules"]["App"]
@@ -489,9 +479,7 @@ class TestExpansionPipeline:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_string_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        result = indexer._extract_string_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         assert result == 1
         kw = index["modules"]["App"]["string_keywords"]
@@ -505,9 +493,7 @@ class TestExpansionPipeline:
 
         index = {"modules": {"App": {"file": "app.ts", "functions": []}}}
 
-        result = indexer._extract_comment_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        result = indexer._extract_comment_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         assert result == 1
         kw = index["modules"]["App"]["comment_keywords"]
@@ -529,9 +515,7 @@ class TestVerboseErrorHandling:
 
         index = {"modules": {"Bad": {"file": "bad.ts", "functions": []}}}
 
-        indexer._extract_string_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        indexer._extract_string_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         captured = capsys.readouterr()
         assert "Warning: Failed to extract strings" in captured.out
@@ -544,9 +528,7 @@ class TestVerboseErrorHandling:
 
         index = {"modules": {"Bad": {"file": "bad.ts", "functions": []}}}
 
-        indexer._extract_comment_keywords(
-            index, tmp_path, self.extractor, self.pipeline
-        )
+        indexer._extract_comment_keywords(index, tmp_path, self.extractor, self.pipeline)
 
         captured = capsys.readouterr()
         assert "Warning: Failed to extract comments" in captured.out

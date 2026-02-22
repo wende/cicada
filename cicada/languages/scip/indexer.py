@@ -709,9 +709,7 @@ class GenericSCIPIndexer(BaseIndexer):
         language = self.get_language_name()
         comment_marker = get_comment_marker(language)
         # Anchor to start of line to avoid matching markers inside strings
-        comment_pattern = re.compile(
-            r"^\s*" + re.escape(comment_marker) + r"\s*(.*)"
-        )
+        comment_pattern = re.compile(r"^\s*" + re.escape(comment_marker) + r"\s*(.*)")
         processed = 0
 
         try:
