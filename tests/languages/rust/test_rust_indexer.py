@@ -60,13 +60,17 @@ class TestRustSCIPIndexer:
             assert indexer._get_rust_analyzer_path() is None
 
     def test_ensure_rust_analyzer_raises_when_not_installed(self, indexer):
-        """Should raise RuntimeError when rust-analyzer is not installed."""
+        """Should raise RuntimeError when rust-analyzer is not installed and auto-install fails."""
         with patch.object(indexer, "_is_rust_analyzer_installed", return_value=False):
-            with pytest.raises(RuntimeError) as exc_info:
-                indexer._ensure_rust_analyzer_installed()
+            with patch(
+                "cicada.languages.scip.installer.SCIPToolInstaller.try_install",
+                return_value=None,
+            ):
+                with pytest.raises(RuntimeError) as exc_info:
+                    indexer._ensure_rust_analyzer_installed()
 
-            assert "rust-analyzer is required" in str(exc_info.value)
-            assert "rustup component add rust-analyzer" in str(exc_info.value)
+                assert "rust-analyzer is required" in str(exc_info.value)
+                assert "rustup component add rust-analyzer" in str(exc_info.value)
 
     def test_ensure_rust_analyzer_passes_when_installed(self, indexer):
         """Should not raise when rust-analyzer is installed."""

@@ -64,6 +64,18 @@ class ConfigurableSCIPIndexer(GenericSCIPIndexer):
                 if shutil.which(exe):
                     return fallback, shutil.which(exe)
 
+        # Try auto-install if config is available
+        if self.config.install_config:
+            from cicada.languages.scip.installer import SCIPToolInstaller
+
+            installed_path = SCIPToolInstaller.try_install(
+                self.config.install_config, verbose=self.verbose
+            )
+            if installed_path:
+                cmd = list(self.config.command)
+                cmd[0] = installed_path
+                return cmd, installed_path
+
         # Nothing found
         raise RuntimeError(f"{self.config.name} indexer not found. {self.config.install_hint}")
 
