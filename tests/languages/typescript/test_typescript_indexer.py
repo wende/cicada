@@ -68,7 +68,7 @@ class TestTypeScriptSCIPIndexer:
         # Verify subprocess call
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["npx", "@sourcegraph/scip-typescript", "index"]
+        assert call_args[0][0] == ["npx", "--yes", "@sourcegraph/scip-typescript", "index"]
         assert call_args[1]["cwd"] == tmp_path
         assert call_args[1]["timeout"] == 600
 
@@ -91,7 +91,7 @@ class TestTypeScriptSCIPIndexer:
 
         # Check verbose output
         captured = capsys.readouterr()
-        assert "Running: npx @sourcegraph/scip-typescript index" in captured.out
+        assert "Running: npx --yes @sourcegraph/scip-typescript index" in captured.out
         assert "This may take several minutes" in captured.out
 
     @patch("subprocess.run")
@@ -125,7 +125,7 @@ class TestTypeScriptSCIPIndexer:
         """Should raise error when scip-typescript times out."""
         # Setup mock to simulate timeout
         mock_run.side_effect = subprocess.TimeoutExpired(
-            cmd=["npx", "@sourcegraph/scip-typescript", "index"], timeout=600
+            cmd=["npx", "--yes", "@sourcegraph/scip-typescript", "index"], timeout=600
         )
 
         # Run indexer - should raise

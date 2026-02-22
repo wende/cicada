@@ -3,9 +3,15 @@
 Each language is defined by a simple config dict instead of a separate class.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cicada.languages.scip.installer import InstallConfig
 
 # Type for pre-indexing hooks (e.g., dart pub get)
 PreIndexHook = Callable[[Path, bool], None]
@@ -28,6 +34,8 @@ class SCIPLanguageConfig:
     install_hint: str = ""
     # Hook to run before indexing (e.g., dart pub get)
     pre_index_hook: PreIndexHook | None = None
+    # Auto-install configuration (None = no auto-install)
+    install_config: InstallConfig | None = None
 
 
 def _dart_pre_index_hook(repo_path: Path, verbose: bool) -> None:
@@ -63,6 +71,65 @@ def _dart_pre_index_hook(repo_path: Path, verbose: bool) -> None:
 # Common excluded directories
 _COMMON_EXCLUDED = {".git", "node_modules"}
 
+# Cached install configs (lazy initialization to avoid circular imports)
+_INSTALL_CONFIGS: dict[str, InstallConfig] | None = None
+
+
+def _make_install_configs() -> dict[str, InstallConfig]:
+    """Build install configs lazily to avoid circular imports."""
+    from cicada.languages.scip.installer import InstallConfig, InstallMethod
+
+    return {
+        "go": InstallConfig(
+            method=InstallMethod.GO,
+            package="github.com/sourcegraph/scip-go/cmd/scip-go@latest",
+            executable="scip-go",
+            runtime_check="go",
+        ),
+        "ruby": InstallConfig(
+            method=InstallMethod.GEM,
+            package="scip-ruby",
+            executable="scip-ruby",
+            runtime_check="gem",
+        ),
+        "dart": InstallConfig(
+            method=InstallMethod.DART_PUB,
+            package="scip_dart",
+            executable="scip_dart",
+            runtime_check="dart",
+        ),
+        "java": InstallConfig(
+            method=InstallMethod.COURSIER,
+            package="scip-java",
+            executable="scip-java",
+        ),
+        "scala": InstallConfig(
+            method=InstallMethod.COURSIER,
+            package="scip-java",
+            executable="scip-java",
+        ),
+        "csharp": InstallConfig(
+            method=InstallMethod.DOTNET,
+            package="scip-dotnet",
+            executable="scip-dotnet",
+            runtime_check="dotnet",
+        ),
+        "vb": InstallConfig(
+            method=InstallMethod.DOTNET,
+            package="scip-dotnet",
+            executable="scip-dotnet",
+            runtime_check="dotnet",
+        ),
+    }
+
+
+def _get_install_config(language: str) -> InstallConfig | None:
+    """Get install config for a language, or None if not supported."""
+    global _INSTALL_CONFIGS
+    if _INSTALL_CONFIGS is None:
+        _INSTALL_CONFIGS = _make_install_configs()
+    return _INSTALL_CONFIGS.get(language)
+
 
 LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
     # Go
@@ -73,6 +140,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         command=["scip-go", "index", "--output", "index.scip", "./..."],
         required_executables=["scip-go"],
         install_hint="Install via: go install github.com/sourcegraph/scip-go@latest",
+        install_config=_get_install_config("go"),
     ),
     # Ruby
     "ruby": SCIPLanguageConfig(
@@ -82,6 +150,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         command=["scip-ruby", "--index-file", "index.scip", "."],
         required_executables=["scip-ruby"],
         install_hint="Install via: gem install scip-ruby",
+        install_config=_get_install_config("ruby"),
     ),
     # Dart
     "dart": SCIPLanguageConfig(
@@ -92,6 +161,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         required_executables=["scip_dart", "dart"],
         install_hint="Install via: dart pub global activate scip",
         pre_index_hook=_dart_pre_index_hook,
+        install_config=_get_install_config("dart"),
     ),
     # Java (via scip-java or coursier)
     "java": SCIPLanguageConfig(
@@ -121,6 +191,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         ],
         required_executables=["scip-java", "coursier", "cs"],
         install_hint="Install via: brew install coursier/formulas/coursier",
+        install_config=_get_install_config("java"),
     ),
     # Scala (same tool as Java)
     "scala": SCIPLanguageConfig(
@@ -161,6 +232,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         ],
         required_executables=["scip-java", "coursier", "cs"],
         install_hint="Install via: brew install coursier/formulas/coursier",
+        install_config=_get_install_config("scala"),
     ),
     # C (via scip-clang)
     "c": SCIPLanguageConfig(
@@ -190,6 +262,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         command=["scip-dotnet", "index", "--output", "index.scip"],
         required_executables=["scip-dotnet"],
         install_hint="Install via: dotnet tool install -g scip-dotnet",
+        install_config=_get_install_config("csharp"),
     ),
     # Visual Basic
     "vb": SCIPLanguageConfig(
@@ -199,6 +272,7 @@ LANGUAGE_CONFIGS: dict[str, SCIPLanguageConfig] = {
         command=["scip-dotnet", "index", "--output", "index.scip"],
         required_executables=["scip-dotnet"],
         install_hint="Install via: dotnet tool install -g scip-dotnet",
+        install_config=_get_install_config("vb"),
     ),
 }
 

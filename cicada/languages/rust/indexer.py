@@ -71,19 +71,33 @@ class RustSCIPIndexer(GenericSCIPIndexer):
 
     def _ensure_rust_analyzer_installed(self) -> None:
         """
-        Ensure rust-analyzer is available.
+        Ensure rust-analyzer is available, attempting auto-install via rustup.
 
         Raises:
-            RuntimeError: If rust-analyzer is not installed
+            RuntimeError: If rust-analyzer is not installed and cannot be auto-installed
         """
         if not self._is_rust_analyzer_installed():
-            raise RuntimeError(
-                "rust-analyzer is required for Rust indexing but was not found.\n"
-                "Install it with:\n"
-                "  rustup component add rust-analyzer\n"
-                "Or:\n"
-                "  brew install rust-analyzer"
+            from cicada.languages.scip.installer import (
+                InstallConfig,
+                InstallMethod,
+                SCIPToolInstaller,
             )
+
+            config = InstallConfig(
+                method=InstallMethod.RUSTUP,
+                package="rust-analyzer",
+                executable="rust-analyzer",
+                runtime_check="rustup",
+            )
+            installed = SCIPToolInstaller.try_install(config, verbose=self.verbose)
+            if not installed:
+                raise RuntimeError(
+                    "rust-analyzer is required for Rust indexing but was not found.\n"
+                    "Install it with:\n"
+                    "  rustup component add rust-analyzer\n"
+                    "Or:\n"
+                    "  brew install rust-analyzer"
+                )
 
         if self.verbose:
             version = self._get_rust_analyzer_version()

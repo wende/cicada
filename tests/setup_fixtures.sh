@@ -44,7 +44,7 @@ if [ -d "tests/fixtures/sample_typescript" ]; then
 
     # Generate SCIP index
     echo "Running scip-typescript indexer..."
-    npx @sourcegraph/scip-typescript index
+    npx --yes @sourcegraph/scip-typescript index
 
     # Verify index was created
     if [ -f "index.scip" ]; then
