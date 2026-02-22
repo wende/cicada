@@ -691,10 +691,12 @@ class GenericSCIPIndexer(BaseIndexer):
         keyword_extractor: Any,
         pipeline: Any,
     ) -> int:
-        """Extract keywords from inline comments in source files.
+        """Extract keywords from full-line comments in source files.
 
-        Uses regex to extract single-line comments (// or #) and runs
-        keyword extraction on the comment text.
+        Uses regex to extract full-line comments (lines starting with // or #)
+        and runs keyword extraction on the comment text. Only matches lines
+        where the comment marker appears at the start (after optional whitespace)
+        to avoid false positives from markers inside string literals (e.g., URLs).
         """
         if self._interrupted:
             return 0
@@ -702,10 +704,13 @@ class GenericSCIPIndexer(BaseIndexer):
         if self.verbose:
             print("  Extracting comment keywords...")
 
+        from cicada.languages.scip.string_extractor import get_comment_marker
+
         language = self.get_language_name()
-        comment_marker = "#" if language == "ruby" else "//"
+        comment_marker = get_comment_marker(language)
+        # Anchor to start of line to avoid matching markers inside strings
         comment_pattern = re.compile(
-            re.escape(comment_marker) + r"\s*(.*)" if comment_marker == "//" else r"#\s*(.*)"
+            r"^\s*" + re.escape(comment_marker) + r"\s*(.*)"
         )
         processed = 0
 

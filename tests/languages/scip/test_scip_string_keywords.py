@@ -278,6 +278,24 @@ class TestExtractCommentKeywords:
         assert result == 1
         assert "comment_keywords" not in index["modules"]["App"]
 
+    def test_ignores_inline_comment_markers(self, tmp_path):
+        """Inline // in code (e.g., URLs) should NOT be treated as comments."""
+        source = tmp_path / "app.ts"
+        source.write_text('const url = "http://example.com";\n')
+
+        index = {
+            "modules": {
+                "App": {"file": "app.ts", "functions": []},
+            }
+        }
+
+        result = self.indexer._extract_comment_keywords(
+            index, tmp_path, self.extractor, self.pipeline
+        )
+
+        assert result == 1
+        assert "comment_keywords" not in index["modules"]["App"]
+
     def test_skips_missing_files(self, tmp_path):
         index = {
             "modules": {

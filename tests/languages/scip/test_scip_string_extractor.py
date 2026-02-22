@@ -69,13 +69,16 @@ class TestRegexStringExtractorUniversal:
 
         assert len(result) == 0
 
-    def test_partial_comment_line(self):
+    def test_inline_comment_not_stripped(self):
+        """Inline comments are not stripped to avoid truncating URLs in strings."""
         extractor = RegexStringExtractor(language="typescript")
         source = 'let x = "real"; // "fake"'
         result = extractor.extract_from_source(source)
 
-        assert len(result) == 1
+        # Both strings are extracted since only full-line comments are stripped
+        assert len(result) == 2
         assert result[0]["string"] == "real"
+        assert result[1]["string"] == "fake"
 
     def test_empty_source(self):
         extractor = RegexStringExtractor(language="typescript")
@@ -191,18 +194,75 @@ class TestRegexStringExtractorCommentStripping:
 
         assert len(result) == 0
 
-    def test_ruby_partial_comment(self):
+    def test_ruby_inline_comment_not_stripped(self):
+        """Inline # comments are not stripped to avoid truncating strings."""
         extractor = RegexStringExtractor(language="ruby")
         source = "msg = 'real' # 'fake'"
         result = extractor.extract_from_source(source)
 
-        assert len(result) == 1
+        # Both strings extracted since only full-line comments are stripped
+        assert len(result) == 2
         assert result[0]["string"] == "real"
+        assert result[1]["string"] == "fake"
 
-    def test_slash_comment_languages(self):
-        """All C-family languages use // comments."""
+    def test_full_line_comment_languages(self):
+        """All C-family languages strip full-line // comments."""
         for lang in ["typescript", "javascript", "go", "rust", "java", "scala", "csharp"]:
             extractor = RegexStringExtractor(language=lang)
             source = '// "commented"'
             result = extractor.extract_from_source(source)
-            assert len(result) == 0, f"{lang} should strip // comments"
+            assert len(result) == 0, f"{lang} should strip full-line // comments"
+
+    def test_indented_full_line_comment(self):
+        """Full-line comments with leading whitespace are still stripped."""
+        extractor = RegexStringExtractor(language="typescript")
+        source = '    // "commented"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 0
+
+
+class TestRegexStringExtractorURLPreservation:
+    """Regression tests for comment markers inside string literals."""
+
+    def test_url_in_double_quoted_string(self):
+        """URLs with // should not be truncated."""
+        extractor = RegexStringExtractor(language="typescript")
+        source = 'const url = "http://example.com/api";'
+        result = extractor.extract_from_source(source)
+
+        assert len(result) == 1
+        assert result[0]["string"] == "http://example.com/api"
+
+    def test_url_in_single_quoted_string(self):
+        extractor = RegexStringExtractor(language="javascript")
+        source = "const url = 'https://api.example.com';"
+        result = extractor.extract_from_source(source)
+
+        assert len(result) == 1
+        assert result[0]["string"] == "https://api.example.com"
+
+    def test_ruby_hash_in_string(self):
+        """Ruby # inside a string should not cause truncation."""
+        extractor = RegexStringExtractor(language="ruby")
+        source = 'msg = "value #1 is important"'
+        result = extractor.extract_from_source(source)
+
+        assert len(result) == 1
+        assert result[0]["string"] == "value #1 is important"
+
+    def test_go_url_in_string(self):
+        extractor = RegexStringExtractor(language="go")
+        source = 'url := "http://localhost:8080/path"'
+        result = extractor.extract_from_source(source)
+
+        assert len(result) == 1
+        assert result[0]["string"] == "http://localhost:8080/path"
+
+    def test_dart_single_quote_support(self):
+        """Dart uses single-quoted strings by convention."""
+        extractor = RegexStringExtractor(language="dart")
+        source = "var msg = 'hello world';"
+        result = extractor.extract_from_source(source)
+
+        assert len(result) == 1
+        assert result[0]["string"] == "hello world"
