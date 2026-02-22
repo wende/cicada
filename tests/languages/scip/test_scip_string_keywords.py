@@ -464,6 +464,71 @@ class TestExtractCommentKeywordsRuby:
         assert result == 1
         assert "comment_keywords" not in index["modules"]["App"]
 
+    def test_skips_ruby_modules_with_existing_comment_keywords(self, tmp_path):
+        source = tmp_path / "app.rb"
+        source.write_text("# should not re-extract\n")
+
+        index = {
+            "modules": {
+                "App": {
+                    "file": "app.rb",
+                    "functions": [],
+                    "comment_keywords": {"existing": 1.0},
+                },
+            }
+        }
+
+        result = self.indexer._extract_comment_keywords(
+            index, tmp_path, self.extractor, self.pipeline
+        )
+
+        assert result == 1
+        assert index["modules"]["App"]["comment_keywords"] == {"existing": 1.0}
+
+    def test_ruby_ignores_inline_hash_in_strings(self, tmp_path):
+        """Inline # in code (e.g., string interpolation markers) should NOT be comments."""
+        source = tmp_path / "app.rb"
+        source.write_text('msg = "item #1 in list"\n')
+
+        index = {
+            "modules": {
+                "App": {"file": "app.rb", "functions": []},
+            }
+        }
+
+        result = self.indexer._extract_comment_keywords(
+            index, tmp_path, self.extractor, self.pipeline
+        )
+
+        assert result == 1
+        assert "comment_keywords" not in index["modules"]["App"]
+
+    def test_ruby_skips_missing_files(self, tmp_path):
+        index = {
+            "modules": {
+                "Missing": {"file": "nonexistent.rb", "functions": []},
+            }
+        }
+
+        result = self.indexer._extract_comment_keywords(
+            index, tmp_path, self.extractor, self.pipeline
+        )
+
+        assert result == 0
+
+    def test_ruby_skips_modules_without_file(self):
+        index = {
+            "modules": {
+                "NoFile": {"functions": []},
+            }
+        }
+
+        result = self.indexer._extract_comment_keywords(
+            index, Path("/tmp"), self.extractor, self.pipeline
+        )
+
+        assert result == 0
+
 
 class TestExpansionPipeline:
     """Tests that exercise the expansion pipeline callback path."""
