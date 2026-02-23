@@ -24,9 +24,14 @@ _BACKTICK_LANGUAGES = {"go"}
 # Comment markers per language (shared with indexer.py comment extraction)
 COMMENT_MARKERS: dict[str, str] = {
     "ruby": "#",
+    "python": "#",
+    "vb": "'",
 }
 
 DEFAULT_COMMENT_MARKER = "//"
+
+# Languages that do NOT use /* */ block comments
+_NO_BLOCK_COMMENT_LANGUAGES = {"ruby", "python", "vb"}
 
 
 def get_comment_marker(language: str) -> str:
@@ -41,6 +46,7 @@ class RegexStringExtractor:
         self.language = language
         self.min_length = min_length
         self._comment_marker = get_comment_marker(language)
+        self._has_block_comments = language not in _NO_BLOCK_COMMENT_LANGUAGES
 
     def extract_from_source(self, source_code: str) -> list[dict]:
         """Extract string literals from source code.
@@ -51,9 +57,14 @@ class RegexStringExtractor:
         strings: list[dict] = []
         use_sq = self.language in _SINGLE_QUOTE_LANGUAGES
         use_bt = self.language in _BACKTICK_LANGUAGES
+        in_block_comment = False
 
         for i, line in enumerate(source_code.splitlines()):
             line_num = i + 1
+
+            if self._has_block_comments:
+                line, in_block_comment = self._strip_block_comments(line, in_block_comment)
+
             clean = self._strip_full_line_comment(line)
 
             self._collect_matches(clean, line_num, _DQ_PATTERN, strings)
@@ -63,6 +74,30 @@ class RegexStringExtractor:
                 self._collect_matches(clean, line_num, _BT_PATTERN, strings)
 
         return strings
+
+    def _strip_block_comments(self, line: str, in_block: bool) -> tuple[str, bool]:
+        """Remove /* ... */ block comment regions from a line.
+
+        Returns the cleaned line and the updated in_block state.
+        """
+        result = []
+        i = 0
+        while i < len(line):
+            if in_block:
+                end = line.find("*/", i)
+                if end == -1:
+                    return "".join(result), True
+                i = end + 2
+                in_block = False
+            else:
+                start = line.find("/*", i)
+                if start == -1:
+                    result.append(line[i:])
+                    return "".join(result), False
+                result.append(line[i:start])
+                i = start + 2
+                in_block = True
+        return "".join(result), in_block
 
     def _strip_full_line_comment(self, line: str) -> str:
         """Strip full-line comments only (line starts with comment marker).

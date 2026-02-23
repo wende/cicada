@@ -266,3 +266,88 @@ class TestRegexStringExtractorURLPreservation:
 
         assert len(result) == 1
         assert result[0]["string"] == "hello world"
+
+
+class TestRegexStringExtractorBlockComments:
+    """Tests for /* ... */ block comment stripping."""
+
+    def test_single_line_block_comment(self):
+        extractor = RegexStringExtractor(language="java")
+        source = '/* "commented out" */'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 0
+
+    def test_multiline_block_comment(self):
+        extractor = RegexStringExtractor(language="csharp")
+        source = '/*\n"first line"\n"second line"\n*/'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 0
+
+    def test_block_comment_preserves_code_before(self):
+        extractor = RegexStringExtractor(language="java")
+        source = 'String x = "real"; /* "fake" */'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 1
+        assert result[0]["string"] == "real"
+
+    def test_block_comment_preserves_code_after(self):
+        extractor = RegexStringExtractor(language="java")
+        source = '/* "fake" */ String x = "real";'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 1
+        assert result[0]["string"] == "real"
+
+    def test_block_comment_spanning_lines(self):
+        extractor = RegexStringExtractor(language="go")
+        source = 'x := "before"\n/* start\n"inside"\nend */\ny := "after"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 2
+        assert result[0]["string"] == "before"
+        assert result[1]["string"] == "after"
+
+    def test_multiple_block_comments_one_line(self):
+        extractor = RegexStringExtractor(language="java")
+        source = '"real1" /* "fake1" */ "real2" /* "fake2" */ "real3"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 3
+        strings = [r["string"] for r in result]
+        assert strings == ["real1", "real2", "real3"]
+
+    def test_ruby_no_block_comment_stripping(self):
+        """Ruby doesn't use /* */ so these should be treated as code."""
+        extractor = RegexStringExtractor(language="ruby")
+        source = '/* "still extracted" */'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 1
+        assert result[0]["string"] == "still extracted"
+
+    def test_block_comment_languages(self):
+        """C-family languages should strip block comments."""
+        for lang in ["go", "java", "scala", "c", "cpp", "csharp", "dart", "typescript"]:
+            extractor = RegexStringExtractor(language=lang)
+            source = '/* "commented" */'
+            result = extractor.extract_from_source(source)
+            assert len(result) == 0, f"{lang} should strip block comments"
+
+
+class TestRegexStringExtractorVBComments:
+    """Tests for Visual Basic comment handling."""
+
+    def test_vb_single_quote_comment(self):
+        extractor = RegexStringExtractor(language="vb")
+        source = '\' Dim x As String = "commented out"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 0
+
+    def test_vb_indented_comment(self):
+        extractor = RegexStringExtractor(language="vb")
+        source = '    \' "commented out"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 0
+
+    def test_vb_code_not_stripped(self):
+        extractor = RegexStringExtractor(language="vb")
+        source = 'Dim msg As String = "hello world"'
+        result = extractor.extract_from_source(source)
+        assert len(result) == 1
+        assert result[0]["string"] == "hello world"
