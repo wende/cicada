@@ -183,8 +183,7 @@ class PythonSCIPIndexer(BaseIndexer):
             repo_path=str(repo_path),
             output_path=str(output_path),
             extract_keywords=True,
-            extract_string_keywords=True,  # Enable string keyword extraction
-            compute_timestamps=True,  # Enabled by default for timestamp tracking
+            compute_timestamps=True,
             extract_cochange=False,
             force_full=force,
             verbose=verbose,
@@ -195,7 +194,6 @@ class PythonSCIPIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
         extract_cochange: bool = False,
         force_full: bool = False,
@@ -207,8 +205,7 @@ class PythonSCIPIndexer(BaseIndexer):
         Args:
             repo_path: Path to repository root
             output_path: Path to save index.json
-            extract_keywords: Whether to extract keywords from docstrings
-            extract_string_keywords: Whether to extract keywords from string literals
+            extract_keywords: Whether to extract keywords from documentation, strings, and comments
             compute_timestamps: Whether to compute git timestamps for functions
             extract_cochange: Whether to analyze co-change patterns
             force_full: If True, force full reindex even if up-to-date
@@ -321,7 +318,7 @@ class PythonSCIPIndexer(BaseIndexer):
             # 4. Initialize keyword extractor from config
             keyword_extractor = None
             keyword_expander = None
-            if extract_keywords or extract_string_keywords:
+            if extract_keywords:
                 try:
                     extraction_method, expansion_method = read_keyword_extraction_config(
                         repo_path_obj
@@ -371,7 +368,6 @@ class PythonSCIPIndexer(BaseIndexer):
                 cicada_index,
                 repo_path_obj,
                 extract_keywords=extract_keywords,
-                extract_string_keywords=extract_string_keywords,
                 extract_comment_keywords=extract_keywords,
                 compute_timestamps=compute_timestamps,
                 extract_cochange=extract_cochange,

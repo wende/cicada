@@ -9,6 +9,7 @@ import json
 import re
 import subprocess
 from abc import abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,14 @@ from cicada.languages.scip.converter import SCIPConverter
 from cicada.languages.scip.reader import SCIPReader
 
 __all__ = ["GenericSCIPIndexer"]
+
+
+@dataclass
+class ExpansionCallback:
+    """Callback data for streaming expansion pipeline."""
+
+    target: dict[str, Any]  # The module/function dict to update
+    target_key: str  # "keywords" or "string_keywords"
 
 
 class GenericSCIPIndexer(BaseIndexer):
@@ -90,7 +99,6 @@ class GenericSCIPIndexer(BaseIndexer):
             repo_path=str(repo_path),
             output_path=str(output_path),
             extract_keywords=True,
-            extract_string_keywords=True,
             compute_timestamps=True,
             extract_cochange=False,
             force_full=force,
@@ -102,7 +110,6 @@ class GenericSCIPIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
         extract_cochange: bool = False,
         force_full: bool = False,
@@ -121,8 +128,7 @@ class GenericSCIPIndexer(BaseIndexer):
         Args:
             repo_path: Path to repository root
             output_path: Path to save index.json
-            extract_keywords: If True, extract keywords from documentation
-            extract_string_keywords: If True, extract keywords from string literals
+            extract_keywords: If True, extract keywords from documentation, strings, and comments
             compute_timestamps: If True, compute git timestamps for functions
             extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, force full reindex even if up-to-date
@@ -212,15 +218,10 @@ class GenericSCIPIndexer(BaseIndexer):
                         print(f"    Warning: Failed to save file hashes: {e}")
 
             # Step 5: Run enrichment pipeline if requested
-            if (
-                extract_keywords
-                or extract_string_keywords
-                or compute_timestamps
-                or extract_cochange
-            ):
+            if extract_keywords or compute_timestamps or extract_cochange:
                 keyword_extractor = None
                 keyword_expander = None
-                if extract_keywords or extract_string_keywords:
+                if extract_keywords:
                     try:
                         from cicada.utils.keyword_utils import create_keyword_extractor
 
@@ -239,14 +240,8 @@ class GenericSCIPIndexer(BaseIndexer):
                             print(f"  Warning: Could not initialize keyword extractor: {e}")
                             print("  Continuing without keyword extraction...")
                         extract_keywords = False
-                        extract_string_keywords = False
 
-                if (
-                    extract_keywords
-                    or extract_string_keywords
-                    or compute_timestamps
-                    or extract_cochange
-                ):
+                if extract_keywords or compute_timestamps or extract_cochange:
                     if self.verbose:
                         print("  Running enrichment pipeline...")
 
@@ -254,7 +249,6 @@ class GenericSCIPIndexer(BaseIndexer):
                         cicada_index,
                         repo_path_obj,
                         extract_keywords=extract_keywords,
-                        extract_string_keywords=extract_string_keywords,
                         extract_comment_keywords=extract_keywords,
                         compute_timestamps=compute_timestamps,
                         extract_cochange=extract_cochange,
@@ -586,6 +580,95 @@ class GenericSCIPIndexer(BaseIndexer):
                 f"\r    Processed {total}/{total} modules (Keywords: {pipeline.stats['submitted']})"
             )
 
+    def _extract_string_keywords(
+        self,
+        index: dict,
+        repo_path: Path,
+        keyword_extractor: Any,
+        pipeline: Any,
+    ) -> int:
+        """Extract keywords from string literals in source files.
+
+        Uses regex-based extraction to find string literals across all
+        SCIP-indexed languages, then runs keyword extraction with 1.3x boost.
+        """
+        from cicada.languages.scip.string_extractor import RegexStringExtractor
+
+        if self._interrupted:
+            return 0
+
+        if self.verbose:
+            print("  Extracting string keywords...")
+
+        language = self.get_language_name()
+        string_extractor = RegexStringExtractor(language=language, min_length=3)
+        processed = 0
+
+        try:
+            for _module_name, module_data in index.get("modules", {}).items():
+                if self._interrupted:
+                    break
+
+                if "string_keywords" in module_data:
+                    processed += 1
+                    continue
+
+                file_path = module_data.get("file")
+                if not file_path:
+                    continue
+
+                full_path = repo_path / file_path
+                if not full_path.exists():
+                    continue
+
+                try:
+                    source_code = full_path.read_text(encoding="utf-8")
+                    strings = string_extractor.extract_from_source(source_code)
+
+                    if not strings:
+                        processed += 1
+                        continue
+
+                    module_data["string_sources"] = strings
+
+                    all_string_text = " ".join(s["string"] for s in strings)
+                    if all_string_text.strip():
+                        keywords_result = keyword_extractor.extract_keywords(
+                            all_string_text, top_n=15
+                        )
+
+                        string_keywords = {}
+                        for keyword, score in keywords_result.get("top_keywords", []):
+                            string_keywords[keyword] = score * 1.3
+
+                        if string_keywords:
+                            module_data["string_keywords"] = string_keywords.copy()
+                            callback = ExpansionCallback(
+                                target=module_data, target_key="string_keywords"
+                            )
+                            if pipeline:
+                                for cb, res in pipeline.submit(
+                                    list(string_keywords.keys()),
+                                    string_keywords,
+                                    callback,
+                                    top_n=3,
+                                    threshold=0.2,
+                                ):
+                                    self._apply_expansion_result(cb, res)
+
+                    processed += 1
+
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    Warning: Failed to extract strings from {file_path}: {e}")
+
+        except KeyboardInterrupt:
+            self._interrupted = True
+            if self.verbose:
+                print("\n    Keyboard interrupt - saving partial results...")
+
+        return processed
+
     def _extract_comment_keywords(
         self,
         index: dict,
@@ -593,12 +676,92 @@ class GenericSCIPIndexer(BaseIndexer):
         keyword_extractor: Any,
         pipeline: Any,
     ) -> int:
-        """Extract keywords from comments in source files.
+        """Extract keywords from full-line comments in source files.
 
-        For SCIP-based languages, this is a no-op since we don't have
-        tree-sitter parsing to extract comments. Keywords are extracted
-        from names and documentation instead.
+        Uses regex to extract full-line comments (lines starting with // or #)
+        and runs keyword extraction on the comment text. Only matches lines
+        where the comment marker appears at the start (after optional whitespace)
+        to avoid false positives from markers inside string literals (e.g., URLs).
         """
-        # Comment extraction requires tree-sitter which SCIP languages don't use
-        # Keywords are already extracted from names and docs in _extract_docstring_keywords
-        return 0
+        if self._interrupted:
+            return 0
+
+        if self.verbose:
+            print("  Extracting comment keywords...")
+
+        from cicada.languages.scip.string_extractor import get_comment_marker
+
+        language = self.get_language_name()
+        comment_marker = get_comment_marker(language)
+        # Anchor to start of line to avoid matching markers inside strings
+        comment_pattern = re.compile(r"^\s*" + re.escape(comment_marker) + r"\s*(.*)")
+        processed = 0
+
+        try:
+            for _module_name, module_data in index.get("modules", {}).items():
+                if self._interrupted:
+                    break
+
+                if "comment_keywords" in module_data:
+                    processed += 1
+                    continue
+
+                file_path = module_data.get("file")
+                if not file_path:
+                    continue
+
+                full_path = repo_path / file_path
+                if not full_path.exists():
+                    continue
+
+                try:
+                    source_code = full_path.read_text(encoding="utf-8")
+                    comments: list[str] = []
+                    for line in source_code.splitlines():
+                        match = comment_pattern.search(line)
+                        if match:
+                            text = match.group(1).strip()
+                            if len(text) >= 3:
+                                comments.append(text)
+
+                    if not comments:
+                        processed += 1
+                        continue
+
+                    all_comment_text = " ".join(comments)
+                    if all_comment_text.strip():
+                        keywords_result = keyword_extractor.extract_keywords(
+                            all_comment_text, top_n=15
+                        )
+
+                        comment_keywords = {}
+                        for keyword, score in keywords_result.get("top_keywords", []):
+                            comment_keywords[keyword] = score
+
+                        if comment_keywords:
+                            module_data["comment_keywords"] = comment_keywords.copy()
+                            callback = ExpansionCallback(
+                                target=module_data, target_key="comment_keywords"
+                            )
+                            if pipeline:
+                                for cb, res in pipeline.submit(
+                                    list(comment_keywords.keys()),
+                                    comment_keywords,
+                                    callback,
+                                    top_n=3,
+                                    threshold=0.2,
+                                ):
+                                    self._apply_expansion_result(cb, res)
+
+                    processed += 1
+
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    Warning: Failed to extract comments from {file_path}: {e}")
+
+        except KeyboardInterrupt:
+            self._interrupted = True
+            if self.verbose:
+                print("\n    Keyboard interrupt - saving partial results...")
+
+        return processed

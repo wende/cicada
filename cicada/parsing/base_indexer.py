@@ -98,7 +98,6 @@ class BaseIndexer(ABC):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
         extract_cochange: bool = True,
         force_full: bool = False,
@@ -116,8 +115,7 @@ class BaseIndexer(ABC):
         Args:
             repo_path: Path to the repository root
             output_path: Path where the index JSON file will be saved
-            extract_keywords: If True, extract keywords from documentation using NLP
-            extract_string_keywords: If True, extract keywords from string literals
+            extract_keywords: If True, extract keywords from documentation, strings, and comments
             compute_timestamps: If True, compute git history timestamps for functions
             extract_cochange: If True, analyze git history for co-change patterns
             force_full: If True, ignore existing hashes and do full reindex
@@ -257,7 +255,6 @@ class BaseIndexer(ABC):
         index: dict,
         repo_path: Path,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         extract_comment_keywords: bool = False,
         compute_timestamps: bool = False,
         extract_cochange: bool = False,
@@ -272,11 +269,13 @@ class BaseIndexer(ABC):
         3. Co-change analysis (git history)
         4. Co-occurrence matrix (keyword relationships)
 
+        When extract_keywords is True, string and comment keywords are also
+        extracted automatically.
+
         Args:
             index: The Cicada index to enrich
             repo_path: Repository root path
-            extract_keywords: Whether to extract keywords from docstrings
-            extract_string_keywords: Whether to extract keywords from string literals
+            extract_keywords: Whether to extract keywords (docstrings, strings, and comments)
             extract_comment_keywords: Whether to extract keywords from inline comments
             compute_timestamps: Whether to compute git timestamps for functions
             extract_cochange: Whether to analyze co-change patterns
@@ -291,9 +290,7 @@ class BaseIndexer(ABC):
 
         # Phase 1: Extract and expand keywords using streaming pipeline (interruptible)
         # Requires extractor; expander is optional (falls back to extraction-only)
-        if (
-            extract_keywords or extract_string_keywords or extract_comment_keywords
-        ) and keyword_extractor:
+        if (extract_keywords or extract_comment_keywords) and keyword_extractor:
 
             if keyword_expander:
                 # Full extraction + expansion with streaming pipeline
@@ -317,7 +314,7 @@ class BaseIndexer(ABC):
                             self._extract_docstring_keywords(index, keyword_extractor, pipeline)
 
                         # Extract string keywords (sequential) with streaming expansion
-                        if extract_string_keywords:
+                        if extract_keywords:
                             self._extract_string_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
@@ -359,7 +356,7 @@ class BaseIndexer(ABC):
                         if extract_keywords:
                             self._extract_docstring_keywords(index, keyword_extractor, pipeline)
 
-                        if extract_string_keywords:
+                        if extract_keywords:
                             self._extract_string_keywords(
                                 index, repo_path, keyword_extractor, pipeline
                             )
@@ -397,7 +394,7 @@ class BaseIndexer(ABC):
             self._log_timing("Co-change analysis")
 
         # Phase 4: Build co-occurrence matrix (always runs if keywords extracted)
-        if extract_keywords or extract_string_keywords:
+        if extract_keywords:
             if self.verbose:
                 print("Building keyword co-occurrence matrix...")
             try:

@@ -731,7 +731,6 @@ class ElixirIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = False,
         extract_cochange: bool = False,
     ):
@@ -743,8 +742,7 @@ class ElixirIndexer(BaseIndexer):
         Args:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
-            extract_keywords: If True, extract keywords from documentation using NLP
-            extract_string_keywords: If True, extract keywords from string literals in function bodies
+            extract_keywords: If True, extract keywords from documentation, strings, and comments
             compute_timestamps: If True, compute git history timestamps for functions
             extract_cochange: If True, analyze git history for co-change patterns
 
@@ -780,7 +778,7 @@ class ElixirIndexer(BaseIndexer):
         # Initialize keyword extractor and expander if requested
         keyword_extractor = None
         keyword_expander = None
-        if extract_keywords or extract_string_keywords:
+        if extract_keywords:
             try:
                 # Read keyword extraction config from config.yaml
                 extraction_method, expansion_method = read_keyword_extraction_config(repo_path_obj)
@@ -802,7 +800,6 @@ class ElixirIndexer(BaseIndexer):
                     print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                     print("Continuing without keyword extraction...")
                 extract_keywords = False
-                extract_string_keywords = False
 
         # Find all Elixir files
         elixir_files = self._find_elixir_files(repo_path_obj)
@@ -905,7 +902,6 @@ class ElixirIndexer(BaseIndexer):
             index,
             repo_path_obj,
             extract_keywords=extract_keywords,
-            extract_string_keywords=extract_string_keywords,
             extract_comment_keywords=extract_keywords,
             compute_timestamps=compute_timestamps,
             extract_cochange=extract_cochange,
@@ -960,7 +956,6 @@ class ElixirIndexer(BaseIndexer):
         repo_path: str,
         output_path: str,
         extract_keywords: bool = False,
-        extract_string_keywords: bool = False,
         compute_timestamps: bool = True,
         extract_cochange: bool = True,
         force_full: bool = False,
@@ -976,8 +971,7 @@ class ElixirIndexer(BaseIndexer):
         Args:
             repo_path: Path to the Elixir repository root
             output_path: Path where the index JSON file will be saved
-            extract_keywords: If True, extract keywords from documentation using NLP
-            extract_string_keywords: If True, extract keywords from string literals
+            extract_keywords: If True, extract keywords from documentation, strings, and comments
             compute_timestamps: If True, compute git history timestamps for functions (default: True)
             extract_cochange: If True, analyze git history for co-change patterns (enabled by default)
             force_full: If True, ignore existing hashes and do full reindex
@@ -1031,7 +1025,6 @@ class ElixirIndexer(BaseIndexer):
                 str(repo_path_obj),
                 str(output_path_obj),
                 extract_keywords,
-                extract_string_keywords,
                 compute_timestamps,
                 extract_cochange,
             )
@@ -1106,7 +1099,6 @@ class ElixirIndexer(BaseIndexer):
                 print(f"Warning: Could not initialize keyword extractor/expander: {e}")
                 print("Continuing without keyword extraction...")
                 extract_keywords = False
-                extract_string_keywords = False
 
         # Process changed files (basic parsing only - enrichment runs separately)
         all_modules = {}
@@ -1199,7 +1191,6 @@ class ElixirIndexer(BaseIndexer):
                 new_index,
                 repo_path_obj,
                 extract_keywords=extract_keywords,
-                extract_string_keywords=extract_string_keywords,
                 extract_comment_keywords=extract_keywords,
                 compute_timestamps=compute_timestamps,
                 extract_cochange=extract_cochange,

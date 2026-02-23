@@ -184,7 +184,7 @@ lint: install-deps
 	uv run ruff check cicada || FAILED=1; \
 	echo ""; \
 	echo "Running pyrefly type checker..."; \
-	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip || FAILED=1; \
+	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip --disable-project-excludes-heuristics || FAILED=1; \
 	echo ""; \
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \
@@ -214,7 +214,7 @@ pre-commit: install-deps
 	uv run ruff check cicada || FAILED=1; \
 	echo ""; \
 	echo "Running pyrefly type checker..."; \
-	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip || FAILED=1; \
+	uv run pyrefly check cicada --project-excludes tests --project-excludes cicada/languages/scip --disable-project-excludes-heuristics || FAILED=1; \
 	echo ""; \
 	echo "Running vulture dead code detector..."; \
 	uv run vulture cicada --min-confidence 80 || FAILED=1; \
