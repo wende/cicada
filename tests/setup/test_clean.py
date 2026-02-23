@@ -14,6 +14,7 @@ from cicada.clean import (
     clean_repository,
     main,
     remove_mcp_config_entry,
+    remove_vibe_mcp_entry,
 )
 
 
@@ -801,3 +802,113 @@ class TestCleanAllProjects:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "1/2 projects removed" in captured.out
+
+
+class TestRemoveVibeMcpEntry:
+    """Tests for remove_vibe_mcp_entry function"""
+
+    def test_removes_cicada_entry_from_vibe_config(self, tmp_path):
+        """Should remove cicada entry from Vibe TOML config"""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text(
+            "[[mcp_servers]]\n"
+            'name = "cicada"\n'
+            'transport = "stdio"\n'
+            'command = "uvx"\n'
+            'args = ["cicada-mcp"]\n'
+            'env = { "CICADA_CONFIG_DIR" = "/tmp/test" }\n'
+            "\n"
+            "[[mcp_servers]]\n"
+            'name = "other"\n'
+            'command = "other-cmd"\n'
+        )
+
+        result = remove_vibe_mcp_entry(config_path)
+        assert result is True
+
+        content = config_path.read_text()
+        assert "cicada" not in content
+        assert 'name = "other"' in content
+
+    def test_returns_false_when_file_not_exists(self, tmp_path):
+        """Should return False when config file doesn't exist"""
+        non_existent = tmp_path / "config.toml"
+        result = remove_vibe_mcp_entry(non_existent)
+        assert result is False
+
+    def test_returns_false_when_no_cicada_entry(self, tmp_path):
+        """Should return False when no cicada entry exists"""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("[[mcp_servers]]\n" 'name = "other"\n' 'command = "other-cmd"\n')
+
+        result = remove_vibe_mcp_entry(config_path)
+        assert result is False
+
+    def test_removes_only_cicada_entry(self, tmp_path):
+        """Should remove only the cicada entry and keep others"""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text(
+            "[[mcp_servers]]\n"
+            'name = "first"\n'
+            'command = "first-cmd"\n'
+            "\n"
+            "[[mcp_servers]]\n"
+            'name = "cicada"\n'
+            'transport = "stdio"\n'
+            'command = "uvx"\n'
+            "\n"
+            "[[mcp_servers]]\n"
+            'name = "last"\n'
+            'command = "last-cmd"\n'
+        )
+
+        result = remove_vibe_mcp_entry(config_path)
+        assert result is True
+
+        content = config_path.read_text()
+        assert 'name = "first"' in content
+        assert 'name = "last"' in content
+        assert 'name = "cicada"' not in content
+
+    def test_handles_cicada_only_config(self, tmp_path):
+        """Should handle config with only cicada entry"""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text(
+            "[[mcp_servers]]\n" 'name = "cicada"\n' 'transport = "stdio"\n' 'command = "uvx"\n'
+        )
+
+        result = remove_vibe_mcp_entry(config_path)
+        assert result is True
+
+        content = config_path.read_text()
+        assert "cicada" not in content
+
+
+class TestCleanRepositoryWithVibe:
+    """Tests for clean_repository with Vibe config"""
+
+    def test_removes_vibe_config_entry(self, tmp_path):
+        """Should remove cicada entry from Vibe config during clean"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+
+        # Create Vibe config with cicada entry
+        vibe_dir = repo_path / ".vibe"
+        vibe_dir.mkdir()
+        vibe_config = vibe_dir / "config.toml"
+        vibe_config.write_text(
+            "[[mcp_servers]]\n"
+            'name = "cicada"\n'
+            'transport = "stdio"\n'
+            'command = "uvx"\n'
+            'args = ["cicada-mcp"]\n'
+        )
+
+        storage_dir = tmp_path / ".cicada" / "projects" / "test_hash"
+
+        with patch("cicada.clean.get_storage_dir", return_value=storage_dir):
+            clean_repository(repo_path, force=True)
+
+        # Vibe config should have cicada removed
+        content = vibe_config.read_text()
+        assert "cicada" not in content

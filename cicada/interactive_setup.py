@@ -553,14 +553,15 @@ def _text_based_editor_selection() -> str:
     print("4. Gemini CLI - Google Gemini command line interface")
     print("5. Codex - AI code editor")
     print("6. OpenCode - Terminal-based AI coding agent")
+    print("7. Mistral Vibe - Mistral AI coding assistant")
     print()
 
     while True:
         try:
-            choice = input("Enter your choice (1-6) [default: 1]: ").strip()
+            choice = input("Enter your choice (1-7) [default: 1]: ").strip()
             if not choice:
                 choice = "1"
-            if choice in ("1", "2", "3", "4", "5", "6"):
+            if choice in ("1", "2", "3", "4", "5", "6", "7"):
                 editor_map = {
                     "1": "claude",
                     "2": "cursor",
@@ -568,9 +569,10 @@ def _text_based_editor_selection() -> str:
                     "4": "gemini",
                     "5": "codex",
                     "6": "opencode",
+                    "7": "vibe",
                 }
                 return editor_map[choice]
-            print("Invalid choice. Please enter 1-6.")
+            print("Invalid choice. Please enter 1-7.")
         except (KeyboardInterrupt, EOFError):
             print()
             print("Setup cancelled. Exiting...")
@@ -665,6 +667,7 @@ def show_full_interactive_setup(repo_path: str | Path | None = None) -> None:
                     3: "gemini",
                     4: "codex",
                     5: "opencode",
+                    6: "vibe",
                 }
                 editor = editor_map[
                     int(editor_index) if isinstance(editor_index, int) else editor_index[0]

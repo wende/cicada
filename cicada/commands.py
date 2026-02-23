@@ -32,6 +32,7 @@ KNOWN_SUBCOMMANDS: tuple[str, ...] = (
     "gemini",
     "codex",
     "zed",
+    "vibe",
     "watch",
     "index",
     "index-pr",
@@ -149,6 +150,11 @@ def _add_editor_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Skip editor selection, use Zed",
     )
+    parser.add_argument(
+        "--vibe",
+        action="store_true",
+        help="Skip editor selection, use Mistral Vibe",
+    )
 
 
 def _create_editor_subparser(
@@ -162,6 +168,7 @@ def _create_editor_subparser(
         "gemini": "Gemini CLI",
         "codex": "Codex",
         "zed": "Zed",
+        "vibe": "Mistral Vibe",
     }
     display_name = editor_display_names.get(name, name.title())
     parser = subparsers.add_parser(
@@ -265,7 +272,7 @@ def get_argument_parser():
     )
 
     # Editor-specific subparsers (all have identical structure with mode args)
-    for editor in ["claude", "cursor", "vs", "gemini", "codex", "zed"]:
+    for editor in ["claude", "cursor", "vs", "gemini", "codex", "zed", "vibe"]:
         _create_editor_subparser(subparsers, editor, common_parser)
 
     watch_parser = subparsers.add_parser(
@@ -678,6 +685,7 @@ def handle_command(args) -> bool:
         "gemini": lambda args: handle_editor_setup(args, "gemini"),
         "codex": lambda args: handle_editor_setup(args, "codex"),
         "zed": lambda args: handle_editor_setup(args, "zed"),
+        "vibe": lambda args: handle_editor_setup(args, "vibe"),
         "watch": handle_watch,
         "index": handle_index,
         "index-pr": handle_index_pr,
@@ -1474,7 +1482,7 @@ def _determine_editor_from_args(args) -> str | None:
     Raises:
         SystemExit: If multiple editor flags specified
     """
-    editor_flags = [args.claude, args.cursor, args.vs, args.gemini, args.codex, args.zed]
+    editor_flags = [args.claude, args.cursor, args.vs, args.gemini, args.codex, args.zed, args.vibe]
     editor_count = sum(editor_flags)
 
     if editor_count > 1:
@@ -1493,6 +1501,8 @@ def _determine_editor_from_args(args) -> str | None:
         return "codex"
     if args.zed:
         return "zed"
+    if args.vibe:
+        return "vibe"
     return None
 
 
@@ -1516,6 +1526,7 @@ def _prompt_for_editor() -> str:
         "Gemini CLI (Google Gemini command line interface)",
         "Codex (AI code editor)",
         "Zed (High-performance code editor)",
+        "Mistral Vibe (Mistral AI coding assistant)",
     ]
     editor_menu = TerminalMenu(editor_options, title="Choose your editor:")
     menu_idx = editor_menu.show()
@@ -1526,13 +1537,14 @@ def _prompt_for_editor() -> str:
 
     # Map menu index to editor type
     assert isinstance(menu_idx, int), "menu_idx must be an integer"
-    editor_map: tuple[str, str, str, str, str, str] = (
+    editor_map: tuple[str, str, str, str, str, str, str] = (
         "claude",
         "cursor",
         "vs",
         "gemini",
         "codex",
         "zed",
+        "vibe",
     )
     return editor_map[menu_idx]
 
@@ -1649,6 +1661,8 @@ def _configure_editors_if_requested(args, repo_path: Path, storage_dir: Path) ->
         editors_to_configure.append("codex")
     if args.zed:
         editors_to_configure.append("zed")
+    if args.vibe:
+        editors_to_configure.append("vibe")
 
     if editors_to_configure:
         try:

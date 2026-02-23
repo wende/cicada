@@ -16,10 +16,14 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 from cicada.setup import (
+    _generate_vibe_toml_section,
+    _update_vibe_config_content,
     create_config_yaml,
     get_mcp_config_for_editor,
+    get_vibe_config,
     index_repository,
     setup,
+    write_editor_config,
 )
 
 
@@ -415,9 +419,9 @@ class TestSetupFunction:
 
     def test_setup_all_editors(self, mock_repo):
         """Setup should work for all editor types"""
-        editors = ["claude", "cursor", "vs", "gemini", "codex", "zed"]
+        json_editors = ["claude", "cursor", "vs", "gemini", "codex", "zed"]
 
-        for editor in editors:
+        for editor in json_editors:
             with patch("cicada.setup.create_storage_dir"):
                 with patch("cicada.setup.index_repository"):
                     with patch("cicada.setup.create_config_yaml"):
@@ -427,6 +431,18 @@ class TestSetupFunction:
 
                             # Should not raise an error
                             setup(editor, mock_repo)
+
+        # Test Vibe separately (uses TOML, not JSON)
+        with patch("cicada.setup.create_storage_dir"):
+            with patch("cicada.setup.index_repository"):
+                with patch("cicada.setup.create_config_yaml"):
+                    with patch("cicada.setup.get_vibe_config") as mock_vibe:
+                        vibe_dir = mock_repo / ".vibe"
+                        vibe_dir.mkdir(exist_ok=True)
+                        config_path = vibe_dir / "config.toml"
+                        mock_vibe.return_value = (config_path, "[[mcp_servers]]\n")
+
+                        setup("vibe", mock_repo)
 
 
 # ============================================================================
@@ -556,3 +572,127 @@ class TestSetupIndexExists:
 
                         captured = capsys.readouterr()
                         assert "✓ Found existing index" in captured.out
+
+
+# ============================================================================
+# Vibe (TOML) Config Tests
+# ============================================================================
+
+
+class TestVibeConfig:
+    """Tests for Vibe TOML config generation and merging"""
+
+    @pytest.fixture
+    def mock_repo(self, tmp_path):
+        """Create a mock repository"""
+        repo_path = tmp_path / "test_repo"
+        repo_path.mkdir()
+        return repo_path
+
+    @pytest.fixture
+    def mock_storage_dir(self, tmp_path):
+        """Create a mock storage directory"""
+        storage_dir = tmp_path / "storage"
+        storage_dir.mkdir()
+        return storage_dir
+
+    def test_generate_vibe_toml_section(self, mock_storage_dir):
+        """Should generate valid TOML section"""
+        section = _generate_vibe_toml_section(mock_storage_dir)
+
+        assert "[[mcp_servers]]" in section
+        assert 'name = "cicada"' in section
+        assert 'transport = "stdio"' in section
+        assert 'command = "uvx"' in section
+        assert 'args = ["cicada-mcp"]' in section
+        assert f'"CICADA_CONFIG_DIR" = "{mock_storage_dir}"' in section
+
+    def test_get_vibe_config_creates_directory(self, mock_repo, mock_storage_dir):
+        """Should create .vibe directory"""
+        config_path, content = get_vibe_config(mock_repo, mock_storage_dir)
+
+        assert config_path == mock_repo / ".vibe" / "config.toml"
+        assert config_path.parent.exists()
+        assert "[[mcp_servers]]" in content
+        assert 'name = "cicada"' in content
+
+    def test_get_vibe_config_preserves_existing(self, mock_repo, mock_storage_dir):
+        """Should preserve existing non-cicada content"""
+        vibe_dir = mock_repo / ".vibe"
+        vibe_dir.mkdir()
+        existing = (
+            "[[mcp_servers]]\n"
+            'name = "other-server"\n'
+            'transport = "stdio"\n'
+            'command = "other"\n'
+            "\n"
+        )
+        (vibe_dir / "config.toml").write_text(existing)
+
+        config_path, content = get_vibe_config(mock_repo, mock_storage_dir)
+
+        # Should keep existing server
+        assert 'name = "other-server"' in content
+        # Should add cicada server
+        assert 'name = "cicada"' in content
+
+    def test_update_vibe_config_replaces_existing_cicada(self, mock_storage_dir):
+        """Should replace existing cicada block"""
+        existing = (
+            "[[mcp_servers]]\n"
+            'name = "cicada"\n'
+            'transport = "stdio"\n'
+            'command = "old-command"\n'
+            'args = ["old-arg"]\n'
+            "\n"
+            "[[mcp_servers]]\n"
+            'name = "other"\n'
+            'command = "other"\n'
+        )
+        new_section = _generate_vibe_toml_section(mock_storage_dir)
+
+        result = _update_vibe_config_content(existing, new_section)
+
+        # Should have replaced the cicada block
+        assert 'command = "old-command"' not in result
+        assert 'command = "uvx"' in result
+        # Should keep the other block
+        assert 'name = "other"' in result
+
+    def test_update_vibe_config_appends_when_no_cicada(self, mock_storage_dir):
+        """Should append cicada block when none exists"""
+        existing = "[[mcp_servers]]\n" 'name = "other"\n' 'command = "other"\n'
+        new_section = _generate_vibe_toml_section(mock_storage_dir)
+
+        result = _update_vibe_config_content(existing, new_section)
+
+        assert 'name = "other"' in result
+        assert 'name = "cicada"' in result
+
+    def test_update_vibe_config_empty_existing(self, mock_storage_dir):
+        """Should handle empty existing content"""
+        new_section = _generate_vibe_toml_section(mock_storage_dir)
+
+        result = _update_vibe_config_content("", new_section)
+
+        assert 'name = "cicada"' in result
+        assert result == new_section
+
+    def test_write_editor_config_vibe(self, tmp_path):
+        """write_editor_config should write plain text for Vibe"""
+        config_path = tmp_path / "config.toml"
+        content = '[[mcp_servers]]\nname = "cicada"\n'
+
+        write_editor_config("vibe", config_path, content)
+
+        assert config_path.read_text() == content
+
+    def test_write_editor_config_json(self, tmp_path):
+        """write_editor_config should write JSON for other editors"""
+        config_path = tmp_path / "config.json"
+        content = {"mcpServers": {"cicada": {"command": "uvx"}}}
+
+        write_editor_config("claude", config_path, content)
+
+        written = json.loads(config_path.read_text())
+        assert written == content

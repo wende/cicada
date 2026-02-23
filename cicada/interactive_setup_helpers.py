@@ -35,6 +35,7 @@ _EDITOR_OPTIONS = (
     ("Gemini CLI", "gemini"),
     ("Codex", "codex"),
     ("OpenCode", "opencode"),
+    ("Mistral Vibe", "vibe"),
 )
 
 EDITOR_ITEMS = [label for label, _ in _EDITOR_OPTIONS]

@@ -72,6 +72,51 @@ def remove_mcp_config_entry(config_path: Path, server_key: str = "cicada") -> bo
     return False
 
 
+def remove_vibe_mcp_entry(config_path: Path, server_name: str = "cicada") -> bool:
+    """
+    Remove Cicada entry from a Vibe TOML configuration file.
+
+    Args:
+        config_path: Path to the Vibe config.toml file
+        server_name: Server name to remove (default: "cicada")
+
+    Returns:
+        True if entry was removed, False if file doesn't exist or no entry found
+    """
+    import re
+
+    if not config_path.exists():
+        return False
+
+    try:
+        content = config_path.read_text()
+
+        # Pattern to match the cicada [[mcp_servers]] block
+        pattern = re.compile(
+            r"\[\[mcp_servers\]\]\s*\n"
+            r'name\s*=\s*"' + re.escape(server_name) + r'"\s*\n'
+            r"(?:(?!\[\[).)*",
+            re.DOTALL,
+        )
+
+        if not pattern.search(content):
+            return False
+
+        # Remove the block and any trailing blank lines
+        new_content = pattern.sub("", content)
+        # Clean up multiple consecutive blank lines
+        new_content = re.sub(r"\n{3,}", "\n\n", new_content).strip()
+        if new_content:
+            new_content += "\n"
+
+        config_path.write_text(new_content)
+        return True
+
+    except OSError as e:
+        print(f"Warning: Could not process {config_path}: {e}")
+        return False
+
+
 def clean_index_only(repo_path: Path) -> None:
     """
     Remove only the main index files (index.json, hashes.json, and embeddings.jsonl).
@@ -227,7 +272,7 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     if old_cicada_dir.exists():
         items_to_remove.append(CleanItem("Legacy .cicada directory", old_cicada_dir))
 
-    # 3. MCP config files
+    # 3. MCP config files (JSON-based)
     mcp_configs = [
         (repo_path / ".mcp.json", "Claude Code config"),
         (repo_path / ".cursor" / "mcp.json", "Cursor config"),
@@ -247,6 +292,18 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
                     items_to_remove.append(CleanItem(desc, config_path, is_mcp_config=True))
             except (OSError, json.JSONDecodeError):
                 pass
+
+    # 3b. Vibe TOML config
+    vibe_config_path = repo_path / ".vibe" / "config.toml"
+    if vibe_config_path.exists():
+        try:
+            content = vibe_config_path.read_text()
+            if "cicada" in content.lower():
+                items_to_remove.append(
+                    CleanItem("Mistral Vibe config", vibe_config_path, is_mcp_config=True)
+                )
+        except OSError:
+            pass
 
     # Show what will be removed
     if not items_to_remove:
@@ -279,7 +336,12 @@ def clean_repository(repo_path: Path, force: bool = False) -> None:
     errors = []
     for item in items_to_remove:
         if item.is_mcp_config:
-            if remove_mcp_config_entry(item.path):
+            # Use TOML-based removal for Vibe, JSON-based for others
+            if str(item.path).endswith(".toml"):
+                success = remove_vibe_mcp_entry(item.path)
+            else:
+                success = remove_mcp_config_entry(item.path)
+            if success:
                 print(f"✓ Removed 'cicada' entry from {item.description}")
                 removed_count += 1
             else:

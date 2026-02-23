@@ -23,7 +23,7 @@ from cicada.utils import (
     get_index_path,
 )
 
-EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode", "zed"]
+EditorType = Literal["claude", "cursor", "vs", "gemini", "codex", "opencode", "zed", "vibe"]
 
 
 def detect_project_language(repo_path: Path) -> str:
@@ -320,6 +320,105 @@ def get_mcp_config_for_editor(
     return config_path, config
 
 
+def _generate_vibe_toml_section(storage_dir: Path) -> str:
+    """
+    Generate the [[mcp_servers]] TOML block for Vibe.
+
+    Args:
+        storage_dir: Path to the storage directory
+
+    Returns:
+        TOML section string for the cicada MCP server
+    """
+    return (
+        "[[mcp_servers]]\n"
+        'name = "cicada"\n'
+        'transport = "stdio"\n'
+        'command = "uvx"\n'
+        'args = ["cicada-mcp"]\n'
+        f'env = {{ "CICADA_CONFIG_DIR" = "{storage_dir}" }}\n'
+    )
+
+
+def _update_vibe_config_content(existing: str, new_section: str) -> str:
+    """
+    Merge a new cicada TOML section into existing Vibe config content.
+
+    If a cicada section already exists, replace it. Otherwise, append it.
+
+    Args:
+        existing: Existing TOML config content
+        new_section: New cicada TOML section to insert
+
+    Returns:
+        Updated TOML content
+    """
+    import re
+
+    # Pattern to match existing cicada [[mcp_servers]] block
+    # Matches from [[mcp_servers]] with name = "cicada" to the next [[section]] or end of file
+    pattern = re.compile(
+        r'\[\[mcp_servers\]\]\s*\nname\s*=\s*"cicada"\s*\n(?:(?!\[\[).)*',
+        re.DOTALL,
+    )
+
+    if pattern.search(existing):
+        return pattern.sub(new_section, existing)
+
+    # Append new section
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    if existing:
+        existing += "\n"
+    return existing + new_section
+
+
+def get_vibe_config(repo_path: Path, storage_dir: Path) -> tuple[Path, str]:
+    """
+    Get the Vibe MCP configuration file path and TOML content.
+
+    Args:
+        repo_path: Path to the repository
+        storage_dir: Path to the storage directory
+
+    Returns:
+        Tuple of (config_file_path, toml_content_string)
+    """
+    config_path = repo_path / ".vibe" / "config.toml"
+    config_path.parent.mkdir(exist_ok=True)
+
+    new_section = _generate_vibe_toml_section(storage_dir)
+
+    # Load existing config if present
+    existing = ""
+    if config_path.exists():
+        try:
+            existing = config_path.read_text()
+        except OSError:
+            existing = ""
+
+    content = _update_vibe_config_content(existing, new_section)
+    return config_path, content
+
+
+def write_editor_config(editor: EditorType, config_path: Path, content: str | dict) -> None:
+    """
+    Write editor config file. Uses JSON for most editors, plain text for TOML-based editors.
+
+    Args:
+        editor: Editor type
+        config_path: Path to the config file
+        content: Config content (dict for JSON editors, str for TOML editors)
+    """
+    if editor == "vibe":
+        assert isinstance(content, str), "Vibe config content must be a string"
+        with open(config_path, "w") as f:
+            f.write(content)
+    else:
+        with open(config_path, "w") as f:
+            json.dump(content, f, indent=2)
+
+
 def create_config_yaml(
     repo_path: Path,
     storage_dir: Path,
@@ -447,11 +546,15 @@ def setup_multiple_editors(
     """
     for editor in editors:
         try:
-            config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
+            if editor == "vibe":
+                config_path, config_content = get_vibe_config(repo_path, storage_dir)
+            else:
+                config_path, config_content = get_mcp_config_for_editor(
+                    editor, repo_path, storage_dir
+                )
 
             # Write config file
-            with open(config_path, "w") as f:
-                json.dump(config_content, f, indent=2)
+            write_editor_config(editor, config_path, config_content)
 
             if verbose:
                 print(f"✓ Created {editor.upper()} config at {config_path}")
@@ -729,14 +832,16 @@ def setup(
     _setup_gitattributes(repo_path)
 
     # Create MCP config for the editor
-    config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
+    if editor == "vibe":
+        config_path, config_content = get_vibe_config(repo_path, storage_dir)
+    else:
+        config_path, config_content = get_mcp_config_for_editor(editor, repo_path, storage_dir)
 
     # Check if MCP config already exists
     mcp_config_existed = config_path.exists()
 
     # Write config file
-    with open(config_path, "w") as f:
-        json.dump(config_content, f, indent=2)
+    write_editor_config(editor, config_path, config_content)
 
     if index_exists:
         # Show condensed success message

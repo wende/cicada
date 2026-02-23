@@ -212,6 +212,11 @@ def find_mcp_files(repo_path: Path) -> dict:
             "description": "OpenCode config",
             "editor": "OpenCode",
         },
+        {
+            "path": repo_path / ".vibe" / "config.toml",
+            "description": "Mistral Vibe config",
+            "editor": "Mistral Vibe",
+        },
     ]
 
     existing_files = []
