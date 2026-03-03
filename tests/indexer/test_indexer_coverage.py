@@ -683,8 +683,8 @@ def test_extract_dependencies():
 # ===== Find Elixir Files Tests =====
 
 
-def test_find_elixir_files(temp_repo):
-    """Test _find_elixir_files finds all .ex and .exs files."""
+def test_find_source_files(temp_repo):
+    """Test _find_source_files finds all .ex and .exs files."""
     indexer = ElixirIndexer()
 
     # Create additional files
@@ -692,7 +692,7 @@ def test_find_elixir_files(temp_repo):
     (lib_dir / "helper.exs").touch()
     (lib_dir / "config.txt").touch()  # Should not be found
 
-    files = indexer._find_elixir_files(temp_repo)
+    files = indexer._find_source_files(temp_repo)
 
     # Should find .ex and .exs but not .txt
     file_names = [f.name for f in files]
@@ -701,8 +701,8 @@ def test_find_elixir_files(temp_repo):
     assert "config.txt" not in file_names
 
 
-def test_find_elixir_files_excludes_dirs(temp_repo):
-    """Test _find_elixir_files excludes deps and _build."""
+def test_find_source_files_excludes_dirs(temp_repo):
+    """Test _find_source_files excludes deps and _build."""
     indexer = ElixirIndexer()
 
     # Create files in excluded directories
@@ -714,7 +714,7 @@ def test_find_elixir_files_excludes_dirs(temp_repo):
     build_dir.mkdir()
     (build_dir / "compiled.ex").touch()
 
-    files = indexer._find_elixir_files(temp_repo)
+    files = indexer._find_source_files(temp_repo)
 
     # Should not find files in excluded dirs
     file_paths = [str(f) for f in files]

@@ -234,7 +234,7 @@ class PythonSCIPIndexer(BaseIndexer):
         existing_hashes = load_file_hashes(str(hashes_path))
 
         # Find all Python files
-        python_files = list(self._find_python_files(repo_path_obj))
+        python_files = list(self._find_source_files(repo_path_obj))
         self._log_timing("File discovery")
 
         # Convert to relative paths for comparison
@@ -522,23 +522,6 @@ class PythonSCIPIndexer(BaseIndexer):
                 copied_count += 1
 
         return copied_count
-
-    def _find_python_files(self, repo_path: Path) -> list[Path]:
-        """Find all Python files in repository.
-
-        Args:
-            repo_path: Repository root path
-
-        Returns:
-            List of Python file paths
-        """
-        python_files = []
-        for py_file in repo_path.rglob("*.py"):
-            # Skip excluded directories
-            if any(excluded in py_file.parts for excluded in self.excluded_dirs):
-                continue
-            python_files.append(py_file)
-        return python_files
 
     def _expand_and_update_keywords(
         self, keywords: dict[str, float], keyword_expander

@@ -8,7 +8,6 @@ using RegularKeywordExtractor so that plain-text resources are searchable.
 
 from __future__ import annotations
 
-import contextlib
 import mimetypes
 import os
 from collections.abc import Iterable
@@ -16,11 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pathspec import PathSpec
-
 from cicada.extractors.keyword import RegularKeywordExtractor
 from cicada.parsing.base_indexer import BaseIndexer
 from cicada.utils import load_index, save_index
+from cicada.utils.gitignore import GitIgnoreFilter
 from cicada.utils.index_utils import get_index_stats
 
 
@@ -49,15 +47,6 @@ class GenericFileIndexer(BaseIndexer):
     def get_excluded_dirs(self) -> list[str]:
         # Directory exclusion is handled via .gitignore/pathspec filtering.
         return []
-
-    def _load_gitignore(self, repo_path: Path) -> PathSpec:
-        """Load gitignore patterns and ensure git metadata files are always ignored."""
-        patterns = [".git/", ".gitmodules", ".gitattributes"]
-        gitignore_path = repo_path / ".gitignore"
-        if gitignore_path.exists():
-            with contextlib.suppress(OSError):
-                patterns.extend(gitignore_path.read_text().splitlines())
-        return PathSpec.from_lines("gitwildmatch", patterns)
 
     def _is_text_file(self, file_path: Path) -> bool:
         """Heuristic check to ensure the file is text-based."""
@@ -100,29 +89,27 @@ class GenericFileIndexer(BaseIndexer):
     def _normalize_relative(self, repo_path: Path, target: Path) -> str:
         return target.relative_to(repo_path).as_posix()
 
-    def _should_ignore(self, spec: PathSpec, relative_path: str) -> bool:
-        return spec.match_file(relative_path) or spec.match_file(f"{relative_path}/")
-
     def _find_source_files(self, repo_path: Path) -> list[Path]:
         """Collect gitignored-aware list of candidate text files."""
-        spec = self._load_gitignore(repo_path)
+        gitignore = GitIgnoreFilter(repo_path)
         files: list[Path] = []
 
         for root, dirs, filenames in os.walk(repo_path):
             root_path = Path(root)
             rel_root = root_path.relative_to(repo_path).as_posix() if root_path != repo_path else ""
 
-            # Remove ignored directories to avoid needless traversal.
-            for dirname in list(dirs):
-                rel_dir = f"{rel_root}/{dirname}" if rel_root else dirname
-                if self._should_ignore(spec, rel_dir):
-                    dirs.remove(dirname)
+            # Prune ignored directories to avoid needless traversal.
+            dirs[:] = [
+                d
+                for d in dirs
+                if not gitignore.is_dir_ignored(f"{rel_root}/{d}" if rel_root else d)
+            ]
 
             for filename in filenames:
                 file_path = root_path / filename
-                rel_path = f"{rel_root}/{filename}" if rel_root else filename  # Always POSIX-style
+                rel_path = f"{rel_root}/{filename}" if rel_root else filename
 
-                if self._should_ignore(spec, rel_path):
+                if gitignore.is_ignored(rel_path):
                     continue
 
                 suffix = file_path.suffix.lower()
