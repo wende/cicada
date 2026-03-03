@@ -174,7 +174,9 @@ class GenericSCIPIndexer(BaseIndexer):
                 }
 
         if self.verbose:
-            if new_files or modified_files or deleted_files:
+            if force_full:
+                print("  Performing full reindex...")
+            elif new_files or modified_files or deleted_files:
                 print(
                     f"  Changes detected: {len(new_files)} new, "
                     f"{len(modified_files)} modified, {len(deleted_files)} deleted"
@@ -306,17 +308,6 @@ class GenericSCIPIndexer(BaseIndexer):
                 scip_file.unlink()
                 if self.verbose:
                     print(f"  Cleaned up temporary file: {scip_file}")
-
-    def _find_source_files(self, repo_path: Path) -> list[Path]:
-        """Find all source files in repository."""
-        source_files = []
-        excluded_dirs = set(self.get_excluded_dirs())
-
-        for ext in self.get_file_extensions():
-            for file in repo_path.rglob(f"*{ext}"):
-                if all(excluded not in file.parts for excluded in excluded_dirs):
-                    source_files.append(file)
-        return source_files
 
     def _save_index(self, index: dict, output_path: Path) -> None:
         """Save index to JSON file."""

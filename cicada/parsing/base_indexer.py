@@ -4,11 +4,14 @@ Abstract base class for language-specific indexers.
 All language implementations must subclass BaseIndexer and implement the abstract methods.
 """
 
+import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from cicada.utils.gitignore import GitIgnoreFilter
 
 
 class BaseIndexer(ABC):
@@ -136,27 +139,39 @@ class BaseIndexer(ABC):
         """
         Find all source files to index in the repository.
 
-        Default implementation finds files by extension and excludes
-        directories from get_excluded_dirs(). Can be overridden for
-        custom file discovery logic.
+        Default implementation finds files by extension, excludes
+        directories from get_excluded_dirs(), and respects .gitignore
+        patterns. Uses os.walk() for efficient directory pruning.
 
         Args:
             repo_path: Repository root path
 
         Returns:
-            List of source file paths to index
+            Sorted list of source file paths to index
         """
-        source_files = []
-        extensions = self.get_file_extensions()
+        source_files: list[Path] = []
+        extensions = set(self.get_file_extensions())
         excluded = set(self.get_excluded_dirs())
+        gitignore = GitIgnoreFilter(repo_path)
 
-        for ext in extensions:
-            for file_path in repo_path.rglob(f"*{ext}"):
-                # Check if any parent directory is excluded
-                if any(part in excluded for part in file_path.parts):
-                    continue
-                if file_path.is_file():
-                    source_files.append(file_path)
+        for root, dirs, files in os.walk(repo_path):
+            root_path = Path(root)
+            rel_root = root_path.relative_to(repo_path).as_posix() if root_path != repo_path else ""
+
+            # Prune excluded and gitignored directories in-place
+            dirs[:] = [
+                d
+                for d in dirs
+                if d not in excluded
+                and not gitignore.is_dir_ignored(f"{rel_root}/{d}" if rel_root else d)
+            ]
+
+            for filename in files:
+                if any(filename.endswith(ext) for ext in extensions):
+                    file_path = root_path / filename
+                    rel_path = f"{rel_root}/{filename}" if rel_root else filename
+                    if not gitignore.is_ignored(rel_path):
+                        source_files.append(file_path)
 
         return sorted(source_files)
 

@@ -929,7 +929,13 @@ def handle_index_main(args) -> None:
         if indexing_mode == INDEX_MODE_EMBEDDINGS:
             import json
 
-            from cicada.embeddings.indexer import EmbeddingsIndexer
+            try:
+                from cicada.embeddings.indexer import EmbeddingsIndexer
+            except ImportError as e:
+                print(f"\n⚠️  Embeddings require a newer version of cicada-vector: {e}")
+                print("  Run: uv tool install --upgrade cicada-mcp")
+                print("The code index was created successfully.")
+                return
 
             if verbose:
                 print("\nGenerating embeddings for semantic search...")

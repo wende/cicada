@@ -439,8 +439,8 @@ end
 class TestElixirIndexerExcludedDirectories:
     """Tests for excluding directories from indexing"""
 
-    def test_find_elixir_files_excludes_deps(self, tmp_path):
-        """Test that _find_elixir_files excludes deps directory"""
+    def test_find_source_files_excludes_deps(self, tmp_path):
+        """Test that _find_source_files excludes deps directory"""
         indexer = ElixirIndexer()
 
         # Create a file in deps directory (should be excluded)
@@ -466,14 +466,14 @@ end
         )
 
         # Find files
-        files = indexer._find_elixir_files(tmp_path)
+        files = indexer._find_source_files(tmp_path)
 
         # Should only find root file
         assert len(files) == 1
         assert files[0].name == "root.ex"
 
-    def test_find_elixir_files_excludes_build(self, tmp_path):
-        """Test that _find_elixir_files excludes _build directory"""
+    def test_find_source_files_excludes_build(self, tmp_path):
+        """Test that _find_source_files excludes _build directory"""
         indexer = ElixirIndexer()
 
         # Create a file in _build directory (should be excluded)
@@ -499,14 +499,14 @@ end
         )
 
         # Find files
-        files = indexer._find_elixir_files(tmp_path)
+        files = indexer._find_source_files(tmp_path)
 
         # Should only find root file
         assert len(files) == 1
         assert files[0].name == "root.ex"
 
-    def test_find_elixir_files_includes_exs_files(self, tmp_path):
-        """Test that _find_elixir_files includes .exs files"""
+    def test_find_source_files_includes_exs_files(self, tmp_path):
+        """Test that _find_source_files includes .exs files"""
         indexer = ElixirIndexer()
 
         # Create .ex and .exs files
@@ -517,7 +517,7 @@ end
         exs_file.write_text("defmodule M2, do: def f2, do: 2")
 
         # Find files
-        files = indexer._find_elixir_files(tmp_path)
+        files = indexer._find_source_files(tmp_path)
 
         # Should find both files
         assert len(files) == 2

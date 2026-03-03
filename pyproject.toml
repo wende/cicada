@@ -58,7 +58,7 @@ dependencies = [
     "watchdog>=3.0.0",
     "tree-sitter-language-pack>=0.13.0",  # Multi-language tree-sitter bindings (Erlang, etc.)
     "pathspec>=0.12.0",  # Gitignore-style path matching for generic file indexing
-    "cicada-vector",  # Semantic search with embeddings
+    "cicada-vector>=0.1.5",  # Semantic search with embeddings
     "fastapi>=0.115.0",  # REST API server for MCP tools
     "uvicorn>=0.32.0",  # ASGI server for FastAPI
     "protobuf>=5.26.0",  # SCIP protocol buffer support (runtime_version requires 5.26+)

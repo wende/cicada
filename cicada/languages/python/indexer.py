@@ -20,6 +20,7 @@ from cicada.languages.python.string_extractor import PythonStringExtractor
 from cicada.languages.scip.converter import SCIPConverter
 from cicada.languages.scip.reader import SCIPReader
 from cicada.parsing.base_indexer import BaseIndexer
+from cicada.utils.gitignore import GitIgnoreFilter
 from cicada.utils.hash_utils import (
     compute_hashes_for_files,
     load_file_hashes,
@@ -234,7 +235,7 @@ class PythonSCIPIndexer(BaseIndexer):
         existing_hashes = load_file_hashes(str(hashes_path))
 
         # Find all Python files
-        python_files = list(self._find_python_files(repo_path_obj))
+        python_files = list(self._find_source_files(repo_path_obj))
         self._log_timing("File discovery")
 
         # Convert to relative paths for comparison
@@ -272,7 +273,9 @@ class PythonSCIPIndexer(BaseIndexer):
                 }
 
         if self.verbose:
-            if new_files or modified_files or deleted_files:
+            if force_full:
+                print("  Performing full reindex...")
+            elif new_files or modified_files or deleted_files:
                 print(
                     f"  Changes detected: {len(new_files)} new, {len(modified_files)} modified, {len(deleted_files)} deleted"
                 )
@@ -520,23 +523,6 @@ class PythonSCIPIndexer(BaseIndexer):
                 copied_count += 1
 
         return copied_count
-
-    def _find_python_files(self, repo_path: Path) -> list[Path]:
-        """Find all Python files in repository.
-
-        Args:
-            repo_path: Repository root path
-
-        Returns:
-            List of Python file paths
-        """
-        python_files = []
-        for py_file in repo_path.rglob("*.py"):
-            # Skip excluded directories
-            if any(excluded in py_file.parts for excluded in self.excluded_dirs):
-                continue
-            python_files.append(py_file)
-        return python_files
 
     def _expand_and_update_keywords(
         self, keywords: dict[str, float], keyword_expander
@@ -853,17 +839,38 @@ class PythonSCIPIndexer(BaseIndexer):
         Raises:
             RuntimeError: If scip-python execution fails
         """
-        # Create temporary pyrightconfig.json to exclude .venv and dependencies
+        # Ensure pyrightconfig.json excludes .venv, dependencies,
+        # and everything in .gitignore so Pyright doesn't analyze ignored files.
         pyright_config_path = repo_path / "pyrightconfig.json"
-        temp_pyright_config = False
+        original_pyright_config: str | None = None
 
-        if not pyright_config_path.exists():
-            temp_pyright_config = True
-            pyright_config = {"exclude": list(self.excluded_dirs)}
-            with open(pyright_config_path, "w") as f:
-                json.dump(pyright_config, f, indent=2)
-            if self.verbose:
-                print("  Created temporary pyrightconfig.json to exclude dependencies")
+        gitignore_filter = GitIgnoreFilter(repo_path)
+        # Pyright does not support gitignore negation semantics in "exclude".
+        # Use concrete ignored files so un-ignored files (via !pattern) stay indexable.
+        ignored_python_files = gitignore_filter.get_ignored_files(suffixes=(".py",))
+
+        if pyright_config_path.exists():
+            original_pyright_config = pyright_config_path.read_text()
+            try:
+                pyright_config = json.loads(original_pyright_config)
+            except (json.JSONDecodeError, ValueError):
+                pyright_config = {}
+            raw_existing = pyright_config.get("exclude", [])
+            if isinstance(raw_existing, list):
+                existing = [entry for entry in raw_existing if isinstance(entry, str)]
+            elif isinstance(raw_existing, str):
+                existing = [raw_existing]
+            else:
+                existing = []
+            merged = sorted(set(existing) | self.excluded_dirs | set(ignored_python_files))
+            pyright_config["exclude"] = merged
+        else:
+            pyright_config = {"exclude": sorted(self.excluded_dirs | set(ignored_python_files))}
+
+        with open(pyright_config_path, "w") as f:
+            json.dump(pyright_config, f, indent=2)
+        if self.verbose:
+            print("  Created temporary pyrightconfig.json to exclude dependencies")
 
         # Create temporary file for .scip output in system temp directory
         with tempfile.NamedTemporaryFile(mode="w", suffix=".scip", delete=False) as tmp:
@@ -924,8 +931,10 @@ class PythonSCIPIndexer(BaseIndexer):
                 scip_file.unlink()
             raise
         finally:
-            # Clean up temporary pyrightconfig if we created it
-            if temp_pyright_config and pyright_config_path.exists():
+            # Restore original pyrightconfig or remove the temporary one
+            if original_pyright_config is not None:
+                pyright_config_path.write_text(original_pyright_config)
+            elif pyright_config_path.exists():
                 pyright_config_path.unlink()
 
     def _save_index(self, index: dict, output_path: Path):

@@ -516,7 +516,7 @@ def _update_md_file(md_path: Path, tools) -> None:
     grep_antipatterns_str = "\n".join(grep_antipatterns)
 
     instruction_content = f"""<cicada>
-  **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for code concept searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
 {tool_list_str}

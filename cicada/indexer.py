@@ -5,7 +5,6 @@ Walks an Elixir repository and indexes all modules and functions.
 """
 
 import argparse
-import os
 import signal
 import sys
 from dataclasses import dataclass
@@ -802,7 +801,7 @@ class ElixirIndexer(BaseIndexer):
                 extract_keywords = False
 
         # Find all Elixir files
-        elixir_files = self._find_elixir_files(repo_path_obj)
+        elixir_files = self._find_source_files(repo_path_obj)
         total_files = len(elixir_files)
 
         if self.verbose:
@@ -1047,7 +1046,7 @@ class ElixirIndexer(BaseIndexer):
         self._interrupted = False
 
         # Find all current Elixir files
-        elixir_files = self._find_elixir_files(repo_path_obj)
+        elixir_files = self._find_source_files(repo_path_obj)
         # Convert to relative paths
         relative_files = [str(f.relative_to(repo_path_obj)) for f in elixir_files]
 
@@ -1240,22 +1239,6 @@ class ElixirIndexer(BaseIndexer):
             print(f"  Files deleted: {len(deleted_files)}")
 
         return merged_index
-
-    def _find_elixir_files(self, repo_path: Path) -> list:
-        """Find all Elixir source files in the repository."""
-        elixir_files = []
-
-        for root, dirs, files in os.walk(repo_path):
-            # Remove excluded directories from the search
-            dirs[:] = [d for d in dirs if d not in self.excluded_dirs]
-
-            # Find .ex and .exs files
-            for file in files:
-                if file.endswith((".ex", ".exs")):
-                    file_path = Path(root) / file
-                    elixir_files.append(file_path)
-
-        return sorted(elixir_files)
 
 
 def main():

@@ -38,7 +38,7 @@ git commit -m "Add gh CLI dependency check"
 
 ### Cicada Tool Usage
 
-**ALWAYS use cicada-mcp tools for Elixir, Python, and Erlang code searches. NEVER use Grep/Find for these tasks.**
+**ALWAYS use cicada-mcp tools for code concept searches. NEVER use Grep/Find for these tasks.**
 
 #### Use cicada tools for:
 - **PRIMARY TOOL:** `mcp__cicada__query` - Start here for ALL code exploration and discovery
@@ -71,7 +71,7 @@ For detailed information on specific topics, see:
 - **[Language Support](codebook/LANGUAGE_SUPPORT.md)** - All 15 languages including Python-specific features
 
 <cicada>
-  **ALWAYS use cicada-mcp tools for Elixir and Python code searches. NEVER use Grep/Find for these tasks.**
+  **ALWAYS use cicada-mcp tools for code concept searches. NEVER use Grep/Find for these tasks.**
 
   ### Use cicada tools for:
   - YOUR PRIMARY TOOL - Start here for ALL code exploration and discovery. `mcp__cicada__query`
@@ -92,6 +92,7 @@ For detailed information on specific topics, see:
   - ✓ String literal searches
   - ✓ Pattern matching in single line comments
 </cicada>
+
 
 ## Task Management with Codebook
 
