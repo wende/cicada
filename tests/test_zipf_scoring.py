@@ -1,5 +1,7 @@
 """Tests for Zipf-based keyword scoring."""
 
+import fnmatch
+
 import pytest
 
 from cicada.keyword_search import KeywordSearcher
@@ -166,8 +168,6 @@ class TestZipfWildcardScoring:
     """Wildcard scoring with Zipf."""
 
     def _match_wildcard(self, pattern, text):
-        import fnmatch
-
         return fnmatch.fnmatch(text.lower(), pattern.lower())
 
     def test_wildcard_uses_doc_keyword_zipf_weight(self):
@@ -196,6 +196,33 @@ class TestZipfWildcardScoring:
         )
         # Name match: EXACT_NAME_MATCH_SCORE = 3.0, coverage 1.6 -> 4.8
         assert result["score"] == pytest.approx(EXACT_NAME_MATCH_SCORE * 1.6)
+
+    def test_wildcard_uses_best_zipf_weighted_match_independent_of_order(self):
+        """Wildcard score chooses the best weighted match, not first dict item."""
+        query_keywords = ["a*"]
+        keyword_groups = [0]
+        zipf_weights = {"alpha": 0.2, "atom": 0.8}
+
+        alpha_first = calculate_wildcard_score(
+            query_keywords,
+            keyword_groups,
+            1,
+            {"alpha": 1.0, "atom": 1.0},
+            self._match_wildcard,
+            zipf_weights=zipf_weights,
+        )
+        atom_first = calculate_wildcard_score(
+            query_keywords,
+            keyword_groups,
+            1,
+            {"atom": 1.0, "alpha": 1.0},
+            self._match_wildcard,
+            zipf_weights=zipf_weights,
+        )
+
+        # Best match is atom: 1.0 * 0.8 = 0.8, coverage 1.6 -> 1.28
+        assert alpha_first["score"] == pytest.approx(1.28)
+        assert atom_first["score"] == pytest.approx(1.28)
 
 
 class TestZipfSearcherIntegration:

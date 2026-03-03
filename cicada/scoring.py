@@ -7,7 +7,8 @@ with support for wildcard pattern matching and module name boosting.
 
 import math
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
+from itertools import groupby
 from typing import Any
 
 # Normalization constants for score distribution
@@ -39,7 +40,7 @@ COVERAGE_BONUS_SCALE = 0.8
 EXACT_NAME_MATCH_SCORE = 3.0
 
 
-def build_zipf_table(documents: list[dict[str, Any]]) -> dict[str, float]:
+def build_zipf_table(documents: Iterable[Mapping[str, Any]]) -> dict[str, float]:
     """
     Build a Zipf weighting table from document keyword frequencies.
 
@@ -48,14 +49,11 @@ def build_zipf_table(documents: list[dict[str, Any]]) -> dict[str, float]:
     Weight follows power law: 1.0 / rank.
 
     Args:
-        documents: List of document dicts, each with a 'keywords' dict
+        documents: Iterable of document-like mappings, each with a 'keywords' dict
 
     Returns:
         Dictionary mapping keyword -> Zipf weight (1.0 for rarest, decreasing)
     """
-    if not documents:
-        return {}
-
     # Count document frequency (each keyword counted once per document)
     doc_freq: defaultdict[str, int] = defaultdict(int)
     for doc in documents:
@@ -70,14 +68,10 @@ def build_zipf_table(documents: list[dict[str, Any]]) -> dict[str, float]:
 
     # Dense ranking with ex aequo: increment rank only when frequency changes
     zipf_weights: dict[str, float] = {}
-    rank = 1
-    prev_freq = sorted_items[0][1]
-
-    for kw, freq in sorted_items:
-        if freq > prev_freq:
-            rank += 1
-            prev_freq = freq
-        zipf_weights[kw] = 1.0 / rank
+    for rank, (_, group) in enumerate(groupby(sorted_items, key=lambda x: x[1]), start=1):
+        weight = 1.0 / rank
+        for kw, _ in group:
+            zipf_weights[kw] = weight
 
     return zipf_weights
 
@@ -284,27 +278,29 @@ def calculate_wildcard_score(
     simple_name = _extract_simple_name(doc_name)
 
     for query_kw, group_idx in zip(query_keywords, keyword_groups, strict=False):
-        matched = False
+        best_match_score: float | None = None
+        best_diminished_score: float | None = None
 
-        # Find all doc keywords matching this pattern
+        # Find best matching doc keyword for this pattern (order-independent)
+        match_count = keyword_match_counts[query_kw]
+        diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
         for doc_kw, weight in doc_keywords.items():
             if match_wildcard_fn(query_kw, doc_kw):
-                matched_groups.add(group_idx)
-                # Add query keyword to matched list (not the doc keyword)
-                if query_kw not in matched_keywords:
-                    matched_keywords.append(query_kw)
-
-                # Apply diminishing returns: weight × 0.5^match_count
-                match_count = keyword_match_counts[query_kw]
-                diminishing_factor = DIMINISHING_RETURNS_FACTOR**match_count
                 zipf_factor = zipf_weights.get(doc_kw, 1.0) if zipf_weights else 1.0
-                base_score += weight * diminishing_factor * zipf_factor
+                weighted_score = weight * zipf_factor
+                if best_match_score is None or weighted_score > best_match_score:
+                    best_match_score = weighted_score
+                    best_diminished_score = weighted_score * diminishing_factor
 
-                # Increment match count
-                keyword_match_counts[query_kw] += 1
-
-                matched = True
-                break
+        matched = best_diminished_score is not None
+        if matched:
+            matched_groups.add(group_idx)
+            # Add query keyword to matched list (not the doc keyword)
+            if query_kw not in matched_keywords:
+                matched_keywords.append(query_kw)
+            base_score += best_diminished_score
+            # Increment match count
+            keyword_match_counts[query_kw] += 1
 
         # Also check for wildcard name match
         if not matched and simple_name and match_wildcard_fn(query_kw, simple_name):
