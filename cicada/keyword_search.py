@@ -13,6 +13,7 @@ from typing import Any
 
 from cicada.scoring import (
     apply_module_boost,
+    build_zipf_table,
     calculate_score,
     calculate_wildcard_score,
 )
@@ -45,6 +46,7 @@ class KeywordSearcher:
         self.match_source = match_source
         self.cochange_boost = cochange_boost
         self.documents = self._build_document_map()
+        self.zipf_table = build_zipf_table(self.documents)
 
         # Initialize co-occurrence analyzer if data is available
         from cicada.cooccurrence import CooccurrenceAnalyzer
@@ -369,7 +371,12 @@ class KeywordSearcher:
         doc_name = doc.get("name") if doc else None
 
         result = calculate_score(
-            query_keywords, keyword_groups, total_terms, doc_keywords, doc_name=doc_name
+            query_keywords,
+            keyword_groups,
+            total_terms,
+            doc_keywords,
+            doc_name=doc_name,
+            zipf_weights=self.zipf_table,
         )
 
         # Add match details if document provided
@@ -413,6 +420,7 @@ class KeywordSearcher:
             doc_keywords,
             self._match_wildcard,
             doc_name=doc_name,
+            zipf_weights=self.zipf_table,
         )
 
         # Add match details if document provided

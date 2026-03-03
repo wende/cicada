@@ -156,8 +156,9 @@ class TestCoChangeSearch:
         assert len(results) > 0
         # Scores should be based on keyword matching with coverage bonus
         result = next(r for r in results if r["module"] == "ModuleA")
-        # Base score: 0.9, Coverage: 100% → multiplier 1.6, Final: 0.9 × 1.6 = 1.44
-        assert 1.28 <= result["score"] <= 1.6
+        # Base score with Zipf: 0.9 * 0.5 = 0.45, Coverage: 100% -> multiplier 1.6
+        # Final: 0.45 * 1.6 = 0.72
+        assert 0.64 <= result["score"] <= 0.8
 
     def test_cochange_boost_strength_configurable(self, index_with_cochange):
         """Test that boost strength is configurable."""
@@ -219,7 +220,7 @@ class TestCoChangeSearch:
         )
 
         # The boost should be significant (exact value depends on implementation)
-        assert result["score"] > 0.8, "Score should be boosted by co-change relationships"
+        assert result["score"] > 0.7, "Score should be boosted by co-change relationships"
 
     def test_no_crash_when_cochange_data_missing(self):
         """Test that search doesn't crash when co-change data is missing."""
