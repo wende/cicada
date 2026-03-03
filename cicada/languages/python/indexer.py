@@ -822,6 +822,21 @@ class PythonSCIPIndexer(BaseIndexer):
             "  npm install -g @sourcegraph/scip-python"
         )
 
+    @staticmethod
+    def _read_gitignore_patterns(repo_path: Path) -> list[str]:
+        """Read .gitignore and .git/info/exclude patterns for pyrightconfig exclude."""
+        patterns: list[str] = []
+        for path in [repo_path / ".gitignore", repo_path / ".git" / "info" / "exclude"]:
+            if path.is_file():
+                try:
+                    for line in path.read_text().splitlines():
+                        line = line.strip()
+                        if line and not line.startswith("#") and not line.startswith("!"):
+                            patterns.append(line)
+                except OSError:
+                    pass
+        return patterns
+
     def _run_scip_python(self, repo_path: Path, target_only: str | None = None) -> Path:
         """
         Run scip-python indexer on repository.
@@ -838,17 +853,28 @@ class PythonSCIPIndexer(BaseIndexer):
         Raises:
             RuntimeError: If scip-python execution fails
         """
-        # Create temporary pyrightconfig.json to exclude .venv and dependencies
+        # Ensure pyrightconfig.json excludes .venv, dependencies,
+        # and everything in .gitignore so Pyright doesn't analyze ignored files.
         pyright_config_path = repo_path / "pyrightconfig.json"
-        temp_pyright_config = False
+        original_pyright_config: str | None = None
 
-        if not pyright_config_path.exists():
-            temp_pyright_config = True
-            pyright_config = {"exclude": list(self.excluded_dirs)}
-            with open(pyright_config_path, "w") as f:
-                json.dump(pyright_config, f, indent=2)
-            if self.verbose:
-                print("  Created temporary pyrightconfig.json to exclude dependencies")
+        gitignore_patterns = self._read_gitignore_patterns(repo_path)
+        if pyright_config_path.exists():
+            original_pyright_config = pyright_config_path.read_text()
+            try:
+                pyright_config = json.loads(original_pyright_config)
+            except (json.JSONDecodeError, ValueError):
+                pyright_config = {}
+            existing = set(pyright_config.get("exclude", []))
+            merged = list(existing | set(self.excluded_dirs) | set(gitignore_patterns))
+            pyright_config["exclude"] = merged
+        else:
+            pyright_config = {"exclude": list(self.excluded_dirs) + gitignore_patterns}
+
+        with open(pyright_config_path, "w") as f:
+            json.dump(pyright_config, f, indent=2)
+        if self.verbose:
+            print("  Created temporary pyrightconfig.json to exclude dependencies")
 
         # Create temporary file for .scip output in system temp directory
         with tempfile.NamedTemporaryFile(mode="w", suffix=".scip", delete=False) as tmp:
@@ -909,8 +935,10 @@ class PythonSCIPIndexer(BaseIndexer):
                 scip_file.unlink()
             raise
         finally:
-            # Clean up temporary pyrightconfig if we created it
-            if temp_pyright_config and pyright_config_path.exists():
+            # Restore original pyrightconfig or remove the temporary one
+            if original_pyright_config is not None:
+                pyright_config_path.write_text(original_pyright_config)
+            elif pyright_config_path.exists():
                 pyright_config_path.unlink()
 
     def _save_index(self, index: dict, output_path: Path):

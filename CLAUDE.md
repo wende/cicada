@@ -93,6 +93,7 @@ For detailed information on specific topics, see:
   - ✓ Pattern matching in single line comments
 </cicada>
 
+
 ## Task Management with Codebook
 
 Use `codebook task` CLI for documentation-driven development and task tracking.
