@@ -171,6 +171,44 @@ class TestPythonSCIPIndexer:
                     call_kwargs = mock_temp.call_args[1]
                     assert "dir" not in call_kwargs
 
+    def test_run_scip_python_respects_gitignore_negation(self, indexer, tmp_path):
+        """Should not exclude un-ignored files from pyrightconfig exclude."""
+        (tmp_path / ".gitignore").write_text("generated/*\n!generated/schema.py\n")
+        generated = tmp_path / "generated"
+        generated.mkdir()
+        (generated / "schema.py").write_text("SCHEMA = {}")
+        (generated / "ignored.py").write_text("x = 1")
+
+        fake_scip_python_path = "/fake/bin/scip-python"
+        captured_excludes: set[str] = set()
+
+        def mock_run(*args, **kwargs):
+            pyright_config = json.loads((tmp_path / "pyrightconfig.json").read_text())
+            captured_excludes.update(pyright_config.get("exclude", []))
+            result = Mock()
+            result.returncode = 0
+            result.stderr = ""
+            return result
+
+        with patch.object(
+            SCIPPythonInstaller, "get_scip_python_path", return_value=fake_scip_python_path
+        ):
+            with patch("cicada.languages.python.indexer.subprocess.run", side_effect=mock_run):
+                with patch(
+                    "cicada.languages.python.indexer.tempfile.NamedTemporaryFile"
+                ) as mock_temp:
+                    scip_file_path = tmp_path / "test.scip"
+                    mock_temp.return_value.__enter__.return_value.name = str(scip_file_path)
+
+                    with open(scip_file_path, "wb") as f:
+                        f.write(scip_pb2.Index().SerializeToString())
+
+                    indexer._run_scip_python(tmp_path)
+
+        assert "generated/ignored.py" in captured_excludes
+        assert "generated/schema.py" not in captured_excludes
+        assert not (tmp_path / "pyrightconfig.json").exists()
+
     def test_run_scip_python_command_failure(self, indexer, tmp_path):
         """Should raise error when scip-python command fails."""
         with patch("subprocess.run") as mock_run:

@@ -20,6 +20,7 @@ from cicada.languages.python.string_extractor import PythonStringExtractor
 from cicada.languages.scip.converter import SCIPConverter
 from cicada.languages.scip.reader import SCIPReader
 from cicada.parsing.base_indexer import BaseIndexer
+from cicada.utils.gitignore import GitIgnoreFilter
 from cicada.utils.hash_utils import (
     compute_hashes_for_files,
     load_file_hashes,
@@ -822,21 +823,6 @@ class PythonSCIPIndexer(BaseIndexer):
             "  npm install -g @sourcegraph/scip-python"
         )
 
-    @staticmethod
-    def _read_gitignore_patterns(repo_path: Path) -> list[str]:
-        """Read .gitignore and .git/info/exclude patterns for pyrightconfig exclude."""
-        patterns: list[str] = []
-        for path in [repo_path / ".gitignore", repo_path / ".git" / "info" / "exclude"]:
-            if path.is_file():
-                try:
-                    for line in path.read_text().splitlines():
-                        line = line.strip()
-                        if line and not line.startswith("#") and not line.startswith("!"):
-                            patterns.append(line)
-                except OSError:
-                    pass
-        return patterns
-
     def _run_scip_python(self, repo_path: Path, target_only: str | None = None) -> Path:
         """
         Run scip-python indexer on repository.
@@ -858,18 +844,28 @@ class PythonSCIPIndexer(BaseIndexer):
         pyright_config_path = repo_path / "pyrightconfig.json"
         original_pyright_config: str | None = None
 
-        gitignore_patterns = self._read_gitignore_patterns(repo_path)
+        gitignore_filter = GitIgnoreFilter(repo_path)
+        # Pyright does not support gitignore negation semantics in "exclude".
+        # Use concrete ignored files so un-ignored files (via !pattern) stay indexable.
+        ignored_python_files = gitignore_filter.get_ignored_files(suffixes=(".py",))
+
         if pyright_config_path.exists():
             original_pyright_config = pyright_config_path.read_text()
             try:
                 pyright_config = json.loads(original_pyright_config)
             except (json.JSONDecodeError, ValueError):
                 pyright_config = {}
-            existing = set(pyright_config.get("exclude", []))
-            merged = list(existing | set(self.excluded_dirs) | set(gitignore_patterns))
+            raw_existing = pyright_config.get("exclude", [])
+            if isinstance(raw_existing, list):
+                existing = [entry for entry in raw_existing if isinstance(entry, str)]
+            elif isinstance(raw_existing, str):
+                existing = [raw_existing]
+            else:
+                existing = []
+            merged = sorted(set(existing) | self.excluded_dirs | set(ignored_python_files))
             pyright_config["exclude"] = merged
         else:
-            pyright_config = {"exclude": list(self.excluded_dirs) + gitignore_patterns}
+            pyright_config = {"exclude": sorted(self.excluded_dirs | set(ignored_python_files))}
 
         with open(pyright_config_path, "w") as f:
             json.dump(pyright_config, f, indent=2)

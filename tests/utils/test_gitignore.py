@@ -54,6 +54,26 @@ class TestGitIgnoreFilter:
         f = GitIgnoreFilter(tmp_path)
         assert f.is_dir_ignored("tmp")
 
+    def test_comments_and_whitespace_in_gitignore(self, tmp_path):
+        (tmp_path / ".gitignore").write_text("   # comment\n\n  build/\n")
+        f = GitIgnoreFilter(tmp_path)
+        assert f.is_dir_ignored("build")
+
+    def test_get_ignored_files_respects_negation(self, tmp_path):
+        (tmp_path / ".gitignore").write_text("generated/*\n!generated/schema.py\n")
+        generated = tmp_path / "generated"
+        generated.mkdir()
+        (generated / "schema.py").write_text("SCHEMA = {}")
+        (generated / "ignored.py").write_text("x = 1")
+        (generated / "other.txt").write_text("ignored")
+
+        f = GitIgnoreFilter(tmp_path)
+        ignored_py = f.get_ignored_files(suffixes=(".py",))
+
+        assert "generated/ignored.py" in ignored_py
+        assert "generated/schema.py" not in ignored_py
+        assert "generated/other.txt" not in ignored_py
+
 
 class TestBaseIndexerGitignoreIntegration:
     """Verify _find_source_files respects .gitignore via BaseIndexer."""
