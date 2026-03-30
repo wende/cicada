@@ -529,3 +529,8 @@ MIT – see [LICENSE](LICENSE).
 [Get Started](#quick-install) · [Report Issues](https://github.com/wende/cicada/issues)
 
 </div>
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/wende-cicada).
+
