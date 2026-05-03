@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stale index reference in module and function search handlers**
+  - `ModuleSearchHandler` and `FunctionSearchHandler` now read the index through the `IndexManager` on each call, so reloaded indexes are visible to `search_module`, `search_function`, and `expand_result` without a server restart
+  - `query` / `query_jq` (via `AnalysisHandler`) were already correct; this brings the other handlers in line
+  - Handler `__init__` accepts either an `IndexManager` (preferred) or a code index dict (legacy), so existing callers continue to work
+
 ## [0.6.5] - 2026-03-03
 
 ### Added
