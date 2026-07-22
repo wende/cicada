@@ -562,6 +562,31 @@ class TestIndexManagerStalenessCheck:
         assert manager._pr_index is None  # Should be invalidated
         assert manager._has_keywords is False
 
+    def test_handlers_see_index_after_reload(self):
+        """Handlers initialized with IndexManager observe a reloaded index."""
+        from cicada.mcp.handlers.module_handlers import ModuleSearchHandler
+
+        original_index = {"modules": {"old": {}}}
+        new_index = {"modules": {"new": {}}}
+        config = {"storage": {"index_path": "/fake/path"}}
+
+        manager = IndexManager.__new__(IndexManager)
+        manager.config = config
+        manager._index = original_index
+        manager._index_mtime = 100.0
+        manager._pr_index = None
+        manager._has_keywords = False
+
+        handler = ModuleSearchHandler(manager, config)
+        assert handler.index["modules"] == {"old": {}}
+
+        with patch.object(manager, "_get_index_mtime", return_value=200.0):
+            with patch.object(manager, "_load_index", return_value=new_index):
+                with patch.object(manager, "_check_keywords_available", return_value=False):
+                    manager.reload_if_changed()
+
+        assert handler.index["modules"] == {"new": {}}
+
     def test_reload_if_changed_corrupted_index(self):
         """Test reload_if_changed handles corrupted index gracefully."""
         original_index = {"modules": {"original": {}}}

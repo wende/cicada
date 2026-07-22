@@ -671,8 +671,8 @@ def create_tool_router(config: dict) -> tuple[ToolRouter, IndexManager, GitHelpe
         print(f"Warning: Git helper not available: {e}", file=sys.stderr)
 
     # Initialize handlers
-    module_handler = ModuleSearchHandler(index_manager.index, config)
-    function_handler = FunctionSearchHandler(index_manager.index, config)
+    module_handler = ModuleSearchHandler(index_manager, config)
+    function_handler = FunctionSearchHandler(index_manager, config)
     git_handler = GitHistoryHandler(git_helper, config)
     pr_handler = PRHistoryHandler(index_manager.pr_index, config)
     analysis_handler = AnalysisHandler(index_manager)

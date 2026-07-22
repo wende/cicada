@@ -6,12 +6,15 @@ Handles tools for searching functions and analyzing their call sites.
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp.types import TextContent
 
 from cicada.mcp.filter_utils import filter_by_file_type
 from cicada.mcp.pattern_utils import FunctionPattern, parse_function_patterns
+
+if TYPE_CHECKING:
+    from cicada.mcp.handlers.index_manager import IndexManager
 
 
 class FunctionSearchHandler:
@@ -26,18 +29,29 @@ class FunctionSearchHandler:
 
     def __init__(
         self,
-        index: dict[str, Any],
+        index: "IndexManager | dict[str, Any]",
         config: dict[str, Any],
     ):
         """
         Initialize the function search handler.
 
         Args:
-            index: The code index containing modules and functions
+            index: An ``IndexManager`` (preferred) or a code index dict.
+                Passing the manager lets the handler observe reloads.
             config: Configuration dictionary
         """
-        self.index = index
+        self._index_source = index
         self.config = config
+
+    @property
+    def index(self) -> dict[str, Any]:
+        """Return the current code index, read through the source on each access."""
+        source = self._index_source
+        return source.index if hasattr(source, "index") else source
+
+    @index.setter
+    def index(self, value: "IndexManager | dict[str, Any]") -> None:
+        self._index_source = value
 
     def _extract_dependency_contexts(
         self, dependencies: list[dict[str, Any]], file_path: str
