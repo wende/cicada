@@ -71,6 +71,14 @@ def detect_project_language(repo_path: Path) -> str:
     if src_dir.exists() and any(src_dir.glob("*.erl")):
         return "erlang"
 
+    # Check for Gleam marker
+    if (repo_path / "gleam.toml").exists():
+        return "gleam"
+
+    # Fallback: Check for .gleam files in src/ directory (common Gleam convention)
+    if src_dir.exists() and any(src_dir.rglob("*.gleam")):
+        return "gleam"
+
     # Check for TypeScript/JavaScript markers
     ts_markers = ["tsconfig.json", "package.json"]
     for marker in ts_markers:
@@ -125,10 +133,35 @@ def detect_project_language(repo_path: Path) -> str:
     raise ValueError(
         f"Could not detect project language in {repo_path}\n"
         "Expected one of: Python (pyproject.toml), Elixir (mix.exs), Rust (Cargo.toml), "
-        "Erlang (rebar.config), TypeScript/JavaScript (package.json), Go (go.mod), "
-        "Java (build.gradle/pom.xml), Scala (build.sbt), C/C++ (CMakeLists.txt/Makefile), "
-        "Ruby (Gemfile), C# (*.csproj), VB (*.vbproj), Dart (pubspec.yaml)"
+        "Erlang (rebar.config), Gleam (gleam.toml), TypeScript/JavaScript (package.json), "
+        "Go (go.mod), Java (build.gradle/pom.xml), Scala (build.sbt), "
+        "C/C++ (CMakeLists.txt/Makefile), Ruby (Gemfile), C# (*.csproj), "
+        "VB (*.vbproj), Dart (pubspec.yaml)"
     )
+
+
+def _repo_contains_gleam(repo_path: Path) -> bool:
+    src_dir = repo_path / "src"
+    return (repo_path / "gleam.toml").exists() or (
+        src_dir.exists() and any(src_dir.rglob("*.gleam"))
+    )
+
+
+def _merge_embedded_gleam_index(
+    repo_path: Path,
+    index_path: Path,
+    primary_language: str,
+    verbose: bool,
+) -> list[str]:
+    if primary_language == "gleam" or not _repo_contains_gleam(repo_path):
+        return []
+
+    from cicada.languages.gleam.indexer import GleamIndexer
+
+    result = GleamIndexer().merge_repository(repo_path, index_path, verbose=verbose)
+    if not result["success"]:
+        raise RuntimeError("; ".join(result["errors"]))
+    return [".gleam"]
 
 
 def _setup_gitattributes(repo_path: Path) -> None:
@@ -396,7 +429,7 @@ def index_repository(
         # Use standard indexer interface
         indexer = LanguageRegistry.get_indexer(language)
         # Check if indexer supports incremental_index_repository (new unified API)
-        if hasattr(indexer, "incremental_index_repository"):
+        if getattr(indexer, "supports_incremental", False):
             indexer.incremental_index_repository(
                 repo_path=str(repo_path),
                 output_path=str(index_path),
@@ -415,11 +448,18 @@ def index_repository(
                 verbose=verbose,
                 config_path=str(config_path),
             )
+        extra_excluded_extensions = _merge_embedded_gleam_index(
+            repo_path,
+            index_path,
+            language,
+            verbose=verbose,
+        )
         run_generic_indexing_for_language_indexer(
             indexer,
             repo_path,
             index_path,
             verbose=verbose,
+            extra_excluded_extensions=extra_excluded_extensions,
         )
         # Don't print duplicate message - indexer already reports completion
     except Exception as e:

@@ -259,6 +259,7 @@ def run_generic_indexing_for_language_indexer(
     repo_path: str | Path,
     index_path: str | Path,
     verbose: bool = False,
+    extra_excluded_extensions: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """
     Run generic indexing using the extensions reported by a primary language indexer.
@@ -266,7 +267,10 @@ def run_generic_indexing_for_language_indexer(
     return run_generic_indexing(
         repo_path=repo_path,
         index_path=index_path,
-        excluded_extensions=language_indexer.get_file_extensions(),
+        excluded_extensions=[
+            *language_indexer.get_file_extensions(),
+            *(extra_excluded_extensions or []),
+        ],
         verbose=verbose,
     )
 

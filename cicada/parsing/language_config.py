@@ -168,6 +168,17 @@ class LanguageConfig:
         )
 
     @staticmethod
+    def default_gleam() -> "LanguageConfig":
+        """Create default Gleam configuration."""
+        return LanguageConfig(
+            language="gleam",
+            file_extensions=[".gleam"],
+            excluded_dirs=["_build", "build", "deps", ".git", "node_modules"],
+            tree_sitter_grammar="tree-sitter-gleam",
+            comment_syntax={"line": "//"},
+        )
+
+    @staticmethod
     def default_go() -> "LanguageConfig":
         """Create default Go configuration."""
         return LanguageConfig(

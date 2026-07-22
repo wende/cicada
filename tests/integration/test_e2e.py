@@ -2,7 +2,7 @@
 End-to-end integration tests for Cicada.
 """
 
-import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -12,12 +12,28 @@ from cicada.indexer import ElixirIndexer
 from cicada.mcp.server import CicadaServer
 
 
+def write_minimal_elixir_repo(repo_path: Path) -> None:
+    """Create a tiny Elixir repo for tests that only need a valid index."""
+    (repo_path / "sample.ex").write_text(
+        """
+defmodule Test do
+  def hello do
+    "world"
+  end
+end
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture
 def index_path(tmp_path):
     """Fixture to create test index."""
+    write_minimal_elixir_repo(tmp_path)
     indexer = ElixirIndexer()
     output_path = tmp_path / "test_e2e_index.json"
-    indexer.index_repository("tests/fixtures", str(output_path))
+    indexer.index_repository(str(tmp_path), str(output_path))
     yield str(output_path)
 
 
@@ -68,7 +84,7 @@ def test_indexer(tmp_path):
     print(f"  ✓ Total functions: {total_funcs}")
 
 
-def test_mcp_server_initialization(index_path):
+def test_mcp_server_initialization(index_path, tmp_path):
     """Test that the MCP server can initialize and load the index."""
     print("\nTesting MCP server initialization...")
 
@@ -78,13 +94,13 @@ def test_mcp_server_initialization(index_path):
         "storage": {"index_path": index_path},
     }
 
-    test_config_path = "test_config.yaml"
+    test_config_path = tmp_path / "test_config.yaml"
     with open(test_config_path, "w") as f:
         yaml.dump(test_config, f)
 
     try:
         # Initialize server
-        server = CicadaServer(test_config_path)
+        server = CicadaServer(str(test_config_path))
 
         # Verify index was loaded
         assert server.index_manager.index is not None, "Index not loaded"
@@ -95,8 +111,8 @@ def test_mcp_server_initialization(index_path):
 
     finally:
         # Cleanup
-        if os.path.exists(test_config_path):
-            os.remove(test_config_path)
+        if test_config_path.exists():
+            test_config_path.unlink()
 
 
 def test_module_not_found(tmp_path):
@@ -115,12 +131,12 @@ def test_module_not_found(tmp_path):
 
     import yaml
 
-    test_config_path = "test_config.yaml"
+    test_config_path = tmp_path / "test_config.yaml"
     with open(test_config_path, "w") as f:
         yaml.dump(test_config, f)
 
     try:
-        server = CicadaServer(test_config_path)
+        server = CicadaServer(str(test_config_path))
 
         # Search for non-existent module
         import asyncio
@@ -136,17 +152,14 @@ def test_module_not_found(tmp_path):
         print("  ✓ Module not found error handled correctly")
 
     finally:
-        if os.path.exists(test_config_path):
-            os.remove(test_config_path)
+        if test_config_path.exists():
+            test_config_path.unlink()
 
 
 if __name__ == "__main__":
     print("Running end-to-end tests...\n")
 
     try:
-        from pathlib import Path
-        import tempfile
-
         tmp_dir = Path(tempfile.mkdtemp())
 
         # Test indexer
@@ -154,7 +167,7 @@ if __name__ == "__main__":
         index_path = str(tmp_dir / "test_e2e_index.json")
 
         # Test MCP server
-        test_mcp_server_initialization(index_path)
+        test_mcp_server_initialization(index_path, tmp_dir)
 
         # Test error handling
         test_module_not_found(tmp_dir)

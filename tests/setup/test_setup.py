@@ -340,6 +340,64 @@ class TestIndexRepository:
                     with pytest.raises(Exception, match="Indexing failed"):
                         index_repository(mock_repo, language="elixir")
 
+    def test_calls_non_incremental_indexer(self, mock_repo):
+        """Should call index_repository for indexers without incremental support."""
+        with (
+            patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer,
+            patch("cicada.setup.get_index_path") as mock_get_index,
+            patch("cicada.setup.get_config_path") as mock_get_config,
+        ):
+            mock_indexer = MagicMock()
+            mock_indexer.supports_incremental = False
+            mock_indexer.index_repository = MagicMock()
+            mock_indexer.get_file_extensions.return_value = [".gleam"]
+            mock_get_indexer.return_value = mock_indexer
+
+            index_path = mock_repo / "index.json"
+            mock_get_index.return_value = index_path
+
+            config_path = mock_repo / "config.yaml"
+            mock_get_config.return_value = config_path
+
+            index_repository(mock_repo, language="gleam")
+
+            mock_indexer.index_repository.assert_called_once_with(
+                repo_path=str(mock_repo),
+                output_path=str(index_path),
+                force=False,
+                verbose=True,
+                config_path=str(config_path),
+            )
+            mock_indexer.incremental_index_repository.assert_not_called()
+
+    def test_calls_legacy_indexer_without_incremental_flag(self, mock_repo):
+        """Should treat indexers without supports_incremental as non-incremental."""
+        with (
+            patch("cicada.setup.LanguageRegistry.get_indexer") as mock_get_indexer,
+            patch("cicada.setup.get_index_path") as mock_get_index,
+            patch("cicada.setup.get_config_path") as mock_get_config,
+        ):
+            mock_indexer = MagicMock()
+            del mock_indexer.supports_incremental
+            mock_indexer.index_repository = MagicMock()
+            mock_indexer.get_file_extensions.return_value = [".legacy"]
+            mock_get_indexer.return_value = mock_indexer
+
+            index_path = mock_repo / "index.json"
+            mock_get_index.return_value = index_path
+            config_path = mock_repo / "config.yaml"
+            mock_get_config.return_value = config_path
+
+            index_repository(mock_repo, language="legacy")
+
+            mock_indexer.index_repository.assert_called_once_with(
+                repo_path=str(mock_repo),
+                output_path=str(index_path),
+                force=False,
+                verbose=True,
+                config_path=str(config_path),
+            )
+
 
 # ============================================================================
 # Setup Function Tests

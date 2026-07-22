@@ -248,6 +248,15 @@ LanguageRegistry.register_language(
     formatter_class="cicada.languages.erlang.formatter.ErlangFormatter",
 )
 
+# Register Gleam (tree-sitter based - always available)
+LanguageRegistry.register_language(
+    language="gleam",
+    parser_class="cicada.languages.gleam.parser.GleamParser",
+    indexer_class="cicada.languages.gleam.indexer.GleamIndexer",
+    config=LanguageConfig.default_gleam(),
+    formatter_class="cicada.languages.gleam.formatter.GleamFormatter",
+)
+
 # SCIP-based languages
 # Register Python (SCIP-based)
 LanguageRegistry.register_language(

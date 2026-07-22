@@ -16,8 +16,6 @@ from cicada.index_mode import (
     mode_flag_specified,
     validate_mode_flags,
 )
-
-# Import indexing mode resolution functions from centralized module
 from cicada.languages.generic.indexer import run_generic_indexing_for_language_indexer
 
 # Default debounce interval for watch mode (in seconds)
@@ -918,11 +916,20 @@ def handle_index_main(args) -> None:
                 config_path=str(config_path),
             )
 
+        from cicada.setup import _merge_embedded_gleam_index
+
+        extra_excluded_extensions = _merge_embedded_gleam_index(
+            repo_path,
+            index_path,
+            language,
+            verbose=verbose,
+        )
         run_generic_indexing_for_language_indexer(
             indexer,
             repo_path,
             index_path,
             verbose=verbose,
+            extra_excluded_extensions=extra_excluded_extensions,
         )
 
         # If embeddings mode, generate embeddings after the regular index
