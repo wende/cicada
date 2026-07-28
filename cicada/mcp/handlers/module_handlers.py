@@ -46,7 +46,8 @@ class ModuleSearchHandler:
     def index(self) -> dict[str, Any]:
         """Return the current code index, read through the source on each access."""
         source = self._index_source
-        return source.index if hasattr(source, "index") else source
+        result = source.index if hasattr(source, "index") else source
+        return cast("dict[str, Any]", result)
 
     @index.setter
     def index(self, value: "IndexManager | dict[str, Any]") -> None:
