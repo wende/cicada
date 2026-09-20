@@ -3,11 +3,13 @@
 
 # CICADA
 
-mcp-name: io.github.wende/cicada
-
 > [!WARNING]
 > ⚠️ **Disclaimer** — Today's AI agents operate completely differently from when this project was conceived. In current benchmarks, using a code intelligence tool yields little to no advantage for frontier models. **CICADA is discontinued**, and I'd advise against using it or any other "code intelligence" tool.
 
+
+
+
+--- 
 ### **C**ode **I**ntelligence: **C**ontextual **A**nalysis, **D**iscovery, and **A**ttribution
 
 
